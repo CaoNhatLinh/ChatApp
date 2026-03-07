@@ -1,0 +1,20 @@
+# Antigravity & Agent config
+.agent/
+GEMINI.md
+ERRORS.md
+PRODUCTION_AUDIT_REPORT1.md
+lệnh.txt
+
+# Documentation & Readme
+docs/
+README.md
+
+# Virtual Environments
+cassandra-env/
+
+# Standard Ignores
+node_modules/
+.idea/
+.vscode/
+*.log
+.DS_Store

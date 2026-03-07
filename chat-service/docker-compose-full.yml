@@ -1,0 +1,155 @@
+
+services:
+  # ==================== CASSANDRA ====================
+  cassandra:
+    image: cassandra:4.1
+    container_name: chat-cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=ChatCluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=256M
+      - HEAP_NEWSIZE=64M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ../chat_app_master.cql:/docker-entrypoint-initdb.d/init.cql:ro
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ==================== REDIS ====================
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    command: redis-server --notify-keyspace-events Ex
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==================== KAFKA (KRaft Mode - No Zookeeper) ====================
+  kafka:
+    image: bitnamilegacy/kafka:latest
+    container_name: chat-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode configuration
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      # Auto create topics (same as previous config)
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      # Performance tuning for local dev
+      - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ==================== ELASTICSEARCH ====================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: chat-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+      - cluster.name=chat-elasticsearch
+      - node.name=chat-elasticsearch-node-1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - chat-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ==================== KIBANA (DISABLED - Uncomment to enable) ====================
+  # Kibana is a heavy UI for Elasticsearch debugging. Not needed for development.
+  # Use Elasticvue browser extension or Postman to query ES directly instead.
+  #
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:8.11.0
+  #   container_name: chat-kibana
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+  #     - XPACK_SECURITY_ENABLED=false
+  #   ports:
+  #     - "5601:5601"
+  #   depends_on:
+  #     elasticsearch:
+  #       condition: service_healthy
+  #   networks:
+  #     - chat-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 60s
+
+volumes:
+  cassandra-data:
+    driver: local
+  redis-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+networks:
+  chat-network:
+    driver: bridge
+
+# ==================== USAGE ====================
+# 1. Start all services:
+#    docker-compose -f docker-compose-full.yml up -d
+#
+# 2. Check status:
+#    docker-compose -f docker-compose-full.yml ps
+#
+# 3. View logs:
+#    docker-compose -f docker-compose-full.yml logs -f kafka
+#
+# 4. Stop all services:
+#    docker-compose -f docker-compose-full.yml down
+#
+# 5. Remove all data:
+#    docker-compose -f docker-compose-full.yml down -v
+#
+# ==================== RAM ESTIMATE (Active Services) ====================
+# Cassandra:      ~256MB (reduced heap)
+# Redis:          ~30MB  (alpine)
+# Kafka:          ~400MB (KRaft, no Zookeeper)
+# Elasticsearch:  ~256MB (reduced JVM heap from 512m to 256m)
+# TOTAL:          ~950MB (down from ~3-4GB)
