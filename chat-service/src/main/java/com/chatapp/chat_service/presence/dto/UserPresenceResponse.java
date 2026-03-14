@@ -18,6 +18,8 @@ public class UserPresenceResponse {
     private String lastActiveAgo; 
     private Instant lastSeen;     
 
+    private String device;
+
     @JsonProperty("isOnline")
     private boolean isOnline;     
 

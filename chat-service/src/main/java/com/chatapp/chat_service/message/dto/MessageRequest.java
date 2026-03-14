@@ -22,6 +22,10 @@ public class MessageRequest {
     private List<UUID> mentionedUserIds;
     
     private List<FileAttachment> attachments;
+
+    public UUID getReplyToId() {
+        return replyTo;
+    }
     
     @Data
     @NoArgsConstructor

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessengerLayout } from '@/features/messenger/components/MessengerLayout';
+import { MessengerLayout } from '@/widgets/messenger-layout';
 
 export const MessengerPage: React.FC = () => {
     return <MessengerLayout />;

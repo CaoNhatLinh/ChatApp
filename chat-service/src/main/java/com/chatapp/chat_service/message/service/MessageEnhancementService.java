@@ -19,6 +19,7 @@ import com.chatapp.chat_service.message.repository.MessageReadReceiptRepository;
 import com.chatapp.chat_service.message.repository.MessageRepository;
 import com.chatapp.chat_service.message.repository.PinnedMessageRepository;
 import com.chatapp.chat_service.notification.service.NotificationService;
+import com.chatapp.chat_service.common.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MessageEnhancementService {
+
+    private static final int MAX_PINNED_MESSAGES = 5;
 
     private final MessageAttachmentRepository attachmentRepository;
     private final MessageReactionRepository reactionRepository;
@@ -345,6 +348,9 @@ public class MessageEnhancementService {
             pinnedMessageRepository.delete(existing.get());
             log.info("Unpinned message {} in conversation {} by user {}", messageId, conversationId, pinnedBy);
         } else {
+            if (pinnedMessageRepository.countByConversationId(conversationId) >= MAX_PINNED_MESSAGES) {
+                throw new BusinessException("Chi duoc ghim toi da 5 tin nhan trong mot hoi thoai");
+            }
             PinnedMessage pinnedMessage = PinnedMessage.builder()
                     .key(key)
                     .pinnedAt(Instant.now())

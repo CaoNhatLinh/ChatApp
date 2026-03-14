@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { cn } from '@/common/lib/utils';
+﻿import React, { useState, useMemo, useCallback, useRef } from 'react';
+import { cn } from '@/shared/lib/cn';
 import { Check, Clock, Lock, BarChart3, Users, XCircle } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/features/auth/model/auth.store';
 import { votePoll, closePoll, removePollVote } from '../../api/poll.api';
 import type { PollData } from '../../types/messenger.types';
 import { formatDistanceToNow, isPast } from 'date-fns';
@@ -12,7 +12,7 @@ interface PollCardProps {
     onUpdate?: (updatedPoll: PollData) => void;
 }
 
-import { useMessengerStore } from '@/store/messengerStore';
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 
 export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate }) => {
     const currentUser = useAuthStore(state => state.user);

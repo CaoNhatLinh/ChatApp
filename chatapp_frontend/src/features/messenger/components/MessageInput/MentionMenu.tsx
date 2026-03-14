@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { cn } from '@/common/lib/utils';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { cn } from '@/shared/lib/cn';
 import { Users, AtSign, Loader2 } from 'lucide-react';
 import type { ConversationMember } from '../../types/messenger.types';
 import { getConversationMembers } from '../../api/poll.api';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/features/auth/model/auth.store';
 
 interface MentionMenuProps {
     conversationId: string;

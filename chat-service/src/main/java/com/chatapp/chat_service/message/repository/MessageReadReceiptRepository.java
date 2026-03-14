@@ -18,6 +18,9 @@ public interface MessageReadReceiptRepository extends CassandraRepository<Messag
     @Query("SELECT * FROM message_read_receipts WHERE conversation_id = ?0 AND reader_id = ?1")
     List<MessageReadReceipt> findByConversationIdAndReaderId(UUID conversationId, UUID readerId);
 
+    @Query("SELECT * FROM message_read_receipts WHERE conversation_id = ?0 AND message_id IN ?1")
+    List<MessageReadReceipt> findByConversationIdAndMessageIdIn(UUID conversationId, List<UUID> messageIds);
+
     @Query("SELECT COUNT(*) FROM message_read_receipts WHERE conversation_id = ?0 AND message_id = ?1")
     long countByConversationIdAndMessageId(UUID conversationId, UUID messageId);
 }

@@ -28,6 +28,7 @@ public class ConversationResponseDto {
     private LastMessageDto lastMessage;
     
     private Integer memberCount;
+    private Integer unreadCount;
     
     private boolean isPinned;
     private Instant lastActivityAt;

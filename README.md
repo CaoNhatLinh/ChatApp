@@ -51,6 +51,7 @@ Each module has its own detailed documentation. Please refer to them for specifi
 
 - 🔗 **[Backend (chat-service) README](./chat-service/README.md)**
 - 🔗 **[Backend API Reference & Endpoints](./chat-service/API_REFERENCE.md)**
+- 🔗 **[Social & Messaging Technical Guide](./TECHNICAL_SOCIAL_MESSAGING.md)**
 - 🔗 **[Incomplete Features (Backend)](./chat-service/INCOMPLETE_FEATURES.md)**
 - 🔗 **[Roadmap & Future Plans (Backend)](./chat-service/ROADMAP.md)**
 

@@ -17,6 +17,11 @@ import com.chatapp.chat_service.conversation.repository.ConversationRepository;
 import com.chatapp.chat_service.conversation.repository.UserConversationRepository;
 import com.chatapp.chat_service.conversation.entity.UserConversation;
 import com.chatapp.chat_service.elasticsearch.document.ConversationDocument;
+import com.chatapp.chat_service.message.entity.Message;
+import com.chatapp.chat_service.message.entity.MessageReadReceipt;
+import com.chatapp.chat_service.message.repository.MessageRepository;
+import com.chatapp.chat_service.message.repository.MessageReadReceiptRepository;
+import com.chatapp.chat_service.common.exception.BusinessException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -29,9 +34,12 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ConversationService {
+
+    private static final int MAX_PINNED_CONVERSATIONS = 5;
     private static final Logger logger = LoggerFactory.getLogger(ConversationService.class);
     private static final Duration CACHE_TTL = Duration.ofHours(1);
     
@@ -41,6 +49,8 @@ public class ConversationService {
     private final UserConversationRepository userConversationRepository;
     private final RedisCacheEvictPublisher cacheEvictPublisher;
     private final UserService userService;
+    private final MessageRepository messageRepository;
+    private final MessageReadReceiptRepository messageReadReceiptRepository;
     
     @Autowired(required = false)
     private ConversationElasticsearchService conversationElasticsearchService;
@@ -51,13 +61,17 @@ public class ConversationService {
             ConversationMemberRepository memberRepository,
             UserConversationRepository userConversationRepository,
             RedisCacheEvictPublisher cacheEvictPublisher,
-            UserService userService) {
+            UserService userService,
+            MessageRepository messageRepository,
+            MessageReadReceiptRepository messageReadReceiptRepository) {
         this.redisTemplate = redisTemplate;
         this.conversationRepository = conversationRepository;
         this.memberRepository = memberRepository;
         this.userConversationRepository = userConversationRepository;
         this.cacheEvictPublisher = cacheEvictPublisher;
         this.userService = userService;
+        this.messageRepository = messageRepository;
+        this.messageReadReceiptRepository = messageReadReceiptRepository;
     }
 
     public org.springframework.data.domain.Slice<UserConversation> getUserConversations(UUID userId, Pageable pageable) {
@@ -430,7 +444,9 @@ public class ConversationService {
                 .updatedAt(conversation.getUpdatedAt())
                 .isDeleted(conversation.isDeleted())
                 .isPinned(isPinned)
-                .lastActivityAt(lastActivityAt);
+                .lastActivityAt(lastActivityAt)
+                .unreadCount(countUnreadMessages(conversation.getConversationId(), currentUserId))
+                .lastMessage(buildLastMessage(conversation.getConversationId()));
         
         if ("dm".equals(conversation.getType())) {
             ConversationResponseDto.UserProfileDto otherParticipant = findOtherParticipant(conversation, currentUserId);
@@ -446,6 +462,28 @@ public class ConversationService {
         }
 
         return builder.build();
+    }
+
+    private ConversationResponseDto.LastMessageDto buildLastMessage(UUID conversationId) {
+        List<Message> messages = messageRepository.findByConversationIdWithLimit(conversationId, 1);
+        if (messages.isEmpty()) {
+            return null;
+        }
+
+        Message latestMessage = messages.get(0);
+        com.chatapp.chat_service.auth.dto.UserDTO sender = userService.getUserProfile(latestMessage.getSenderId());
+        String senderName = sender.getDisplayName() != null && !sender.getDisplayName().isBlank()
+                ? sender.getDisplayName()
+                : sender.getUserName();
+
+        return ConversationResponseDto.LastMessageDto.builder()
+                .messageId(latestMessage.getKey().getMessageId())
+                .senderId(latestMessage.getSenderId())
+                .senderName(senderName)
+                .content(latestMessage.isDeleted() ? "Tin nhắn đã bị xóa" : latestMessage.getContent())
+                .messageType(latestMessage.getType())
+                .createdAt(latestMessage.getCreatedAt())
+                .build();
     }
     
     private ConversationResponseDto.UserProfileDto findOtherParticipant(Conversation conversation, UUID currentUserId) {
@@ -479,6 +517,25 @@ public class ConversationService {
     
     private Integer getMemberCount(UUID conversationId) {
         return (int) memberRepository.countByKeyConversationId(conversationId);
+    }
+
+    private int countUnreadMessages(UUID conversationId, UUID userId) {
+        List<Message> messages = messageRepository.findAllByConversationId(conversationId);
+        if (messages.isEmpty()) {
+            return 0;
+        }
+
+        Set<UUID> readMessageIds = messageReadReceiptRepository.findByConversationIdAndReaderId(conversationId, userId)
+                .stream()
+                .map(MessageReadReceipt::getKey)
+                .map(MessageReadReceipt.MessageReadReceiptKey::getMessageId)
+                .collect(Collectors.toSet());
+
+        return (int) messages.stream()
+                .filter(message -> !message.isDeleted())
+                .filter(message -> !userId.equals(message.getSenderId()))
+                .filter(message -> !readMessageIds.contains(message.getKey().getMessageId()))
+                .count();
     }
     
     public Conversation getOrCreateDMConversation(UUID userId1, UUID userId2) {
@@ -545,6 +602,15 @@ public class ConversationService {
         if (userConvOpt.isPresent()) {
             UserConversation userConv = userConvOpt.get();
             if (userConv.getKey().isPinned()) return true; 
+
+            long pinnedCount = userConversationRepository.findByUserId(userId, org.springframework.data.domain.PageRequest.of(0, 100))
+                    .getContent()
+                    .stream()
+                    .filter(uc -> uc.getKey().isPinned())
+                    .count();
+            if (pinnedCount >= MAX_PINNED_CONVERSATIONS) {
+                throw new BusinessException("Chi duoc ghim toi da 5 hoi thoai");
+            }
             
             userConversationRepository.delete(userConv);
             

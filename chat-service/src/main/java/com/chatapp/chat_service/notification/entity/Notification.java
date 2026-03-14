@@ -47,6 +47,7 @@ public class Notification {
     public static class NotificationType {
         public static final String MESSAGE = "MESSAGE";
         public static final String MENTION = "MENTION";
+        public static final String REPLY = "REPLY";
         public static final String REACTION = "REACTION";
         public static final String FRIEND_REQUEST = "FRIEND_REQUEST";
         public static final String CONVERSATION_INVITE = "CONVERSATION_INVITE";

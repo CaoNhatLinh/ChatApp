@@ -51,6 +51,12 @@ public class NotificationService {
         creationService.createMentionNotification(recipientId, mentionerId, mentionerName, conversationId, messageId, messageContent);
     }
 
+    public void createReplyNotification(UUID recipientId, UUID replierId, String replierName,
+                                        UUID conversationId, UUID messageId, UUID replyToMessageId,
+                                        String messageContent) {
+        creationService.createReplyNotification(recipientId, replierId, replierName, conversationId, messageId, replyToMessageId, messageContent);
+    }
+
     public void createFriendRequestNotification(UUID recipientId, UUID requesterId, String requesterName) {
         creationService.createFriendRequestNotification(recipientId, requesterId, requesterName);
     }

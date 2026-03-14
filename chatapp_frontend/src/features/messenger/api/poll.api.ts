@@ -1,4 +1,4 @@
-import apiClient from '@/common/lib/api-client';
+﻿import apiClient from '@/shared/api/apiClient';
 import type { PollData, CreatePollRequest } from '../types/messenger.types';
 import type { ConversationMember } from '../types/messenger.types';
 

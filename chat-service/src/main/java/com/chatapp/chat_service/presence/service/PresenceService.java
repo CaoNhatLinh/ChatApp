@@ -4,6 +4,7 @@ import com.chatapp.chat_service.auth.entity.User;
 import com.chatapp.chat_service.auth.repository.UserRepository;
 import com.chatapp.chat_service.presence.dto.UserPresenceResponse;
 import com.chatapp.chat_service.presence.event.OnlineStatusEvent;
+import com.chatapp.chat_service.websocket.service.WebSocketConnectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisCallback;
@@ -40,6 +41,7 @@ public class PresenceService {
     private final RedisTemplate<String, String> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
+    private final WebSocketConnectionService webSocketConnectionService;
 
 
     private static final String USER_SESSIONS_KEY = "presence:sessions:%s";
@@ -402,6 +404,7 @@ public class PresenceService {
                         .userId(userId)
                         .isOnline(isOnline)
                         .status(status)
+                    .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
                         .lastSeen(lastActive)
                         .lastActiveAgo(UserPresenceResponse.formatLastActive(lastActive))
                         .build());
@@ -448,6 +451,7 @@ public class PresenceService {
                 .userId(userId)
                 .online(isOnline)
                 .status(status)
+            .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
                 .timestamp(Instant.now())
                 .build();
 

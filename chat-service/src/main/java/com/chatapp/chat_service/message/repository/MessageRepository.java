@@ -37,4 +37,7 @@ public interface MessageRepository extends CassandraRepository<Message, Message.
 
     @Query("SELECT * FROM messages_by_conversation WHERE conversation_id = ?0 AND message_id IN ?1")
     List<Message> findByConversationIdAndMessageIdIn(UUID conversationId, List<UUID> messageIds);
+
+    @Query("SELECT * FROM messages_by_conversation WHERE conversation_id = ?0")
+    List<Message> findAllByConversationId(UUID conversationId);
 }

@@ -29,10 +29,13 @@ public interface FriendshipRepository extends CassandraRepository<Friendship, Fr
             org.springframework.data.domain.Pageable pageable
     );
 
+    @Query("SELECT COUNT(*) FROM accepted_friendships WHERE user_id = ?0")
+    long countAcceptedByUserId(UUID userId);
+
     @Query("SELECT * FROM pending_friend_requests WHERE friend_id = ?0")
     org.springframework.data.domain.Slice<Friendship> findReceivedFriendRequests(UUID friendId, org.springframework.data.domain.Pageable pageable);
 
-    @Query("SELECT * FROM pending_friend_requests WHERE friend_id = ?0")
+    @Query("SELECT * FROM friendships WHERE user_id = ?0 AND status = 'PENDING' ALLOW FILTERING")
     org.springframework.data.domain.Slice<Friendship> findPendingFriendRequests(UUID userId, org.springframework.data.domain.Pageable pageable);
 
     @Query("SELECT * FROM blocked_relationships WHERE user_id = ?0")

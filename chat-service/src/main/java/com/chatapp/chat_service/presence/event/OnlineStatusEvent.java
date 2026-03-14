@@ -27,6 +27,8 @@ public class OnlineStatusEvent {
      */
     @Builder.Default
     private String status = "ONLINE";
+
+    private String device;
     
     private Instant timestamp;
     

@@ -13,17 +13,24 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import com.chatapp.chat_service.elasticsearch.service.NotificationElasticsearchService;
+
 /**
  * Handles creating notifications for various event types:
  * messages, reactions, mentions, friend requests, invites, polls, pins, system
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationCreationService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificationCreationService.class);
+
     private final NotificationRepository notificationRepository;
     private final NotificationHelper helper;
+    
+    @Autowired(required = false)
+    private NotificationElasticsearchService elasticsearchService;
 
     public NotificationDto createNotification(UUID userId, String title, String body, String type, Map<String, Object> metadata) {
         NotificationDto dto = saveNotification(userId, title, body, type, metadata);
@@ -48,6 +55,10 @@ public class NotificationCreationService {
         notificationRepository.save(notification);
         helper.clearUserNotificationCache(userId);
         helper.incrementUnreadCount(userId);
+        
+        if (elasticsearchService != null) {
+            elasticsearchService.indexNotification(notification);
+        }
 
         log.info("Saved notification {} for user {} in database", notificationId, userId);
         return helper.mapToDto(notification);
@@ -94,6 +105,22 @@ public class NotificationCreationService {
         String body = messageContent.length() > 100 ? messageContent.substring(0, 100) + "..." : messageContent;
 
         createNotification(recipientId, title, body, Notification.NotificationType.MENTION, metadata);
+    }
+
+    public void createReplyNotification(UUID recipientId, UUID replierId, String replierName,
+                                        UUID conversationId, UUID messageId, UUID replyToMessageId,
+                                        String messageContent) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("conversationId", conversationId.toString());
+        metadata.put("messageId", messageId.toString());
+        metadata.put("replyToMessageId", replyToMessageId.toString());
+        metadata.put("replierId", replierId.toString());
+        metadata.put("replierName", replierName);
+
+        String title = replierName + " replied to your message";
+        String body = messageContent.length() > 100 ? messageContent.substring(0, 100) + "..." : messageContent;
+
+        createNotification(recipientId, title, body, Notification.NotificationType.REPLY, metadata);
     }
 
     public void createFriendRequestNotification(UUID recipientId, UUID requesterId, String requesterName) {

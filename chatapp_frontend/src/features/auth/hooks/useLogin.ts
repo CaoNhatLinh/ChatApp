@@ -1,10 +1,10 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { login as loginApi } from '../api/auth.api';
 import type { LoginRequest } from '../types/auth.types';
-import { useAuthStore } from '@/store/authStore';
-import { logger } from '@/common/lib/logger';
+import { useAuthStore } from '@/features/auth/model/auth.store';
+import { logger } from '@/shared/lib/logger';
 import { toast } from 'react-hot-toast';
 
 export const useLogin = () => {

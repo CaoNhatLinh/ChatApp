@@ -18,8 +18,9 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class WebSocketConnectionService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WebSocketConnectionService.class);
 
     private final RedisTemplate<String, String> redisTemplate;
 
@@ -261,7 +262,7 @@ public class WebSocketConnectionService {
         Set<String> userSessionKeys = new HashSet<>();
         try {
             redisTemplate.execute((RedisCallback<Void>) connection -> {
-                Cursor<byte[]> cursor = connection.scan(
+                Cursor<byte[]> cursor = connection.keyCommands().scan(
                         ScanOptions.scanOptions().match(pattern).count(100).build()
                 );
                 while (cursor.hasNext()) {
@@ -338,5 +339,15 @@ public class WebSocketConnectionService {
         } catch (Exception e) {
             log.error("Error updating device info for user: {}, session: {}", userId, sessionId, e);
         }
+    }
+
+    public String getPrimaryDevice(UUID userId) {
+        return getActiveSessions(userId).stream()
+                .map(this::getSessionInfo)
+                .filter(Objects::nonNull)
+                .map(info -> info.get("device"))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 }

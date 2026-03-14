@@ -53,6 +53,7 @@ public class MessageMapper {
                 new ArrayList<>(),
                 null,
                 null,
+            new ArrayList<>(),
                 currentUserId
         );
     }
@@ -68,6 +69,7 @@ public class MessageMapper {
             List<String> mentionedUserIds,
             ReplyToDto replyTo,
             PollDto poll,
+            List<MessageResponseDto.MessageReadReceiptDto> readReceipts,
             UUID currentUserId) {
         
         UUID messageId = message.getKey().getMessageId();
@@ -86,6 +88,7 @@ public class MessageMapper {
                 .replyTo(replyTo)
                 .replyType(replyTo != null ? "Message" : null)
                 .poll(poll)
+                .readReceipts(readReceipts != null ? readReceipts : new ArrayList<>())
                 .isForwarded(false)
                 .isDeleted(message.isDeleted())
                 .createdAt(message.getCreatedAt())

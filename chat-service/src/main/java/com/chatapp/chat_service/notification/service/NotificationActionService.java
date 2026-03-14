@@ -11,17 +11,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import com.chatapp.chat_service.elasticsearch.service.NotificationElasticsearchService;
+
 /**
  * Handles notification state mutations:
  * mark read, bulk read, delete, delete all
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationActionService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(NotificationActionService.class);
+
     private final NotificationRepository notificationRepository;
     private final NotificationHelper helper;
+
+    @Autowired(required = false)
+    private NotificationElasticsearchService elasticsearchService;
 
     public void markAsRead(UUID userId, UUID notificationId) {
         notificationRepository.markAsRead(userId, notificationId);
@@ -69,6 +76,10 @@ public class NotificationActionService {
         notificationRepository.deleteByUserIdAndNotificationId(userId, notificationId);
         helper.clearUserNotificationCache(userId);
         helper.invalidateUnreadCount(userId);
+        
+        if (elasticsearchService != null) {
+            elasticsearchService.deleteNotification(notificationId, userId);
+        }
 
         Map<String, Object> update = new HashMap<>();
         update.put("notificationId", notificationId);
@@ -82,6 +93,10 @@ public class NotificationActionService {
         notificationRepository.deleteByUserId(userId);
         helper.clearUserNotificationCache(userId);
         helper.invalidateUnreadCount(userId);
+        
+        if (elasticsearchService != null) {
+            elasticsearchService.deleteAllNotificationsByUserId(userId);
+        }
 
         Map<String, Object> update = new HashMap<>();
         update.put("action", "DELETE_ALL");

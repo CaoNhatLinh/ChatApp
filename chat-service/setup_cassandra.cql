@@ -76,17 +76,7 @@ CREATE TABLE IF NOT EXISTS friendships (
 ) WITH CLUSTERING ORDER BY (friend_id ASC)
     AND compaction = {'class': 'LeveledCompactionStrategy'};
 
--- Table friend_requests (missing in original master schema)
-CREATE TABLE IF NOT EXISTS friend_requests (
-    request_id uuid,
-    from_user_id uuid,
-    to_user_id uuid,
-    message text,
-    status text,
-    created_at timestamp,
-    responded_at timestamp,
-    PRIMARY KEY (request_id)
-);
+-- friend_requests table removed - logic integrated into friendships table with PENDING status
 
 CREATE TABLE IF NOT EXISTS message_attachments (
     conversation_id uuid,
@@ -161,6 +151,17 @@ CREATE TABLE IF NOT EXISTS pinned_messages (
     PRIMARY KEY (conversation_id, message_id)
 );
 
+CREATE TABLE IF NOT EXISTS message_revisions (
+    conversation_id uuid,
+    message_id timeuuid,
+    revision_number int,
+    content text,
+    edited_at timestamp,
+    edited_by uuid,
+    action text,
+    PRIMARY KEY ((conversation_id, message_id), revision_number)
+) WITH CLUSTERING ORDER BY (revision_number DESC);
+
 CREATE TABLE IF NOT EXISTS poll_votes (
     poll_id uuid,
     user_id uuid,
@@ -196,26 +197,28 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- ==================== MATERIALIZED VIEWS ====================
 
+-- ==================== MATERIALIZED VIEWS ====================
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS accepted_friendships AS
     SELECT user_id, friend_id, created_at, status
     FROM friendships
-    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status IS NOT NULL
-    PRIMARY KEY (user_id, friend_id)
-WITH CLUSTERING ORDER BY (friend_id ASC);
+    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status = 'ACCEPTED'
+    PRIMARY KEY (user_id, status, friend_id)
+WITH CLUSTERING ORDER BY (status ASC, friend_id ASC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS blocked_relationships AS
     SELECT user_id, friend_id, status, updated_at
     FROM friendships
-    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status IS NOT NULL
-    PRIMARY KEY (user_id, friend_id)
-WITH CLUSTERING ORDER BY (friend_id ASC);
+    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status = 'BLOCKED'
+    PRIMARY KEY (user_id, status, friend_id)
+WITH CLUSTERING ORDER BY (status ASC, friend_id ASC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS pending_friend_requests AS
     SELECT friend_id, user_id, created_at, status
     FROM friendships
-    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status IS NOT NULL
-    PRIMARY KEY (friend_id, user_id)
-WITH CLUSTERING ORDER BY (user_id ASC);
+    WHERE user_id IS NOT NULL AND friend_id IS NOT NULL AND status = 'PENDING'
+    PRIMARY KEY (friend_id, status, user_id)
+WITH CLUSTERING ORDER BY (status ASC, user_id ASC);
 
 CREATE TABLE IF NOT EXISTS user_conversations (
     user_id uuid,

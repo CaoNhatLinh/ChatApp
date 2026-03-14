@@ -18,6 +18,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import com.chatapp.chat_service.elasticsearch.service.NotificationElasticsearchService;
+
 /**
  * Handles querying and reading notifications:
  * paginated lists, filtering, search, stats, unread count
@@ -117,7 +120,23 @@ public class NotificationQueryService {
                 .collect(Collectors.toList());
     }
 
+    @Autowired(required = false)
+    private NotificationElasticsearchService elasticsearchService;
+
+
     public List<NotificationDto> searchNotifications(UUID userId, String searchTerm, int limit) {
+        if (elasticsearchService != null) {
+            return elasticsearchService.searchNotifications(userId, searchTerm, limit).stream()
+                    .map(helper::mapToDto)
+                    .collect(Collectors.toList());
+        }
+        
+        // Fallback to old deprecated method if Elasticsearch is disabled
+        return searchNotificationsFallback(userId, searchTerm, limit);
+    }
+    
+    @SuppressWarnings("deprecation")
+    private List<NotificationDto> searchNotificationsFallback(UUID userId, String searchTerm, int limit) {
         return notificationRepository.searchByUserIdAndContent(userId, searchTerm, limit).stream()
                 .map(helper::mapToDto)
                 .collect(Collectors.toList());
@@ -133,7 +152,7 @@ public class NotificationQueryService {
         Instant weekAgo = Instant.now().minus(7, ChronoUnit.DAYS);
         long weeklyCount = notificationRepository.countByUserIdAndCreatedAtAfter(userId, weekAgo);
 
-        List<String> types = List.of("MESSAGE", "REACTION", "MENTION", "FRIEND_REQUEST", "CONVERSATION_INVITE", "POLL", "PIN_MESSAGE", "SYSTEM");
+        List<String> types = List.of("MESSAGE", "REACTION", "MENTION", "REPLY", "FRIEND_REQUEST", "CONVERSATION_INVITE", "POLL", "PIN_MESSAGE", "SYSTEM");
         
         Map<String, Long> typeStats = types.parallelStream()
                 .map(type -> new AbstractMap.SimpleEntry<>(type, notificationRepository.countByUserIdAndType(userId, type)))

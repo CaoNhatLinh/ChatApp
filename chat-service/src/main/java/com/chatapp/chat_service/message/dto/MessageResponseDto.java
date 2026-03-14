@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,6 +34,7 @@ public class MessageResponseDto {
     private Instant createdAt;
     private Instant updatedAt;
     private PollDto poll;
+    private List<MessageReadReceiptDto> readReceipts;
     
     // Block status: true if the viewer has blocked this message's sender
     private boolean senderBlockedByViewer;
@@ -55,5 +55,14 @@ public class MessageResponseDto {
         private String thumbnailUrl; 
         private String mediumUrl;    
         private String format;       
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MessageReadReceiptDto {
+        private UUID readerId;
+        private Instant readAt;
     }
 }

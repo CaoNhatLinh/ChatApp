@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, Plus, Trash2, BarChart3, Clock, CheckSquare, Square } from 'lucide-react';
-import { cn } from '@/common/lib/utils';
+import { cn } from '@/shared/lib/cn';
 import type { CreatePollRequest } from '../../types/messenger.types';
 
 interface CreatePollModalProps {

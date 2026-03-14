@@ -6,7 +6,9 @@ import com.chatapp.chat_service.message.dto.AggregatedReactionDto;
 import com.chatapp.chat_service.message.dto.MessageAttachmentDto;
 import com.chatapp.chat_service.message.dto.MessageReactionDto;
 import com.chatapp.chat_service.message.dto.MessageRequest;
+import com.chatapp.chat_service.message.dto.MessageRevisionDto;
 import com.chatapp.chat_service.message.dto.MessageResponseDto;
+import com.chatapp.chat_service.message.dto.UpdateMessageRequest;
 import com.chatapp.chat_service.message.entity.MessageReadReceipt;
 import com.chatapp.chat_service.message.entity.PinnedMessage;
 import com.chatapp.chat_service.message.event.MessageEvent;
@@ -185,6 +187,37 @@ public class MessageController {
         UUID readerId = extractUserIdFromAuthentication(authentication);
         enhancementService.markAsRead(conversationId, messageId, readerId);
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{conversationId}/{messageId}")
+    public ResponseEntity<MessageResponseDto> editMessage(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            @RequestBody UpdateMessageRequest request,
+            Authentication authentication
+    ) {
+        UUID editorId = extractUserIdFromAuthentication(authentication);
+        return ResponseEntity.ok(messageService.editMessage(conversationId, messageId, request.getContent(), editorId));
+    }
+
+    @DeleteMapping("/{conversationId}/{messageId}")
+    public ResponseEntity<MessageResponseDto> deleteMessage(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            Authentication authentication
+    ) {
+        UUID requesterId = extractUserIdFromAuthentication(authentication);
+        return ResponseEntity.ok(messageService.deleteMessage(conversationId, messageId, requesterId));
+    }
+
+    @GetMapping("/{conversationId}/{messageId}/revisions")
+    public ResponseEntity<List<MessageRevisionDto>> getMessageRevisions(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            Authentication authentication
+    ) {
+        UUID requesterId = extractUserIdFromAuthentication(authentication);
+        return ResponseEntity.ok(messageService.getMessageRevisions(conversationId, messageId, requesterId));
     }
 
     @GetMapping("/{conversationId}/{messageId}/read-receipts")

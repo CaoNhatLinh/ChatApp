@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, Loader2, Users, Check, Hash, LayoutGrid, ArrowRight, Camera } from 'lucide-react';
-import { searchUsers } from '../../api/users.api';
 import { createConversation } from '../../api/messenger.api';
 import type { User, ConversationType } from '../../types/messenger.types';
-import { useMessenger } from '../../hooks/useMessenger';
-import { useAuthStore } from '@/store/authStore';
-import { cn } from '@/common/lib/utils';
+import { useMessenger } from '../../model/useMessenger';
+import { cn } from '@/shared/lib/cn';
+import { useUserSearch } from '@/shared/hooks/useUserSearch';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -22,15 +21,14 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const [roomType, setRoomType] = useState<ConversationType>('group');
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<User[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+
+    // Sử dụng Custom Hook thay cho code duplicate
+    const { searchResults, isSearching, setSearchResults } = useUserSearch(searchTerm);
 
     const [isCreating, setIsCreating] = useState(false);
 
     const { selectConversation, hoistConversation } = useMessenger();
-    const { user: currentUser } = useAuthStore();
-
     // Reset state when opened/closed
     useEffect(() => {
         if (!isOpen) {
@@ -42,33 +40,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             setSelectedUsers([]);
             setSearchResults([]);
         }
-    }, [isOpen]);
+    }, [isOpen, setSearchResults]);
 
-    // Debounced search
-    useEffect(() => {
-        if (step !== 'members') return;
 
-        const fetchUsers = async () => {
-            if (searchTerm.trim().length < 2) {
-                setSearchResults([]);
-                return;
-            }
-
-            setIsSearching(true);
-            try {
-                const results = await searchUsers(searchTerm);
-                setSearchResults(results.filter(u => u.userId !== currentUser?.userId));
-            } catch (error) {
-                console.error("Failed to search users", error);
-                setSearchResults([]);
-            } finally {
-                setIsSearching(false);
-            }
-        };
-
-        const timeoutId = setTimeout(fetchUsers, 500);
-        return () => clearTimeout(timeoutId);
-    }, [searchTerm, currentUser?.userId, step]);
 
     const handleToggleUser = (user: User) => {
         setSelectedUsers(prev => {

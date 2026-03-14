@@ -1,9 +1,9 @@
 // src/App.tsx
-import { AppRoutes } from "@/router/routes";
-import { AuthProvider } from "@/context/AuthContext";
-import { useAuthStore } from '@/store/authStore';
+import { AppRoutes } from "@/app/router";
+import { AuthProvider } from "@/app/providers/AuthProvider";
+import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useEffect } from 'react';
-import { PresenceManager } from '@/components/PresenceManager';
+import { PresenceManager } from '@/app/providers/PresenceManager';
 
 function App() {
   const initializeAuth = useAuthStore(state => state.initializeAuth);

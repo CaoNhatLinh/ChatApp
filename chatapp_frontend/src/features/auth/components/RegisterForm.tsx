@@ -1,18 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { User, Lock, UserCircle, UserPlus, ArrowLeft } from 'lucide-react';
-import { useRegister } from '../hooks/useRegister';
+import { useRegisterForm } from '../hooks/useRegisterForm';
 
 export const RegisterForm: React.FC = () => {
-    const [display_name, setDisplayName] = useState('');
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-
-    const { handleRegister, loading, error } = useRegister();
-
-    const onSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        void handleRegister({ display_name, username, password });
-    };
+    const {
+        display_name, setDisplayName,
+        username, setUsername,
+        password, setPassword,
+        onSubmit, loading, error
+    } = useRegisterForm();
 
     return (
         <form onSubmit={onSubmit} className="space-y-5">

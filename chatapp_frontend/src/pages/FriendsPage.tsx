@@ -1,13 +1,13 @@
-import { FriendItem } from "@/components/friend/FriendItem";
-import { FriendList } from "@/components/friend/FriendList";
-import UserSearch from "@/components/friend/UserSearch";
-import { useAuthStore } from "@/store/authStore";
-import { useFriendStore } from "@/store/friendStore";
+import { FriendItem } from "@/features/relationships/components/friend/FriendItem";
+import { FriendList } from "@/features/relationships/components/friend/FriendList";
+import UserSearch from "@/features/relationships/components/friend/UserSearch";
+import { useAuthStore } from "@/features/auth/model/auth.store";
+import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Users, UserPlus, UserCheck } from "lucide-react";
-import type { FriendDetails } from "@/types/friend";
-import { ReceivedRequestPage } from "@/components/friend/ReceivedRequestPage";
-import type { UserDTO } from "@/types";
+import type { FriendDetails } from "@/features/relationships/model/friend.types";
+import { ReceivedRequestPage } from "@/features/relationships/components/friend/ReceivedRequestPage";
+import type { UserDTO } from "@/entities/user/model/user.types";
 
 export const FriendsPage = () => {
   const { searchResults, sendFriendRequest, pendingRequests, friends, fetchSentRequests, fetchFriends } = useFriendStore();
@@ -20,8 +20,8 @@ export const FriendsPage = () => {
     if (!user?.userId) {
       return;
     }
-    void fetchSentRequests(user.userId);
-    void fetchFriends(user.userId);
+    void fetchSentRequests();
+    void fetchFriends();
   }, [fetchSentRequests, fetchFriends, user?.userId]);
 
   const addFriendHandle = async (friend: UserDTO): Promise<void> => {
@@ -30,7 +30,7 @@ export const FriendsPage = () => {
         console.error("User not found");
         return;
       }
-      await sendFriendRequest(user.userId, friend.userId);
+      await sendFriendRequest(friend.userId);
     } catch (error) {
       console.error("Error sending friend request:", error instanceof Error ? error.message : error);
     }

@@ -1,26 +1,42 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useMessenger } from '@/features/messenger/hooks/useMessenger';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useMessenger } from '@/features/messenger/model/useMessenger';
 import { Send, Smile, Paperclip, Image, Mic, BarChart3 } from 'lucide-react';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
-import { cn } from '@/common/lib/utils';
+import { cn } from '@/shared/lib/cn';
 import { MentionMenu } from './MentionMenu';
 import { getMentionQuery, insertMention } from '../../utils/mention.utils';
 import { CreatePollModal } from '../Poll/CreatePollModal';
 import { createPoll } from '../../api/poll.api';
-import { friendApi } from '@/api/friendApi';
-import { useMessengerStore } from '@/store/messengerStore';
-import { useAuthStore } from '@/store/authStore';
-import { useFriendStore } from '@/store/friendStore';
+import { friendApi } from '@/features/relationships/api/friends.api';
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+import { useAuthStore } from '@/features/auth/model/auth.store';
+import { useFriendStore } from '@/features/relationships/model/friend.store';
 import type { CreatePollRequest } from '../../types/messenger.types';
+import type { Attachment, Message } from '../../types/messenger.types';
 
-export const MessageInput: React.FC = () => {
+interface MessageInputProps {
+    replyingTo?: Message | null;
+    editingMessage?: Message | null;
+    onCancelReply?: () => void;
+    onCancelEdit?: () => void;
+}
+
+export const MessageInput: React.FC<MessageInputProps> = ({
+    replyingTo,
+    editingMessage,
+    onCancelReply,
+    onCancelEdit,
+}) => {
     const [text, setText] = useState('');
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showPollModal, setShowPollModal] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const { sendMessage, sendTyping, activeConversationId } = useMessenger();
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const mediaInputRef = useRef<HTMLInputElement>(null);
 
     // Use ref instead of state to avoid re-triggering the typing useEffect on flag change
     const isTypingRef = useRef(false);
@@ -34,6 +50,12 @@ export const MessageInput: React.FC = () => {
     const conversations = useMessengerStore(state => state.conversations);
     const user = useAuthStore(state => state.user);
     const unblockFriend = useFriendStore(state => state.unblockFriend);
+
+    useEffect(() => {
+        if (editingMessage) {
+            setText(editingMessage.content);
+        }
+    }, [editingMessage]);
 
     // Fetch block status when conversation changes
     useEffect(() => {
@@ -121,7 +143,7 @@ export const MessageInput: React.FC = () => {
     }, [text, sendTyping]);
 
     const handleSend = useCallback(async () => {
-        if (!text.trim()) return;
+        if (!text.trim() && selectedFiles.length === 0) return;
 
         // Stop typing indicator immediately when message is sent
         if (isTypingRef.current) {
@@ -131,15 +153,35 @@ export const MessageInput: React.FC = () => {
         }
         setMentionQuery(null);
 
-        await sendMessage(text);
+        let attachments: Attachment[] = [];
+        if (selectedFiles.length > 0) {
+            attachments = (await uploadMessageFiles(selectedFiles)) ?? [];
+        }
+
+        if (editingMessage) {
+            await editMessage(editingMessage.messageId, text.trim());
+            onCancelEdit?.();
+        } else {
+            const hasMedia = attachments.some(attachment => {
+                const contentType = attachment.contentType ?? attachment.mimeType ?? '';
+                return contentType.startsWith('image/') || contentType.startsWith('video/');
+            });
+            const messageType = attachments.length > 0 ? (hasMedia ? 'IMAGE' : 'FILE') : 'TEXT';
+            await sendMessage(text, messageType, {
+                replyToId: replyingTo?.messageId,
+                attachments,
+            });
+            onCancelReply?.();
+        }
         setText('');
+        setSelectedFiles([]);
         setShowEmojiPicker(false);
 
         // Reset textarea height
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
         }
-    }, [sendMessage, text, sendTyping]);
+    }, [selectedFiles, sendMessage, text, sendTyping, uploadMessageFiles, editingMessage, editMessage, onCancelEdit, replyingTo, onCancelReply]);
 
     const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
         try {
@@ -158,6 +200,19 @@ export const MessageInput: React.FC = () => {
 
     const showFeaturePlaceholder = (featureName: string) => {
         showToast(`Tính năng ${featureName} đang phát triển`);
+    };
+
+    const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files ?? []);
+        if (files.length === 0) {
+            return;
+        }
+        setSelectedFiles(prev => [...prev, ...files]);
+        event.target.value = '';
+    };
+
+    const removeSelectedFile = (index: number) => {
+        setSelectedFiles(prev => prev.filter((_, fileIndex) => fileIndex !== index));
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -260,18 +315,50 @@ export const MessageInput: React.FC = () => {
             )}
 
             <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-all duration-300 focus-within:ring-2 ring-primary/20">
+                {(replyingTo || editingMessage || selectedFiles.length > 0) && (
+                    <div className="px-4 pt-3 space-y-2">
+                        {replyingTo && !editingMessage && (
+                            <div className="flex items-start justify-between gap-3 rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-primary">Đang trả lời</p>
+                                    <p className="text-xs font-semibold text-foreground/80 line-clamp-2">{replyingTo.content || 'Tin nhắn đính kèm'}</p>
+                                </div>
+                                <button onClick={onCancelReply} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary">Hủy</button>
+                            </div>
+                        )}
+                        {editingMessage && (
+                            <div className="flex items-start justify-between gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 px-4 py-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Đang chỉnh sửa</p>
+                                    <p className="text-xs font-semibold text-foreground/80 line-clamp-2">{editingMessage.content}</p>
+                                </div>
+                                <button onClick={onCancelEdit} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary">Hủy</button>
+                            </div>
+                        )}
+                        {selectedFiles.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {selectedFiles.map((file, index) => (
+                                    <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-xl bg-background/60 border border-border/50 px-3 py-2 text-xs font-semibold">
+                                        <span className="max-w-[180px] truncate">{file.name}</span>
+                                        <button onClick={() => removeSelectedFile(index)} className="text-muted-foreground hover:text-destructive">X</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
                 <div className="flex items-end gap-2 px-2">
                     {/* Attachment Options */}
                     <div className="flex gap-1 mb-1.5">
                         <button
-                            onClick={() => showFeaturePlaceholder('Đính kèm File')}
+                            onClick={() => fileInputRef.current?.click()}
                             className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
                             title="Đính kèm file"
                         >
                             <Paperclip size={20} />
                         </button>
                         <button
-                            onClick={() => showFeaturePlaceholder('Gửi Hình ảnh/Video')}
+                            onClick={() => mediaInputRef.current?.click()}
                             className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
                             title="Gửi Ảnh / Video"
                         >
@@ -285,6 +372,9 @@ export const MessageInput: React.FC = () => {
                             <BarChart3 size={20} />
                         </button>
                     </div>
+
+                    <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
+                    <input ref={mediaInputRef} type="file" className="hidden" accept="image/*,video/*" multiple onChange={handleFilesSelected} />
 
                     <div className="flex-1 px-2 py-1">
                         <textarea
@@ -325,7 +415,7 @@ export const MessageInput: React.FC = () => {
 
                         <button
                             onClick={handleSend}
-                            disabled={!text.trim()}
+                            disabled={!text.trim() && selectedFiles.length === 0}
                             className="ml-2 w-11 h-11 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center neo-shadow hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-30 disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-none group"
                         >
                             <Send size={20} className="group-hover:rotate-12 transition-transform" />

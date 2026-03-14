@@ -7,8 +7,10 @@ import com.chatapp.chat_service.message.dto.MessageAttachmentDto;
 import com.chatapp.chat_service.message.dto.MessageResponseDto;
 import com.chatapp.chat_service.message.dto.ReplyToDto;
 import com.chatapp.chat_service.message.entity.Message;
+import com.chatapp.chat_service.message.entity.MessageReadReceipt;
 import com.chatapp.chat_service.message.mapper.MessageMapper;
 import com.chatapp.chat_service.message.repository.MessageMentionRepository;
+import com.chatapp.chat_service.message.repository.MessageReadReceiptRepository;
 import com.chatapp.chat_service.message.repository.MessageRepository;
 import com.chatapp.chat_service.poll.dto.PollDto;
 import com.chatapp.chat_service.poll.service.MessagePollService;
@@ -35,6 +37,7 @@ public class MessageEnrichmentService {
     private final MessageEnhancementService enhancementService;
     private final MessageMentionRepository messageMentionRepository;
     private final MessageRepository messageRepository;
+    private final MessageReadReceiptRepository readReceiptRepository;
     private final UserService userService;
     private final MessagePollService pollService;
     private final FriendshipRepository friendshipRepository;
@@ -52,6 +55,13 @@ public class MessageEnrichmentService {
 
         Map<UUID, List<AggregatedReactionDto>> reactionsMap = enhancementService.getReactionsForMessages(conversationId, messageIds, currentUserId);
         Map<UUID, List<MessageAttachmentDto>> attachmentsMap = enhancementService.getAttachmentsForMessages(conversationId, messageIds);
+        Map<UUID, List<MessageResponseDto.MessageReadReceiptDto>> readReceiptsMap = readReceiptRepository
+            .findByConversationIdAndMessageIdIn(conversationId, messageIds)
+            .stream()
+            .collect(Collectors.groupingBy(
+                receipt -> receipt.getKey().getMessageId(),
+                Collectors.mapping(this::mapToReadReceiptDto, Collectors.toList())
+            ));
 
         Map<UUID, List<String>> mentionsByMessage = messageMentionRepository.findByKeyConversationIdAndKeyMessageIdIn(conversationId, messageIds)
                 .stream()
@@ -157,6 +167,7 @@ public class MessageEnrichmentService {
                             mentionsByMessage.getOrDefault(m.getKey().getMessageId(), new ArrayList<>()),
                             repliesMap.get(m.getReplyTo()),
                             pollsMap.get(m.getKey().getMessageId()),
+                                readReceiptsMap.getOrDefault(m.getKey().getMessageId(), new ArrayList<>()),
                             currentUserId
                     );
                     dto.setSenderBlockedByViewer(finalBlockedIds.contains(m.getSenderId()));
@@ -183,6 +194,13 @@ public class MessageEnrichmentService {
                 .isAnonymous(false)
                 .totalVotes(0)
                 .currentUserVotes(Collections.emptyList())
+                .build();
+    }
+
+    private MessageResponseDto.MessageReadReceiptDto mapToReadReceiptDto(MessageReadReceipt receipt) {
+        return MessageResponseDto.MessageReadReceiptDto.builder()
+                .readerId(receipt.getKey().getReaderId())
+                .readAt(receipt.getReadAt())
                 .build();
     }
 }

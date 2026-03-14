@@ -2,8 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
-import { logger, LogLevel } from '@/common/lib/logger'
-import { ThemeProvider } from "@/context/ThemeContext";
+import { logger, LogLevel } from '@/shared/lib/logger'
+import { ThemeProvider } from "@/app/providers/ThemeProvider";
 
 // Cấu hình Logger trung tâm
 logger.setLevel(LogLevel.DEBUG);

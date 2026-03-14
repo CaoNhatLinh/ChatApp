@@ -1,18 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { User, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
-import { useLogin } from '../hooks/useLogin';
+import { useLoginForm } from '../hooks/useLoginForm';
 
 export const LoginForm: React.FC = () => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-
-    const { handleLogin, loading, error } = useLogin();
-
-    const onSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        void handleLogin({ username, password });
-    };
+    const {
+        username, setUsername,
+        password, setPassword,
+        showPassword, setShowPassword,
+        onSubmit, loading, error
+    } = useLoginForm();
 
     return (
         <form onSubmit={onSubmit} className="space-y-6">

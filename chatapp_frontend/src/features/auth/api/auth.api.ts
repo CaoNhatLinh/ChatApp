@@ -1,4 +1,4 @@
-import apiClient from '@/common/lib/api-client';
+﻿import apiClient from '@/shared/api/apiClient';
 import type { AuthResponse, LoginRequest, RegisterRequest, User } from '../types/auth.types';
 
 export const login = async (data: LoginRequest): Promise<AuthResponse> => {

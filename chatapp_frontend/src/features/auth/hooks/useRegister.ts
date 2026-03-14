@@ -1,9 +1,9 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { register as registerApi } from '../api/auth.api';
 import type { RegisterRequest } from '../types/auth.types';
-import { logger } from '@/common/lib/logger';
+import { logger } from '@/shared/lib/logger';
 import { toast } from 'react-hot-toast';
 
 export const useRegister = () => {

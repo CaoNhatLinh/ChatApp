@@ -1,17 +1,29 @@
 package com.chatapp.chat_service.message.service;
 
+import com.chatapp.chat_service.auth.dto.UserDTO;
+import com.chatapp.chat_service.auth.service.UserService;
 import com.chatapp.chat_service.elasticsearch.service.ConversationElasticsearchService;
 import com.chatapp.chat_service.elasticsearch.service.MessageElasticsearchService;
+import com.chatapp.chat_service.common.exception.BusinessException;
+import com.chatapp.chat_service.common.exception.NotFoundException;
 import com.chatapp.chat_service.message.dto.MessageRequest;
+import com.chatapp.chat_service.message.dto.MessageRevisionDto;
 import com.chatapp.chat_service.message.dto.MessageResponseDto;
 import com.chatapp.chat_service.message.dto.MessageSummary;
+import com.chatapp.chat_service.message.entity.MessageAttachment;
+import com.chatapp.chat_service.message.entity.MessageRevision;
 import com.chatapp.chat_service.message.entity.Message;
 import com.chatapp.chat_service.message.entity.MessageMention;
 import com.chatapp.chat_service.message.exception.MessageSaveException;
 import com.chatapp.chat_service.message.exception.MessageValidationException;
 import com.chatapp.chat_service.message.mapper.MessageMapper;
+import com.chatapp.chat_service.message.repository.MessageAttachmentRepository;
 import com.chatapp.chat_service.message.repository.MessageMentionRepository;
+import com.chatapp.chat_service.message.repository.MessageRevisionRepository;
 import com.chatapp.chat_service.message.repository.MessageRepository;
+import com.chatapp.chat_service.notification.service.NotificationService;
+import com.chatapp.chat_service.friendship.entity.Friendship;
+import com.chatapp.chat_service.friendship.repository.FriendshipRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.chatapp.chat_service.conversation.entity.UserConversation;
@@ -21,12 +33,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,6 +58,8 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final MessageMentionRepository messageMentionRepository;
+    private final MessageAttachmentRepository messageAttachmentRepository;
+    private final MessageRevisionRepository messageRevisionRepository;
     private final SecurityContextHelper securityContextHelper;
     private final ConversationElasticsearchService conversationElasticsearchService;
     private final MessageElasticsearchService messageElasticsearchService;
@@ -47,23 +67,39 @@ public class MessageService {
     private final MessageValidationService messageValidationService;
     private final MessageEnrichmentService enrichmentService;
     private final UserConversationRepository userConversationRepository;
+    private final FriendshipRepository friendshipRepository;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final NotificationService notificationService;
+    private final UserService userService;
 
     public MessageService(MessageRepository messageRepository,
             MessageMentionRepository messageMentionRepository,
+            MessageAttachmentRepository messageAttachmentRepository,
+            MessageRevisionRepository messageRevisionRepository,
             SecurityContextHelper securityContextHelper,
             MessageMapper messageMapper,
             MessageValidationService messageValidationService,
             MessageEnrichmentService enrichmentService,
             UserConversationRepository userConversationRepository,
+            FriendshipRepository friendshipRepository,
+            SimpMessagingTemplate messagingTemplate,
+            NotificationService notificationService,
+            UserService userService,
             @Autowired(required = false) MessageElasticsearchService messageElasticsearchService,
             @Autowired(required = false) ConversationElasticsearchService conversationElasticsearchService) {
         this.messageRepository = messageRepository;
         this.messageMentionRepository = messageMentionRepository;
+        this.messageAttachmentRepository = messageAttachmentRepository;
+        this.messageRevisionRepository = messageRevisionRepository;
         this.securityContextHelper = securityContextHelper;
         this.messageMapper = messageMapper;
         this.messageValidationService = messageValidationService;
         this.enrichmentService = enrichmentService;
         this.userConversationRepository = userConversationRepository;
+        this.friendshipRepository = friendshipRepository;
+        this.messagingTemplate = messagingTemplate;
+        this.notificationService = notificationService;
+        this.userService = userService;
         this.messageElasticsearchService = messageElasticsearchService;
         this.conversationElasticsearchService = conversationElasticsearchService;
     }
@@ -107,6 +143,23 @@ public class MessageService {
                 messageMentionRepository.saveAll(mentions);
             }
 
+                if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
+                List<MessageAttachment> attachments = request.getAttachments().stream()
+                    .map(attachment -> MessageAttachment.builder()
+                        .key(new MessageAttachment.MessageAttachmentKey(
+                            request.getConversationId(),
+                            savedMessage.getKey().getMessageId(),
+                            UUID.randomUUID()))
+                        .attachmentType(attachment.getResourceType())
+                        .fileName(attachment.getFileName())
+                        .url(attachment.getUrl())
+                        .fileSize(attachment.getFileSize())
+                        .mimeType(attachment.getContentType())
+                        .build())
+                    .collect(Collectors.toList());
+                messageAttachmentRepository.saveAll(attachments);
+                }
+
             if (conversationElasticsearchService != null) {
                 try {
                     MessageSummary messageSummary = MessageSummary.builder()
@@ -131,6 +184,7 @@ public class MessageService {
             }
 
             updateUserConversationsActivity(request.getConversationId(), savedMessage.getCreatedAt());
+        dispatchNotificationsForMessage(savedMessage, request);
 
             List<MessageResponseDto> enrichedList = enrichmentService.enrichMessages(
                     request.getConversationId(), 
@@ -243,6 +297,118 @@ public class MessageService {
         }
     }
 
+    private void dispatchNotificationsForMessage(Message message, MessageRequest request) {
+        try {
+            UUID senderId = message.getSenderId();
+            UserDTO sender = userService.getUserProfile(senderId);
+            String senderName = resolveSenderName(sender);
+            String preview = buildNotificationPreview(message);
+
+            List<UUID> recipientIds = userConversationRepository.findByConversationId(message.getKey().getConversationId())
+                    .stream()
+                    .map(userConversation -> userConversation.getKey().getUserId())
+                    .filter(recipientId -> !recipientId.equals(senderId))
+                    .filter(recipientId -> !hasBlocked(recipientId, senderId))
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            Set<UUID> mentionedUserIds = request.getMentionedUserIds() == null
+                    ? Collections.emptySet()
+                    : new LinkedHashSet<>(request.getMentionedUserIds());
+
+            Optional<UUID> replyRecipient = resolveReplyRecipient(message);
+            boolean isDirectConversation = recipientIds.size() == 1;
+
+            for (UUID recipientId : recipientIds) {
+                if (mentionedUserIds.contains(recipientId)) {
+                    notificationService.createMentionNotification(
+                            recipientId,
+                            senderId,
+                            senderName,
+                            message.getKey().getConversationId(),
+                            message.getKey().getMessageId(),
+                            preview);
+                    continue;
+                }
+
+                if (replyRecipient.isPresent() && replyRecipient.get().equals(recipientId)) {
+                    notificationService.createReplyNotification(
+                            recipientId,
+                            senderId,
+                            senderName,
+                            message.getKey().getConversationId(),
+                            message.getKey().getMessageId(),
+                            Objects.requireNonNull(message.getReplyTo()),
+                            preview);
+                    continue;
+                }
+
+                if (isDirectConversation) {
+                    notificationService.createMessageNotification(
+                            recipientId,
+                            message.getKey().getConversationId(),
+                            message.getKey().getMessageId(),
+                            senderName,
+                            preview);
+                }
+            }
+        } catch (Exception notificationError) {
+            log.warn("Failed to dispatch notifications for message {}: {}",
+                    message.getKey().getMessageId(), notificationError.getMessage());
+        }
+    }
+
+    private boolean hasBlocked(UUID userId, UUID friendId) {
+        return friendshipRepository.findByUserIdAndFriendId(userId, friendId)
+                .map(f -> f.getStatus() == Friendship.Status.BLOCKED)
+                .orElse(false);
+    }
+
+    private Optional<UUID> resolveReplyRecipient(Message message) {
+        UUID replyToId = message.getReplyTo();
+        if (replyToId == null) {
+            return Optional.empty();
+        }
+
+        return messageRepository.findByConversationIdAndMessageId(message.getKey().getConversationId(), replyToId)
+                .map(Message::getSenderId)
+                .filter(replySenderId -> !replySenderId.equals(message.getSenderId()));
+    }
+
+    private String resolveSenderName(UserDTO sender) {
+        if (sender.getDisplayName() != null && !sender.getDisplayName().isBlank()) {
+            return sender.getDisplayName();
+        }
+        if (sender.getUserName() != null && !sender.getUserName().isBlank()) {
+            return sender.getUserName();
+        }
+        return "Unknown User";
+    }
+
+    private String buildNotificationPreview(Message message) {
+        if (message.getContent() != null && !message.getContent().isBlank()) {
+            return message.getContent();
+        }
+
+        List<MessageAttachment> attachments = messageAttachmentRepository.findByConversationIdAndMessageId(
+                message.getKey().getConversationId(),
+                message.getKey().getMessageId());
+        if (!attachments.isEmpty()) {
+            List<String> fileNames = attachments.stream()
+                    .map(MessageAttachment::getFileName)
+                    .filter(Objects::nonNull)
+                    .filter(fileName -> !fileName.isBlank())
+                    .limit(3)
+                    .collect(Collectors.toCollection(ArrayList::new));
+            if (!fileNames.isEmpty()) {
+                return "Attachment: " + String.join(", ", fileNames);
+            }
+            return "Sent an attachment";
+        }
+
+        return "New message";
+    }
+
     public List<MessageResponseDto> getLatestMessagesAlternative(UUID conversationId, Pageable pageable) {
         UUID userId = securityContextHelper.getCurrentUserId();
         messageValidationService.validateConversationMembership(conversationId, userId);
@@ -250,5 +416,101 @@ public class MessageService {
         List<Message> messages = messageRepository.findByKeyConversationIdOrderByKeyMessageIdDesc(conversationId, pageable);
 
         return enrichmentService.enrichMessages(conversationId, messages, userId);
+    }
+
+    public MessageResponseDto editMessage(UUID conversationId, UUID messageId, String content, UUID editorId) {
+        if (content == null || content.trim().isEmpty()) {
+            throw new BusinessException("Noi dung tin nhan khong duoc de trong");
+        }
+
+        Message message = messageRepository.findByConversationIdAndMessageId(conversationId, messageId)
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+
+        if (!editorId.equals(message.getSenderId())) {
+            throw new BusinessException("Chi nguoi gui moi co the sua tin nhan");
+        }
+        if (message.isDeleted()) {
+            throw new BusinessException("Khong the sua tin nhan da xoa");
+        }
+
+        createRevision(message, editorId, "EDIT");
+        message.setContent(content.trim());
+        message.setEditedAt(Instant.now());
+        Message saved = messageRepository.save(message);
+        syncMessageUpdate(saved);
+        return enrichSingle(conversationId, saved, editorId);
+    }
+
+    public MessageResponseDto deleteMessage(UUID conversationId, UUID messageId, UUID requesterId) {
+        Message message = messageRepository.findByConversationIdAndMessageId(conversationId, messageId)
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+
+        if (!requesterId.equals(message.getSenderId())) {
+            throw new BusinessException("Chi nguoi gui moi co the xoa tin nhan");
+        }
+        if (message.isDeleted()) {
+            return enrichSingle(conversationId, message, requesterId);
+        }
+
+        createRevision(message, requesterId, "DELETE");
+        message.setDeleted(true);
+        message.setEditedAt(Instant.now());
+        Message saved = messageRepository.save(message);
+        syncMessageUpdate(saved);
+        return enrichSingle(conversationId, saved, requesterId);
+    }
+
+    public List<MessageRevisionDto> getMessageRevisions(UUID conversationId, UUID messageId, UUID requesterId) {
+        messageValidationService.validateConversationMembership(conversationId, requesterId);
+        return messageRevisionRepository.findByConversationIdAndMessageId(conversationId, messageId)
+                .stream()
+                .map(revision -> MessageRevisionDto.builder()
+                        .revisionNumber(revision.getKey().getRevisionNumber())
+                        .content(revision.getContent())
+                        .editedAt(revision.getEditedAt())
+                        .editedBy(revision.getEditedBy())
+                        .action(revision.getAction())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private void createRevision(Message message, UUID editorId, String action) {
+        List<MessageRevision> revisions = messageRevisionRepository.findByConversationIdAndMessageId(
+                message.getKey().getConversationId(),
+                message.getKey().getMessageId());
+        int nextRevision = revisions.stream()
+                .map(revision -> revision.getKey().getRevisionNumber())
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+
+        MessageRevision revision = MessageRevision.builder()
+                .key(new MessageRevision.MessageRevisionKey(
+                        message.getKey().getConversationId(),
+                        message.getKey().getMessageId(),
+                        nextRevision))
+                .content(message.getContent())
+                .editedAt(Instant.now())
+                .editedBy(editorId)
+                .action(action)
+                .build();
+        messageRevisionRepository.save(revision);
+    }
+
+    private MessageResponseDto enrichSingle(UUID conversationId, Message message, UUID currentUserId) {
+        List<MessageResponseDto> enriched = enrichmentService.enrichMessages(conversationId, List.of(message), currentUserId);
+        return enriched.isEmpty() ? messageMapper.toResponseDto(message, currentUserId) : enriched.get(0);
+    }
+
+    private void syncMessageUpdate(Message message) {
+        if (messageElasticsearchService != null) {
+            try {
+                messageElasticsearchService.updateMessage(message);
+            } catch (Exception e) {
+                log.warn("Failed to sync updated message {} to Elasticsearch: {}", message.getKey().getMessageId(), e.getMessage());
+            }
+        }
+
+        MessageResponseDto payload = enrichSingle(message.getKey().getConversationId(), message, message.getSenderId());
+        messagingTemplate.convertAndSend("/topic/conversation/" + message.getKey().getConversationId(), payload);
     }
 }

@@ -42,31 +42,43 @@ public class FriendService {
     public FriendRequestsResponse getFriendDetailsByStatus(UUID userId, String status,
                                                            org.springframework.data.domain.Pageable pageable) {
         UUID currentUserId = securityContextHelper.getCurrentUserId();
+        
+        // Security check: Only allow seeing own pending/blocked friendships
+        Friendship.Status requestedStatus;
+        try {
+            requestedStatus = Friendship.Status.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Invalid status: " + status);
+        }
 
-        org.springframework.data.domain.Slice<Friendship> friendshipSlice = switch (status.toUpperCase()) {
-            case "ACCEPTED" -> friendshipRepository.findAcceptedByUserId(userId, pageable);
-            case "PENDING" -> friendshipRepository.findPendingFriendRequests(userId, pageable);
-            case "BLOCKED" -> friendshipRepository.findBlockedFriendships(userId, pageable);
-            default -> throw new BusinessException("Invalid status: " + status);
+        if (requestedStatus != Friendship.Status.ACCEPTED && !userId.equals(currentUserId)) {
+            throw new BusinessException("You are not authorized to view this data");
+        }
+
+        org.springframework.data.domain.Slice<Friendship> friendshipSlice = switch (requestedStatus) {
+            case ACCEPTED -> friendshipRepository.findAcceptedByUserId(userId, pageable);
+            case PENDING -> friendshipRepository.findPendingFriendRequests(userId, pageable);
+            case BLOCKED -> friendshipRepository.findBlockedFriendships(userId, pageable);
+            case REJECTED -> throw new BusinessException("REJECTED status is for internal history only");
         };
 
         List<Friendship> friendships = friendshipSlice.getContent();
 
-        List<UserDTO> userDetails = friendships.stream()
+        List<UUID> friendIds = friendships.stream()
                 .map(f -> f.getKey().getUserId().equals(userId)
                         ? f.getKey().getFriendId()
                         : f.getKey().getUserId())
                 .distinct()
                 .filter(friendId -> !friendId.equals(currentUserId))
-                .map(userRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
+                .collect(Collectors.toList());
+
+        List<UserDTO> userDetails = userRepository.findUsersByIds(friendIds).stream()
                 .map(UserDTO::new)
                 .collect(Collectors.toList());
 
         return new FriendRequestsResponse(
                 userId,
-                friendships.isEmpty() ? null : friendships.get(0).getStatus().toString(),
+                requestedStatus.toString(),
                 userDetails
         );
     }
@@ -128,7 +140,7 @@ public class FriendService {
 
         return new FriendRequestsResponse(
                 userId,
-                friendships.isEmpty() ? null : String.valueOf(friendships.get(0).getStatus()),
+                "PENDING",
                 userDetails
         );
     }
@@ -140,6 +152,23 @@ public class FriendService {
         return friendshipRepository.findByUserIdAndFriendId(blockerId, targetId)
                 .map(f -> f.getStatus() == Friendship.Status.BLOCKED)
                 .orElse(false);
+    }
+
+    public List<UserDTO> getMutualFriends(UUID userId, UUID otherUserId) {
+        List<UUID> myFriendIds = friendshipRepository.findAcceptedFriendIds(userId);
+        java.util.Set<UUID> otherFriendIds = new java.util.HashSet<>(friendshipRepository.findAcceptedFriendIds(otherUserId));
+
+        List<UUID> mutualIds = myFriendIds.stream()
+                .filter(otherFriendIds::contains)
+                .collect(Collectors.toList());
+
+        if (mutualIds.isEmpty()) {
+            return List.of();
+        }
+
+        return userRepository.findUsersByIds(mutualIds).stream()
+                .map(UserDTO::new)
+                .collect(Collectors.toList());
     }
 
     // ──────────────────── Command Methods ────────────────────
@@ -183,9 +212,7 @@ public class FriendService {
             }
         }
 
-        long currentFriendCount = friendshipRepository
-                .findAcceptedByUserId(senderId, org.springframework.data.domain.PageRequest.of(0, 1))
-                .get().count();
+        long currentFriendCount = friendshipRepository.countAcceptedByUserId(senderId);
         if (currentFriendCount >= MAX_FRIENDS) {
             throw new BusinessException("You have reached the maximum limit of " + MAX_FRIENDS + " friends.");
         }
@@ -213,6 +240,10 @@ public class FriendService {
 
         Friendship friendship = friendshipRepository.findByUserAndFriend(senderId, receiverId)
                 .orElseThrow(() -> new NotFoundException("Friend request not found"));
+
+        if (friendship.getStatus() != Friendship.Status.PENDING) {
+            throw new BusinessException("Cannot accept request with status: " + friendship.getStatus());
+        }
 
         Friendship inverseFriendship = friendshipRepository
                 .findByUserAndFriend(receiverId, senderId)
@@ -242,6 +273,10 @@ public class FriendService {
         Friendship friendship = friendshipRepository.findByUserAndFriend(senderId, receiverId)
                 .orElseThrow(() -> new NotFoundException("Friend request not found"));
 
+        if (friendship.getStatus() != Friendship.Status.PENDING) {
+            throw new BusinessException("Cannot reject request with status: " + friendship.getStatus());
+        }
+
         friendship.setStatus(Friendship.Status.REJECTED);
         friendship.setUpdatedAt(Instant.now());
         friendshipRepository.save(friendship);
@@ -256,6 +291,13 @@ public class FriendService {
     public void unfriend(UUID userId, UUID friendId) {
         if (userId == null || friendId == null) {
             throw new BusinessException("User and friend IDs cannot be null");
+        }
+
+        Friendship friendship = friendshipRepository.findByUserAndFriend(userId, friendId)
+                .orElseThrow(() -> new NotFoundException("Friendship not found"));
+
+        if (friendship.getStatus() != Friendship.Status.ACCEPTED) {
+            throw new BusinessException("You are not friends with this user");
         }
 
         clearExistingRelationships(userId, friendId);
@@ -275,16 +317,21 @@ public class FriendService {
             throw new ConflictException("You cannot block yourself");
         }
 
-        // Clear any existing relationships without publishing UNFRIENDED event
-        clearExistingRelationships(blockerId, targetId);
-
-        // Create new block record
+        // 1. My side: Overwrite with BLOCKED
         Friendship blockRelationship = new Friendship();
         blockRelationship.setKey(new Friendship.FriendshipKey(blockerId, targetId));
         blockRelationship.setStatus(Friendship.Status.BLOCKED);
         blockRelationship.setCreatedAt(Instant.now());
         blockRelationship.setUpdatedAt(Instant.now());
         friendshipRepository.save(blockRelationship);
+
+        // 2. Target side: Delete if it was ACCEPTED or PENDING
+        // Do NOT delete if the target has also blocked the blocker (mutual block)
+        friendshipRepository.findByUserAndFriend(targetId, blockerId).ifPresent(f -> {
+            if (f.getStatus() == Friendship.Status.ACCEPTED || f.getStatus() == Friendship.Status.PENDING) {
+                friendshipRepository.delete(f);
+            }
+        });
 
         eventPublisher.publishEvent(FriendshipEvent.builder()
                 .type(FriendshipEvent.Type.BLOCKED)

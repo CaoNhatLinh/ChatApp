@@ -15,6 +15,19 @@ export interface MessageSummary {
     createdAt: string;
 }
 
+export interface MessageReadReceipt {
+    readerId: string;
+    readAt: string;
+}
+
+export interface MessageRevision {
+    revisionNumber: number;
+    content: string;
+    editedAt: string;
+    editedBy: string;
+    action: 'EDIT' | 'DELETE';
+}
+
 export interface Conversation {
     conversationId: string;
     name: string;
@@ -28,6 +41,7 @@ export interface Conversation {
     isDeleted: boolean;
     isPinned: boolean;
     lastActivityAt: string;
+    unreadCount: number;
     otherParticipant?: User; // Only for DM
     lastMessage?: MessageSummary;
 }
@@ -46,11 +60,18 @@ export interface ConversationMember {
 /* --- Message Types --- */
 
 export interface Attachment {
-    attachmentId: string;
+    attachmentId?: string;
     fileName: string;
     url: string;
     fileSize: number;
-    mimeType: string;
+    mimeType?: string;
+    contentType?: string;
+    attachmentType?: string;
+    resourceType?: string;
+    publicId?: string;
+    thumbnailUrl?: string;
+    mediumUrl?: string;
+    format?: string;
 }
 
 export interface Reaction {
@@ -79,6 +100,7 @@ export interface Message {
     isDeleted: boolean;
     createdAt: string;
     updatedAt: string;
+    readReceipts?: MessageReadReceipt[];
     status?: 'sending' | 'sent' | 'delivered' | 'failed';
     senderBlockedByViewer?: boolean;
 }
@@ -91,6 +113,7 @@ export interface SendMessageRequest {
     type: MessageType;
     replyToId?: string;
     mentions?: string[];
+    attachments?: Attachment[];
 }
 
 export interface CreateConversationRequest {

@@ -25,22 +25,22 @@ public class FriendController {
         this.securityContextHelper = securityContextHelper;
     }
 
-    @GetMapping("/requests/sent/{userId}")
+    @GetMapping("/requests/sent")
     public ResponseEntity<FriendRequestsResponse> getSentRequests(
-            @PathVariable UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
+        UUID userId = securityContextHelper.getCurrentUserId();
         return ResponseEntity.ok(
                 friendshipService.getFriendRequestsWithDetails(userId, org.springframework.data.domain.PageRequest.of(page, size))
         );
     }
 
-    @GetMapping("/user/{userId}/status/{status}")
-    public ResponseEntity<FriendRequestsResponse> getFriendshipsByUserIdAndStatus(
-            @PathVariable UUID userId,
+    @GetMapping("/status/{status}")
+    public ResponseEntity<FriendRequestsResponse> getFriendshipsByStatus(
             @PathVariable String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
+        UUID userId = securityContextHelper.getCurrentUserId();
         return ResponseEntity.ok(friendshipService.getFriendDetailsByStatus(userId, status, org.springframework.data.domain.PageRequest.of(page, size)));
     }
     @PostMapping("/request")
@@ -72,11 +72,11 @@ public class FriendController {
         List<FriendDTO> friends = friendshipService.getFriendsWithDetails(userId, org.springframework.data.domain.PageRequest.of(page, size));
         return ResponseEntity.ok(friends);
     }
-    @GetMapping("/requests/received/{userId}")
+    @GetMapping("/requests/received")
     public ResponseEntity<FriendRequestsResponse> getReceivedRequests(
-            @PathVariable UUID userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
+        UUID userId = securityContextHelper.getCurrentUserId();
         return ResponseEntity.ok(
                 friendshipService.getReceivedFriendRequestsWithDetails(userId, org.springframework.data.domain.PageRequest.of(page, size))
         );
@@ -123,5 +123,11 @@ public class FriendController {
         response.put("hasBlocked", hasBlocked);
         response.put("isBlockedBy", isBlockedBy);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/mutual/{otherUserId}")
+    public ResponseEntity<List<UserDTO>> getMutualFriends(@PathVariable UUID otherUserId) {
+        UUID userId = securityContextHelper.getCurrentUserId();
+        return ResponseEntity.ok(friendshipService.getMutualFriends(userId, otherUserId));
     }
 }
