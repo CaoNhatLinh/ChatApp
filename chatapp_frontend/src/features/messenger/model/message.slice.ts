@@ -292,6 +292,33 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         };
     }, false, 'addReadReceipt'),
 
+    updateMessagePinStatus: (conversationId, messageId, isPinned) => set((state) => {
+        const msgs = state.messages[conversationId];
+        if (!msgs) return state;
+        return {
+            messages: {
+                ...state.messages,
+                [conversationId]: msgs.map(m => m.messageId === messageId ? { ...m, isPinned } : m)
+            }
+        };
+    }, false, 'updateMessagePinStatus'),
+
+    addMessageAttachment: (conversationId, messageId, attachment) => set((state) => {
+        const msgs = state.messages[conversationId];
+        if (!msgs) return state;
+        return {
+            messages: {
+                ...state.messages,
+                [conversationId]: msgs.map(message => {
+                    if (message.messageId !== messageId) return message;
+                    const attachments = message.attachments ?? [];
+                    const exists = attachments.some(a => a.url === attachment.url);
+                    return exists ? message : { ...message, attachments: [...attachments, attachment] };
+                })
+            }
+        };
+    }, false, 'addMessageAttachment'),
+
     removeMessage: (conversationId, messageId) => set((state) => {
         const msgs = state.messages[conversationId];
         if (!msgs) return state;

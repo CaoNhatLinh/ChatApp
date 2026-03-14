@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMessengerStore, EMPTY_TYPING } from '@/features/messenger/model/messenger.store';
 import { realtimeService } from '@/shared/websocket/realtime-service';
@@ -150,7 +150,7 @@ export const useMessenger = (): UseMessengerResult => {
         try {
             const [convResponse, requestResponse] = await Promise.all([
                 getConversations(0, 30),
-                user?.userId ? getReceivedRequests(user.userId, 0, 100) : Promise.resolve({ content: [] })
+                user?.userId ? getReceivedRequests(0, 100) : Promise.resolve({ content: [] })
             ]);
 
             setConversations(convResponse.content, convResponse.hasNext, convResponse.number);
@@ -206,7 +206,7 @@ export const useMessenger = (): UseMessengerResult => {
                         // Refresh count or just decrement/increment
                         // For safety, we can re-fetch or just update local state if we knew the previous state
                         // Here let's just trigger a re-fetch of the count if we want it perfect
-                        void getReceivedRequests(user.userId, 0, 100).then(res => {
+                        void getReceivedRequests(0, 100).then(res => {
                             const totalCount = res.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
                             setFriendRequestCount(totalCount);
                         });
@@ -475,7 +475,9 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         clearTyping,
         updateMessageReactions,
         updatePollData,
-        addReadReceipt
+        addReadReceipt,
+        updateMessagePinStatus,
+        addMessageAttachment
     } = useMessengerStore(useShallow(state => ({
         activeConversationId: state.activeConversationId,
         loading: state.loading,
@@ -485,7 +487,9 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         clearTyping: state.clearTyping,
         updateMessageReactions: state.updateMessageReactions,
         updatePollData: state.updatePollData,
-        addReadReceipt: state.addReadReceipt
+        addReadReceipt: state.addReadReceipt,
+        updateMessagePinStatus: state.updateMessagePinStatus,
+        addMessageAttachment: state.addMessageAttachment
     })));
 
     const { user, token } = useAuthStore();
@@ -571,6 +575,22 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             }
         );
 
+        // Subscribe to pin updates
+        const unsubPins = realtimeService.subscribe(
+            `/topic/conversation/${activeConversationId}/pins`,
+            (event: { messageId: string; action: 'PIN' | 'UNPIN' }) => {
+                updateMessagePinStatus(activeConversationId, event.messageId, event.action === 'PIN');
+            }
+        );
+
+        // Subscribe to attachment updates
+        const unsubAttachments = realtimeService.subscribe(
+            `/topic/conversation/${activeConversationId}/attachments`,
+            (event: { messageId: string; attachment: Message['attachments'][0] }) => {
+                addMessageAttachment(activeConversationId, event.messageId, event.attachment);
+            }
+        );
+
         return () => {
             logger.debug(`[useMessengerSetup] Unsubscribing from conversation: ${activeConversationId}`);
             unsubMessage();
@@ -578,7 +598,20 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             unsubReactions();
             unsubReadReceipts();
             unsubPolls();
+            unsubPins();
+            unsubAttachments();
             clearTyping(activeConversationId);
         };
-    }, [activeConversationId, user, addMessage, setTyping, updateMessageReactions, updatePollData, clearTyping, addReadReceipt]);
+    }, [
+        activeConversationId,
+        user,
+        addMessage,
+        setTyping,
+        updateMessageReactions,
+        updatePollData,
+        clearTyping,
+        addReadReceipt,
+        updateMessagePinStatus,
+        addMessageAttachment
+    ]);
 };

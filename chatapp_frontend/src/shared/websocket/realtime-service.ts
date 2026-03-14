@@ -1,6 +1,6 @@
 import type { IMessage, StompHeaders, StompSubscription } from '@stomp/stompjs';
 import { logger } from '@/shared/lib/logger';
-import { connectWebSocket, getStompClient } from '@/shared/websocket/websocketService';
+import { connectWebSocket, getStompClient, addConnectionListener } from '@/shared/websocket/websocketService';
 
 export type RealtimeCallback<T = unknown> = (payload: T) => void;
 
@@ -15,14 +15,28 @@ class RealtimeService {
 
     public async connect(token: string): Promise<void> {
         if (this.client?.active) {
+            // Even if active, ensure we have a listener for potential future reconnects
+            this.ensureConnectionListener();
             return;
         }
 
         // Use the shared connectWebSocket instead of creating a private client
         await connectWebSocket(token);
 
+        this.ensureConnectionListener();
         this.restoreSubscriptions();
         logger.info('RealtimeService synced with shared WebSocket connection');
+    }
+
+    private connectionListenerUnsub: (() => void) | null = null;
+
+    private ensureConnectionListener() {
+        if (this.connectionListenerUnsub) return;
+        
+        this.connectionListenerUnsub = addConnectionListener(() => {
+            logger.info('[RealtimeService] Connection detected, restoring subscriptions...');
+            this.restoreSubscriptions();
+        });
     }
 
     public isConnected(): boolean {

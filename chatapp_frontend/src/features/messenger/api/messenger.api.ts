@@ -51,6 +51,7 @@ export interface BackendMessage {
     status?: Message['status'];
     senderBlockedByViewer?: boolean;
     readReceipts?: MessageReadReceipt[];
+    isPinned?: boolean;
 }
 
 interface UploadedFileDto {
@@ -132,7 +133,8 @@ export const mapToMessage = (dto: Partial<BackendMessage>): Message => {
             messageId: dto.replyTo.messageId,
             content: dto.replyTo.content,
             senderName: dto.replyTo.sender?.displayName || 'Unknown'
-        } : undefined
+        } : undefined,
+        isPinned: dto.isPinned ?? false
     };
 };
 

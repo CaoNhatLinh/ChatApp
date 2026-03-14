@@ -304,12 +304,22 @@ public class MessageService {
             String senderName = resolveSenderName(sender);
             String preview = buildNotificationPreview(message);
 
-            List<UUID> recipientIds = userConversationRepository.findByConversationId(message.getKey().getConversationId())
+            List<UUID> allRecipients = userConversationRepository.findByConversationId(message.getKey().getConversationId())
                     .stream()
                     .map(userConversation -> userConversation.getKey().getUserId())
                     .filter(recipientId -> !recipientId.equals(senderId))
-                    .filter(recipientId -> !hasBlocked(recipientId, senderId))
                     .distinct()
+                    .collect(Collectors.toList());
+
+            // 🚀 Batch check blocking status to avoid N+1 queries
+            List<UUID> blockedUserIds = friendshipRepository.findByUserIdInAndFriendId(allRecipients, senderId)
+                    .stream()
+                    .filter(f -> f.getStatus() == com.chatapp.chat_service.friendship.entity.Friendship.Status.BLOCKED)
+                    .map(com.chatapp.chat_service.friendship.entity.Friendship::getUserId)
+                    .collect(Collectors.toList());
+
+            List<UUID> recipientIds = allRecipients.stream()
+                    .filter(id -> !blockedUserIds.contains(id))
                     .collect(Collectors.toList());
 
             Set<UUID> mentionedUserIds = request.getMentionedUserIds() == null
@@ -358,11 +368,6 @@ public class MessageService {
         }
     }
 
-    private boolean hasBlocked(UUID userId, UUID friendId) {
-        return friendshipRepository.findByUserIdAndFriendId(userId, friendId)
-                .map(f -> f.getStatus() == Friendship.Status.BLOCKED)
-                .orElse(false);
-    }
 
     private Optional<UUID> resolveReplyRecipient(Message message) {
         UUID replyToId = message.getReplyTo();

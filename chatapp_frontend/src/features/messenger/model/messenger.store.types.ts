@@ -40,6 +40,8 @@ export interface MessageSlice {
     updateMessageStatus: (conversationId: string, messageId: string, status: Message['status']) => void;
     updateMessage: (conversationId: string, message: Message) => void;
     addReadReceipt: (conversationId: string, messageId: string, readReceipt: MessageReadReceipt) => void;
+    updateMessagePinStatus: (conversationId: string, messageId: string, isPinned: boolean) => void;
+    addMessageAttachment: (conversationId: string, messageId: string, attachment: Message['attachments'][0]) => void;
     removeMessage: (conversationId: string, messageId: string) => void;
 }
 

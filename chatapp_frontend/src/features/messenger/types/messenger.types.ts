@@ -103,6 +103,7 @@ export interface Message {
     readReceipts?: MessageReadReceipt[];
     status?: 'sending' | 'sent' | 'delivered' | 'failed';
     senderBlockedByViewer?: boolean;
+    isPinned?: boolean;
 }
 
 /* --- Request Types --- */

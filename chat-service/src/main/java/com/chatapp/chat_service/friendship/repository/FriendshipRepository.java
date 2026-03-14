@@ -17,6 +17,9 @@ public interface FriendshipRepository extends CassandraRepository<Friendship, Fr
     @Query("SELECT * FROM friendships WHERE user_id = ?0 AND friend_id = ?1")
     Optional<Friendship> findByUserIdAndFriendId(UUID userId, UUID friendId);
 
+    @Query("SELECT * FROM friendships WHERE user_id IN ?0 AND friend_id = ?1")
+    List<Friendship> findByUserIdInAndFriendId(List<UUID> userIds, UUID friendId);
+
     @Query("DELETE FROM friendships WHERE user_id = ?0 AND friend_id = ?1")
     void deleteByUserIdAndFriendId(UUID userId, UUID friendId);
 

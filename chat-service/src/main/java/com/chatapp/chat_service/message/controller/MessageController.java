@@ -61,8 +61,10 @@ public class MessageController {
     public ResponseEntity<org.springframework.data.domain.Slice<MessageResponseDto>> getMessages(
             @PathVariable UUID conversationId,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "0") int page
+            @RequestParam(defaultValue = "0") int page,
+            Authentication authentication
     ) {
+        UUID userId = extractUserIdFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100)); 
         return ResponseEntity.ok(
                 messageService.getLatestMessages(conversationId, pageable)
@@ -76,8 +78,10 @@ public class MessageController {
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<ApiResponse<org.springframework.data.domain.Slice<MessageResponseDto>>> getConversationMessages(
             @PathVariable UUID conversationId,
-            @RequestParam(defaultValue = "20") int limit
+            @RequestParam(defaultValue = "20") int limit,
+            Authentication authentication
     ) {
+        UUID userId = extractUserIdFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(0, Math.min(limit, 100));
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getLatestMessages(conversationId, pageable);
         
@@ -97,8 +101,10 @@ public class MessageController {
     public ResponseEntity<ApiResponse<org.springframework.data.domain.Slice<MessageResponseDto>>> getOlderMessages(
             @PathVariable UUID conversationId,
             @RequestParam UUID beforeMessageId,
-            @RequestParam(defaultValue = "20") int limit
+            @RequestParam(defaultValue = "20") int limit,
+            Authentication authentication
     ) {
+        UUID userId = extractUserIdFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(0, limit);
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getOlderMessages(conversationId, beforeMessageId, pageable);
         
@@ -120,8 +126,10 @@ public class MessageController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime before,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime after,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "0") int page
+            @RequestParam(defaultValue = "0") int page,
+            Authentication authentication
     ) {
+        UUID userId = extractUserIdFromAuthentication(authentication);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getConversationMessages(conversationId, before, after, pageable);
         
@@ -138,18 +146,22 @@ public class MessageController {
     public ResponseEntity<MessageAttachmentDto> addAttachment(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
-            @RequestBody MessageAttachmentDto attachmentDto
+            @RequestBody MessageAttachmentDto attachmentDto,
+            Authentication authentication
     ) {
-        MessageAttachmentDto result = enhancementService.addAttachment(conversationId, messageId, attachmentDto);
+        UUID userId = extractUserIdFromAuthentication(authentication);
+        MessageAttachmentDto result = enhancementService.addAttachment(conversationId, messageId, attachmentDto, userId);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{conversationId}/{messageId}/attachments")
     public ResponseEntity<List<MessageAttachmentDto>> getMessageAttachments(
             @PathVariable UUID conversationId,
-            @PathVariable UUID messageId
+            @PathVariable UUID messageId,
+            Authentication authentication
     ) {
-        List<MessageAttachmentDto> attachments = enhancementService.getMessageAttachments(conversationId, messageId);
+        UUID userId = extractUserIdFromAuthentication(authentication);
+        List<MessageAttachmentDto> attachments = enhancementService.getMessageAttachments(conversationId, messageId, userId);
         return ResponseEntity.ok(attachments);
     }
 
@@ -223,9 +235,11 @@ public class MessageController {
     @GetMapping("/{conversationId}/{messageId}/read-receipts")
     public ResponseEntity<List<MessageReadReceipt>> getReadReceipts(
             @PathVariable UUID conversationId,
-            @PathVariable UUID messageId
+            @PathVariable UUID messageId,
+            Authentication authentication
     ) {
-        List<MessageReadReceipt> receipts = enhancementService.getMessageReadReceipts(conversationId, messageId);
+        UUID userId = extractUserIdFromAuthentication(authentication);
+        List<MessageReadReceipt> receipts = enhancementService.getMessageReadReceipts(conversationId, messageId, userId);
         return ResponseEntity.ok(receipts);
     }
 
@@ -243,9 +257,11 @@ public class MessageController {
 
     @GetMapping("/{conversationId}/pinned")
     public ResponseEntity<List<PinnedMessage>> getPinnedMessages(
-            @PathVariable UUID conversationId
+            @PathVariable UUID conversationId,
+            Authentication authentication
     ) {
-        List<PinnedMessage> pinnedMessages = enhancementService.getPinnedMessages(conversationId);
+        UUID userId = extractUserIdFromAuthentication(authentication);
+        List<PinnedMessage> pinnedMessages = enhancementService.getPinnedMessages(conversationId, userId);
         return ResponseEntity.ok(pinnedMessages);
     }
 

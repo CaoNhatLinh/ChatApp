@@ -20,6 +20,7 @@ import com.chatapp.chat_service.message.repository.MessageRepository;
 import com.chatapp.chat_service.message.repository.PinnedMessageRepository;
 import com.chatapp.chat_service.notification.service.NotificationService;
 import com.chatapp.chat_service.common.exception.BusinessException;
+import com.chatapp.chat_service.security.SecurityContextHelper;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,12 +51,15 @@ public class MessageEnhancementService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
     private final KafkaEventProducer kafkaEventProducer;
+    private final MessageValidationService validationService;
+    private final SecurityContextHelper securityContextHelper;
 
 
     /**
      * Thêm attachment vào message
      */
-    public MessageAttachmentDto addAttachment(UUID conversationId, UUID messageId, MessageAttachmentDto attachmentDto) {
+    public MessageAttachmentDto addAttachment(UUID conversationId, UUID messageId, MessageAttachmentDto attachmentDto, UUID userId) {
+        validationService.validateConversationMembership(conversationId, userId);
         UUID attachmentId = UUID.randomUUID();
         
         MessageAttachment attachment = MessageAttachment.builder()
@@ -74,7 +78,7 @@ public class MessageEnhancementService {
 
         log.info("Added attachment {} to message {} in conversation {}", attachmentId, messageId, conversationId);
 
-        return MessageAttachmentDto.builder()
+        MessageAttachmentDto result = MessageAttachmentDto.builder()
                 .attachmentId(attachmentId)
                 .attachmentType(attachment.getAttachmentType())
                 .fileName(attachment.getFileName())
@@ -82,12 +86,25 @@ public class MessageEnhancementService {
                 .fileSize(attachment.getFileSize())
                 .mimeType(attachment.getMimeType())
                 .build();
+
+        Map<String, Object> attachmentEvent = Map.of(
+            "action", "ADD",
+            "conversationId", conversationId,
+            "messageId", messageId,
+            "attachment", result
+        );
+
+        messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/attachments", attachmentEvent);
+        kafkaEventProducer.sendAttachmentEvent(attachmentEvent);
+
+        return result;
     }
 
     /**
      * Lấy attachments của message
      */
-    public List<MessageAttachmentDto> getMessageAttachments(UUID conversationId, UUID messageId) {
+    public List<MessageAttachmentDto> getMessageAttachments(UUID conversationId, UUID messageId, UUID userId) {
+        validationService.validateConversationMembership(conversationId, userId);
         String cacheKey = "message_attachments:" + conversationId + ":" + messageId;
         
         List<Object> cachedAttachments = redisTemplate.opsForList().range(cacheKey, 0, -1);
@@ -131,6 +148,7 @@ public class MessageEnhancementService {
      * Thêm hoặc xóa reaction
      */
     public void toggleReaction(UUID conversationId, UUID messageId, String emoji, UUID userId) {
+        validationService.validateConversationMembership(conversationId, userId);
         MessageReaction.MessageReactionKey key = new MessageReaction.MessageReactionKey(conversationId, messageId, emoji, userId);
         
         Optional<MessageReaction> existingReaction = reactionRepository.findById(key);
@@ -193,6 +211,7 @@ public class MessageEnhancementService {
      * Lấy reactions của message
      */
     public List<AggregatedReactionDto> getMessageReactions(UUID conversationId, UUID messageId, UUID currentUserId) {
+        validationService.validateConversationMembership(conversationId, currentUserId);
         String cacheKey = "message_reactions:" + conversationId + ":" + messageId;
         Map<Object, Object> cachedReactions = redisTemplate.opsForHash().entries(cacheKey);
         if (!cachedReactions.isEmpty()) {
@@ -235,6 +254,7 @@ public class MessageEnhancementService {
      * Lấy reactions cho nhiều messages (Batch fetch)
      */
     public Map<UUID, List<AggregatedReactionDto>> getReactionsForMessages(UUID conversationId, List<UUID> messageIds, UUID currentUserId) {
+        validationService.validateConversationMembership(conversationId, currentUserId);
         if (messageIds == null || messageIds.isEmpty()) return Collections.emptyMap();
 
         List<MessageReaction> allReactions = reactionRepository.findByConversationIdAndMessageIdIn(conversationId, messageIds);
@@ -282,6 +302,7 @@ public class MessageEnhancementService {
      * Đánh dấu message đã đọc
      */
     public void markAsRead(UUID conversationId, UUID messageId, UUID readerId) {
+        validationService.validateConversationMembership(conversationId, readerId);
         MessageReadReceipt.MessageReadReceiptKey key = new MessageReadReceipt.MessageReadReceiptKey(conversationId, messageId, readerId);
         
         Optional<MessageReadReceipt> existing = readReceiptRepository.findById(key);
@@ -307,6 +328,7 @@ public class MessageEnhancementService {
                 .build();
 
         messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/read", event);
+        kafkaEventProducer.sendReadReceiptEvent(event);
 
         log.info("User {} marked message {} as read in conversation {}", readerId, messageId, conversationId);
     }
@@ -314,7 +336,8 @@ public class MessageEnhancementService {
     /**
      * Lấy read receipts cho message
      */
-    public List<MessageReadReceipt> getMessageReadReceipts(UUID conversationId, UUID messageId) {
+    public List<MessageReadReceipt> getMessageReadReceipts(UUID conversationId, UUID messageId, UUID userId) {
+        validationService.validateConversationMembership(conversationId, userId);
         String cacheKey = "message_read_receipts:" + conversationId + ":" + messageId;
         
         List<Object> cachedReceipts = redisTemplate.opsForList().range(cacheKey, 0, -1);
@@ -340,6 +363,7 @@ public class MessageEnhancementService {
      * Pin/Unpin message
      */
     public void togglePinMessage(UUID conversationId, UUID messageId, UUID pinnedBy) {
+        validationService.validateConversationMembership(conversationId, pinnedBy);
         PinnedMessage.PinnedMessageKey key = new PinnedMessage.PinnedMessageKey(conversationId, messageId);
         
         Optional<PinnedMessage> existing = pinnedMessageRepository.findById(key);
@@ -363,14 +387,22 @@ public class MessageEnhancementService {
         String cacheKey = "pinned_messages:" + conversationId;
         redisTemplate.delete(cacheKey);
 
-        messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/pins", 
-            Map.of("messageId", messageId, "action", existing.isPresent() ? "UNPIN" : "PIN", "pinnedBy", pinnedBy));
+        Map<String, Object> pinEvent = Map.of(
+            "messageId", messageId, 
+            "conversationId", conversationId,
+            "action", existing.isPresent() ? "UNPIN" : "PIN", 
+            "pinnedBy", pinnedBy
+        );
+
+        messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/pins", pinEvent);
+        kafkaEventProducer.sendPinEvent(pinEvent);
     }
 
     /**
      * Lấy pinned messages
      */
-    public List<PinnedMessage> getPinnedMessages(UUID conversationId) {
+    public List<PinnedMessage> getPinnedMessages(UUID conversationId, UUID userId) {
+        validationService.validateConversationMembership(conversationId, userId);
         String cacheKey = "pinned_messages:" + conversationId;
         
         List<Object> cachedPinned = redisTemplate.opsForList().range(cacheKey, 0, -1);
