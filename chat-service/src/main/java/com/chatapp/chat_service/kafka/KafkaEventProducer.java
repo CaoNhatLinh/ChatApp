@@ -25,6 +25,7 @@ public class KafkaEventProducer {
     private static final String T_MESSAGE_READ = "message-read-topic";
     private static final String T_MESSAGE_PIN = "message-pin-topic";
     private static final String T_MESSAGE_ATTACHMENT = "message-attachment-topic";
+    private static final String T_CONVERSATION_MANAGEMENT = "conversation-management-topic";
     private static final String T_NOTIFICATION = "notification-topic";
 
     
@@ -83,6 +84,11 @@ public class KafkaEventProducer {
 
     public void sendAttachmentEvent(Object event) {
         kafkaTemplate.send(T_MESSAGE_ATTACHMENT, event);
+    }
+
+    public void sendConversationManagementEvent(com.chatapp.chat_service.conversation.event.ConversationManagementEvent event) {
+        String key = event.getConversationId().toString();
+        kafkaTemplate.send(T_CONVERSATION_MANAGEMENT, key, event);
     }
 
     

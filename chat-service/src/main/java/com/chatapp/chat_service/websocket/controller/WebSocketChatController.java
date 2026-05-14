@@ -48,6 +48,7 @@ public class WebSocketChatController {
     private final JwtTokenProvider jwtTokenProvider;
     private final TypingIndicatorService typingIndicatorService;
     private final ConversationMemberService conversationMemberService;
+    private final MessageValidationService messageValidationService;
 
 @MessageMapping("/message.send")
     public void handleNewMessage(@Payload MessageEvent event, 
@@ -57,11 +58,7 @@ public class WebSocketChatController {
             UUID senderId = extractUserIdFromPrincipalOrToken(principal, authHeader);
             UUID conversationId = event.getPayload().getConversationId();
             
-            if (!conversationMemberService.isMemberOfConversation(conversationId, senderId)) {
-                log.warn("User {} attempted to send message to conversation {} without membership", senderId, conversationId);
-                sendErrorToUser(principal, authHeader, "You are not a member of this conversation");
-                return;
-            }
+            messageValidationService.validateMessagePermission(conversationId, senderId);
             
             log.info("Processing message from user: {} to conversation: {}", 
                     senderId, conversationId);
@@ -94,11 +91,7 @@ public class WebSocketChatController {
             UUID senderId = extractUserIdFromPrincipalOrToken(principal, authHeader);
             UUID conversationId = event.getPayload().getConversationId();
             
-            if (!conversationMemberService.isMemberOfConversation(conversationId, senderId)) {
-                log.warn("User {} attempted to send file to conversation {} without membership", senderId, conversationId);
-                sendErrorToUser(principal, authHeader, "You are not a member of this conversation");
-                return;
-            }
+            messageValidationService.validateMessagePermission(conversationId, senderId);
             
             log.info("Processing file message from user: {}", senderId);
 
@@ -129,6 +122,9 @@ public class WebSocketChatController {
                             @Header(value = "Authorization", required = false) String authHeader) {
         try {
             UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
+            
+            // Validate membership and blocks before processing typing status
+            messageValidationService.validateMessagePermission(event.getConversationId(), userId);
             
             if (event.isTyping()) {
                 typingIndicatorService.startTyping(event.getConversationId(), userId);

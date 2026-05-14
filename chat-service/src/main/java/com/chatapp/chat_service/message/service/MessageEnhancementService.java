@@ -59,7 +59,7 @@ public class MessageEnhancementService {
      * Thêm attachment vào message
      */
     public MessageAttachmentDto addAttachment(UUID conversationId, UUID messageId, MessageAttachmentDto attachmentDto, UUID userId) {
-        validationService.validateConversationMembership(conversationId, userId);
+        validationService.validateMessagePermission(conversationId, userId);
         UUID attachmentId = UUID.randomUUID();
         
         MessageAttachment attachment = MessageAttachment.builder()
@@ -91,7 +91,8 @@ public class MessageEnhancementService {
             "action", "ADD",
             "conversationId", conversationId,
             "messageId", messageId,
-            "attachment", result
+            "attachment", result,
+            "addedBy", userId
         );
 
         messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/attachments", attachmentEvent);
@@ -104,7 +105,7 @@ public class MessageEnhancementService {
      * Lấy attachments của message
      */
     public List<MessageAttachmentDto> getMessageAttachments(UUID conversationId, UUID messageId, UUID userId) {
-        validationService.validateConversationMembership(conversationId, userId);
+        validationService.validateMessagePermission(conversationId, userId);
         String cacheKey = "message_attachments:" + conversationId + ":" + messageId;
         
         List<Object> cachedAttachments = redisTemplate.opsForList().range(cacheKey, 0, -1);
@@ -148,7 +149,7 @@ public class MessageEnhancementService {
      * Thêm hoặc xóa reaction
      */
     public void toggleReaction(UUID conversationId, UUID messageId, String emoji, UUID userId) {
-        validationService.validateConversationMembership(conversationId, userId);
+        validationService.validateMessagePermission(conversationId, userId);
         MessageReaction.MessageReactionKey key = new MessageReaction.MessageReactionKey(conversationId, messageId, emoji, userId);
         
         Optional<MessageReaction> existingReaction = reactionRepository.findById(key);
@@ -302,7 +303,7 @@ public class MessageEnhancementService {
      * Đánh dấu message đã đọc
      */
     public void markAsRead(UUID conversationId, UUID messageId, UUID readerId) {
-        validationService.validateConversationMembership(conversationId, readerId);
+        validationService.validateMessagePermission(conversationId, readerId);
         MessageReadReceipt.MessageReadReceiptKey key = new MessageReadReceipt.MessageReadReceiptKey(conversationId, messageId, readerId);
         
         Optional<MessageReadReceipt> existing = readReceiptRepository.findById(key);
@@ -337,7 +338,7 @@ public class MessageEnhancementService {
      * Lấy read receipts cho message
      */
     public List<MessageReadReceipt> getMessageReadReceipts(UUID conversationId, UUID messageId, UUID userId) {
-        validationService.validateConversationMembership(conversationId, userId);
+        validationService.validateMessagePermission(conversationId, userId);
         String cacheKey = "message_read_receipts:" + conversationId + ":" + messageId;
         
         List<Object> cachedReceipts = redisTemplate.opsForList().range(cacheKey, 0, -1);
@@ -363,7 +364,7 @@ public class MessageEnhancementService {
      * Pin/Unpin message
      */
     public void togglePinMessage(UUID conversationId, UUID messageId, UUID pinnedBy) {
-        validationService.validateConversationMembership(conversationId, pinnedBy);
+        validationService.validateMessagePermission(conversationId, pinnedBy);
         PinnedMessage.PinnedMessageKey key = new PinnedMessage.PinnedMessageKey(conversationId, messageId);
         
         Optional<PinnedMessage> existing = pinnedMessageRepository.findById(key);
@@ -402,7 +403,7 @@ public class MessageEnhancementService {
      * Lấy pinned messages
      */
     public List<PinnedMessage> getPinnedMessages(UUID conversationId, UUID userId) {
-        validationService.validateConversationMembership(conversationId, userId);
+        validationService.validateMessagePermission(conversationId, userId);
         String cacheKey = "pinned_messages:" + conversationId;
         
         List<Object> cachedPinned = redisTemplate.opsForList().range(cacheKey, 0, -1);

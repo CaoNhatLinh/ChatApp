@@ -3,6 +3,8 @@ package com.chatapp.chat_service.conversation.service;
 import com.chatapp.chat_service.redis.publisher.RedisCacheEvictPublisher;
 import com.chatapp.chat_service.elasticsearch.service.ConversationElasticsearchService;
 import com.chatapp.chat_service.auth.service.UserService;
+import com.chatapp.chat_service.conversation.event.ConversationManagementEvent;
+import com.chatapp.chat_service.kafka.KafkaEventProducer;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import com.chatapp.chat_service.common.exception.NotFoundException;
@@ -51,6 +53,7 @@ public class ConversationService {
     private final UserService userService;
     private final MessageRepository messageRepository;
     private final MessageReadReceiptRepository messageReadReceiptRepository;
+    private final KafkaEventProducer kafkaEventProducer;
     
     @Autowired(required = false)
     private ConversationElasticsearchService conversationElasticsearchService;
@@ -63,7 +66,8 @@ public class ConversationService {
             RedisCacheEvictPublisher cacheEvictPublisher,
             UserService userService,
             MessageRepository messageRepository,
-            MessageReadReceiptRepository messageReadReceiptRepository) {
+            MessageReadReceiptRepository messageReadReceiptRepository,
+            KafkaEventProducer kafkaEventProducer) {
         this.redisTemplate = redisTemplate;
         this.conversationRepository = conversationRepository;
         this.memberRepository = memberRepository;
@@ -72,6 +76,7 @@ public class ConversationService {
         this.userService = userService;
         this.messageRepository = messageRepository;
         this.messageReadReceiptRepository = messageReadReceiptRepository;
+        this.kafkaEventProducer = kafkaEventProducer;
     }
 
     public org.springframework.data.domain.Slice<UserConversation> getUserConversations(UUID userId, Pageable pageable) {
@@ -131,6 +136,14 @@ public class ConversationService {
         if ("dm".equals(req.getType()) && allMembers.size() == 2) {
             cachePrivateConversation(allMembers, conversation);
         }
+
+        kafkaEventProducer.sendConversationManagementEvent(ConversationManagementEvent.builder()
+                .action(ConversationManagementEvent.Action.CREATED)
+                .conversationId(conversationId)
+                .actorId(createdId)
+                .affectedUserIds(new ArrayList<>(allMembers))
+                .timestamp(now)
+                .build());
 
         logger.info("Created {} conversation {} by user {}", req.getType(), conversationId, createdId);
         return conversation;
@@ -210,6 +223,14 @@ public class ConversationService {
         }
         
         clearConversationCache(conversationId, conversation);
+        
+        kafkaEventProducer.sendConversationManagementEvent(ConversationManagementEvent.builder()
+                .action(ConversationManagementEvent.Action.DELETED)
+                .conversationId(conversationId)
+                .actorId(userId)
+                .timestamp(Instant.now())
+                .build());
+
         logger.info("Soft deleted conversation {} by user {}", conversationId, userId);
         return true;
     }
@@ -239,6 +260,13 @@ public class ConversationService {
         if (conversationElasticsearchService != null) {
             conversationElasticsearchService.restoreConversation(conversationId);
         }
+        
+        kafkaEventProducer.sendConversationManagementEvent(ConversationManagementEvent.builder()
+                .action(ConversationManagementEvent.Action.RESTORED)
+                .conversationId(conversationId)
+                .actorId(userId)
+                .timestamp(Instant.now())
+                .build());
         
         logger.info("Restored conversation {} by user {}", conversationId, userId);
         return true;
@@ -283,6 +311,14 @@ public class ConversationService {
         
         clearConversationCache(conversationId, conversation);
         
+        kafkaEventProducer.sendConversationManagementEvent(ConversationManagementEvent.builder()
+                .action(ConversationManagementEvent.Action.DELETED)
+                .conversationId(conversationId)
+                .actorId(userId)
+                .timestamp(Instant.now())
+                .metadata(Map.of("permanent", true))
+                .build());
+
         logger.info("Permanently deleted conversation {} by owner {}", conversationId, userId);
         return true;
     }
@@ -592,6 +628,14 @@ public class ConversationService {
                 logger.warn("Failed to update conversation in Elasticsearch: {}", conversationId, e);
             }
         }
+        
+        kafkaEventProducer.sendConversationManagementEvent(ConversationManagementEvent.builder()
+                .action(ConversationManagementEvent.Action.UPDATED)
+                .conversationId(conversationId)
+                .actorId(requesterId)
+                .timestamp(Instant.now())
+                .metadata(Map.of("name", conversation.getName(), "description", conversation.getDescription() == null ? "" : conversation.getDescription()))
+                .build());
         
         logger.info("Updated conversation {} by user {}", conversationId, requesterId);
         return conversation;

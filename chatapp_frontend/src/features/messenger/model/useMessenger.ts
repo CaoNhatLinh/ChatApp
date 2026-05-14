@@ -22,6 +22,7 @@ import { getReceivedRequests } from '@/features/relationships/api/friends.api';
 import type { FriendRequestsResponse } from '@/features/relationships/api/friends.api';
 import { subscribePresence, getBatchPresence as getBatchPresenceApi } from '@/features/presence/api/presence.api';
 import { usePresenceStore } from '@/features/presence/model/presence.store';
+import { useFriendStore } from '@/features/relationships/model/friend.store';
 import type {
     Conversation,
     Message,
@@ -493,6 +494,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
     })));
 
     const { user, token } = useAuthStore();
+    const blockedUserIds = useFriendStore(state => state.blockedUserIds);
 
     useEffect(() => {
         let mounted = true;
@@ -518,7 +520,14 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         // Subscribe to messages
         const unsubMessage = realtimeService.subscribe(`/topic/conversation/${activeConversationId}`, (raw: Partial<BackendMessage>) => {
             const msg = mapToMessage(raw);
-            if (!msg.messageId) return;
+            if (!msg.messageId || !msg.sender?.userId) return;
+            
+            // Filter out messages from blocked users
+            if (blockedUserIds.has(String(msg.sender.userId))) {
+                logger.debug(`[useMessengerSetup] Ignoring message from blocked user: ${msg.sender.userId}`);
+                return;
+            }
+
             addMessage(activeConversationId, msg);
             if (msg.sender.userId !== user.userId && !msg.isDeleted) {
                 void markMessageAsRead(activeConversationId, msg.messageId);
@@ -534,6 +543,11 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
             const eventUserId = String(rawUser.userId ?? '');
             if (!eventUserId || eventUserId === user.userId) return;
+
+            // Filter out typing indicators from blocked users
+            if (blockedUserIds.has(eventUserId)) {
+                return;
+            }
 
             const typingEvent: TypingEvent = {
                 conversationId: activeConversationId,
@@ -553,6 +567,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         const unsubReactions = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/reactions`,
             (event: { messageId: string; emoji: string; userId: string; action: 'ADD' | 'REMOVE' }) => {
+                if (blockedUserIds.has(String(event.userId))) return;
                 updateMessageReactions(activeConversationId, event.messageId, event);
             }
         );
@@ -560,6 +575,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         const unsubReadReceipts = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/read`,
             (event: { messageId: string; readerId: string; readAt: string }) => {
+                if (blockedUserIds.has(String(event.readerId))) return;
                 addReadReceipt(activeConversationId, event.messageId, {
                     readerId: event.readerId,
                     readAt: event.readAt,
@@ -571,6 +587,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         const unsubPolls = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/polls`,
             (pollData: Message['poll']) => {
+                if (pollData?.createdBy && blockedUserIds.has(String(pollData.createdBy))) return;
                 updatePollData(activeConversationId, pollData);
             }
         );
@@ -578,7 +595,8 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         // Subscribe to pin updates
         const unsubPins = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/pins`,
-            (event: { messageId: string; action: 'PIN' | 'UNPIN' }) => {
+            (event: { messageId: string; action: 'PIN' | 'UNPIN'; pinnedBy: string }) => {
+                if (blockedUserIds.has(String(event.pinnedBy))) return;
                 updateMessagePinStatus(activeConversationId, event.messageId, event.action === 'PIN');
             }
         );
@@ -586,7 +604,8 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         // Subscribe to attachment updates
         const unsubAttachments = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/attachments`,
-            (event: { messageId: string; attachment: Message['attachments'][0] }) => {
+            (event: { messageId: string; attachment: Message['attachments'][0]; addedBy: string }) => {
+                if (blockedUserIds.has(String(event.addedBy))) return;
                 addMessageAttachment(activeConversationId, event.messageId, event.attachment);
             }
         );
@@ -612,6 +631,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         clearTyping,
         addReadReceipt,
         updateMessagePinStatus,
-        addMessageAttachment
+        addMessageAttachment,
+        blockedUserIds
     ]);
 };
