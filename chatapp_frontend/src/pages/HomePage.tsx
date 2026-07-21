@@ -8,7 +8,7 @@ const HOME_REVEAL_IMAGE_URL =
   "https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_20260609_201152_bba90a12-bf12-459f-91f0-51f237dbaf3b.png&w=1280&q=85";
 const SPOTLIGHT_R = 260;
 
-const NAV_LINKS = ["Course", "Field Guides", "Geology", "Plans", "Live Tour"] as const;
+const NAV_LINKS = ["Features", "Conversations", "Teams", "Security", "Pricing"] as const;
 
 interface RevealLayerProps {
   image: string;
@@ -197,9 +197,7 @@ export const HomePage = () => {
               key={item}
               href="#"
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                index === 0
-                  ? "bg-white text-gray-900"
-                  : "text-white/80 hover:bg-white/20 hover:text-white"
+                index === 0 ? "bg-white text-gray-900" : "text-white/80 hover:bg-white/20 hover:text-white"
               }`}
             >
               {item}
@@ -211,7 +209,7 @@ export const HomePage = () => {
           href="/register"
           className="hidden md:inline-flex text-sm font-semibold bg-white text-gray-900 px-6 py-2.5 rounded-full hover:bg-gray-100 transition-colors"
         >
-          Sign Up
+          Get Started
         </a>
 
         <a
@@ -241,39 +239,39 @@ export const HomePage = () => {
             className="block hero-anim hero-reveal font-playfair italic font-normal text-5xl sm:text-7xl md:text-8xl"
             style={{ letterSpacing: "-0.05em", animationDelay: "0.25s" }}
           >
-            Layers hold
+            Conversations
           </span>
           <span
             className="block hero-anim hero-reveal font-normal text-5xl sm:text-7xl md:text-8xl -mt-1"
             style={{ letterSpacing: "-0.08em", animationDelay: "0.42s" }}
           >
-            tales of time
+            move faster.
           </span>
         </h1>
       </div>
 
       <div className="hidden sm:block absolute bottom-14 left-10 md:left-14 max-w-[260px] z-50 hero-anim hero-fade" style={{ animationDelay: "0.7s" }}>
         <p className="text-sm text-white/80 leading-relaxed">
-          Every layer of sediment records a chapter of our planet, from deep history to present moments.
+          NovaChat is a real-time workspace for teams to message, react, and ship decisions in the same place.
         </p>
       </div>
 
       <div className="absolute bottom-10 sm:bottom-24 left-5 right-5 sm:left-auto sm:right-10 md:right-14 max-w-full sm:max-w-[260px] z-50 flex flex-col items-start gap-4 sm:gap-5">
         <p className="hero-anim hero-fade text-xs sm:text-sm text-white/80 leading-relaxed" style={{ animationDelay: "0.85s" }}>
-          Explore maps, milestones, and timelines with layered visuals that reveal the hidden stories beneath every scene.
+          Move from idea to action with instant presence, threaded messages, smart search, and secure file sharing.
         </p>
         <a
           href="/app"
           className="hero-anim hero-fade bg-[#e8702a] hover:bg-[#d2611f] text-white text-sm font-medium px-7 py-3 rounded-full transition-all hover:scale-[1.03] active:scale-95 hover:shadow-lg hover:shadow-[#e8702a]/30"
           style={{ animationDelay: "0.85s" }}
         >
-          Start exploring
+          Open conversation
         </a>
       </div>
 
       <a
         href="/search"
-        aria-label="Open discovery"
+        aria-label="Open search"
         className="fixed right-4 top-4 z-[101] inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white opacity-70 hover:opacity-100 md:hidden"
       >
         <ChevronRight size={18} />
