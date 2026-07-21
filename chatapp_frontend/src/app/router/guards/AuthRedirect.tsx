@@ -1,6 +1,9 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/features/auth/model/auth.store';
+import { motion } from "framer-motion";
+import { UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
+import { UI_MOTION_CONFIG } from "@/shared/constants/ui-motion-variants";
 
 interface AuthRedirectProps {
   children: React.ReactNode;
@@ -12,11 +15,16 @@ export const AuthRedirect: React.FC<AuthRedirectProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
+      <div className="page-shell min-h-screen flex items-center justify-center">
+        <motion.div className="text-center" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.fadeIn}>
+          <motion.div
+            className="h-12 w-12 border-2 border-border/40 border-t-primary rounded-full mx-auto mb-4"
+            initial={UI_MOTION_CONFIG.initialState}
+            animate={UI_MOTION_CONFIG.animateState}
+            variants={UI_MOTION_VARIANTS.loadingSpin}
+          />
+          <p className="text-muted-foreground">Loading...</p>
+        </motion.div>
       </div>
     );
   }

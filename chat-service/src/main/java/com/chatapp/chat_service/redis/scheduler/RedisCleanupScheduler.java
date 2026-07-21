@@ -63,7 +63,6 @@ public class RedisCleanupScheduler {
                 return;
             }
 
-            int cleanedUsers = 0;
             int cleanedSessions = 0;
 
             for (String userKey : userSessionKeys) {
@@ -80,23 +79,16 @@ public class RedisCleanupScheduler {
                     for (String sessionId : sessions) {
                         String heartbeatKey = String.format("presence:hb:%s:%s", userIdStr, sessionId);
                         if (!Boolean.TRUE.equals(redisTemplate.hasKey(heartbeatKey))) {
-                            redisTemplate.opsForSet().remove(userKey, sessionId);
+                            presenceService.handleExpiredSession(userId, sessionId);
                             cleanedSessions++;
                         }
-                    }
-
-                    Long remainingSize = redisTemplate.opsForSet().size(userKey);
-                    if (remainingSize == null || remainingSize == 0) {
-                        log.warn("Force offline user {} due to missing heartbeats (Garbage Collected)", userId);
-                        presenceService.handleExpiredSession(userId, "gc-cleanup");
-                        cleanedUsers++;
                     }
                 } else {
                     redisTemplate.delete(userKey);
                 }
             }
             if(cleanedSessions > 0) {
-                log.info("Presence Cleanup completed: force offline {} users, cleaned {} ghost sessions", cleanedUsers, cleanedSessions);
+                log.info("Presence cleanup removed {} expired sessions", cleanedSessions);
             }
         } catch (Exception e) {
             log.error("Error during Presence sessions cleanup: {}", e.getMessage(), e);

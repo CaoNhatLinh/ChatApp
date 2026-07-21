@@ -1,15 +1,23 @@
 import React from 'react';
 import { AuthLayout } from '@/features/auth/ui/AuthLayout';
 import { Login } from '@/features/auth/Login';
+import { motion } from 'framer-motion';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 
 export const LoginPage: React.FC = () => {
   return (
-    <AuthLayout
-      title="Đăng nhập"
-      subtitle="Chào mừng trở lại! Vui lòng nhập thông tin để tiếp tục trò chuyện."
+    <motion.div
+      initial={UI_MOTION_CONFIG.initialState}
+      animate={UI_MOTION_CONFIG.animateState}
+      variants={UI_MOTION_VARIANTS.panelReveal}
     >
-      <Login />
-    </AuthLayout>
+      <AuthLayout
+        title="Đăng nhập"
+        subtitle="Chào mừng trở lại, vào nhanh để tiếp tục các hội thoại của bạn."
+      >
+        <Login />
+      </AuthLayout>
+    </motion.div>
   );
 };
 

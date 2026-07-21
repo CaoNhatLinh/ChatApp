@@ -1,18 +1,18 @@
-﻿// src/components/presence/StatusSelector.tsx
-// Dropdown component for selecting user status (Online, DND, Invisible)
-
-import { Circle, MinusCircle, EyeOff, Check } from 'lucide-react';
+﻿import { Circle, MinusCircle, EyeOff, Check, Loader2 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { usePresenceStore } from '@/features/presence/model/presence.store';
 import { presenceWsService } from '@/features/presence/services/presenceWsService';
+import { logger } from '@/shared/lib/logger';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuTrigger,
     DropdownMenuSeparator,
     DropdownMenuLabel,
+    DropdownMenuTrigger,
 } from '@/shared/ui/DropdownMenu';
 import { cn } from '@/shared/lib/cn';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 
 type StatusValue = 'ONLINE' | 'DND' | 'INVISIBLE';
 
@@ -21,30 +21,26 @@ interface StatusOption {
     label: string;
     description: string;
     icon: React.ReactNode;
-    dotColor: string; // Tailwind class for the dot indicator
 }
 
 const STATUS_OPTIONS: StatusOption[] = [
     {
         value: 'ONLINE',
-        label: 'Trực tuyến',
-        description: 'Mọi người thấy bạn đang hoạt động',
+        label: MESSENGER_COPY.presence.statusSelector.onlineLabel,
+        description: MESSENGER_COPY.presence.statusSelector.onlineDescription,
         icon: <Circle className="h-4 w-4 fill-green-500 text-green-500" />,
-        dotColor: 'bg-green-500',
     },
     {
         value: 'DND',
-        label: 'Không làm phiền',
-        description: 'Tắt thông báo, hiện biểu tượng đỏ',
+        label: MESSENGER_COPY.presence.statusSelector.dndLabel,
+        description: MESSENGER_COPY.presence.statusSelector.dndDescription,
         icon: <MinusCircle className="h-4 w-4 fill-red-500 text-red-500" />,
-        dotColor: 'bg-red-500',
     },
     {
         value: 'INVISIBLE',
-        label: 'Vô hình',
-        description: 'Mọi người thấy bạn đang ngoại tuyến',
+        label: MESSENGER_COPY.presence.statusSelector.invisibleLabel,
+        description: MESSENGER_COPY.presence.statusSelector.invisibleDescription,
         icon: <EyeOff className="h-4 w-4 text-gray-400" />,
-        dotColor: 'bg-gray-400',
     },
 ];
 
@@ -55,14 +51,61 @@ interface StatusSelectorProps {
 
 export const StatusSelector = ({ className, children }: StatusSelectorProps) => {
     const myStatus = usePresenceStore((s) => s.myStatus);
+    const isUpdatingMyStatus = usePresenceStore((s) => s.isUpdatingMyStatus);
     const setMyStatus = usePresenceStore((s) => s.setMyStatus);
+    const rollbackMyStatus = usePresenceStore((s) => s.rollbackMyStatus);
+    const pendingTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+    useEffect(() => {
+        if (isUpdatingMyStatus) {
+            return;
+        }
+
+        const currentTimeouts = pendingTimeoutsRef.current;
+        currentTimeouts.forEach((timeout) => {
+            clearTimeout(timeout);
+        });
+        currentTimeouts.clear();
+    }, [isUpdatingMyStatus]);
+
+    useEffect(() => {
+        return () => {
+            const currentTimeouts = pendingTimeoutsRef.current;
+            currentTimeouts.forEach((timeout) => {
+                clearTimeout(timeout);
+            });
+            currentTimeouts.clear();
+        };
+    }, []);
 
     const currentOption = STATUS_OPTIONS.find((opt) => opt.value === myStatus) ?? STATUS_OPTIONS[0];
 
     const handleStatusChange = (newStatus: StatusValue) => {
-        if (newStatus === myStatus) return; // No change needed
-        setMyStatus(newStatus);
-        presenceWsService.setStatus(newStatus);
+        if (newStatus === myStatus || isUpdatingMyStatus) return; // No change needed
+
+        const statusChange = presenceWsService.setStatus(newStatus);
+        setMyStatus(newStatus, statusChange.requestId, statusChange.traceId);
+
+        const existingTimeout = pendingTimeoutsRef.current.get(statusChange.requestId);
+        if (existingTimeout) {
+            clearTimeout(existingTimeout);
+            pendingTimeoutsRef.current.delete(statusChange.requestId);
+        }
+
+        const rollbackTimeout = setTimeout(() => {
+            const state = usePresenceStore.getState();
+            if (
+                state.isUpdatingMyStatus
+                && state.pendingStatusRequestId === statusChange.requestId
+                && state.myStatus === newStatus
+            ) {
+                logger.warn(`[Presence] STATUS_SYNC timeout, rolling back requestId=${statusChange.requestId}`);
+                rollbackMyStatus(statusChange.requestId, statusChange.traceId);
+            }
+            pendingTimeoutsRef.current.delete(statusChange.requestId);
+        }, 8000);
+
+        pendingTimeoutsRef.current.set(statusChange.requestId, rollbackTimeout);
     };
 
     return (
@@ -76,20 +119,31 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
                     className={cn(
                         'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm',
                         'hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        isUpdatingMyStatus ? 'opacity-80' : '',
                         'transition-colors',
                         className
                     )}
+                    disabled={isUpdatingMyStatus}
                 >
-                    {currentOption.icon}
-                    <span className="hidden sm:inline">{currentOption.label}</span>
+                    {isUpdatingMyStatus ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        currentOption.icon
+                    )}
+                    <span className="hidden sm:inline">
+                        {isUpdatingMyStatus
+                          ? MESSENGER_COPY.presence.statusSelector.updateLoading
+                          : currentOption.label}
+                    </span>
                 </DropdownMenuTrigger>
             )}
             <DropdownMenuContent align="end" className="w-64 rounded-xl p-2 z-50">
-                <DropdownMenuLabel className="font-semibold px-2 py-1.5 text-sm text-foreground">Trạng thái hoạt động</DropdownMenuLabel>
+                <DropdownMenuLabel className="font-semibold px-2 py-1.5 text-sm text-foreground">{MESSENGER_COPY.presence.statusSelector.title}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1" />
                 {STATUS_OPTIONS.map((option) => (
                     <DropdownMenuItem
                         key={option.value}
+                        disabled={isUpdatingMyStatus}
                         onClick={() => handleStatusChange(option.value)}
                         className="flex items-center gap-3 cursor-pointer rounded-lg p-2"
                     >
@@ -123,9 +177,16 @@ interface StatusDotProps {
     isOnline: boolean;
     size?: 'sm' | 'md' | 'lg';
     className?: string;
+    title?: string;
 }
 
-export const StatusDot = ({ status, isOnline, size = 'sm', className }: StatusDotProps) => {
+export const StatusDot = ({
+    status,
+    isOnline,
+    size = 'sm',
+    className,
+    title
+}: StatusDotProps) => {
     const sizeClasses = {
         sm: 'h-2.5 w-2.5',
         md: 'h-3 w-3',
@@ -134,13 +195,14 @@ export const StatusDot = ({ status, isOnline, size = 'sm', className }: StatusDo
 
     // Determine dot color and icon based on public status
     if (status === 'DND' && isOnline) {
-        return (
+    return (
             <span
                 className={cn(
                     sizeClasses[size],
                     'rounded-full bg-background flex items-center justify-center',
                     className
                 )}
+                title={title}
             >
                 <MinusCircle
                     className="w-full h-full fill-red-500 text-red-500"
@@ -151,14 +213,15 @@ export const StatusDot = ({ status, isOnline, size = 'sm', className }: StatusDo
 
     if (isOnline) {
         return (
-            <span
-                className={cn(
-                    sizeClasses[size],
-                    'rounded-full bg-green-500 inline-block',
-                    className
-                )}
-            />
-        );
+        <span
+            className={cn(
+                sizeClasses[size],
+                'rounded-full bg-green-500 inline-block',
+                className
+            )}
+            title={title}
+        />
+    );
     }
 
     // Offline (includes INVISIBLE users who appear offline to others)
@@ -169,6 +232,7 @@ export const StatusDot = ({ status, isOnline, size = 'sm', className }: StatusDo
                 'rounded-full bg-gray-400 inline-block',
                 className
             )}
+            title={title}
         />
     );
 };

@@ -1,9 +1,15 @@
 ﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/shared/lib/cn';
+import { motion } from 'framer-motion';
 import { Users, AtSign, Loader2 } from 'lucide-react';
 import type { ConversationMember } from '../../types/messenger.types';
 import { getConversationMembers } from '../../api/poll.api';
 import { useAuthStore } from '@/features/auth/model/auth.store';
+import { usePresenceByUserIds } from '@/features/presence/model/presence.store';
+import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
+import { StatusDot } from '@/features/presence/ui/StatusSelector';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 
 interface MentionMenuProps {
     conversationId: string;
@@ -26,7 +32,10 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
     const [hasFetched, setHasFetched] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const currentUser = useAuthStore(state => state.user);
+    const memberIds = useMemo(() => members.map((member) => member.userId), [members]);
+    const presences = usePresenceByUserIds(memberIds);
     const lastConvId = useRef<string>('');
+    useTrackPresence(query === null ? [] : memberIds);
 
     // Fetch members when menu opens (with caching per conversationId)
     useEffect(() => {
@@ -73,7 +82,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             conversationId,
             role: 'member',
             joinedAt: '',
-            displayName: 'Mọi người',
+            displayName: MESSENGER_COPY.mentionMenu.allMembersLabel,
             username: 'all',
             isOnline: false
         };
@@ -88,7 +97,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
         // Filter @all by query too
         const showAll = !normalizedQuery ||
             'all'.includes(normalizedQuery) ||
-            'mọi người'.includes(normalizedQuery) ||
+            MESSENGER_COPY.mentionMenu.allMembersLabel.toLowerCase().includes(normalizedQuery) ||
             'everyone'.includes(normalizedQuery);
 
         return [
@@ -150,16 +159,19 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
     if (query === null) return null;
 
     return (
-        <div
+        <motion.div
             ref={menuRef}
-            className="absolute z-50 w-72 max-h-80 overflow-y-auto custom-scrollbar bg-card/95 backdrop-blur-xl border border-border/60 rounded-2xl neo-shadow animate-in fade-in slide-in-from-bottom-2 duration-200"
+            className="absolute z-50 w-72 max-h-80 overflow-y-auto custom-scrollbar bg-card/95 backdrop-blur-xl border border-border/60 rounded-2xl neo-shadow"
             style={position ? { bottom: position.top, left: position.left } : { bottom: '100%', left: 0, marginBottom: '8px' }}
+            initial={UI_MOTION_CONFIG.initialState}
+            animate={UI_MOTION_CONFIG.animateState}
+            variants={UI_MOTION_VARIANTS.slideInFromBottom}
         >
             {/* Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-xl px-4 py-3 border-b border-border/40 flex items-center gap-2">
                 <AtSign size={14} className="text-primary" />
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Nhắc đến
+                    {MESSENGER_COPY.mentionMenu.title}
                 </span>
                 {query && (
                     <span className="ml-auto text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
@@ -171,14 +183,21 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             {/* Loading State */}
             {loading && (
                 <div className="flex items-center justify-center py-6">
-                    <Loader2 size={20} className="animate-spin text-primary" />
+                    <motion.span
+                      initial={UI_MOTION_CONFIG.initialState}
+                      animate={UI_MOTION_CONFIG.animateState}
+                      variants={UI_MOTION_VARIANTS.loadingSpin}
+                      className="text-primary"
+                    >
+                        <Loader2 size={20} />
+                    </motion.span>
                 </div>
             )}
 
             {/* Empty State */}
             {!loading && filteredItems.length === 0 && (
                 <div className="py-6 text-center">
-                    <p className="text-xs text-muted-foreground font-medium">Không tìm thấy thành viên</p>
+                    <p className="text-xs text-muted-foreground font-medium">{MESSENGER_COPY.mentionMenu.noMembers}</p>
                 </div>
             )}
 
@@ -187,6 +206,9 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                 <div className="p-1.5">
                     {filteredItems.map((member, index) => {
                         const isAll = member.userId === 'all';
+                        const presence = presences[member.userId] ?? null;
+                        const isOnline = presence?.isOnline ?? false;
+                        const status = presence?.status ?? 'OFFLINE';
                         return (
                             <button
                                 key={member.userId}
@@ -224,19 +246,19 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                                         {isAll ? '@all' : (member.displayName ?? member.username)}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground truncate">
-                                        {isAll ? 'Thông báo tất cả thành viên' : `@${member.username}`}
+                                        {isAll ? MESSENGER_COPY.mentionMenu.allMembersHint : `@${member.username}`}
                                     </p>
                                 </div>
 
                                 {/* Online indicator */}
-                                {!isAll && member.isOnline && (
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                {!isAll && (
+                                    <StatusDot status={status} isOnline={isOnline} size="sm" className="flex-shrink-0" />
                                 )}
                             </button>
                         );
                     })}
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 };

@@ -10,18 +10,17 @@ import {
     editMessage as editMessageApi,
     deleteMessage as deleteMessageApi,
     getMessageRevisions as getMessageRevisionsApi,
-    markMessageAsRead,
+    markMessagesAsRead,
+    getConversationUnreadCount,
     mapToMessage,
     pinConversation as pinConversationApi,
-    togglePinMessage,
     unpinConversation as unpinConversationApi,
+    togglePinMessage as pinMessageApi,
     uploadFiles,
     type BackendMessage
 } from '../api/messenger.api';
 import { getReceivedRequests } from '@/features/relationships/api/friends.api';
 import type { FriendRequestsResponse } from '@/features/relationships/api/friends.api';
-import { subscribePresence, getBatchPresence as getBatchPresenceApi } from '@/features/presence/api/presence.api';
-import { usePresenceStore } from '@/features/presence/model/presence.store';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
 import type {
     Conversation,
@@ -36,6 +35,26 @@ import type { ConversationSlice, MessageSlice } from './messenger.store.types';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
 import { useNotificationStore } from '@/features/notifications/model/notification.store';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+
+const MESSAGES_TTL_MS = 60_000;
+const CONVERSATION_PAGE_SIZE = 30;
+const INITIAL_MESSAGES_PAGE_SIZE = 30;
+const LOAD_MORE_MESSAGES_PAGE_SIZE = 20;
+const initTracker = { key: '', promise: null as Promise<void> | null };
+const initMessengerSubscriptions = new Map<string, Array<() => void>>();
+
+const clearInitSubscriptions = (key: string): void => {
+    const unsubscribers = initMessengerSubscriptions.get(key) || [];
+    unsubscribers.forEach((unsubscribe) => {
+        try {
+            unsubscribe();
+        } catch (error) {
+            logger.debug('[useMessenger] Failed to unsubscribe previous init subscription', error);
+        }
+    });
+    initMessengerSubscriptions.delete(key);
+};
 
 interface UseMessengerResult {
     initMessenger: () => Promise<void>;
@@ -82,9 +101,11 @@ export const useMessenger = (): UseMessengerResult => {
         pinConversationStore,
         unpinConversationStore,
         hoistConversation,
+        upsertConversationFromMessage,
         updateMessageStatus,
         updateMessage,
-        resetUnreadCount
+        resetUnreadCount,
+        setConversationUnreadCount
     } = useMessengerStore(useShallow(state => ({
         setActiveView: state.setActiveView,
         setConversations: state.setConversations,
@@ -99,9 +120,11 @@ export const useMessenger = (): UseMessengerResult => {
         pinConversationStore: state.pinConversation,
         unpinConversationStore: state.unpinConversation,
         hoistConversation: state.hoistConversation,
+        upsertConversationFromMessage: state.upsertConversationFromMessage,
         updateMessageStatus: state.updateMessageStatus,
         updateMessage: state.updateMessage,
-        resetUnreadCount: state.resetUnreadCount
+        resetUnreadCount: state.resetUnreadCount,
+        setConversationUnreadCount: state.setConversationUnreadCount
     })));
 
     const {
@@ -111,7 +134,6 @@ export const useMessenger = (): UseMessengerResult => {
         error,
         isSidebarOpen,
         conversations,
-        conversationsPage,
         conversationsHasNext,
         messagesPagination,
         appendConversations,
@@ -125,7 +147,6 @@ export const useMessenger = (): UseMessengerResult => {
         error: state.error,
         isSidebarOpen: state.isSidebarOpen,
         conversations: state.conversations,
-        conversationsPage: state.conversationsPage,
         conversationsHasNext: state.conversationsHasNext,
         messagesPagination: state.messagesPagination,
         appendConversations: state.appendConversations,
@@ -134,218 +155,318 @@ export const useMessenger = (): UseMessengerResult => {
         typingUsers: state.activeConversationId ? (state.typingUsers[state.activeConversationId] || EMPTY_TYPING) : EMPTY_TYPING
     })));
 
+    const isInitialized = useMessengerStore((state) => state.isInitialized);
+
     const { user, token } = useAuthStore(useShallow(state => ({
         user: state.user,
-        token: state.token
+        token: state.token,
     })));
 
-    // Track conversations being fetched to avoid duplicate API calls
-    const fetchingConversationsRef = useRef<Set<string>>(new Set());
+    const refreshConversationSeqRef = useRef<Map<string, number>>(new Map());
+    const loadMoreInFlightRef = useRef<Set<string>>(new Set());
+    const loadMoreConversationsInFlightRef = useRef(false);
+    const conversationLoadRequestRef = useRef(0);
 
-    /* --- Data Initialization --- */
+    const refreshConversationSummary = useCallback(async (conversationId: string) => {
+        if (!conversationId) return;
+        const requestId = Date.now();
+        refreshConversationSeqRef.current.set(conversationId, requestId);
+
+        try {
+            const conversation = await getConversationById(conversationId);
+            if (refreshConversationSeqRef.current.get(conversationId) !== requestId) return;
+            useMessengerStore.getState().hoistConversation(conversation);
+            const activeId = useMessengerStore.getState().activeConversationId;
+            if (activeId !== conversationId) {
+                const unreadCount = await getConversationUnreadCount(conversationId).catch(() => 0);
+                if (refreshConversationSeqRef.current.get(conversationId) !== requestId) return;
+                useMessengerStore.getState().setConversationUnreadCount(conversationId, unreadCount);
+            }
+        } catch (err) {
+            logger.debug('Failed to refresh conversation summary', conversationId, err);
+        } finally {
+            if (refreshConversationSeqRef.current.get(conversationId) === requestId) {
+                refreshConversationSeqRef.current.delete(conversationId);
+            }
+        }
+    }, []);
 
     const initMessenger = useCallback(async () => {
         if (!token) return;
 
-        setLoading(true);
-        try {
-            const [convResponse, requestResponse] = await Promise.all([
-                getConversations(0, 30),
-                user?.userId ? getReceivedRequests(0, 100) : Promise.resolve({ content: [] })
-            ]);
+        const initKey = `${token}:${user?.userId ?? 'anon'}`;
+        if (initTracker.key === initKey && initTracker.promise) {
+            await initTracker.promise;
+            return;
+        }
 
-            setConversations(convResponse.content, convResponse.hasNext, convResponse.number);
+        if (initTracker.key && initTracker.key !== initKey) {
+            clearInitSubscriptions(initTracker.key);
+        }
 
-            // Presence management: Await initial status pull to avoid "Offline" lag
-            if (user?.userId) {
-                const participantsToWatch = new Set<string>();
-                convResponse.content.forEach(conv => {
-                    if (conv.otherParticipant?.userId) {
-                        participantsToWatch.add(conv.otherParticipant.userId);
-                    }
-                });
+        if (isInitialized && initTracker.key === initKey) {
+            return;
+        }
 
-                if (participantsToWatch.size > 0) {
-                    const ids = Array.from(participantsToWatch);
-                    // Start watching via WS (event loop)
-                    void subscribePresence(ids);
+        const task = (async () => {
+            setLoading(true);
+            const subscriptionUnsubs: Array<() => void> = [];
+    const registerSubscription = (destination: string, callback: (payload: unknown) => void): void => {
+                const unsubscribe = realtimeService.subscribe(destination, (payload) => callback(payload));
+                subscriptionUnsubs.push(unsubscribe);
+            };
 
-                    // Await batch presence pull (direct sync)
-                    try {
-                        const presences = await getBatchPresenceApi(ids);
-                        usePresenceStore.getState().setMultiplePresences(presences);
-                        logger.debug('Messenger presence initialized for', ids.length, 'users');
-                    } catch (pErr) {
-                        logger.warn('Failed to fetch initial presence batch', pErr);
-                    }
+            clearInitSubscriptions(initKey);
+
+            try {
+                const [convResponse, requestResponse] = await Promise.all([
+                    getConversations(0, CONVERSATION_PAGE_SIZE),
+                    user?.userId ? getReceivedRequests(0, 100) : Promise.resolve({ content: [] })
+                ]);
+
+                setConversations(convResponse.content, convResponse.hasNext, convResponse.number);
+
+                if (requestResponse && requestResponse.content) {
+                    const totalCount = requestResponse.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
+                    setFriendRequestCount(totalCount);
                 }
-            }
 
-            // Set friend request count
-            if (requestResponse && requestResponse.content) {
-                const totalCount = requestResponse.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
-                setFriendRequestCount(totalCount);
-            }
+                if (!realtimeService.isConnected()) {
+                    await realtimeService.connect(token);
+                }
 
-            // Connect realtime if not connected
-            if (!realtimeService.isConnected()) {
-                await realtimeService.connect(token);
-            }
+                if (user?.userId) {
+                    registerSubscription(`/user/queue/friend-requests`, (payload) => {
+                        if (!payload || typeof payload !== 'object') {
+                            return;
+                        }
+                        const requestStatus = (payload as { status?: unknown }).status;
+                        if (requestStatus !== 'PENDING' && requestStatus !== 'ACCEPTED' && requestStatus !== 'UNFRIENDED') {
+                            return;
+                        }
 
-            // Subscribe to global user events (friend status, etc)
-            if (user?.userId) {
-                realtimeService.subscribe(`/user/${user.userId}/queue/notifications`, (payload) => {
-                    logger.debug('Received user notification', payload);
-                    // Handle global notifications if needed
-                });
-
-                // Subscribe to friend requests
-                realtimeService.subscribe(`/user/queue/friend-requests`, (payload: { status?: string }) => {
-                    if (payload.status === 'PENDING') {
-                        setFriendRequestCount(useMessengerStore.getState().friendRequestCount + 1);
-                    } else if (payload.status === 'ACCEPTED' || payload.status === 'UNFRIENDED') {
-                        // Refresh count or just decrement/increment
-                        // For safety, we can re-fetch or just update local state if we knew the previous state
-                        // Here let's just trigger a re-fetch of the count if we want it perfect
-                        void getReceivedRequests(0, 100).then(res => {
-                            const totalCount = res.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
-                            setFriendRequestCount(totalCount);
-                        });
-                    }
-                });
-
-                // Subscribe to per-user new-message notifications for conversation hoisting.
-                // This fires for ALL conversations the user is a member of,
-                // even ones not currently loaded in the sidebar.
-                realtimeService.subscribe(`/topic/user/${user.userId}/new-message`, async (event: { conversationId: string; senderId: string }) => {
-                    const convId = event.conversationId;
-                    const loadedIds = useMessengerStore.getState()._loadedConversationIds;
-
-                    // If conversation is already in the loaded list, addMessage already handles hoisting
-                    if (loadedIds.has(convId)) return;
-
-                    // Conversation is NOT loaded yet — fetch it from API and hoist
-                    if (fetchingConversationsRef.current.has(convId)) return; // already fetching
-                    fetchingConversationsRef.current.add(convId);
-
-                    try {
-                        const conversation = await getConversationById(convId);
-                        useMessengerStore.getState().hoistConversation(conversation);
-
-                        // Also subscribe to presence if it's a DM
-                        if (conversation.otherParticipant?.userId) {
-                            void subscribePresence([conversation.otherParticipant.userId]);
-                            void getBatchPresenceApi([conversation.otherParticipant.userId]).then(pBatch => {
-                                usePresenceStore.getState().setMultiplePresences(pBatch);
+                        if (requestStatus === 'PENDING') {
+                            setFriendRequestCount(useMessengerStore.getState().friendRequestCount + 1);
+                        } else if (requestStatus === 'ACCEPTED' || requestStatus === 'UNFRIENDED') {
+                            void getReceivedRequests(0, 100).then(res => {
+                                const totalCount = res.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
+                                setFriendRequestCount(totalCount);
                             });
                         }
-                    } catch (err) {
-                        logger.debug('Failed to fetch conversation for hoisting', convId, err);
-                    } finally {
-                        fetchingConversationsRef.current.delete(convId);
-                    }
-                });
+                    });
+
+                    // Subscribe to per-user new-message notifications for conversation hoisting.
+                    registerSubscription(`/topic/user/${user.userId}/new-message`, (event) => {
+                        if (!event || typeof event !== 'object') {
+                            return;
+                        }
+                        const eventConversationId = (event as { conversationId?: unknown }).conversationId;
+                        if (typeof eventConversationId !== 'string') {
+                            return;
+                        }
+                        const convId = eventConversationId;
+                        if (!convId) return;
+                        const activeConversationId = useMessengerStore.getState().activeConversationId;
+                        const hasConversationInList = useMessengerStore
+                            .getState()
+                            .conversations
+                            .some((conversation) => conversation.conversationId === convId);
+
+                        if (activeConversationId === convId && hasConversationInList) return;
+                        void refreshConversationSummary(convId);
+                    });
+
+                    registerSubscription(`/user/queue/conversation-list-update`, (event) => {
+                        if (!event || typeof event !== 'object') {
+                            return;
+                        }
+                        const rawConversationId = (event as { conversationId?: unknown }).conversationId;
+                        if (
+                            rawConversationId === null ||
+                            rawConversationId === undefined ||
+                            (typeof rawConversationId !== 'string' && typeof rawConversationId !== 'number')
+                        ) {
+                            return;
+                        }
+                        const conversationId = String(rawConversationId);
+                        void refreshConversationSummary(conversationId);
+                    });
+                    initMessengerSubscriptions.set(initKey, subscriptionUnsubs);
+                }
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : MESSENGER_COPY.errors.loadConversationsFailed;
+                clearInitSubscriptions(initKey);
+                setError(errorMessage);
+                logger.error('[useMessenger] Error initializing messenger:', err instanceof Error ? err.message : err);
+            } finally {
+                setLoading(false);
             }
+        })();
 
-        } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Không thể tải danh sách hội thoại.';
-            setError(errorMessage);
-            console.error('[useMessenger] Error initializing messenger:', err instanceof Error ? err.message : err);
+        initTracker.key = initKey;
+        initTracker.promise = task;
+
+        try {
+            await task;
         } finally {
-            setLoading(false);
+            if (initTracker.promise === task) {
+                initTracker.promise = null;
+            }
         }
-    }, [token, user?.userId, setConversations, setLoading, setError, setFriendRequestCount]);
+    }, [
+        token,
+        user?.userId,
+        isInitialized,
+        setConversations,
+        setLoading,
+        setError,
+        setFriendRequestCount,
+        refreshConversationSummary,
+    ]);
 
-    /* --- Conversation Selection & Message Loading --- */
-
-    const selectConversation = useCallback(async (conversationId: string | null) => {
+        const selectConversation = useCallback(async (conversationId: string | null) => {
         setActiveConversation(conversationId);
         if (!conversationId) return;
+
+        const requestId = ++conversationLoadRequestRef.current;
+
+        const isConversationLoaded = useMessengerStore.getState().conversations.some(
+            (conversation) => conversation.conversationId === conversationId,
+        );
+
+        if (!isConversationLoaded) {
+            await refreshConversationSummary(conversationId);
+        }
+
         resetUnreadCount(conversationId);
         void useNotificationStore.getState().markConversationAsRead(conversationId);
+        void getConversationUnreadCount(conversationId)
+            .then((count) => {
+                if (requestId !== conversationLoadRequestRef.current) return;
+                setConversationUnreadCount(conversationId, count);
+            })
+            .catch(() => {});
 
-        // Ensure we are watching the other participant if it's a DM
-        const conv = useMessengerStore.getState().conversations.find(c => c.conversationId === conversationId);
-        if (conv?.otherParticipant?.userId) {
-            void subscribePresence([conv.otherParticipant.userId]);
-            void getBatchPresenceApi([conv.otherParticipant.userId]).then(pBatch => {
-                usePresenceStore.getState().setMultiplePresences(pBatch);
-            });
+        const cachedMessages = useMessengerStore.getState().messages[conversationId];
+        const pagination = useMessengerStore.getState().messagesPagination[conversationId];
+
+        if (cachedMessages && cachedMessages.length > 0 && pagination?.fetchedAt && Date.now() - pagination.fetchedAt <= MESSAGES_TTL_MS) {
+            const unreadMessageIds = cachedMessages
+                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId)
+                .map(message => message.messageId);
+
+            if (unreadMessageIds.length > 0) {
+                void markMessagesAsRead(conversationId, unreadMessageIds).catch(() => {});
+            }
+
+            void getConversationUnreadCount(conversationId)
+                .then((count) => {
+                    if (requestId !== conversationLoadRequestRef.current) return;
+                    setConversationUnreadCount(conversationId, count);
+                })
+                .catch(() => {});
+            return;
         }
 
-        // Skip fetch if we already have cached messages for this conversation.
-        // New messages arrive via WebSocket so the cache stays fresh.
-        const cachedMessages = useMessengerStore.getState().messages[conversationId];
-        if (cachedMessages && cachedMessages.length > 0) return;
-
         try {
-            const response = await getMessages(conversationId, { page: 0, size: 30 });
+            if (requestId !== conversationLoadRequestRef.current) return;
+            const response = await getMessages(conversationId, { page: 0, size: INITIAL_MESSAGES_PAGE_SIZE });
+            if (requestId !== conversationLoadRequestRef.current) return;
             setMessages(conversationId, response.content, response.hasNext, response.number);
 
-            await Promise.all(
-                response.content
-                    .filter(message => message.sender.userId !== user?.userId && !message.isDeleted)
-                    .map(message => markMessageAsRead(conversationId, message.messageId).catch(() => undefined))
-            );
+            const unreadMessageIds = response.content
+                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId)
+                .map(message => message.messageId);
 
+            if (unreadMessageIds.length > 0) {
+                await markMessagesAsRead(conversationId, unreadMessageIds);
+            }
+
+            if (requestId !== conversationLoadRequestRef.current) return;
+            const unreadCount = await getConversationUnreadCount(conversationId).catch(() => 0);
+            if (requestId !== conversationLoadRequestRef.current) return;
+            setConversationUnreadCount(conversationId, unreadCount);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Không thể tải tin nhắn.');
-            console.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : err);
+            if (requestId !== conversationLoadRequestRef.current) return;
+            setError(err instanceof Error ? err.message : MESSENGER_COPY.errors.loadMessagesFailed);
+            logger.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : err);
         }
-    }, [resetUnreadCount, setActiveConversation, setMessages, setError, user?.userId]);
-
+    }, [
+        resetUnreadCount,
+        refreshConversationSummary,
+        setActiveConversation,
+        setMessages,
+        setError,
+        setConversationUnreadCount,
+        user?.userId,
+    ]);
 
     const loadMoreConversations = useCallback(async () => {
-        if (!conversationsHasNext || loading) return;
+        if (loadMoreConversationsInFlightRef.current) return;
+        loadMoreConversationsInFlightRef.current = true;
 
         try {
-            const nextPage = conversationsPage + 1;
-            const response = await getConversations(nextPage, 30);
+            const state = useMessengerStore.getState();
+            if (state.loading || !state.conversationsHasNext) {
+                return;
+            }
+
+            const nextPage = state.conversationsPage + 1;
+            const response = await getConversations(nextPage, CONVERSATION_PAGE_SIZE);
             appendConversations(response.content, response.hasNext, response.number);
         } catch (err) {
             console.error('[useMessenger] Error loading more conversations:', err);
+        } finally {
+            loadMoreConversationsInFlightRef.current = false;
         }
-    }, [conversationsHasNext, conversationsPage, loading, appendConversations]);
+    }, [appendConversations]);
 
-    const loadMoreMessages = useCallback(async (conversationId: string) => {
-        const pagination = messagesPagination[conversationId];
-        if (!pagination?.hasNext || loading) return;
+        const loadMoreMessages = useCallback(async (conversationId: string) => {
+        if (loadMoreInFlightRef.current.has(conversationId)) {
+            return;
+        }
+
+        const state = useMessengerStore.getState();
+        const pagination = state.messagesPagination[conversationId];
+        if (!pagination?.hasNext || state.loading) return;
+
+        loadMoreInFlightRef.current.add(conversationId);
 
         try {
             const nextPage = pagination.page + 1;
-            const response = await getMessages(conversationId, { page: nextPage, size: 20 });
+            const response = await getMessages(conversationId, { page: nextPage, size: LOAD_MORE_MESSAGES_PAGE_SIZE });
             prependMessages(conversationId, response.content, response.hasNext, response.number);
         } catch (err) {
             console.error('[useMessenger] Error loading more messages:', err);
+        } finally {
+            loadMoreInFlightRef.current.delete(conversationId);
         }
-    }, [messagesPagination, loading, prependMessages]);
-
-    /* --- Message Actions --- */
+    }, [prependMessages]);
 
     const sendMessage = useCallback(async (
         content: string,
         type: MessageType = 'TEXT',
         options?: { replyToId?: string; attachments?: SendMessageRequest['attachments'] }
     ) => {
-        if (!activeConversationId || !user) return;
+        const trimmedContent = content.trim();
+        if (!activeConversationId || !user || (!trimmedContent && (!options?.attachments || options.attachments.length === 0))) return;
 
         const request: SendMessageRequest = {
             conversationId: activeConversationId,
-            content,
+            content: trimmedContent,
             type,
             replyToId: options?.replyToId,
             attachments: options?.attachments
         };
 
-        // Optimistic Update
-        const tempId = `temp-${Date.now()}`;
+        const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
         const tempMessage: Message = {
             messageId: tempId,
             conversationId: activeConversationId,
             sender: user,
             content,
             type,
-            attachments: [],
+            attachments: options?.attachments ? [...options.attachments] : [],
             reactions: [],
             readReceipts: [],
             isForwarded: false,
@@ -356,21 +477,16 @@ export const useMessenger = (): UseMessengerResult => {
         };
 
         addMessage(activeConversationId, tempMessage);
+        upsertConversationFromMessage(tempMessage);
 
         try {
-            // Choose between REST and WS based on configuration
-            // Here we use REST for reliability of persistence stage
             await sendMessageHttp(request);
-
-            // The websocket will broadcast the REAL message, which will replace temp message 
-            // if we implement logic to match tempId (but here we just rely on addMessage de-duplication)
-            // For now, addMessage in store will handle server-sent message.
         } catch (err: unknown) {
             console.error('[useMessenger] Error sending message:', err instanceof Error ? err.message : err);
-            // Update status to failed
+            setError(MESSENGER_COPY.errors.sendMessageFailed);
             updateMessageStatus(activeConversationId, tempId, 'failed');
         }
-    }, [activeConversationId, user, addMessage, updateMessageStatus]);
+    }, [activeConversationId, user, addMessage, upsertConversationFromMessage, updateMessageStatus, setError]);
 
     const editMessage = useCallback(async (messageId: string, content: string) => {
         if (!activeConversationId) return null;
@@ -393,10 +509,12 @@ export const useMessenger = (): UseMessengerResult => {
 
     const pinMessage = useCallback(async (messageId: string) => {
         if (!activeConversationId) return;
-        await togglePinMessage(activeConversationId, messageId);
+        await pinMessageApi(activeConversationId, messageId);
     }, [activeConversationId]);
 
-    const uploadMessageFiles = useCallback(async (files: File[]) => uploadFiles(files), []);
+    const uploadMessageFiles = useCallback(async (files: File[]) => {
+        return uploadFiles(files);
+    }, []);
 
     const sendTyping = useCallback((isTyping: boolean) => {
         if (!activeConversationId || !user) return;
@@ -470,8 +588,9 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
     const {
         activeConversationId,
         loading,
-        conversations,
         addMessage,
+        upsertConversationFromMessage,
+        hoistConversation,
         setTyping,
         clearTyping,
         updateMessageReactions,
@@ -482,8 +601,9 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
     } = useMessengerStore(useShallow(state => ({
         activeConversationId: state.activeConversationId,
         loading: state.loading,
-        conversations: state.conversations,
         addMessage: state.addMessage,
+        upsertConversationFromMessage: state.upsertConversationFromMessage,
+        hoistConversation: state.hoistConversation,
         setTyping: state.setTyping,
         clearTyping: state.clearTyping,
         updateMessageReactions: state.updateMessageReactions,
@@ -493,44 +613,50 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         addMessageAttachment: state.addMessageAttachment
     })));
 
-    const { user, token } = useAuthStore();
+    const { user, token } = useAuthStore(useShallow(state => ({
+        user: state.user,
+        token: state.token
+    })));
     const blockedUserIds = useFriendStore(state => state.blockedUserIds);
+    const isInitialized = useMessengerStore(state => state.isInitialized);
 
     useEffect(() => {
-        let mounted = true;
-
-        // Only run setup if not loading and we don't have conversations
-        const hasConversations = conversations && conversations.length > 0;
-
-        if (mounted && !hasConversations && !loading && token) {
+        if (!loading && token && !isInitialized) {
             void initMessenger();
         }
+    }, [initMessenger, loading, token, isInitialized]);
 
-        return () => {
-            mounted = false;
-        };
-    }, [initMessenger, loading, token, conversations]);
-
-    // Handle Realtime Subscriptions with Lifecycle
     useEffect(() => {
         if (!activeConversationId || !user) return;
 
+        const isConversationKnown = useMessengerStore.getState().conversations.some(
+            (conversation) => conversation.conversationId === activeConversationId,
+        );
+        if (!isConversationKnown) {
+            void getConversationById(activeConversationId)
+                .then((conversation) => {
+                    hoistConversation(conversation);
+                })
+                .catch((error) => {
+                    logger.debug('[useMessengerSetup] Failed to refresh active conversation before subscribe', error);
+                });
+        }
+
         logger.debug(`[useMessengerSetup] Subscribing to conversation: ${activeConversationId}`);
 
-        // Subscribe to messages
         const unsubMessage = realtimeService.subscribe(`/topic/conversation/${activeConversationId}`, (raw: Partial<BackendMessage>) => {
             const msg = mapToMessage(raw);
             if (!msg.messageId || !msg.sender?.userId) return;
-            
-            // Filter out messages from blocked users
+
             if (blockedUserIds.has(String(msg.sender.userId))) {
                 logger.debug(`[useMessengerSetup] Ignoring message from blocked user: ${msg.sender.userId}`);
                 return;
             }
 
             addMessage(activeConversationId, msg);
+            upsertConversationFromMessage(msg);
             if (msg.sender.userId !== user.userId && !msg.isDeleted) {
-                void markMessageAsRead(activeConversationId, msg.messageId);
+                void markMessagesAsRead(activeConversationId, [msg.messageId]);
             }
         });
 
@@ -544,7 +670,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             const eventUserId = String(rawUser.userId ?? '');
             if (!eventUserId || eventUserId === user.userId) return;
 
-            // Filter out typing indicators from blocked users
             if (blockedUserIds.has(eventUserId)) {
                 return;
             }
@@ -563,7 +688,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             setTyping(typingEvent);
         });
 
-        // Subscribe to reactions
         const unsubReactions = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/reactions`,
             (event: { messageId: string; emoji: string; userId: string; action: 'ADD' | 'REMOVE' }) => {
@@ -583,7 +707,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             }
         );
 
-        // Subscribe to poll updates
         const unsubPolls = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/polls`,
             (pollData: Message['poll']) => {
@@ -592,7 +715,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             }
         );
 
-        // Subscribe to pin updates
         const unsubPins = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/pins`,
             (event: { messageId: string; action: 'PIN' | 'UNPIN'; pinnedBy: string }) => {
@@ -601,7 +723,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             }
         );
 
-        // Subscribe to attachment updates
         const unsubAttachments = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/attachments`,
             (event: { messageId: string; attachment: Message['attachments'][0]; addedBy: string }) => {
@@ -625,9 +746,11 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         activeConversationId,
         user,
         addMessage,
+        hoistConversation,
         setTyping,
         updateMessageReactions,
         updatePollData,
+        upsertConversationFromMessage,
         clearTyping,
         addReadReceipt,
         updateMessagePinStatus,
@@ -635,3 +758,5 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         blockedUserIds
     ]);
 };
+
+

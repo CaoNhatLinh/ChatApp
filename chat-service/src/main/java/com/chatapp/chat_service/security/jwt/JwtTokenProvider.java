@@ -28,8 +28,12 @@ public class JwtTokenProvider {
     private static final String USER_ID_CLAIM = "userId";
 
     public JwtTokenProvider(
-            @Value("${jwt.secret:Fzq8zZPO1YcV0aRCFMCYdxnDAhJ4TLWit5RGkZllNFA=}") String secretKey,
+            @Value("${jwt.secret}") String secretKey,
             @Value("${jwt.expiration-ms:604800000}") long expirationMs) {
+
+        if (secretKey == null || secretKey.trim().isEmpty() || secretKey.startsWith("${")) {
+            throw new IllegalStateException("JWT_SECRET environment variable must be set. This is a security requirement.");
+        }
 
         this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
         this.expirationMs = expirationMs;

@@ -25,6 +25,7 @@ import com.chatapp.chat_service.notification.service.NotificationService;
 import com.chatapp.chat_service.friendship.entity.Friendship;
 import com.chatapp.chat_service.friendship.repository.FriendshipRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
+import com.chatapp.chat_service.kafka.KafkaEventProducer;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.chatapp.chat_service.conversation.entity.UserConversation;
 import com.chatapp.chat_service.conversation.repository.UserConversationRepository;
@@ -43,10 +44,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 /**
  * Service for managing message operations (send, retrieve, validate).
@@ -55,6 +58,9 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class MessageService {
+
+    private static final Set<String> SUPPORTED_MESSAGE_TYPES = Set.of(
+            "TEXT", "IMAGE", "FILE", "NOTIFICATION", "POLL");
 
     private final MessageRepository messageRepository;
     private final MessageMentionRepository messageMentionRepository;
@@ -71,6 +77,7 @@ public class MessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationService notificationService;
     private final UserService userService;
+    private final KafkaEventProducer kafkaEventProducer;
 
     public MessageService(MessageRepository messageRepository,
             MessageMentionRepository messageMentionRepository,
@@ -85,6 +92,7 @@ public class MessageService {
             SimpMessagingTemplate messagingTemplate,
             NotificationService notificationService,
             UserService userService,
+            KafkaEventProducer kafkaEventProducer,
             @Autowired(required = false) MessageElasticsearchService messageElasticsearchService,
             @Autowired(required = false) ConversationElasticsearchService conversationElasticsearchService) {
         this.messageRepository = messageRepository;
@@ -100,6 +108,7 @@ public class MessageService {
         this.messagingTemplate = messagingTemplate;
         this.notificationService = notificationService;
         this.userService = userService;
+        this.kafkaEventProducer = kafkaEventProducer;
         this.messageElasticsearchService = messageElasticsearchService;
         this.conversationElasticsearchService = conversationElasticsearchService;
     }
@@ -109,8 +118,36 @@ public class MessageService {
      */
     public MessageResponseDto sendMessage(MessageRequest request) {
         try {
-            UUID senderId = request.getSenderId() != null ? request.getSenderId()
-                    : securityContextHelper.getCurrentUserId();
+            if (request == null) {
+                throw new IllegalArgumentException("Message request is required");
+            }
+            if (request.getConversationId() == null) {
+                throw new IllegalArgumentException("Conversation id is required");
+            }
+
+            // Security: Always use authenticated user from security context, ignore senderId from request body
+            UUID senderId = securityContextHelper.getCurrentUserId();
+            if (senderId == null) {
+                throw new IllegalStateException("User must be authenticated to send messages");
+            }
+
+            String normalizedType = request.getType() != null ? request.getType().trim().toUpperCase(Locale.ROOT) : "";
+            if (normalizedType.isBlank()) {
+                throw new IllegalArgumentException("Message type is required");
+            }
+            if (!SUPPORTED_MESSAGE_TYPES.contains(normalizedType)) {
+                throw new IllegalArgumentException("Unsupported message type: " + normalizedType);
+            }
+            request.setType(normalizedType);
+
+            boolean hasText = request.getContent() != null && !request.getContent().trim().isEmpty();
+            boolean hasAttachments = request.getAttachments() != null && !request.getAttachments().isEmpty();
+            if (!hasText && !hasAttachments) {
+                throw new IllegalArgumentException("Message content or attachments are required");
+            }
+            if (request.getAttachments() != null && request.getAttachments().size() > 10) {
+                throw new IllegalArgumentException("Too many attachments. Maximum 10 allowed.");
+            }
 
             messageValidationService.validateMessagePermission(request.getConversationId(), senderId);
 
@@ -290,6 +327,14 @@ public class MessageService {
                         .role(uc.getRole())
                         .build();
                 userConversationRepository.save(updated);
+
+                // Send WebSocket event for conversation list update
+                kafkaEventProducer.publishConversationListUpdateEvent(
+                        uc.getKey().getUserId(),
+                        conversationId,
+                        activityTime,
+                        uc.getKey().isPinned()
+                );
             }
             log.debug("Updated lastActivityAt for conversation {} to {}", conversationId, activityTime);
         } catch (Exception e) {
@@ -312,11 +357,11 @@ public class MessageService {
                     .collect(Collectors.toList());
 
             // 🚀 Batch check blocking status to avoid N+1 queries
-            List<UUID> blockedUserIds = friendshipRepository.findByUserIdInAndFriendId(allRecipients, senderId)
+            Set<UUID> blockedUserIds = friendshipRepository.findByUserIdInAndFriendId(allRecipients, senderId)
                     .stream()
                     .filter(f -> f.getStatus() == com.chatapp.chat_service.friendship.entity.Friendship.Status.BLOCKED)
                     .map(com.chatapp.chat_service.friendship.entity.Friendship::getUserId)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(HashSet::new));
 
             List<UUID> recipientIds = allRecipients.stream()
                     .filter(id -> !blockedUserIds.contains(id))

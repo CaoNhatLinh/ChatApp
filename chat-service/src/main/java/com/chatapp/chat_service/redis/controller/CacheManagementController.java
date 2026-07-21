@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,6 +27,7 @@ public class CacheManagementController {
      * Xóa tất cả cache
      */
     @DeleteMapping("/clear/all")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> clearAllCache() {
         try {
             long totalDeleted = 0;
@@ -68,6 +70,7 @@ public class CacheManagementController {
      * Xóa cache cho một conversation cụ thể
      */
     @DeleteMapping("/clear/conversation/{conversationId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> clearConversationCache(@PathVariable String conversationId) {
         try {
             cacheService.clearConversationCache(conversationId);
@@ -93,6 +96,7 @@ public class CacheManagementController {
      * Xóa cache cho một user cụ thể
      */
     @DeleteMapping("/clear/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> clearUserCache(@PathVariable String userId) {
         try {
             cacheService.clearUserConversationsCache(userId);
@@ -118,6 +122,7 @@ public class CacheManagementController {
      * Lấy thống kê cache
      */
     @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getCacheStats() {
         try {
             Map<String, Object> stats = new HashMap<>();
@@ -151,6 +156,7 @@ public class CacheManagementController {
      * Test Redis connection và lấy thông tin health
      */
     @GetMapping("/health")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> healthCheck() {
         try {
             Map<String, Object> health = cacheHealthIndicator.checkHealth();

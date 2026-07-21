@@ -126,7 +126,7 @@ public class FileUploadService {
         } else if (contentType.startsWith("video/")) {
             return "video";
         } else if (contentType.startsWith("audio/")) {
-            return "video"; 
+            return "audio";
         } else {
             return "raw"; 
         }

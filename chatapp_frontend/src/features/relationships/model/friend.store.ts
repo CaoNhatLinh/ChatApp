@@ -14,6 +14,7 @@ interface FriendStoreState {
   loadingFriends: boolean;
   loadingReceived: boolean;
   loadingSent: boolean;
+  loadingSearch: boolean;
   loadingMutual: boolean;
   error: string | null;
   searchResults: (UserDTO & { isFriend?: boolean; requestSent?: boolean })[];
@@ -37,7 +38,7 @@ interface FriendStoreActions {
   reset: () => void;
 }
 
-const initialState: FriendStoreState = {
+const createInitialState = (): FriendStoreState => ({
   friends: null,
   pendingRequests: null,
   receivedRequests: null,
@@ -45,11 +46,14 @@ const initialState: FriendStoreState = {
   loadingFriends: false,
   loadingReceived: false,
   loadingSent: false,
+  loadingSearch: false,
   loadingMutual: false,
   error: null,
   searchResults: [],
   blockedUserIds: new Set<string>(),
-};
+});
+
+const initialState = createInitialState();
 
 let searchAbortController: AbortController | null = null;
 let mutualAbortController: AbortController | null = null;
@@ -112,12 +116,17 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
   },
   searchUsers: async (username: string) => {
     if (username.length < 3) {
-      set({ searchResults: [] });
+      set({
+        searchResults: [],
+        loadingSearch: false,
+      });
       return;
     }
 
     if (searchAbortController) searchAbortController.abort();
     searchAbortController = new AbortController();
+
+    set({ loadingSearch: true, error: null });
 
     try {
       const results = await searchUsersApi(username);
@@ -138,6 +147,8 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = err instanceof Error ? err.message : 'Search failed';
       set({ error: errorMessage });
       logger.error('Error searching users:', { error: err, username });
+    } finally {
+      set({ loadingSearch: false });
     }
   },
 
@@ -353,7 +364,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     return friendList.some(f => f.userId === userId);
   },
 
-  reset: () => set(initialState),
+  reset: () => set(() => createInitialState()),
 }));
 
 export const useFriends = () => useFriendStore(state => state.friends);
@@ -362,6 +373,7 @@ export const useSearchResults = () => useFriendStore(state => state.searchResult
 export const useLoadingFriends = () => useFriendStore(state => state.loadingFriends);
 export const useLoadingReceived = () => useFriendStore(state => state.loadingReceived);
 export const useLoadingSent = () => useFriendStore(state => state.loadingSent);
+export const useLoadingSearch = () => useFriendStore(state => state.loadingSearch);
 export const useFetchFriends = () => useFriendStore(state => state.fetchFriends);
 export const useFetchReceivedRequests = () => useFriendStore(state => state.fetchReceivedRequests);
 export const useReceivedRequests = () => useFriendStore(state => state.receivedRequests);

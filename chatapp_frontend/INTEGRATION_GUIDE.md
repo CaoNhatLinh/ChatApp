@@ -128,13 +128,17 @@ const sendMessage = () => {
 - `/user/queue/messages` - Private messages
 - `/user/queue/notifications` - Notifications
 - `/topic/conversation/{id}` - Conversation updates
-- `/topic/presence` - Presence updates
+- `/user/queue/presence` - Presence updates
+- `/user/queue/presence-sync` - Presence status sync updates
+- `/user/queue/presence-batch` - Presence snapshot on re-sync
 
 #### Publish (Send)
 - `/app/message.send` - Send message
 - `/app/typing` - Typing indicator
-- `/app/online-status` - Set online status
-- `/app/request-online-status` - Request presence
+- `/app/online-status` - Set custom online status (ONLINE/DND/INVISIBLE)
+- `/app/presence.subscribe` - Subscribe to presence updates
+- `/app/presence.unsubscribe` - Unsubscribe from presence updates
+- `/app/presence.batch` - Request presence snapshot for selected users
 
 ## 📚 API Usage Examples
 
@@ -207,28 +211,21 @@ const sendMessage = async () => {
 
 ### Presence
 
-#### Get Friends Presence
+#### Subscribe and Sync Presence (WebSocket)
 ```typescript
-import { getFriendsPresence } from '@/api/presenceApi';
+import { presenceTracker } from '@/features/presence/services/presenceTracker';
+import { presenceWsService } from '@/features/presence/services/presenceWsService';
 
-const loadPresence = async () => {
-  const presence = await getFriendsPresence();
-  console.log('Friends online status:', presence);
-  
-  // Example response:
-  // {
-  //   "user-id-1": { userId: "...", status: "ONLINE", isOnline: true },
-  //   "user-id-2": { userId: "...", status: "OFFLINE", lastSeen: "..." }
-  // }
-};
-```
-
-#### Check User Online
-```typescript
-import { checkUserOnline } from '@/api/presenceApi';
-
-const isOnline = await checkUserOnline('user-id');
-console.log('User is online:', isOnline);
+presenceTracker.watch(['user-id-1', 'user-id-2']);
+presenceWsService.subscribeToPresenceSync(
+  (status, requestId, traceId) => {
+    console.log('status sync', { status, requestId, traceId });
+  },
+  (retryAfter, requestId, traceId) => {
+    console.log('status rate limited', { retryAfter, requestId, traceId });
+  }
+);
+presenceWsService.setStatus('ONLINE');
 ```
 
 ### Notifications

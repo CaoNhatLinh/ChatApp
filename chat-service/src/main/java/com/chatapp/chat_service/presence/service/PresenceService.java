@@ -4,12 +4,12 @@ import com.chatapp.chat_service.auth.entity.User;
 import com.chatapp.chat_service.auth.repository.UserRepository;
 import com.chatapp.chat_service.presence.dto.UserPresenceResponse;
 import com.chatapp.chat_service.presence.event.OnlineStatusEvent;
+import com.chatapp.chat_service.presence.metrics.PresenceFlowMetrics;
 import com.chatapp.chat_service.websocket.service.WebSocketConnectionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,6 @@ import org.springframework.util.CollectionUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * PresenceService - Manages user online/offline status using Redis.
@@ -42,14 +41,24 @@ public class PresenceService {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
     private final WebSocketConnectionService webSocketConnectionService;
-
+    private final PresenceFlowMetrics presenceFlowMetrics;
 
     private static final String USER_SESSIONS_KEY = "presence:sessions:%s";
     private static final String SESSION_HEARTBEAT_KEY = "presence:hb:%s:%s";
     private static final String LAST_ACTIVE_KEY = "presence:last_active:%s";
     private static final String CUSTOM_STATUS_KEY = "presence:custom_status:%s";
-    private static final String MY_SUBSCRIPTIONS_KEY = "presence:subs:%s";
+    private static final String MY_SUBSCRIPTIONS_KEY = "presence:subs:%s:%s";
     private static final String MY_WATCHERS_KEY = "presence:watchers:%s";
+    private static final DefaultRedisScript<Long> REMOVE_SESSION_SCRIPT = new DefaultRedisScript<>(
+            """
+                    local removed = redis.call('srem', KEYS[1], ARGV[1])
+                    if removed == 1 then
+                        return redis.call('scard', KEYS[1])
+                    end
+                    return -1
+                    """,
+            Long.class
+    );
 
     private static final long HEARTBEAT_TTL_SECONDS = 45;
 
@@ -66,6 +75,7 @@ public class PresenceService {
      * Called when a WebSocket STOMP session connects (from WebSocketConnectHandler).
      */
     public void handleConnection(UUID userId, String sessionId) {
+        presenceFlowMetrics.recordPresenceConnection("handleConnection", "start");
         log.info("User {} connected with session {}", userId, sessionId);
         String sessionsKey = String.format(USER_SESSIONS_KEY, userId);
 
@@ -94,13 +104,16 @@ public class PresenceService {
 
         if (allSessionIds != null) {
             for (String sid : allSessionIds) {
-                if (sid.equals(sessionId)) continue; 
+                if (sid.equals(sessionId)) {
+                    continue;
+                }
 
                 String hbKey = String.format(SESSION_HEARTBEAT_KEY, userId, sid);
                 if (Boolean.TRUE.equals(redisTemplate.hasKey(hbKey))) {
                     otherActiveSessionFound = true;
                 } else {
                     redisTemplate.opsForSet().remove(sessionsKey, sid);
+                    removeSubscriptionsForSession(userId, sid);
                     log.debug("Cleaned up stale ghost session {} for user {}", sid, userId);
                 }
             }
@@ -108,6 +121,7 @@ public class PresenceService {
 
         if (!otherActiveSessionFound) {
             log.info("User {} is now ONLINE (first valid session)", userId);
+            presenceFlowMetrics.recordPresenceConnection("handleConnection", "first_session_online");
 
             if (restoredStatusPref != null) {
                 String customStatusKey = String.format(CUSTOM_STATUS_KEY, userId);
@@ -123,14 +137,28 @@ public class PresenceService {
      * Called every 30s by the client heartbeat.
      */
     public void handleHeartbeat(UUID userId, String sessionId) {
+        presenceFlowMetrics.recordHeartbeat("websocket");
         log.debug("Heartbeat received for user {}, session {}", userId, sessionId);
+        boolean wasOnline = isUserOnline(userId);
+
         setHeartbeat(userId, sessionId);
+
+        String sessionsKey = String.format(USER_SESSIONS_KEY, userId);
+        redisTemplate.opsForSet().add(sessionsKey, sessionId);
+        redisTemplate.expire(sessionsKey, Duration.ofSeconds(HEARTBEAT_TTL_SECONDS + 15));
+
+        if (!wasOnline) {
+            log.info("User {} is back ONLINE from heartbeat (session {})", userId, sessionId);
+            presenceFlowMetrics.recordPresenceConnection("handleHeartbeat", "back_online");
+            broadcastStatusToWatchers(userId, true);
+        }
     }
 
     /**
      * Called when heartbeat key expires in Redis (dirty disconnect).
      */
     public void handleExpiredSession(UUID userId, String sessionId) {
+        presenceFlowMetrics.recordPresenceConnection("handleExpiredSession", "start");
         log.warn("Heartbeat expired for user {}, session {}", userId, sessionId);
         removeSession(userId, sessionId);
     }
@@ -139,6 +167,7 @@ public class PresenceService {
      * Called on clean WebSocket disconnect (SessionDisconnectEvent).
      */
     public void handleDisconnect(UUID userId, String sessionId) {
+        presenceFlowMetrics.recordPresenceConnection("handleDisconnect", "start");
         log.info("User {} disconnected from session {}", userId, sessionId);
         String heartbeatKey = String.format(SESSION_HEARTBEAT_KEY, userId, sessionId);
         redisTemplate.delete(heartbeatKey);
@@ -148,15 +177,17 @@ public class PresenceService {
     private void removeSession(UUID userId, String sessionId) {
         String sessionsKey = String.format(USER_SESSIONS_KEY, userId);
 
-        String luaScript = "redis.call('SREM', KEYS[1], ARGV[1]); return redis.call('SCARD', KEYS[1])";
-        Long remaining = redisTemplate.execute(
-                new org.springframework.data.redis.core.script.DefaultRedisScript<>(luaScript, Long.class),
-                List.of(sessionsKey),
-                sessionId
-        );
+        removeSubscriptionsForSession(userId, sessionId);
 
-        if (remaining == null || remaining == 0) {
+        Long remaining = redisTemplate.execute(REMOVE_SESSION_SCRIPT, List.of(sessionsKey), sessionId);
+        if (remaining == null || remaining == -1L) {
+            presenceFlowMetrics.recordPresenceConnection("removeSession", "noop");
+            return;
+        }
+
+        if (remaining == 0) {
             log.info("User {} is now OFFLINE (no remaining sessions)", userId);
+            presenceFlowMetrics.recordPresenceConnection("removeSession", "offline");
             storeLastActive(userId);
             redisTemplate.delete(String.format(CUSTOM_STATUS_KEY, userId));
             broadcastStatusToWatchers(userId, false);
@@ -178,9 +209,37 @@ public class PresenceService {
      * Status is persisted to Cassandra for cross-session survival.
      */
     public void setCustomStatus(UUID userId, String status) {
-        String normalizedStatus = status.toUpperCase();
+        setCustomStatus(userId, status, null, null);
+    }
+
+    public void setCustomStatus(UUID userId, String status, String traceId) {
+        setCustomStatus(userId, status, traceId, null);
+    }
+
+    public void setCustomStatus(UUID userId, String status, String traceId, String requestId) {
+        try {
+        String normalizedStatus = status == null ? "ONLINE" : status.toUpperCase();
+        String effectiveTraceId = normalizeTraceId(traceId);
+        String effectiveRequestId = normalizeRequestId(requestId);
+
+        presenceFlowMetrics.recordStatusChange("received");
         if (!ALLOWED_STATUSES.contains(normalizedStatus)) {
-            log.warn("Invalid status '{}' for user {}. Allowed: {}", status, userId, ALLOWED_STATUSES);
+            presenceFlowMetrics.recordStatusChange("validation_error");
+            log.warn(
+                    "Invalid status '{}' for user {}. traceId={} requestId={}. Allowed: {}",
+                    status,
+                    userId,
+                    effectiveTraceId,
+                    effectiveRequestId,
+                    ALLOWED_STATUSES
+            );
+            sendSyncError(
+                    userId,
+                    "VALIDATION_ERROR",
+                    String.format("Invalid status '%s'", status),
+                    effectiveTraceId,
+                    effectiveRequestId
+            );
             return;
         }
 
@@ -190,14 +249,33 @@ public class PresenceService {
             redisTemplate.expire(rateLimitKey, Duration.ofSeconds(RATE_LIMIT_WINDOW_SECONDS));
         }
         if (count != null && count > RATE_LIMIT_MAX) {
-            log.warn("Rate limit exceeded for user {} ({}/{})", userId, count, RATE_LIMIT_MAX);
-            Map<String, Object> errorEvent = Map.of(
-                "type", "RATE_LIMIT_ERROR",
-                "message", "Too many status changes. Please wait before trying again.",
-                "retryAfterSeconds", RATE_LIMIT_WINDOW_SECONDS
+            presenceFlowMetrics.recordStatusChange("rate_limited");
+            presenceFlowMetrics.recordStatusSyncEvent("rate_limit_error");
+            log.warn(
+                    "Rate limit exceeded for user {} ({}/{}) traceId={} requestId={}",
+                    userId,
+                    count,
+                    RATE_LIMIT_MAX,
+                    effectiveTraceId,
+                    effectiveRequestId
             );
-            messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/presence-sync", errorEvent);
+            Map<String, Object> errorEvent = new HashMap<>();
+            errorEvent.put("type", "RATE_LIMIT_ERROR");
+            errorEvent.put("message", "Too many status changes. Please wait before trying again.");
+            errorEvent.put("retryAfterSeconds", RATE_LIMIT_WINDOW_SECONDS);
+            errorEvent.put("requestId", effectiveRequestId);
+            errorEvent.put("traceId", effectiveTraceId);
+            errorEvent.put("timestamp", Instant.now().toString());
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/presence-sync",
+                    errorEvent
+            );
             return;
+        }
+        if (count == null) {
+            presenceFlowMetrics.recordStatusChange("rate_counter_error");
+            log.warn("Rate limit counter was null for user {}. Fallbacking with request without blocking.", userId);
         }
 
         String customStatusKey = String.format(CUSTOM_STATUS_KEY, userId);
@@ -213,7 +291,15 @@ public class PresenceService {
             userRepository.save(user);
         });
 
-        log.info("User {} set status to {}", userId, normalizedStatus);
+        log.info(
+                "User {} set status to {} traceId={} requestId={}",
+                userId,
+                normalizedStatus,
+                effectiveTraceId,
+                effectiveRequestId
+        );
+        presenceFlowMetrics.recordStatusChange("success");
+        presenceFlowMetrics.recordStatusSyncEvent("status_updated");
 
         boolean isOnline = isUserOnline(userId);
         if ("INVISIBLE".equals(normalizedStatus)) {
@@ -222,7 +308,19 @@ public class PresenceService {
             broadcastStatusToWatchers(userId, true, normalizedStatus);
         }
 
-        notifyOwnDevices(userId, normalizedStatus);
+        notifyOwnDevices(userId, normalizedStatus, effectiveTraceId, effectiveRequestId);
+        } catch (Exception e) {
+            presenceFlowMetrics.recordStatusChange("server_error");
+            presenceFlowMetrics.recordStatusSyncEvent("error");
+            sendSyncError(
+                    userId,
+                    "SERVER_ERROR",
+                    e.getMessage(),
+                    normalizeTraceId(traceId),
+                    normalizeRequestId(requestId)
+            );
+            throw e;
+        }
     }
 
     /**
@@ -258,21 +356,37 @@ public class PresenceService {
      * Used for multi-device synchronization (Last Writer Wins).
      */
     private void notifyOwnDevices(UUID userId, String status) {
-        Map<String, Object> syncEvent = Map.of(
-            "type", "STATUS_SYNC",
-            "status", status,
-            "timestamp", Instant.now().toString()
-        );
-        messagingTemplate.convertAndSendToUser(
-            userId.toString(), "/queue/presence-sync", syncEvent
-        );
-        String cachedUsername = redisTemplate.opsForValue().get(
-            String.format(USERNAME_CACHE_KEY, userId));
+        notifyOwnDevices(userId, status, null, null);
+    }
+
+    private void notifyOwnDevices(UUID userId, String status, String traceId, String requestId) {
+        Map<String, Object> syncEvent = new HashMap<>();
+        syncEvent.put("type", "STATUS_SYNC");
+        syncEvent.put("status", status);
+        syncEvent.put("timestamp", Instant.now().toString());
+        syncEvent.put("traceId", normalizeTraceId(traceId));
+        syncEvent.put("requestId", normalizeRequestId(requestId));
+
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/presence-sync", syncEvent);
+        String cachedUsername = redisTemplate.opsForValue().get(String.format(USERNAME_CACHE_KEY, userId));
         if (cachedUsername != null && !cachedUsername.equals(userId.toString())) {
             messagingTemplate.convertAndSendToUser(
-                cachedUsername, "/queue/presence-sync", syncEvent
+                    cachedUsername,
+                    "/queue/presence-sync",
+                    syncEvent
             );
         }
+    }
+
+    private void sendSyncError(UUID userId, String errorType, String message, String traceId, String requestId) {
+        Map<String, Object> errorEvent = new HashMap<>();
+        errorEvent.put("type", "STATUS_SYNC_ERROR");
+        errorEvent.put("errorType", errorType);
+        errorEvent.put("message", message == null ? "Unknown presence status sync error" : message);
+        errorEvent.put("traceId", normalizeTraceId(traceId));
+        errorEvent.put("requestId", normalizeRequestId(requestId));
+        errorEvent.put("timestamp", Instant.now().toString());
+        messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/presence-sync", errorEvent);
     }
 
 
@@ -297,65 +411,125 @@ public class PresenceService {
      * Add users to the watch list. Incremental — only adds new entries,
      * does NOT remove existing subscriptions (client ref-counts locally).
      */
-    public void addSubscriptions(UUID subscriberId, List<UUID> targetUserIds) {
-        if (CollectionUtils.isEmpty(targetUserIds)) return;
+    public void addSubscriptions(UUID subscriberId, String sessionId, List<UUID> targetUserIds) {
+        if (CollectionUtils.isEmpty(targetUserIds)) {
+            presenceFlowMetrics.recordPresenceSubscription("add", 0, "empty");
+            return;
+        }
 
-        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, subscriberId);
-        String subscriberIdStr = subscriberId.toString();
+        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, subscriberId, sessionId);
+        String watcherToken = buildWatcherToken(subscriberId, sessionId);
 
         for (UUID targetId : targetUserIds) {
             String theirWatchersKey = String.format(MY_WATCHERS_KEY, targetId);
-            redisTemplate.opsForSet().add(theirWatchersKey, subscriberIdStr);
+            redisTemplate.opsForSet().add(theirWatchersKey, watcherToken);
             redisTemplate.opsForSet().add(mySubsKey, targetId.toString());
         }
-        log.debug("User {} added {} subscriptions", subscriberId, targetUserIds.size());
+        log.debug("User {} session {} added {} subscriptions", subscriberId, sessionId, targetUserIds.size());
+        presenceFlowMetrics.recordPresenceSubscription("add", targetUserIds.size(), "success");
     }
 
     /**
      * Remove specific users from the watch list.
      * Called when the client no longer has any component viewing these users.
      */
-    public void removeSubscriptions(UUID subscriberId, List<UUID> targetUserIds) {
-        if (CollectionUtils.isEmpty(targetUserIds)) return;
+    public void removeSubscriptions(UUID subscriberId, String sessionId, List<UUID> targetUserIds) {
+        if (CollectionUtils.isEmpty(targetUserIds)) {
+            presenceFlowMetrics.recordPresenceSubscription("remove", 0, "empty");
+            return;
+        }
 
-        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, subscriberId);
-        String subscriberIdStr = subscriberId.toString();
+        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, subscriberId, sessionId);
+        String watcherToken = buildWatcherToken(subscriberId, sessionId);
 
         for (UUID targetId : targetUserIds) {
             String theirWatchersKey = String.format(MY_WATCHERS_KEY, targetId);
-            redisTemplate.opsForSet().remove(theirWatchersKey, subscriberIdStr);
+            redisTemplate.opsForSet().remove(theirWatchersKey, watcherToken);
             redisTemplate.opsForSet().remove(mySubsKey, targetId.toString());
         }
-        log.debug("User {} removed {} subscriptions", subscriberId, targetUserIds.size());
+        log.debug("User {} session {} removed {} subscriptions", subscriberId, sessionId, targetUserIds.size());
+        presenceFlowMetrics.recordPresenceSubscription("remove", targetUserIds.size(), "success");
     }
 
     /**
      * Clean up ALL subscriptions for a user (on full disconnect).
      * Removes this user from every watched user's watcher set, then deletes own subs set.
      */
-    public void cleanupAllSubscriptions(UUID userId) {
-        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, userId);
-        Set<String> subscribedToIds = redisTemplate.opsForSet().members(mySubsKey);
+    public void removeSubscriptionsForSession(UUID userId, String sessionId) {
+        String mySubsKey = String.format(MY_SUBSCRIPTIONS_KEY, userId, sessionId);
+        removeSubscriptionsForKey(userId, mySubsKey);
+        redisTemplate.delete(mySubsKey);
+    }
 
+    public void cleanupAllSubscriptions(UUID userId) {
+        String pattern = String.format("presence:subs:%s:*", userId);
+        Set<String> mySubsKeys = redisTemplate.keys(pattern);
+
+        if (mySubsKeys == null || mySubsKeys.isEmpty()) {
+            return;
+        }
+
+        for (String mySubsKey : mySubsKeys) {
+            removeSubscriptionsForKey(userId, mySubsKey);
+            redisTemplate.delete(mySubsKey);
+        }
+        log.debug("Cleaned up {} subscription keys for user {}", mySubsKeys.size(), userId);
+    }
+
+    private void removeSubscriptionsForKey(UUID subscriberId, String mySubsKey) {
+        String watcherToken = buildWatcherTokenFromSubsKey(subscriberId, mySubsKey);
+        if (watcherToken == null) {
+            return;
+        }
+
+        Set<String> subscribedToIds = redisTemplate.opsForSet().members(mySubsKey);
         if (subscribedToIds != null && !subscribedToIds.isEmpty()) {
-            String userIdStr = userId.toString();
             for (String targetId : subscribedToIds) {
                 String theirWatchersKey = String.format(MY_WATCHERS_KEY, targetId);
-                redisTemplate.opsForSet().remove(theirWatchersKey, userIdStr);
+                redisTemplate.opsForSet().remove(theirWatchersKey, watcherToken);
             }
-            redisTemplate.delete(mySubsKey);
-            log.debug("Cleaned up {} subscriptions for user {}", subscribedToIds.size(), userId);
         }
     }
 
     public Set<UUID> getWatchers(UUID userId) {
         String watchersKey = String.format(MY_WATCHERS_KEY, userId);
-        Set<String> watcherIdsStr = redisTemplate.opsForSet().members(watchersKey);
-        if (watcherIdsStr == null) return Collections.emptySet();
+        Set<String> watcherTokens = redisTemplate.opsForSet().members(watchersKey);
+        if (watcherTokens == null || watcherTokens.isEmpty()) {
+            return Collections.emptySet();
+        }
 
-        return watcherIdsStr.stream()
-                .map(UUID::fromString)
-                .collect(Collectors.toSet());
+        Set<UUID> watchers = new HashSet<>();
+        for (String token : watcherTokens) {
+            int idx = token.indexOf(':');
+            if (idx <= 0) {
+                redisTemplate.opsForSet().remove(watchersKey, token);
+                continue;
+            }
+
+            String watcherIdStr = token.substring(0, idx);
+            try {
+                watchers.add(UUID.fromString(watcherIdStr));
+            } catch (IllegalArgumentException e) {
+                redisTemplate.opsForSet().remove(watchersKey, token);
+            }
+        }
+        return watchers;
+    }
+
+    private String buildWatcherToken(UUID subscriberId, String sessionId) {
+        return String.format("%s:%s", subscriberId, sessionId);
+    }
+
+    private String buildWatcherTokenFromSubsKey(UUID subscriberId, String mySubsKey) {
+        String prefix = String.format("presence:subs:%s:", subscriberId);
+        if (!mySubsKey.startsWith(prefix)) {
+            return null;
+        }
+        String sessionId = mySubsKey.substring(prefix.length());
+        if (sessionId.isEmpty()) {
+            return null;
+        }
+        return buildWatcherToken(subscriberId, sessionId);
     }
 
 
@@ -364,11 +538,15 @@ public class PresenceService {
      * Core of "pull-on-reconnect": user calls this on connect to get contact statuses.
      */
     public Map<UUID, UserPresenceResponse> getBatchPresence(List<UUID> userIds) {
+        int requestedCount = userIds == null ? 0 : userIds.size();
         if (CollectionUtils.isEmpty(userIds)) {
+            presenceFlowMetrics.recordBatchPresence("empty", requestedCount, 0);
             return Collections.emptyMap();
         }
 
+        long startNanos = System.nanoTime();
         Map<UUID, UserPresenceResponse> resultMap = new HashMap<>();
+        String outcome = "success";
 
         try {
             Map<UUID, Boolean> onlineStatusMap = new HashMap<>();
@@ -380,7 +558,9 @@ public class PresenceService {
 
                 String customStatusKey = String.format(CUSTOM_STATUS_KEY, userId);
                 String cs = redisTemplate.opsForValue().get(customStatusKey);
-                if (cs != null) customStatuses.put(userId, cs);
+                if (cs != null) {
+                    customStatuses.put(userId, cs);
+                }
             }
 
             for (UUID userId : userIds) {
@@ -404,15 +584,17 @@ public class PresenceService {
                         .userId(userId)
                         .isOnline(isOnline)
                         .status(status)
-                    .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
+                        .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
                         .lastSeen(lastActive)
                         .lastActiveAgo(UserPresenceResponse.formatLastActive(lastActive))
                         .build());
             }
         } catch (Exception e) {
+            outcome = "error";
             log.error("Error getting batch presence", e);
         }
 
+        presenceFlowMetrics.recordBatchPresence(outcome, requestedCount, System.nanoTime() - startNanos);
         return resultMap;
     }
 
@@ -432,26 +614,25 @@ public class PresenceService {
                 status = (customStatus != null) ? customStatus : "ONLINE";
             }
         }
-        
+
         broadcastStatusToWatchers(userId, isOnline, status);
     }
 
     @Async
     public void broadcastStatusToWatchers(UUID userId, boolean isOnline, String status) {
-
         Set<UUID> watchers = getWatchers(userId);
         log.info("Broadcasting status {} for user {} to {} watchers", status, userId, watchers.size());
+        presenceFlowMetrics.recordBroadcast(status, watchers.size());
         if (watchers.isEmpty()) {
             log.debug("No watchers for user {}, skipping broadcast", userId);
             return;
         }
 
-
         OnlineStatusEvent event = OnlineStatusEvent.builder()
                 .userId(userId)
                 .online(isOnline)
                 .status(status)
-            .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
+                .device(isOnline ? webSocketConnectionService.getPrimaryDevice(userId) : null)
                 .timestamp(Instant.now())
                 .build();
 
@@ -497,21 +678,11 @@ public class PresenceService {
         return null;
     }
 
-    private Set<String> scanKeys(String pattern) {
-        Set<String> keys = new HashSet<>();
-        try {
-            redisTemplate.execute((RedisCallback<Void>) connection -> {
-                var cursor = connection.keyCommands().scan(
-                        ScanOptions.scanOptions().match(pattern).count(100).build()
-                );
-                while (cursor.hasNext()) {
-                    keys.add(new String(cursor.next(), java.nio.charset.StandardCharsets.UTF_8));
-                }
-                return null;
-            });
-        } catch (Exception e) {
-            log.error("Error scanning Redis for pattern '{}': {}", pattern, e.getMessage(), e);
-        }
-        return keys;
+    private String normalizeTraceId(String traceId) {
+        return normalizeRequestId(traceId);
+    }
+
+    private String normalizeRequestId(String requestId) {
+        return (requestId == null || requestId.isBlank()) ? "n/a" : requestId;
     }
 }

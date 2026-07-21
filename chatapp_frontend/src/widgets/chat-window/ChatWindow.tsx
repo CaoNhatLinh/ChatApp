@@ -1,454 +1,556 @@
-﻿import React, { useRef, useEffect, useMemo } from 'react';
-import { useMessenger } from '@/features/messenger/model/useMessenger';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { useShallow } from "zustand/react/shallow";
+import { useSearchParams } from "react-router-dom";
+import { useMessenger } from "@/features/messenger/model/useMessenger";
 import {
-    useMessengerStore,
-    EMPTY_MESSAGES
-} from '@/features/messenger/model/messenger.store';
-import { MessageItem } from '@/features/messenger/components/chat/MessageItem';
-import { ConversationInfo } from '@/features/messenger/components/chat/ConversationInfo';
-import { MessageInput } from '@/features/messenger/components/MessageInput/MessageInput';
-import { Phone, Video, Info, MessageCircle, ChevronLeft, Loader2 } from 'lucide-react';
-import type { Message, Conversation } from '@/features/messenger/types/messenger.types';
-import { useShallow } from 'zustand/react/shallow';
-import { usePresence } from '@/features/presence/model/presence.store';
-import { StatusDot } from '@/features/presence/ui/StatusSelector';
-import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
-import { UserProfileModal } from '@/features/profile/components/user/UserProfileModal';
-import { useFriendStore } from '@/features/relationships/model/friend.store';
-import { useAuthStore } from '@/features/auth/model/auth.store';
-import type { UserProfileModal as UserProfile } from '@/entities/conversation/model/room.types';
-import type { UserDTO } from '@/entities/user/model/user.types';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/ui/Dialog';
-import apiClient from '@/shared/api/apiClient';
+  EMPTY_MESSAGES,
+  useMessengerStore,
+} from "@/features/messenger/model/messenger.store";
+import { usePresence } from "@/features/presence/model/presence.store";
+import { MessageHistory } from "./components/MessageHistory";
+import { MessageRevisionPanel } from "./components/MessageRevisionPanel";
+import { ConversationInfo } from "@/features/messenger/components/chat/ConversationInfo";
+import { MessageInput } from "@/features/messenger/components/MessageInput/MessageInput";
+import { useRoomThemeState } from "@/features/settings/model/useRoomThemeState";
+import type {
+  Conversation,
+  Message,
+} from "@/features/messenger/types/messenger.types";
+import { useFriendStore } from "@/features/relationships/model/friend.store";
+import { useAuthStore } from "@/features/auth/model/auth.store";
+import type { UserProfileModal as UserProfile } from "@/entities/conversation/model/room.types";
+import type { UserDTO } from "@/entities/user/model/user.types";
+import { UserProfileModal } from "@/features/profile/components/user/UserProfileModal";
+import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
+import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import apiClient from "@/shared/api/apiClient";
+import { ConversationHeader } from "./components/ConversationHeader";
+import { ChatWindowPlaceholder } from "./components/ChatWindowPlaceholder";
+import { ChatWindowToast } from "./components/ChatWindowToast";
+import { RoomThemePanel } from "./components/RoomThemePanel";
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 
-const mapUserProfile = (profile: UserDTO): UserProfile => ({
-    userId: profile.userId,
-    username: profile.userName,
-    displayName: profile.displayName,
-    avatarUrl: profile.avatarUrl,
-    joinedAt: profile.createdAt,
-    lastSeen: profile.lastActive ?? undefined,
-    isOnline: profile.status === 'ONLINE'
-});
-
-const fetchUserProfile = async (userId: string): Promise<UserDTO> => {
-    const response = await apiClient.get<UserDTO>(`/users/profile/${userId}`);
-    return response.data;
-};
+import type { SafeRevision } from "@/widgets/chat-window/components/types";
 
 interface SafeReadReceipt {
-    readAt: string;
+  readAt: string;
 }
 
-interface SafeRevision {
-    revisionNumber: number;
-    editedAt: string;
-    content: string;
-}
+const WAIT_MESSAGE_LOAD_MS = 80;
+const MAX_MESSAGE_JUMP_ATTEMPTS = 20;
 
-const getLatestReadReceipt = (message: Message): SafeReadReceipt | undefined => {
-    const source = (message as Message & { readReceipts?: unknown[] }).readReceipts;
-    const readReceipts: SafeReadReceipt[] = Array.isArray(source)
-        ? source.flatMap((receipt): SafeReadReceipt[] => {
-            if (receipt && typeof receipt === 'object' && 'readAt' in receipt && typeof receipt.readAt === 'string') {
-                return [{ readAt: receipt.readAt }];
-            }
-            return [];
-        })
-        : [];
+const mapUserProfile = (profile: UserDTO): UserProfile => ({
+  userId: profile.userId,
+  username: profile.userName,
+  displayName: profile.displayName,
+  avatarUrl: profile.avatarUrl,
+  joinedAt: profile.createdAt,
+  lastSeen: profile.lastActive ?? undefined,
+  isOnline: profile.status === "ONLINE",
+});
 
-    return [...readReceipts].sort((left, right) => {
-        return new Date(right.readAt).getTime() - new Date(left.readAt).getTime();
-    })[0];
+const formatPresenceDevice = (device?: string): string => {
+  if (!device) return "";
+  if (device.includes(MESSENGER_COPY.presence.deviceSeparator)) return device;
+  return device.length > 40 ? `${device.slice(0, 40)}...` : device;
+};
+
+const fetchUserProfile = async (userId: string): Promise<UserDTO> => {
+  const response = await apiClient.get<UserDTO>(`/users/profile/${userId}`);
+  return response.data;
+};
+
+const normalizeReadReceipt = (
+  message: Message,
+): SafeReadReceipt | undefined => {
+  const source = (message as Message & { readReceipts?: unknown[] }).readReceipts;
+  const readReceipts: SafeReadReceipt[] = Array.isArray(source)
+    ? source.flatMap((receipt): SafeReadReceipt[] => {
+        if (
+          receipt &&
+          typeof receipt === "object" &&
+          "readAt" in receipt &&
+          typeof (receipt as { readAt?: unknown }).readAt === "string"
+        ) {
+          return [{ readAt: (receipt as { readAt: string }).readAt }];
+        }
+        return [];
+      })
+    : [];
+
+  return [...readReceipts].sort(
+    (left, right) =>
+      new Date(right.readAt).getTime() - new Date(left.readAt).getTime(),
+  )[0];
 };
 
 const normalizeMessageHistory = (history: unknown[]): SafeRevision[] => {
-    return history.flatMap((revision): SafeRevision[] => {
-        const rawRevision = revision as {
-            revisionNumber?: unknown;
-            editedAt?: unknown;
-            content?: unknown;
-        };
-
-        if (typeof rawRevision.revisionNumber !== 'number' || typeof rawRevision.editedAt !== 'string') {
-            return [];
-        }
-
-        return [{
-            revisionNumber: rawRevision.revisionNumber,
-            editedAt: rawRevision.editedAt,
-            content: typeof rawRevision.content === 'string' ? rawRevision.content : ''
-        }];
-    });
-};
-
-export const ChatWindow: React.FC = () => {
-    const {
-        conversations,
-        activeConversationId,
-        setSidebarOpen,
-        loadMoreMessages,
-        loading,
-        typingUsers,
-        sendMessage,
-        deleteMessage,
-        pinMessage,
-        loadMessageRevisions
-    } = useMessenger();
-    const deleteMessageAction = deleteMessage as unknown as (messageId: string) => Promise<Message | null>;
-    const pinMessageAction = pinMessage as unknown as (messageId: string) => Promise<void>;
-    const loadMessageRevisionsAction = loadMessageRevisions as unknown as (messageId: string) => Promise<unknown[]>;
-
-    const messages = useMessengerStore(useShallow(state =>
-        activeConversationId ? (state.messages[activeConversationId] || EMPTY_MESSAGES) : EMPTY_MESSAGES
-    ));
-    const messagesPagination = useMessengerStore(state => state.messagesPagination);
-
-    const [isInfoOpen, setIsInfoOpen] = React.useState(false);
-    const [toastMessage, setToastMessage] = React.useState<string | null>(null);
-    const [replyingTo, setReplyingTo] = React.useState<Message | null>(null);
-    const [editingMessage, setEditingMessage] = React.useState<Message | null>(null);
-    const [historyOpen, setHistoryOpen] = React.useState(false);
-    const [messageHistory, setMessageHistory] = React.useState<SafeRevision[]>([]);
-
-    // Profile Modal State
-    const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
-    const [selectedUserId, setSelectedUserId] = React.useState<string | null>(null);
-    const [selectedUserProfile, setSelectedUserProfile] = React.useState<UserProfile | undefined>();
-    const [loadingProfile, setLoadingProfile] = React.useState(false);
-
-    // Block state - for filtering messages in group chats
-    const blockedUserIds = useFriendStore(state => state.blockedUserIds);
-    const fetchBlockedUsers = useFriendStore(state => state.fetchBlockedUsers);
-    const { user: currentUser } = useAuthStore();
-
-    // Load blocked users on mount
-    useEffect(() => {
-        if (currentUser?.userId) {
-            void fetchBlockedUsers(currentUser.userId);
-        }
-    }, [currentUser?.userId, fetchBlockedUsers]);
-
-    const handleUserClick = async (userId: string) => {
-        setSelectedUserId(userId);
-        setIsProfileModalOpen(true);
-        setLoadingProfile(true);
-        try {
-            const profile = await fetchUserProfile(userId);
-            setSelectedUserProfile(mapUserProfile(profile));
-        } catch (error) {
-            console.error('Failed to fetch user profile:', error);
-        } finally {
-            setLoadingProfile(false);
-        }
+  return history.flatMap((revision): SafeRevision[] => {
+    const rawRevision = revision as {
+      revisionNumber?: unknown;
+      editedAt?: unknown;
+      content?: unknown;
     };
 
-    const pagination = activeConversationId ? messagesPagination[activeConversationId] : null;
-
-    const activeConv = useMemo(() =>
-        conversations?.find((c: Conversation) => c.conversationId === activeConversationId),
-        [conversations, activeConversationId]
-    );
-
-    // Track presence for DM other participant (works for non-friends too)
-    const otherUserId = activeConv?.type === 'dm' ? activeConv.otherParticipant?.userId : undefined;
-    const trackIds = useMemo(() => otherUserId ? [otherUserId] : [], [otherUserId]);
-    useTrackPresence(trackIds);
-    const { presence: otherPresence } = usePresence(otherUserId ?? '');
-    const isOtherOnline = otherPresence?.isOnline ?? false;
-    const otherStatus = otherPresence?.status ?? 'OFFLINE';
-
-    const scrollRef = useRef<HTMLDivElement>(null);
-
-    // Auto-scroll logic
-    const lastMessageId = messages.length > 0 ? messages[messages.length - 1].messageId : null;
-
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
-    }, [lastMessageId, typingUsers]);
-
-    const showFeaturePlaceholder = (featureName: string) => {
-        setToastMessage(`Tính năng ${featureName} đang phát triển`);
-        setTimeout(() => setToastMessage(null), 3000);
-    };
-
-    const showToast = React.useCallback((message: string) => {
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(null), 3000);
-    }, []);
-
-    const handleMessageAction = React.useCallback(async (action: string, message: Message) => {
-        switch (action) {
-            case 'reply':
-                setEditingMessage(null);
-                setReplyingTo(message);
-                return;
-            case 'copy':
-                await navigator.clipboard.writeText(message.content ?? '');
-                showToast('Đã sao chép tin nhắn');
-                return;
-            case 'edit':
-                setReplyingTo(null);
-                setEditingMessage(message);
-                return;
-            case 'delete':
-                await deleteMessageAction(message.messageId);
-                setEditingMessage(current => current?.messageId === message.messageId ? null : current);
-                showToast('Tin nhắn đã được xóa mềm');
-                return;
-            case 'pin':
-                await pinMessageAction(message.messageId);
-                showToast('Đã cập nhật trạng thái ghim');
-                return;
-            case 'view-history': {
-                const revisions = await loadMessageRevisionsAction(message.messageId);
-                setMessageHistory(normalizeMessageHistory(revisions));
-                setHistoryOpen(true);
-                return;
-            }
-            case 'view-seen': {
-                const latestSeen = getLatestReadReceipt(message);
-                if (latestSeen) {
-                    showToast(`Đã xem lúc ${new Date(latestSeen.readAt).toLocaleString('vi-VN')}`);
-                }
-                return;
-            }
-            default:
-                showFeaturePlaceholder(`Hanh dong tin nhan: ${action}`);
-        }
-    }, [deleteMessageAction, loadMessageRevisionsAction, pinMessageAction, showToast]);
-
-    if (!activeConv) {
-        return (
-            <div className="flex-1 h-full flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-700">
-                <div className="glass p-12 rounded-[3rem] neo-shadow flex flex-col items-center gap-6 max-w-sm">
-                    <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center text-primary animate-bounce">
-                        <MessageCircle size={48} />
-                    </div>
-                    <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Chọn một cuộc trò chuyện</h3>
-                        <p className="text-muted-foreground text-sm font-medium">Bắt đầu kết nối với bạn bè của bạn trong không gian trò chuyện mới.</p>
-                    </div>
-                </div>
-            </div>
-        );
+    if (
+      typeof rawRevision.revisionNumber !== "number" ||
+      typeof rawRevision.editedAt !== "string"
+    ) {
+      return [];
     }
 
-    return (
-        <div key={activeConv.conversationId} className="flex-1 h-full flex z-10 animate-in fade-in duration-200 overflow-hidden relative">
-
-            {/* Main Chat Area */}
-            <div className={`flex-1 flex flex-col h-full transition-all duration-300 ${isInfoOpen ? 'mr-[300px]' : ''}`}>
-                {/* Chat Header */}
-                <div className="h-20 border-b border-border/50 px-6 flex items-center justify-between glass">
-                    <div className="flex items-center gap-4">
-                        {/* Back button for mobile */}
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            className="md:hidden p-2 -ml-2 hover:bg-primary/10 rounded-xl text-primary transition-all"
-                        >
-                            <ChevronLeft size={24} />
-                        </button>
-
-                        <div className="relative">
-                            <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-primary/30">
-                                {activeConv.otherParticipant?.avatarUrl ? (
-                                    <img src={activeConv.otherParticipant.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full bg-primary/10 flex items-center justify-center font-black text-primary uppercase">
-                                        {activeConv.name.charAt(0)}
-                                    </div>
-                                )}
-                            </div>
-                            {activeConv.type === 'dm' && (
-                                <StatusDot
-                                    status={otherStatus}
-                                    isOnline={isOtherOnline}
-                                    size="md"
-                                    className="absolute bottom-[-2px] right-[-2px] border-2 border-background shadow-sm rounded-full"
-                                />
-                            )}
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black uppercase tracking-tight leading-none mb-1">{activeConv.name}</h3>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                {activeConv.type === 'dm'
-                                    ? (isOtherOnline
-                                        ? `${otherStatus === 'DND' ? 'Không làm phiền' : 'Trực tuyến'}${otherPresence?.device ? ` • ${otherPresence.device}` : ''}`
-                                        : 'Ngoại tuyến')
-                                    : `${activeConv.memberCount} thành viên`}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => showFeaturePlaceholder('Gọi thoại')}
-                            className="p-3 hover:bg-primary/10 rounded-2xl text-muted-foreground hover:text-primary transition-all"
-                            title="Gọi thoại"
-                        >
-                            < Phone size={20} />
-                        </button>
-                        <button
-                            onClick={() => showFeaturePlaceholder('Gọi Video')}
-                            className="p-3 hover:bg-primary/10 rounded-2xl text-muted-foreground hover:text-primary transition-all"
-                            title="Gọi Video"
-                        >
-                            < Video size={20} />
-                        </button>
-                        <button
-                            onClick={() => setIsInfoOpen(!isInfoOpen)}
-                            className={`p-3 rounded-2xl transition-all ${isInfoOpen ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10 text-muted-foreground hover:text-primary'}`}
-                            title="Thông tin cuộc hội thoại"
-                        >
-                            < Info size={20} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Messages Area */}
-                <div
-                    ref={scrollRef}
-                    className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 bg-gradient-to-b from-transparent to-background/20"
-                >
-                    {/* Load More Messages */}
-                    {pagination?.hasNext && (
-                        <div className="flex justify-center pb-4">
-                            <button
-                                onClick={() => activeConversationId && void loadMoreMessages(activeConversationId)}
-                                disabled={loading}
-                                className="px-6 py-2 rounded-full border border-primary/20 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-all flex items-center gap-2"
-                            >
-                                {loading ? <Loader2 size={12} className="animate-spin" /> : 'Tải thêm tin nhắn cũ'}
-                            </button>
-                        </div>
-                    )}
-
-                    {messages?.map((msg: Message, idx: number) => {
-                        const prevMessage = idx > 0 ? messages[idx - 1] : null;
-                        const showAvatar = Boolean(idx === 0 || (prevMessage && prevMessage.sender.userId !== msg.sender.userId));
-
-                        const isBlocked = activeConv.type !== 'dm' && (
-                            msg.senderBlockedByViewer || blockedUserIds.has(msg.sender.userId)
-                        );
-
-                        return (
-                            <MessageItem
-                                key={msg.messageId}
-                                message={msg}
-                                showAvatar={showAvatar}
-                                isBlocked={isBlocked}
-                                onAction={handleMessageAction}
-                                onUserClick={handleUserClick}
-                                onRetry={async (messageId) => {
-                                    if (!activeConversationId) return;
-                                    const messageToRetry = messages.find((m: Message) => m.messageId === messageId);
-                                    if (messageToRetry) {
-                                        useMessengerStore.getState().removeMessage(activeConversationId, messageId);
-                                        await sendMessage(messageToRetry.content, messageToRetry.type);
-                                    }
-                                }}
-                            />
-                        );
-                    })}
-
-                    {/* Typing Indicators */}
-                    {typingUsers && typingUsers.filter(tu => !blockedUserIds.has(tu.user.userId)).length > 0 && (
-                        <div className="flex items-center gap-2 text-muted-foreground pl-14 animate-in fade-in slide-in-from-left-2">
-                            <div className="flex gap-1">
-                                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider">
-                                {(() => {
-                                    const visibleTypingUsers = typingUsers.filter(tu => !blockedUserIds.has(tu.user.userId));
-                                    return visibleTypingUsers.length === 1
-                                        ? `${visibleTypingUsers[0].user.displayName} đang nhập...`
-                                        : `${visibleTypingUsers.length} người đang nhập...`;
-                                })()}
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Message Input Area */}
-                <div className="p-6">
-                    <MessageInput
-                        replyingTo={replyingTo}
-                        editingMessage={editingMessage}
-                        onCancelReply={() => setReplyingTo(null)}
-                        onCancelEdit={() => setEditingMessage(null)}
-                    />
-                </div>
-            </div>
-
-            {/* Profile Modal */}
-            <UserProfileModal
-                isOpen={isProfileModalOpen}
-                onClose={() => setIsProfileModalOpen(false)}
-                userId={selectedUserId || ''}
-                userProfile={selectedUserProfile}
-                isLoading={loadingProfile}
-                onSendMessage={() => setIsProfileModalOpen(false)}
-                onBlock={() => {
-                    // Refresh blocked users after blocking
-                    if (currentUser?.userId) void fetchBlockedUsers(currentUser.userId);
-                    setIsProfileModalOpen(false);
-                }}
-                onUnblock={() => {
-                    // Refresh blocked users after unblocking
-                    if (currentUser?.userId) void fetchBlockedUsers(currentUser.userId);
-                }}
-            />
-
-            {/* Conversation Info Sidebar */}
-            <div className={`absolute top-0 right-0 h-full transition-transform duration-300 ${isInfoOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <ConversationInfo
-                    isOpen={isInfoOpen}
-                    onClose={() => setIsInfoOpen(false)}
-                />
-            </div>
-
-            {/* Toast Notification */}
-            {toastMessage && (
-                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
-                    <div className="bg-card glass border border-border/50 neo-shadow px-6 py-3 rounded-2xl flex items-center gap-3">
-                        < Info size={18} className="text-primary" />
-                        <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
-                    </div>
-                </div>
-            )}
-
-            <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-                <DialogContent className="max-w-xl">
-                    <DialogHeader>
-                        <DialogTitle>Lịch sử chỉnh sửa</DialogTitle>
-                        <DialogDescription>Các phiên bản cũ của tin nhắn được lưu dưới dạng revision riêng.</DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-[420px] overflow-y-auto space-y-3">
-                        {messageHistory.length > 0 ? messageHistory.map(revision => (
-                            <div key={`${revision.revisionNumber}-${revision.editedAt}`} className="rounded-2xl border border-border/50 bg-background/60 px-4 py-3">
-                                <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                    <span>Revision {revision.revisionNumber}</span>
-                                    <span>{new Date(revision.editedAt).toLocaleString('vi-VN')}</span>
-                                </div>
-                                <p className="mt-2 whitespace-pre-wrap text-sm font-medium">{revision.content || 'Tin nhắn trống'}</p>
-                            </div>
-                        )) : (
-                            <p className="text-sm text-muted-foreground">Chưa có revision nào.</p>
-                        )}
-                    </div>
-                    <DialogFooter>
-                        <button onClick={() => setHistoryOpen(false)} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold">Đóng</button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
+    return [
+      {
+        revisionNumber: rawRevision.revisionNumber,
+        editedAt: rawRevision.editedAt,
+        content: typeof rawRevision.content === "string" ? rawRevision.content : "",
+      },
+    ];
+  });
 };
+
+export const ChatWindow = () => {
+  const {
+    conversations,
+    activeConversationId,
+    setSidebarOpen,
+    loadMoreMessages,
+    loading,
+    typingUsers,
+    sendMessage,
+    deleteMessage,
+    pinMessage,
+    loadMessageRevisions,
+  } = useMessenger();
+
+  const deleteMessageAction = deleteMessage;
+  const pinMessageAction = pinMessage;
+  const loadMessageRevisionsAction = loadMessageRevisions;
+
+  const messages = useMessengerStore(
+    useShallow((state) =>
+      activeConversationId
+        ? state.messages[activeConversationId] || EMPTY_MESSAGES
+        : EMPTY_MESSAGES,
+    ),
+  );
+  const hasNextMessage = useMessengerStore((state) =>
+    activeConversationId ? Boolean(state.messagesPagination[activeConversationId]?.hasNext) : false,
+  );
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const blockedUserIds = useFriendStore((state) => state.blockedUserIds);
+  const fetchBlockedUsers = useFriendStore((state) => state.fetchBlockedUsers);
+  const { user: currentUser } = useAuthStore();
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isRoomThemeOpen, setIsRoomThemeOpen] = useState(false);
+  const [messageHistory, setMessageHistory] = useState<SafeRevision[]>([]);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserProfile, setSelectedUserProfile] = useState<
+    UserProfile | undefined
+  >();
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const messageIdFromQuery = searchParams.get("messageId");
+
+  const activeConversation = useMemo(
+    () =>
+      conversations?.find(
+        (conversation: Conversation) =>
+          conversation.conversationId === activeConversationId,
+      ),
+    [conversations, activeConversationId],
+  );
+
+  const otherUserId =
+    activeConversation?.type === "dm"
+      ? activeConversation.otherParticipant?.userId
+      : undefined;
+
+  const trackIds = useMemo(
+    () => (otherUserId ? [otherUserId] : []),
+    [otherUserId],
+  );
+
+  const { presence: otherPresence } = usePresence(otherUserId ?? "");
+  const isOtherOnline = otherPresence?.isOnline ?? false;
+  const otherStatus = otherPresence?.status ?? "OFFLINE";
+  const roomThemeSettings = useRoomThemeState(activeConversationId);
+
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const lastMessageId =
+    messages.length > 0 ? messages[messages.length - 1].messageId : null;
+
+  useTrackPresence(trackIds);
+
+  useEffect(() => {
+    if (currentUser?.userId) {
+      void fetchBlockedUsers();
+    }
+  }, [currentUser?.userId, fetchBlockedUsers]);
+
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTo({
+        top: messagesRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [lastMessageId, typingUsers]);
+
+  const showToast = useCallback((message: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    setToastMessage(message);
+    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  const showFeaturePlaceholder = useCallback(
+    (featureName: string) => {
+      showToast(MESSENGER_COPY.chatWindow.messageAction.featureMissing(featureName));
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const scrollToMessage = useCallback((messageId: string): boolean => {
+    const container = messagesRef.current;
+    if (!container) return false;
+
+    const selector = `[data-message-id="${messageId}"]`;
+    const target = container.querySelector<HTMLElement>(selector);
+    if (!target) return false;
+
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    return true;
+  }, []);
+
+  const jumpToMessage = useCallback(
+    async (messageId: string) => {
+      const targetConversationId = activeConversationId;
+      if (!targetConversationId) return;
+
+      if (scrollToMessage(messageId)) {
+        setHighlightMessageId(messageId);
+        const params = new URLSearchParams(searchParams);
+        params.set("conversationId", targetConversationId);
+        params.set("messageId", messageId);
+        setSearchParams(params, { replace: true });
+        return;
+      }
+
+      let attempts = 0;
+      while (attempts < MAX_MESSAGE_JUMP_ATTEMPTS) {
+        if (targetConversationId !== activeConversationId) return;
+
+        const pagination = useMessengerStore.getState().messagesPagination[targetConversationId];
+        if (!pagination?.hasNext) {
+          break;
+        }
+
+        await loadMoreMessages(targetConversationId);
+        await new Promise<void>((resolve) => setTimeout(resolve, WAIT_MESSAGE_LOAD_MS));
+
+        if (targetConversationId !== activeConversationId) return;
+
+        if (scrollToMessage(messageId)) {
+          setHighlightMessageId(messageId);
+          const params = new URLSearchParams(searchParams);
+          params.set("conversationId", targetConversationId);
+          params.set("messageId", messageId);
+          setSearchParams(params, { replace: true });
+          return;
+        }
+
+        attempts += 1;
+      }
+
+      if (!scrollToMessage(messageId)) {
+        setHighlightMessageId(null);
+        showToast(MESSENGER_COPY.chatWindow.messageAction.noMessageFoundInHistory);
+      }
+    },
+    [
+      activeConversationId,
+      loadMoreMessages,
+      scrollToMessage,
+      searchParams,
+      setSearchParams,
+      showToast,
+    ],
+  );
+
+  useEffect(() => {
+    if (!messageIdFromQuery) {
+      setHighlightMessageId(null);
+      return;
+    }
+    void jumpToMessage(messageIdFromQuery);
+  }, [activeConversationId, jumpToMessage, messageIdFromQuery]);
+
+  const handleUserClick = async (userId: string) => {
+    setSelectedUserId(userId);
+    setIsProfileModalOpen(true);
+    setIsProfileLoading(true);
+
+    try {
+      const profile = await fetchUserProfile(userId);
+      setSelectedUserProfile(mapUserProfile(profile));
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
+
+  const handleMessageAction = useCallback(
+    async (action: string, message: Message) => {
+      switch (action) {
+        case "reply":
+          setEditingMessage(null);
+          setReplyingTo(message);
+          return;
+        case "copy":
+          await navigator.clipboard.writeText(message.content ?? "");
+          showToast(MESSENGER_COPY.chatWindow.messageAction.copySuccess);
+          return;
+        case "edit":
+          setReplyingTo(null);
+          setEditingMessage(message);
+          return;
+        case "delete":
+          await deleteMessageAction(message.messageId);
+          setEditingMessage((current) =>
+            current?.messageId === message.messageId ? null : current,
+          );
+          showToast(MESSENGER_COPY.chatWindow.messageAction.deleteSuccess);
+          return;
+        case "pin":
+          await pinMessageAction(message.messageId);
+          showToast(MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
+          return;
+        case "view-history": {
+          const revisions = await loadMessageRevisionsAction(message.messageId);
+          setMessageHistory(normalizeMessageHistory(revisions));
+          setIsHistoryOpen(true);
+          return;
+        }
+        case "view-seen": {
+          const latestSeen = normalizeReadReceipt(message);
+          if (latestSeen) {
+            showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(new Date(latestSeen.readAt).toLocaleString("vi-VN")));
+          }
+          return;
+        }
+        case "jump-reply":
+          if (message.replyTo?.messageId) {
+            void jumpToMessage(message.replyTo.messageId);
+          } else {
+            showToast(MESSENGER_COPY.chatWindow.messageAction.noReplyTarget);
+          }
+          return;
+        default:
+          showFeaturePlaceholder(MESSENGER_COPY.chatWindow.messageAction.todoMessage);
+      }
+    },
+    [
+      deleteMessageAction,
+      jumpToMessage,
+      loadMessageRevisionsAction,
+      pinMessageAction,
+      showFeaturePlaceholder,
+      showToast,
+    ],
+  );
+
+  const closeProfileModal = () => {
+    setIsProfileModalOpen(false);
+  };
+
+  const statusLabel =
+    activeConversation?.type === "dm"
+      ? `${
+          otherStatus === "DND"
+            ? MESSENGER_COPY.chatWindow.status.dnd
+            : isOtherOnline
+              ? MESSENGER_COPY.chatWindow.status.online
+              : MESSENGER_COPY.chatWindow.status.offline
+        }${otherPresence?.device ? `${MESSENGER_COPY.presence.deviceSeparator}${formatPresenceDevice(otherPresence.device)}` : ""}`
+        : `${activeConversation?.memberCount ?? 0} ${MESSENGER_COPY.chatWindow.status.groupMemberSuffix}`;
+
+  if (!activeConversation) {
+    return (
+      <ChatWindowPlaceholder
+        title={MESSENGER_COPY.chatWindow.placeholder.emptyTitle}
+        message={MESSENGER_COPY.chatWindow.placeholder.emptyMessage}
+      />
+    );
+  }
+
+  return (
+    <motion.div
+      key={activeConversation.conversationId}
+      className="flex-1 h-full flex z-10 overflow-hidden relative"
+      initial={UI_MOTION_CONFIG.initialState}
+      animate={UI_MOTION_CONFIG.animateState}
+      variants={UI_MOTION_VARIANTS.fadeIn}
+    >
+      <div className="flex-1 flex flex-col h-full transition-all duration-300">
+        <ConversationHeader
+          conversation={activeConversation}
+          isInfoOpen={isInfoOpen}
+          isOtherOnline={isOtherOnline}
+          otherStatusLabel={statusLabel}
+          canGoBack
+          onBack={() => setSidebarOpen(true)}
+          onSearch={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.search)}
+          onVideoCall={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.video)}
+          onVoiceCall={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.voice)}
+          onOpenRoomTheme={() => setIsRoomThemeOpen((current) => !current)}
+          onToggleInfo={() => setIsInfoOpen((current) => !current)}
+        />
+
+        {isRoomThemeOpen ? (
+          <RoomThemePanel
+            conversationId={activeConversationId}
+            conversationName={
+              activeConversation.type === "dm"
+                ? activeConversation.otherParticipant?.displayName || activeConversation.name || MESSENGER_COPY.chatWindow.roomTheme.defaultRoomName
+                : activeConversation.name || MESSENGER_COPY.chatWindow.roomTheme.defaultGroupName
+            }
+            defaultRoomThemeId={roomThemeSettings.settings.defaultRoomThemeId}
+            defaultBubbleStyleId={roomThemeSettings.settings.messageBubbleStyle}
+            activeRoomThemeId={roomThemeSettings.activeRoomThemeId}
+            activeBackgroundImage={roomThemeSettings.activeConversationBackground || ""}
+            hasConversationOverride={roomThemeSettings.hasConversationOverride}
+            onSetDefaultRoomTheme={roomThemeSettings.setDefaultRoomTheme}
+            onSetRoomTheme={(themeId) => {
+              if (activeConversationId) {
+                roomThemeSettings.setConversationTheme(activeConversationId, themeId);
+              }
+            }}
+            onSetBubbleStyle={roomThemeSettings.setRoomBubbleStyle}
+            onSetBackgroundImage={(backgroundUrl) => {
+              if (activeConversationId) {
+                roomThemeSettings.setConversationBackground(
+                  activeConversationId,
+                  backgroundUrl.trim(),
+                );
+              }
+            }}
+            onClearConversationTheme={() => {
+              if (activeConversationId) {
+                roomThemeSettings.resetConversationTheme(activeConversationId);
+              }
+            }}
+            onClearConversationBackground={() => {
+              if (activeConversationId) {
+                roomThemeSettings.clearConversationBackground(activeConversationId);
+              }
+            }}
+          />
+        ) : null}
+
+        <MessageHistory
+          activeConversationId={activeConversationId}
+          messages={messages}
+          roomVisual={roomThemeSettings.computed}
+          blockedUserIds={blockedUserIds}
+          loading={loading}
+          hasNext={hasNextMessage}
+          scrollRef={messagesRef}
+          highlightMessageId={highlightMessageId}
+          onLoadMore={() =>
+            activeConversationId && void loadMoreMessages(activeConversationId)
+          }
+          onAction={handleMessageAction}
+          onUserClick={handleUserClick}
+          onRetry={(messageId) => {
+            if (!activeConversationId) return;
+
+            const messageToRetry = messages.find(
+              (message) => message.messageId === messageId,
+            );
+
+            if (messageToRetry) {
+              useMessengerStore
+                .getState()
+                .removeMessage(activeConversationId, messageId);
+              void sendMessage(messageToRetry.content, messageToRetry.type);
+            }
+          }}
+        />
+
+        <div className="p-6">
+          <MessageInput
+            replyingTo={replyingTo}
+            editingMessage={editingMessage}
+            onCancelReply={() => setReplyingTo(null)}
+            onCancelEdit={() => setEditingMessage(null)}
+          />
+        </div>
+      </div>
+
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        userId={selectedUserId || ""}
+        userProfile={selectedUserProfile}
+        isLoading={isProfileLoading}
+        onSendMessage={() => {
+          if (selectedUserId) {
+            closeProfileModal();
+          }
+        }}
+        onBlock={() => {
+          void fetchBlockedUsers();
+          setIsProfileModalOpen(false);
+        }}
+        onUnblock={() => {
+          void fetchBlockedUsers();
+        }}
+      />
+
+      <div
+        className={`absolute top-0 right-0 h-full transition-transform duration-300 ${
+          isInfoOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <ConversationInfo
+          isOpen={isInfoOpen}
+          onClose={() => setIsInfoOpen(false)}
+        />
+      </div>
+
+      {toastMessage ? <ChatWindowToast message={toastMessage} /> : null}
+
+      <MessageRevisionPanel
+        isOpen={isHistoryOpen}
+        revisions={messageHistory}
+        onOpenChange={setIsHistoryOpen}
+      />
+    </motion.div>
+  );
+};
+
+export default ChatWindow;

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 import { usePresenceStore } from '@/features/presence/model/presence.store';
@@ -6,170 +7,230 @@ import { presenceWsService } from '@/features/presence/services/presenceWsServic
 import { presenceTracker } from '@/features/presence/services/presenceTracker';
 import { addConnectionListener, isWebSocketReady } from '@/shared/websocket/websocketService';
 import { logger } from '@/shared/lib/logger';
+import { notifyError } from '@/shared/lib/notification';
 
-function getConversationPartnerIds(): string[] {
-  const conversations = useMessengerStore.getState().conversations;
-  const ids = new Set<string>();
+const RATE_LIMIT_RETRY_FLOOR_SECONDS = 1;
 
-  for (const conversation of conversations) {
-    if (conversation.type === 'dm' && conversation.otherParticipant?.userId) {
-      ids.add(conversation.otherParticipant.userId);
-    }
-  }
-
-  return Array.from(ids);
+function subscribeConversationPartners(partnerIds: string[]): void {
+    logger.info('[PresenceManager] Syncing', partnerIds.length, 'conversation partners');
+    presenceTracker.replaceManaged(partnerIds);
 }
 
-function subscribeConversationPartners(): void {
-  const partnerIds = getConversationPartnerIds();
-  if (partnerIds.length === 0) {
-    return;
-  }
-
-  logger.info('[PresenceManager] Subscribing to', partnerIds.length, 'conversation partners');
-  presenceWsService.subscribeToUserPresence(partnerIds);
-  presenceWsService.requestBatchPresence(partnerIds);
+function safeNumber(value: unknown, fallback = 0): number {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
 }
 
 export function PresenceManager(): null {
-  const isAuthenticated = useAuthStore((state) => !!state.user && !!state.token);
-  const conversations = useMessengerStore((state) => state.conversations);
+    const isAuthenticated = useAuthStore((state) => !!state.user && !!state.token);
+    const conversationPartnerIdsKey = useMessengerStore(
+        useShallow((state) => {
+            const partnerIds = new Set<string>();
 
-  const isAuthenticatedRef = useRef(isAuthenticated);
-  isAuthenticatedRef.current = isAuthenticated;
+            for (const conversation of state.conversations) {
+                if (conversation.type === 'dm' && conversation.otherParticipant?.userId) {
+                    partnerIds.add(conversation.otherParticipant.userId);
+                }
+            }
 
-  const delayedResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+            return Array.from(partnerIds).sort().join(',');
+        })
+    );
+    const conversationPartnerIds = useMemo(
+        () => conversationPartnerIdsKey.split(',').filter(Boolean),
+        [conversationPartnerIdsKey],
+    );
 
-  const debouncedResync = useCallback(() => {
-    if (resyncDebounceRef.current) {
-      clearTimeout(resyncDebounceRef.current);
-    }
+    const isAuthenticatedRef = useRef(isAuthenticated);
+    isAuthenticatedRef.current = isAuthenticated;
 
-    resyncDebounceRef.current = setTimeout(() => {
-      resyncDebounceRef.current = null;
-      if (!isAuthenticatedRef.current || !isWebSocketReady()) {
-        return;
-      }
+    const presenceSubscriptionsReady = useRef(false);
+    const delayedResyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const resyncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      logger.debug('[PresenceManager] Debounced resync');
-      presenceTracker.resync();
-      subscribeConversationPartners();
-    }, 300);
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    const unsubscribe = addConnectionListener(() => {
-      if (!isAuthenticatedRef.current) {
-        return;
-      }
-
-      logger.info('[PresenceManager] WS connected - initializing presence');
-      presenceWsService.subscribeToPresenceEvents();
-      presenceWsService.subscribeToPresenceSync(
-        (status) => {
-          usePresenceStore.getState().setMyStatus(status as 'ONLINE' | 'DND' | 'INVISIBLE');
-          logger.info('[PresenceManager] Status synced from another device:', status);
-        },
-        () => {
-          logger.warn('[PresenceManager] Status change rate limited, reverting to ONLINE');
-          usePresenceStore.getState().setMyStatus('ONLINE');
-        },
-      );
-      presenceWsService.startHeartbeat(30000);
-      presenceTracker.resync();
-      subscribeConversationPartners();
-
-      if (delayedResyncRef.current) {
-        clearTimeout(delayedResyncRef.current);
-      }
-
-      delayedResyncRef.current = setTimeout(() => {
-        delayedResyncRef.current = null;
-        if (!isAuthenticatedRef.current || !isWebSocketReady()) {
-          return;
+    const debouncedResync = useCallback(() => {
+        if (resyncDebounceRef.current) {
+            clearTimeout(resyncDebounceRef.current);
         }
 
-        logger.debug('[PresenceManager] Delayed resync');
+        resyncDebounceRef.current = setTimeout(() => {
+            resyncDebounceRef.current = null;
+            if (!isAuthenticatedRef.current || !isWebSocketReady()) {
+                return;
+            }
+
+            logger.debug('[PresenceManager] Debounced resync');
+            presenceTracker.resync();
+            subscribeConversationPartners(conversationPartnerIds);
+        }, 300);
+    }, [conversationPartnerIds]);
+
+    const initializePresenceConnections = useCallback(() => {
+        if (!presenceSubscriptionsReady.current) {
+            presenceWsService.subscribeToPresenceEvents();
+            presenceWsService.subscribeToPresenceBatch((events) => {
+                for (const event of events) {
+                    usePresenceStore.getState().updateOnlineStatus(event);
+                }
+            });
+
+            presenceWsService.subscribeToPresenceSync(
+                (status, requestId, traceId) => {
+                    logger.info('[PresenceManager] Status synced', { status, requestId, traceId });
+                    usePresenceStore.getState().setMyStatusFromServer(status, requestId, traceId);
+                },
+                (retryAfterSeconds, requestId, traceId) => {
+                    logger.warn('[PresenceManager] Status change rate limited', {
+                        retryAfterSeconds,
+                        requestId,
+                        traceId,
+                    });
+
+                    const requestedStatus = usePresenceStore.getState().pendingStatusDesired;
+                    const didRollback = usePresenceStore.getState().rollbackMyStatus(requestId, traceId);
+                    if (didRollback) {
+                        const retryDelaySeconds = Math.max(
+                            RATE_LIMIT_RETRY_FLOOR_SECONDS,
+                            safeNumber(retryAfterSeconds, RATE_LIMIT_RETRY_FLOOR_SECONDS)
+                        );
+                        notifyError(`Status update was rate limited. Retrying in ${retryDelaySeconds} seconds.`);
+                        setTimeout(() => {
+                            const latest = usePresenceStore.getState();
+                            if (latest.isUpdatingMyStatus) {
+                                return;
+                            }
+
+                            if (!requestedStatus || latest.myStatus !== requestedStatus) {
+                                return;
+                            }
+
+                            const statusChange = presenceWsService.setStatus(requestedStatus);
+                            usePresenceStore.getState().setMyStatus(requestedStatus, statusChange.requestId, statusChange.traceId);
+                            logger.info('[PresenceManager] Retrying status sync', {
+                                status: requestedStatus,
+                                requestId: statusChange.requestId,
+                                traceId: statusChange.traceId,
+                            });
+                        }, retryDelaySeconds * 1000);
+                    }
+                },
+                (errorType, message, requestId, traceId) => {
+                    logger.warn('[PresenceManager] Status sync error', {
+                        errorType,
+                        message,
+                        requestId,
+                        traceId,
+                    });
+                    const didRollback = usePresenceStore.getState().rollbackMyStatus(requestId, traceId);
+                    if (didRollback) {
+                        notifyError(`${errorType}: ${message}`);
+                    }
+                }
+            );
+
+            presenceSubscriptionsReady.current = true;
+        }
+
+        presenceWsService.sendHeartbeat();
+        presenceWsService.startHeartbeat(30000);
         presenceTracker.resync();
-        subscribeConversationPartners();
-      }, 600);
-    });
+        subscribeConversationPartners(conversationPartnerIds);
 
-    return () => {
-      if (delayedResyncRef.current) {
-        clearTimeout(delayedResyncRef.current);
-        delayedResyncRef.current = null;
-      }
-      if (resyncDebounceRef.current) {
-        clearTimeout(resyncDebounceRef.current);
-        resyncDebounceRef.current = null;
-      }
+        if (delayedResyncRef.current) {
+            clearTimeout(delayedResyncRef.current);
+            delayedResyncRef.current = null;
+        }
 
-      unsubscribe();
-      presenceWsService.shutdownPresenceSystem();
-    };
-  }, [isAuthenticated]);
+        delayedResyncRef.current = setTimeout(() => {
+            if (!isAuthenticatedRef.current || !isWebSocketReady()) {
+                return;
+            }
+            logger.debug('[PresenceManager] Delayed resync');
+            presenceTracker.resync();
+            subscribeConversationPartners(conversationPartnerIds);
+        }, 600);
+    }, [conversationPartnerIds]);
 
-  useEffect(() => {
-    if (!isAuthenticated || !isWebSocketReady()) {
-      return;
-    }
+    useEffect(() => {
+        if (!isAuthenticated) return;
 
-    subscribeConversationPartners();
-  }, [isAuthenticated, conversations]);
+        const unsubscribeConnection = addConnectionListener(() => {
+            if (!isAuthenticatedRef.current) return;
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
+            initializePresenceConnections();
+        });
 
-    const handleFocus = () => {
-      debouncedResync();
-    };
+        return () => {
+            if (delayedResyncRef.current) {
+                clearTimeout(delayedResyncRef.current);
+                delayedResyncRef.current = null;
+            }
+            if (resyncDebounceRef.current) {
+                clearTimeout(resyncDebounceRef.current);
+                resyncDebounceRef.current = null;
+            }
 
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        debouncedResync();
-      }
-    };
+            unsubscribeConnection();
+            presenceWsService.shutdownPresenceSystem();
+            presenceSubscriptionsReady.current = false;
+        };
+    }, [isAuthenticated, initializePresenceConnections]);
 
-    const handleBeforeUnload = () => {
-      presenceWsService.stopHeartbeat();
-    };
+    useEffect(() => {
+        if (!isAuthenticated || !isWebSocketReady()) return;
+        subscribeConversationPartners(conversationPartnerIds);
+    }, [isAuthenticated, conversationPartnerIds]);
 
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    useEffect(() => {
+        if (!isAuthenticated) {
+            return;
+        }
 
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [debouncedResync, isAuthenticated]);
+        const handleFocus = () => {
+            presenceWsService.sendHeartbeat();
+            debouncedResync();
+        };
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      return;
-    }
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                debouncedResync();
+            }
+        };
 
-    presenceTracker.clear();
-    if (delayedResyncRef.current) {
-      clearTimeout(delayedResyncRef.current);
-      delayedResyncRef.current = null;
-    }
-    if (resyncDebounceRef.current) {
-      clearTimeout(resyncDebounceRef.current);
-      resyncDebounceRef.current = null;
-    }
-  }, [isAuthenticated]);
+        const handleBeforeUnload = () => {
+            presenceWsService.stopHeartbeat();
+            usePresenceStore.getState().clearPresences();
+        };
 
-  return null;
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [debouncedResync, isAuthenticated]);
+
+    useEffect(() => {
+        if (isAuthenticated) return;
+
+        presenceTracker.clear();
+        usePresenceStore.getState().clearPresences();
+
+        if (delayedResyncRef.current) {
+            clearTimeout(delayedResyncRef.current);
+            delayedResyncRef.current = null;
+        }
+        if (resyncDebounceRef.current) {
+            clearTimeout(resyncDebounceRef.current);
+            resyncDebounceRef.current = null;
+        }
+        presenceWsService.stopHeartbeat();
+    }, [isAuthenticated]);
+
+    return null;
 }
 
 export default PresenceManager;

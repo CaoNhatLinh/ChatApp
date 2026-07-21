@@ -1,11 +1,13 @@
 ﻿import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { cn } from '@/shared/lib/cn';
+import { motion } from 'framer-motion';
 import { Check, Clock, Lock, BarChart3, Users, XCircle } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { votePoll, closePoll, removePollVote } from '../../api/poll.api';
 import type { PollData } from '../../types/messenger.types';
 import { formatDistanceToNow, isPast } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 
 interface PollCardProps {
     poll: PollData;
@@ -314,7 +316,12 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
             {/* Voter Details Area */}
             {showVoters && (
-                <div className="px-4 pb-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                <motion.div
+                    className="px-4 pb-3"
+                    initial={UI_MOTION_CONFIG.initialState}
+                    animate={UI_MOTION_CONFIG.animateState}
+                    variants={UI_MOTION_VARIANTS.slideInFromTop}
+                >
                     <div className="bg-background/10 rounded-xl p-1.5 space-y-1">
                         {sortedOptions.filter(o => o.voteCount > 0).map(option => (
                             <div key={option.option} className="flex flex-col gap-1.5 p-2 border-b border-border/5 last:border-0 bg-muted/5 rounded-lg">
@@ -337,7 +344,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             </div>
                         ))}
                     </div>
-                </div>
+                </motion.div>
             )}
         </div>
     );

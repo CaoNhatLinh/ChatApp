@@ -1,271 +1,219 @@
-// src/store/presenceStore.ts
-
 import { create } from 'zustand';
+import { useMemo } from "react";
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { UserPresence, PresenceResponse, OnlineStatusEvent } from '@/entities/presence/model/presence.types';
-import {
-  getFriendsPresence,
-  getConversationPresence,
-  getUserPresence,
-  getBatchPresence
-} from '@/features/presence/api/presence.api';
-import { getErrorMessage } from '@/shared/lib/errorHandler';
+import { useShallow } from 'zustand/react/shallow';
+import type {
+    PresencePreferenceStatus,
+    NormalizedPresenceEvent,
+    PublicPresenceStatus,
+    UserPresence
+} from '@/entities/presence/model/presence.types';
+import { calculateTimeAgo } from '@/shared/lib/time';
+
+type PresenceStatus = PublicPresenceStatus | PresencePreferenceStatus;
 
 interface PresenceState {
-  // Core presence data
-  presences: Map<string, UserPresence>;
+    // Online users snapshot
+    presences: Map<string, UserPresence>;
 
-  // Current user's own status preference
-  myStatus: 'ONLINE' | 'DND' | 'INVISIBLE';
+    // Own status preference
+    myStatus: PresencePreferenceStatus;
+    lastSyncedMyStatus: PresencePreferenceStatus;
+    isUpdatingMyStatus: boolean;
+    pendingStatusRequestId: string | null;
+    pendingStatusDesired: PresencePreferenceStatus | null;
+    pendingStatusTraceId: string | null;
 
-  // Loading states
-  loading: boolean;
-  error: string | null;
-
-  // Actions
-  setPresence: (userId: string, presence: UserPresence) => void;
-  setMultiplePresences: (presences: PresenceResponse) => void;
-  updateOnlineStatus: (event: OnlineStatusEvent) => void;
-  setMyStatus: (status: 'ONLINE' | 'DND' | 'INVISIBLE') => void;
-
-  // Data fetching
-  loadUserPresence: (userId: string) => Promise<UserPresence | null>;
-  loadFriendsPresence: () => Promise<void>;
-  loadConversationPresence: (conversationId: string) => Promise<void>;
-  loadBatchPresence: (userIds: string[]) => Promise<void>;
-
-  // Utility methods
-  getPresence: (userId: string) => UserPresence | null;
-  isUserOnline: (userId: string) => boolean;
-  getOnlineUsers: () => string[];
-  getOfflineUsers: () => string[];
-
-  // Clear methods
-  clearPresences: () => void;
-  clearError: () => void;
+    updateOnlineStatus: (event: NormalizedPresenceEvent) => void;
+    setMyStatus: (status: PresencePreferenceStatus, requestId: string, traceId?: string | null) => void;
+    setMyStatusFromServer: (status: PresencePreferenceStatus, requestId?: string | null, traceId?: string | null) => void;
+    rollbackMyStatus: (requestId?: string | null, traceId?: string | null) => boolean;
+    getPendingStatusRequestId: () => string | null;
+    clearPresences: () => void;
 }
+
+const normalizeStatus = (rawStatus: string | undefined, online: boolean): PresenceStatus => {
+    if (!online) {
+        return 'OFFLINE';
+    }
+    if (rawStatus === 'DND') return 'DND';
+    return rawStatus === 'ONLINE' || rawStatus === 'OFFLINE' ? rawStatus : 'ONLINE';
+};
+
+const toUserPresence = (userId: string, presence: UserPresence) => {
+    const isOnline = Boolean(presence.isOnline);
+    const status = normalizeStatus(presence.status, isOnline);
+    return {
+        ...presence,
+        userId: presence.userId ?? userId,
+        isOnline,
+        status,
+        lastSeen: presence.lastSeen ?? null,
+        lastActiveAgo: presence.lastActiveAgo ?? null
+    } as UserPresence;
+};
 
 export const usePresenceStore = create<PresenceState>()(
-  subscribeWithSelector((set, get) => ({
-    // Initial state
-    presences: new Map(),
-    myStatus: 'ONLINE',
-    loading: false,
-    error: null,
+    subscribeWithSelector((set, get) => ({
+        presences: new Map(),
+        myStatus: 'ONLINE',
+        lastSyncedMyStatus: 'ONLINE',
+        isUpdatingMyStatus: false,
+        pendingStatusRequestId: null,
+        pendingStatusDesired: null,
+        pendingStatusTraceId: null,
 
-    // Actions
-    setPresence: (userId, presence) => {
-      set(state => {
-        const newPresences = new Map(state.presences);
-        // Normalize: accept both `isOnline` and `online` fields
-        const raw = presence as UserPresence & { online?: boolean };
-        const isOnline = raw.isOnline ?? raw.online ?? false;
-        const normalized: UserPresence = {
-          ...raw,
-          userId: raw.userId ?? userId,
-          isOnline,
-          status: raw.status ?? (isOnline ? 'ONLINE' : 'OFFLINE'),
-          lastSeen: raw.lastSeen ?? null,
-          lastActiveAgo: raw.lastActiveAgo ?? null,
-        };
-        newPresences.set(userId, normalized);
-        return { presences: newPresences };
-      });
-    },
+        updateOnlineStatus: (event) => {
+            set((state) => {
+                const existing = state.presences.get(event.userId);
+                const isOnline = Boolean(event.online);
+                const status = normalizeStatus(event.status, isOnline);
+                const eventAgo = event.lastActiveAgo ?? calculateTimeAgo(event.timestamp);
 
-    setMultiplePresences: (presences) => {
-      set(state => {
-        const newPresences = new Map(state.presences);
-        Object.entries(presences).forEach(([userId, rawPresence]) => {
-          // Normalize: Jackson may serialize `boolean isOnline` as `online` (strips "is" prefix).
-          // Accept both `isOnline` and `online` fields for maximum resilience.
-          const raw = rawPresence as UserPresence & { online?: boolean };
-          const isOnline = raw.isOnline ?? raw.online ?? false;
-          const normalized: UserPresence = {
-            ...raw,
-            userId: raw.userId ?? userId,
-            isOnline,
-            status: raw.status ?? (isOnline ? 'ONLINE' : 'OFFLINE'),
-            lastSeen: raw.lastSeen ?? null,
-            lastActiveAgo: raw.lastActiveAgo ?? null,
-          };
-          newPresences.set(userId, normalized);
-        });
-        return { presences: newPresences };
-      });
-    },
+                const resolvedLastSeen = isOnline
+                    ? existing?.lastSeen ?? event.lastSeen ?? null
+                    : event.lastSeen ?? existing?.lastSeen ?? null;
 
-    updateOnlineStatus: (event) => {
-      set(state => {
-        const isUserOnline = event.online || event.isOnline || false;
-        const currentPresence = state.presences.get(event.userId);
+                const resolvedLastActiveAgo = isOnline
+                    ? existing?.lastActiveAgo ?? eventAgo
+                    : calculateTimeAgo(resolvedLastSeen);
 
-        // Determine status from event:
-        // - Backend sends 'DND' when user is DND (visible to others as DND/red)
-        // - Backend sends 'OFFLINE' when user is INVISIBLE or truly offline
-        // - Backend sends 'ONLINE' when user comes online
-        // Frontend never receives 'INVISIBLE' directly — INVISIBLE users appear as OFFLINE to watchers
-        let status: UserPresence['status'];
-        const rawStatus = event.status?.toUpperCase();
-        if (rawStatus === 'DND' && isUserOnline) {
-          status = 'DND';
-        } else if (isUserOnline) {
-          status = 'ONLINE';
-        } else {
-          status = 'OFFLINE';
+                const next = new Map(state.presences);
+                next.set(
+                    event.userId,
+                    toUserPresence(event.userId, {
+                        ...(existing ?? {}),
+                        userId: event.userId,
+                        isOnline,
+                        status,
+                        lastSeen: resolvedLastSeen,
+                        lastActiveAgo: resolvedLastActiveAgo,
+                        device: event.device ?? existing?.device,
+                    } as UserPresence)
+                );
+                return { presences: next };
+            });
+        },
+
+        setMyStatus: (status, requestId, traceId = null) => {
+            set({
+                myStatus: status,
+                pendingStatusRequestId: requestId,
+                pendingStatusTraceId: traceId,
+                pendingStatusDesired: status,
+                isUpdatingMyStatus: true
+            });
+        },
+
+        setMyStatusFromServer: (status, requestId = null, traceId = null) => {
+            const activeRequestId = get().pendingStatusRequestId;
+            const activeTraceId = get().pendingStatusTraceId;
+
+            if (activeRequestId) {
+                if (requestId) {
+                    if (activeRequestId !== requestId) {
+                        return;
+                    }
+                } else if (activeTraceId) {
+                    // Ignore loose server updates when a pending request is still in-flight
+                    // and no explicit request correlation id is provided.
+                    return;
+                }
+            }
+
+            if (activeTraceId) {
+                if (traceId) {
+                    if (activeTraceId !== traceId) {
+                        return;
+                    }
+                } else if (activeRequestId) {
+                    // Same reason as above: avoid orphaned updates clearing the wrong pending flow.
+                    return;
+                }
+            }
+
+            set({
+                myStatus: status,
+                lastSyncedMyStatus: status,
+                isUpdatingMyStatus: false,
+                pendingStatusRequestId: null,
+                pendingStatusDesired: null,
+                pendingStatusTraceId: null
+            });
+        },
+
+        rollbackMyStatus: (requestId, traceId) => {
+            let rolledBack = false;
+            set((state) => {
+                const activeRequestId = state.pendingStatusRequestId;
+                const activeTraceId = state.pendingStatusTraceId;
+                if (!activeRequestId) {
+                    return state;
+                }
+
+                if (requestId && activeRequestId !== requestId) {
+                    return state;
+                }
+                if (traceId && activeTraceId && activeTraceId !== traceId) {
+                    return state;
+                }
+
+                rolledBack = true;
+                return {
+                    myStatus: state.lastSyncedMyStatus,
+                    isUpdatingMyStatus: false,
+                    pendingStatusRequestId: null,
+                    pendingStatusDesired: null,
+                    pendingStatusTraceId: null
+                };
+            });
+            return rolledBack;
+        },
+
+        getPendingStatusRequestId: () => {
+            return get().pendingStatusRequestId;
+        },
+
+        clearPresences: () => {
+            set({
+                presences: new Map(),
+                myStatus: 'ONLINE',
+                lastSyncedMyStatus: 'ONLINE',
+                isUpdatingMyStatus: false,
+                pendingStatusRequestId: null,
+                pendingStatusDesired: null,
+                pendingStatusTraceId: null
+            });
         }
-
-        let lastSeen: string | null = null;
-        let lastActiveAgo: string | null = null;
-        if (!isUserOnline) {
-          const offlineTimestamp = event.timestamp || currentPresence?.lastSeen;
-          lastSeen = offlineTimestamp || null;
-          lastActiveAgo = calculateTimeAgo(offlineTimestamp);
-        }
-
-        const updatedPresence: UserPresence = {
-          ...currentPresence,
-          userId: event.userId,
-          isOnline: isUserOnline,
-          status,
-          lastSeen,
-          lastActiveAgo,
-        };
-
-        const newPresences = new Map(state.presences);
-        newPresences.set(event.userId, updatedPresence);
-        return { presences: newPresences };
-      });
-    },
-
-    setMyStatus: (status) => set({ myStatus: status }),
-
-    // Data fetching
-    loadUserPresence: async (userId) => {
-      try {
-        set({ loading: true, error: null });
-        const presence = await getUserPresence(userId);
-        if (presence) {
-          get().setPresence(userId, presence);
-        }
-        return presence;
-      } catch (error: unknown) {
-        set({ error: getErrorMessage(error) });
-        return null;
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    loadFriendsPresence: async () => {
-      try {
-        set({ loading: true, error: null });
-        const presences = await getFriendsPresence();
-        get().setMultiplePresences(presences);
-      } catch (error: unknown) {
-        set({ error: getErrorMessage(error) });
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    loadConversationPresence: async (conversationId) => {
-      try {
-        set({ loading: true, error: null });
-        const presences = await getConversationPresence(conversationId);
-        get().setMultiplePresences(presences);
-      } catch (error: unknown) {
-        set({ error: getErrorMessage(error) });
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    loadBatchPresence: async (userIds) => {
-      try {
-        set({ loading: true, error: null });
-        const presences = await getBatchPresence(userIds);
-        get().setMultiplePresences(presences);
-      } catch (error: unknown) {
-        set({ error: getErrorMessage(error) });
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    // Utility methods
-    getPresence: (userId) => {
-      return get().presences.get(userId) || null;
-    },
-
-    isUserOnline: (userId) => {
-      const presence = get().presences.get(userId);
-      if (!presence) return false;
-      // Defensive: accept both `isOnline` (normalized) and `online` (raw Jackson)
-      const raw = presence as UserPresence & { online?: boolean };
-      return raw.isOnline ?? raw.online ?? false;
-    },
-
-    getOnlineUsers: () => {
-      const { presences } = get();
-      return Array.from(presences.entries())
-        .filter(([, p]) => {
-          const raw = p as UserPresence & { online?: boolean };
-          return raw.isOnline ?? raw.online ?? false;
-        })
-        .map(([userId]) => userId);
-    },
-
-    getOfflineUsers: () => {
-      const { presences } = get();
-      return Array.from(presences.entries())
-        .filter(([, p]) => {
-          const raw = p as UserPresence & { online?: boolean };
-          return !(raw.isOnline ?? raw.online ?? false);
-        })
-        .map(([userId]) => userId);
-    },
-
-    // Clear methods
-    clearPresences: () => {
-      set({ presences: new Map() });
-    },
-
-    clearError: () => {
-      set({ error: null });
-    },
-  }))
+    }))
 );
 
-// Helper function
-const calculateTimeAgo = (timestamp: string | null | undefined): string => {
-  if (!timestamp) return '';
-  const now = Date.now();
-  const time = new Date(timestamp).getTime();
-  const diff = Math.floor((now - time) / 1000);
-  if (diff < 60) return 'Vừa mới';
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-  return `${Math.floor(diff / 86400)} ngày trước`;
-};
-
 export const usePresence = (userId?: string) => {
-  const presence = usePresenceStore(state =>
-    userId ? state.getPresence(userId) : null
-  );
-  const loadPresence = usePresenceStore(state => state.loadUserPresence);
+    const presence = usePresenceStore((state) => (userId ? state.presences.get(userId) ?? null : null));
 
-  return { presence, loadPresence };
+    return { presence };
 };
 
-export const useIsUserOnline = (userId: string) => {
-  return usePresenceStore(state => state.isUserOnline(userId));
-};
+export const usePresenceByUserIds = (userIds: string[]) => {
+    const normalizedUserIds = useMemo(() => {
+        const uniqueUserIds = new Set<string>();
 
-export const useOnlineUsers = () => {
-  return usePresenceStore(state => state.getOnlineUsers());
-};
+        for (const userId of userIds) {
+            if (userId) {
+                uniqueUserIds.add(userId);
+            }
+        }
 
-export const generateSessionId = (): string => {
-  return 'session-' + String(Date.now()) + '-' + Math.random().toString(36).substring(2, 11);
-}
+        return [...uniqueUserIds];
+    }, [userIds]);
+
+    return usePresenceStore(
+        useShallow((state) => {
+            const result = {} as Record<string, UserPresence | null>;
+            for (const userId of normalizedUserIds) {
+                result[userId] = state.presences.get(userId) ?? null;
+            }
+            return result;
+        }),
+    );
+};

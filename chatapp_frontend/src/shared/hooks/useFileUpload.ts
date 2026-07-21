@@ -26,7 +26,6 @@ const DEFAULT_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/we
 
 /**
  * Hook for managing file uploads with loading, progress and error state.
- * TODO: integrate with @/services/fileUploadService when available.
  */
 export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUploadReturn {
   const {
@@ -50,7 +49,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
     const maxBytes = maxSizeMB * 1024 * 1024;
     if (file.size > maxBytes) {
-      setError('File size exceeds ' + maxSizeMB + 'MB limit');
+      setError(`File size exceeds ${maxSizeMB}MB limit`);
       return null;
     }
 
@@ -65,13 +64,13 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
       formData.append('file', file);
       setProgress(30);
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch('/api/files/upload', {
         method: 'POST',
         body: formData,
       });
       setProgress(90);
 
-      if (response.ok === false) {
+      if (!response.ok) {
         throw new Error('Upload failed: ' + response.statusText);
       }
 

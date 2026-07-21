@@ -10,10 +10,12 @@ export interface ConversationSlice {
     activeView: 'chat' | 'contacts';
     conversations: Conversation[];
     activeConversationId: string | null;
+    isInitialized: boolean;
     friendRequestCount: number;
     conversationsHasNext: boolean;
     conversationsPage: number;
     _loadedConversationIds: Set<string>;
+    resetState: () => void;
 
     setActiveView: (view: 'chat' | 'contacts') => void;
     setConversations: (conversations: Conversation[], hasNext?: boolean, page?: number) => void;
@@ -23,13 +25,14 @@ export interface ConversationSlice {
     setFriendRequestCount: (count: number) => void;
     pinConversation: (id: string) => void;
     unpinConversation: (id: string) => void;
-    incrementUnreadCount: (conversationId: string) => void;
+    setConversationUnreadCount: (conversationId: string, unreadCount: number) => void;
+    upsertConversationFromMessage: (message: Message) => void;
     resetUnreadCount: (conversationId: string) => void;
 }
 
 export interface MessageSlice {
     messages: Record<string, Message[]>;
-    messagesPagination: Record<string, { hasNext: boolean, page: number }>;
+    messagesPagination: Record<string, { hasNext: boolean, page: number; fetchedAt?: number }>;
 
     addMessage: (conversationId: string, message: Message) => void;
     setMessages: (conversationId: string, messages: Message[], hasNext?: boolean, page?: number) => void;

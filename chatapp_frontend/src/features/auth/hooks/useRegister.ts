@@ -4,7 +4,7 @@ import axios from 'axios';
 import { register as registerApi } from '../api/auth.api';
 import type { RegisterRequest } from '../types/auth.types';
 import { logger } from '@/shared/lib/logger';
-import { toast } from 'react-hot-toast';
+import { notifyError, notifySuccess } from '@/shared/lib/notification';
 
 export const useRegister = () => {
     const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ export const useRegister = () => {
             logger.debug('Attempting registration...', data.username);
             await registerApi(data);
 
-            toast.success('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+            notifySuccess('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
 
             // Delay slightly for user to see the success toast
             setTimeout(() => {
@@ -35,7 +35,7 @@ export const useRegister = () => {
                 }
             }
             setError(message);
-            toast.error(message);
+            notifyError(message);
             logger.error('Registration error', err);
         } finally {
             setLoading(false);

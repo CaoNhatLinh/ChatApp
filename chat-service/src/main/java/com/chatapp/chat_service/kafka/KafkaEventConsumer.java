@@ -14,6 +14,10 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -105,4 +109,81 @@ public class KafkaEventConsumer {
         }
     }
 
+    @KafkaListener(topics = "conversation-list-update-topic", containerFactory = "messageBroadcastListenerFactory")
+    public void handleConversationListUpdate(@org.springframework.messaging.handler.annotation.Payload Map<String, Object> event, 
+                                           Acknowledgment acknowledgment) {
+        try {
+            UUID userId = toUuid(event.get("userId"));
+            UUID conversationId = toUuid(event.get("conversationId"));
+            Instant activityTime = toInstant(event.get("activityTime"));
+            boolean isPinned = toBoolean(event.get("isPinned"));
+
+            if (userId == null || conversationId == null) {
+                log.warn("Skipping conversation list update due to missing identifiers");
+                acknowledgment.acknowledge();
+                return;
+            }
+
+            log.debug("Conversation list update for user {}, conversation {}, pinned: {}", userId, conversationId, isPinned);
+
+            // Send WebSocket notification to the user
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/conversation-list-update",
+                    java.util.Map.of(
+                            "conversationId", conversationId,
+                            "activityTime", activityTime,
+                            "isPinned", isPinned,
+                            "eventType", "CONVERSATION_LIST_UPDATE",
+                            "timestamp", java.time.Instant.now()
+                    )
+            );
+
+            acknowledgment.acknowledge();
+        } catch (Exception e) {
+            log.error("Error handling conversation list update: {}", e.getMessage(), e);
+            acknowledgment.acknowledge();
+        }
+    }
+
+    private UUID toUuid(Object value) {
+        if (value instanceof UUID uuid) {
+            return uuid;
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return UUID.fromString(stringValue);
+            } catch (IllegalArgumentException ex) {
+                log.warn("Invalid UUID value in conversation update event: {}", stringValue);
+            }
+        }
+        return null;
+    }
+
+    private boolean toBoolean(Object value) {
+        if (value instanceof Boolean boolValue) {
+            return boolValue;
+        }
+        if (value instanceof String stringValue) {
+            return Boolean.parseBoolean(stringValue);
+        }
+        return false;
+    }
+
+    private Instant toInstant(Object value) {
+        if (value instanceof Instant instantValue) {
+            return instantValue;
+        }
+        if (value instanceof String stringValue) {
+            try {
+                return Instant.parse(stringValue);
+            } catch (Exception ex) {
+                log.warn("Invalid Instant value in conversation update event: {}", stringValue);
+            }
+        }
+        if (value instanceof Number numberValue) {
+            return Instant.ofEpochMilli(numberValue.longValue());
+        }
+        return Instant.now();
+    }
 }

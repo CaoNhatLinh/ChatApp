@@ -27,6 +27,7 @@ public class KafkaEventProducer {
     private static final String T_MESSAGE_ATTACHMENT = "message-attachment-topic";
     private static final String T_CONVERSATION_MANAGEMENT = "conversation-management-topic";
     private static final String T_NOTIFICATION = "notification-topic";
+    private static final String T_CONVERSATION_LIST_UPDATE = "conversation-list-update-topic";
 
     
     public void sendFriendRequestEvent(UUID senderId, UUID receiverId) {
@@ -94,5 +95,65 @@ public class KafkaEventProducer {
     
     public void sendNotificationEvent(Object event) {
         kafkaTemplate.send(T_NOTIFICATION, event);
+    }
+
+    public void publishConversationListUpdateEvent(UUID userId, UUID conversationId, java.time.Instant activityTime, boolean isPinned) {
+        try {
+            java.util.Map<String, Object> event = java.util.Map.of(
+                    "userId", userId,
+                    "conversationId", conversationId,
+                    "activityTime", activityTime,
+                    "isPinned", isPinned,
+                    "eventType", "CONVERSATION_LIST_UPDATE"
+            );
+            String key = userId.toString();
+            kafkaTemplate.send(T_CONVERSATION_LIST_UPDATE, key, event)
+                    .whenComplete((result, ex) -> {
+                        if (ex == null) {
+                            log.info("ConversationListUpdateEvent sent successfully for user {}", userId);
+                        } else {
+                            log.error("Failed to send ConversationListUpdateEvent for user {}: {}", userId, ex.getMessage());
+                        }
+                    });
+        } catch (Exception e) {
+            log.error("Failed to publish conversation list update event: {}", e.getMessage());
+        }
+    }
+
+    public void publishMessageReactionEvent(com.chatapp.chat_service.message.event.MessageReactionEvent event) {
+        sendReactionEvent(event);
+    }
+
+    public void publishMessageReadEvent(com.chatapp.chat_service.message.event.MessageReadEvent event) {
+        sendReadReceiptEvent(event);
+    }
+
+    public void publishUserBlockEvent(UUID blockerId, UUID blockedUserId, String action) {
+        try {
+            java.util.Map<String, Object> event = java.util.Map.of(
+                    "blockerId", blockerId,
+                    "blockedUserId", blockedUserId,
+                    "action", action,
+                    "eventType", "USER_BLOCK"
+            );
+            kafkaTemplate.send(T_CONVERSATION_MANAGEMENT, blockerId.toString(), event);
+        } catch (Exception e) {
+            log.error("Failed to publish user block event: {}", e.getMessage());
+        }
+    }
+
+    public void publishUserReportEvent(UUID reportId, UUID reporterId, UUID reportedUserId, String reason) {
+        try {
+            java.util.Map<String, Object> event = java.util.Map.of(
+                    "reportId", reportId,
+                    "reporterId", reporterId,
+                    "reportedUserId", reportedUserId,
+                    "reason", reason,
+                    "eventType", "USER_REPORT"
+            );
+            kafkaTemplate.send(T_CONVERSATION_MANAGEMENT, reportId.toString(), event);
+        } catch (Exception e) {
+            log.error("Failed to publish user report event: {}", e.getMessage());
+        }
     }
 }

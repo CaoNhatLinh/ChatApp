@@ -134,26 +134,41 @@ public class InvitationLinkService {
     
     /**
      * Join conversation qua invitation link
+     * Uses Lightweight Transactions (LWT) to prevent race conditions on usedCount
      */
     public void joinViaInvitationLink(String linkToken, UUID userId) {
         InvitationLink link = invitationLinkRepository.findByLinkToken(linkToken)
                 .orElseThrow(() -> new NotFoundException("Link không tồn tại hoặc đã hết hạn"));
-        
+
         validateLink(link);
-        
+
         if (conversationMemberService.isMemberOfConversation(link.getConversationId(), userId)) {
             throw new BadRequestException("Bạn đã là thành viên của phòng này");
         }
-        
+
+        // Use LWT to atomically increment usedCount and check maxUses
+        // This prevents race conditions when multiple users join simultaneously
+        boolean updateSuccess = invitationLinkRepository.incrementUsedCountIfValid(
+                link.getLinkId(),
+                link.getUsedCount(),
+                link.getMaxUses(),
+                Instant.now()
+        );
+
+        if (!updateSuccess) {
+            // The link was either expired, deactivated, or reached max uses between our check and update
+            throw new BadRequestException("Link không còn hợp lệ hoặc đã đạt giới hạn sử dụng");
+        }
+
         Instant now = Instant.now();
         ConversationMembers newMember = ConversationMembers.builder()
                 .key(new ConversationMembers.ConversationMemberKey(link.getConversationId(), userId))
                 .role("member")
                 .joinedAt(now)
                 .build();
-        
+
         memberRepository.save(newMember);
-        
+
         UserConversation userConv = UserConversation.builder()
                 .key(UserConversation.UserConversationKey.builder()
                         .userId(userId)
@@ -165,16 +180,8 @@ public class InvitationLinkService {
                 .role("member")
                 .build();
         userConversationRepository.save(userConv);
-        
-        link.setUsedCount(link.getUsedCount() + 1);
-        
-        if (link.getMaxUses() != null && link.getUsedCount() >= link.getMaxUses()) {
-            link.setActive(false);
-        }
-        
-        invitationLinkRepository.save(link);
-        
-        logger.info("User {} joined conversation {} via invitation link {}", 
+
+        logger.info("User {} joined conversation {} via invitation link {}",
                 userId, link.getConversationId(), linkToken);
     }
     

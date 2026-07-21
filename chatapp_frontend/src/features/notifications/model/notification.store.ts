@@ -13,7 +13,12 @@ import {
 } from '@/features/notifications/api/notifications.api';
 import { realtimeService } from '@/shared/websocket/realtime-service';
 
-export interface NotificationStore {
+interface RealtimeHandle {
+  isNotificationConnected: boolean;
+  id: string;
+}
+
+interface NotificationStore {
   notifications: NotificationRecord[];
   unreadCount: number;
   hasNext: boolean;
@@ -22,6 +27,8 @@ export interface NotificationStore {
   realtimeUserId: string | null;
   initNotifications: () => Promise<void>;
   connectRealtime: (userId: string) => void;
+  disconnectRealtime: () => void;
+  resetState: () => void;
   setPanelOpen: (open: boolean) => void;
   markOneAsRead: (notificationId: string) => Promise<void>;
   markConversationAsRead: (conversationId: string) => Promise<void>;
@@ -29,6 +36,9 @@ export interface NotificationStore {
   removeNotification: (notificationId: string) => Promise<void>;
   clearNotifications: () => Promise<void>;
 }
+
+let notificationRealtimeUnsubscribers: Array<() => void> = [];
+let reconnectHandle: RealtimeHandle | null = null;
 
 const upsertNotification = (notifications: NotificationRecord[], notification: NotificationRecord): NotificationRecord[] => {
   const existingIndex = notifications.findIndex(item => item.notificationId === notification.notificationId);
@@ -47,6 +57,18 @@ const markNotificationsRead = (notifications: NotificationRecord[], notification
       ? { ...notification, isRead: true }
       : notification
   ));
+};
+
+const disconnectAllNotificationSubscriptions = () => {
+  notificationRealtimeUnsubscribers.forEach((unsubscribe) => {
+    try {
+      unsubscribe();
+    } catch {
+      // noop
+    }
+  });
+  notificationRealtimeUnsubscribers = [];
+  reconnectHandle = null;
 };
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
@@ -76,11 +98,13 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   connectRealtime: (userId: string) => {
-    if (get().realtimeUserId === userId) {
+    if (reconnectHandle?.isNotificationConnected && reconnectHandle.id === userId) {
       return;
     }
 
-    realtimeService.subscribe(`/user/${userId}/queue/notifications`, (payload: unknown) => {
+    disconnectAllNotificationSubscriptions();
+
+    const unsubNotification = realtimeService.subscribe(`/user/${userId}/queue/notifications`, (payload: unknown) => {
       const notification = payload as NotificationRecord;
       set(state => ({
         notifications: upsertNotification(state.notifications, notification),
@@ -88,7 +112,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       }));
     });
 
-    realtimeService.subscribe(`/user/${userId}/queue/notification-read`, (payload: unknown) => {
+    const unsubRead = realtimeService.subscribe(`/user/${userId}/queue/notification-read`, (payload: unknown) => {
       const data = payload as { notificationId?: string; notificationIds?: string[]; action?: string };
       set(state => {
         if (data.action === 'MARK_ALL_READ') {
@@ -103,16 +127,21 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
           ...((data.notificationIds ?? []).filter((id): id is string => typeof id === 'string')),
         ]);
 
-        return ids.size === 0
-          ? state
-          : {
-              notifications: markNotificationsRead(state.notifications, ids),
-              unreadCount: Math.max(0, state.notifications.filter(notification => !notification.isRead && ids.has(notification.notificationId)).length ? state.unreadCount - state.notifications.filter(notification => !notification.isRead && ids.has(notification.notificationId)).length : state.unreadCount),
-            };
+        if (ids.size === 0) {
+          return state;
+        }
+
+        return {
+          notifications: markNotificationsRead(state.notifications, ids),
+          unreadCount: Math.max(
+            0,
+            state.unreadCount - state.notifications.filter(notification => ids.has(notification.notificationId) && !notification.isRead).length
+          ),
+        };
       });
     });
 
-    realtimeService.subscribe(`/user/${userId}/queue/notification-delete`, (payload: unknown) => {
+    const unsubDelete = realtimeService.subscribe(`/user/${userId}/queue/notification-delete`, (payload: unknown) => {
       const data = payload as { notificationId?: string; action?: string };
       set(state => {
         if (data.action === 'DELETE_ALL') {
@@ -131,7 +160,25 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       });
     });
 
+    notificationRealtimeUnsubscribers = [unsubNotification, unsubRead, unsubDelete];
+    reconnectHandle = { id: userId, isNotificationConnected: true };
     set({ realtimeUserId: userId });
+  },
+
+  disconnectRealtime: () => {
+    disconnectAllNotificationSubscriptions();
+    set({ realtimeUserId: null });
+  },
+
+  resetState: () => {
+    get().disconnectRealtime();
+    set({
+      notifications: [],
+      unreadCount: 0,
+      hasNext: false,
+      loading: false,
+      isPanelOpen: false,
+    });
   },
 
   setPanelOpen: (open) => set({ isPanelOpen: open }),

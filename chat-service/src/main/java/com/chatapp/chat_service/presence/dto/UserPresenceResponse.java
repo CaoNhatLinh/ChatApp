@@ -6,22 +6,20 @@ import lombok.*;
 import java.time.Instant;
 import java.util.UUID;
 
-
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class UserPresenceResponse {
     private UUID userId;
-    private String status;        
-    private String lastActiveAgo; 
-    private Instant lastSeen;     
+    private String status;
+    private String lastActiveAgo;
+    private Instant lastSeen;
 
     private String device;
 
     @JsonProperty("isOnline")
-    private boolean isOnline;     
+    private boolean isOnline;
 
 
     public static String formatLastActive(Instant lastActive) {

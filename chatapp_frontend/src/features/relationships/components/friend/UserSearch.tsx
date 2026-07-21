@@ -1,39 +1,71 @@
-﻿import { useState, type FormEvent } from 'react';
-import { useFriendStore } from '@/features/relationships/model/friend.store'; // Adjust the import path as necessary
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { motion } from 'framer-motion';
+import { Loader2, Search } from 'lucide-react';
+import { Button } from '@/shared/ui/Button';
+import { Input } from '@/shared/ui/Input';
+import { notifyWarning } from '@/shared/lib/notification';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { useFriendStore } from '@/features/relationships/model/friend.store';
+
+const MIN_QUERY_LENGTH = 3;
 
 const UserSearch = () => {
   const [username, setUsername] = useState('');
-  const { searchUsers, error } = useFriendStore();
+  const searchUsers = useFriendStore((state) => state.searchUsers);
+  const searchError = useFriendStore((state) => state.error);
+  const loadingSearch = useFriendStore((state) => state.loadingSearch);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault(); // Prevent default form submission
-    try {
-      await searchUsers(username);
-      setUsername('');
-    } catch (err) {
-      console.error('Search failed:', err instanceof Error ? err.message : err);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedQuery = username.trim();
+
+    if (trimmedQuery.length < MIN_QUERY_LENGTH) {
+      notifyWarning(`Nhập ít nhất ${MIN_QUERY_LENGTH} ký tự để tìm.`);
+      return;
     }
+
+    await searchUsers(trimmedQuery);
   };
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUsername(e.target.value);
+
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setUsername(event.target.value);
   };
+
   return (
-    <form onSubmit={handleSubmit} className="mb-4">
-      <div className="mb-4">
-        <input
-          type="text"
+    <motion.form
+      onSubmit={handleSubmit}
+      className="mb-4 space-y-2"
+      initial={UI_MOTION_CONFIG.initialState}
+      animate={UI_MOTION_CONFIG.animateState}
+      variants={UI_MOTION_VARIANTS.panelReveal}
+    >
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
           value={username}
           onChange={handleInputChange}
           placeholder="Nhập tên người dùng"
-          className="w-full p-2 border border-gray-800 rounded text-sm mb-2 text-gray-300 focus:outline-none focus:border-blue-500 bg-gray-700 placeholder-gray-400"
+          className="pl-9"
         />
-        <button type="submit" className="w-full bg-blue-500 hover:bg-blue-700 ext-gray-300 py-2 px-4 rounded text-sm font-medium transition-colors">
-          Tìm kiếm
-        </button>
       </div>
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-    </form>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={loadingSearch}
+      >
+        {loadingSearch ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={16} className="animate-spin" />
+            Đang tìm
+          </span>
+        ) : (
+          'Tìm kiếm'
+        )}
+      </Button>
+
+      {searchError && <p className="text-sm text-destructive mt-2">{searchError}</p>}
+    </motion.form>
   );
 };
 

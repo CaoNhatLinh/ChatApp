@@ -22,43 +22,43 @@ import java.util.UUID;
 @AllArgsConstructor
 @Document(indexName = "conversations")
 public class ConversationDocument {
-    
+
     @Id
     private String id;
-    
+
     @Field(type = FieldType.Keyword)
     private UUID conversationId;
-    
-    @Field(type = FieldType.Text, analyzer = "standard")
+
+    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
     private String name;
-    
+
     @Field(type = FieldType.Keyword)
-    private String type; 
-    
+    private String type;
+
     @Field(type = FieldType.Boolean)
     private boolean isDeleted;
-    
+
     @Field(type = FieldType.Date)
     private Instant createdAt;
-    
+
     @Field(type = FieldType.Date)
     private Instant updatedAt;
-    
+
     @Field(type = FieldType.Object)
     private MessageSummary lastMessage;
-    
+
     @Field(type = FieldType.Keyword)
     private UUID createdBy;
-    
-    @Field(type = FieldType.Text)
+
+    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
     private String description;
-    
+
     @Field(type = FieldType.Text)
     private String avatar;
-    
+
     @Field(type = FieldType.Keyword)
     private List<UUID> memberIds;
-    
+
     @Field(type = FieldType.Integer)
     private int memberCount;
 }

@@ -7,11 +7,12 @@ import com.chatapp.chat_service.conversation.service.ConversationMemberService;
 import com.chatapp.chat_service.kafka.KafkaEventProducer;
 import com.chatapp.chat_service.message.dto.MessageRequest;
 import com.chatapp.chat_service.message.event.MessageEvent;
+import com.chatapp.chat_service.message.service.MessageValidationService;
 import com.chatapp.chat_service.notification.service.NotificationService;
 import com.chatapp.chat_service.presence.dto.OnlineStatusRequest;
-import com.chatapp.chat_service.presence.dto.OnlineStatusResponse;
 import com.chatapp.chat_service.presence.dto.UserPresenceResponse;
 import com.chatapp.chat_service.presence.event.OnlineStatusEvent;
+import com.chatapp.chat_service.presence.metrics.PresenceFlowMetrics;
 import com.chatapp.chat_service.presence.service.PresenceService;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
 import com.chatapp.chat_service.websocket.event.TypingEvent;
@@ -28,11 +29,12 @@ import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Controller
 @RequiredArgsConstructor
@@ -49,6 +51,7 @@ public class WebSocketChatController {
     private final TypingIndicatorService typingIndicatorService;
     private final ConversationMemberService conversationMemberService;
     private final MessageValidationService messageValidationService;
+    private final PresenceFlowMetrics presenceFlowMetrics;
 
 @MessageMapping("/message.send")
     public void handleNewMessage(@Payload MessageEvent event, 
@@ -157,34 +160,6 @@ public class WebSocketChatController {
 
 
 
-    @MessageMapping("/request-online-status")
-    public void handleRequestOnlineStatus(@Payload OnlineStatusRequest request, 
-                                         Principal principal,
-                                         @Header(value = "Authorization", required = false) String authHeader) {
-        try {
-            UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
-            log.debug("request-online-status for user: {}", userId);
-            Map<UUID, Boolean> statusMap = request.getUserIds().stream()
-                    .collect(Collectors.toMap(
-                            Function.identity(),
-                            presenceService::isUserOnline
-                    ));
-
-            OnlineStatusResponse response = OnlineStatusResponse.builder()
-                    .statusMap(statusMap)
-                    .timestamp(Instant.now())
-                    .build();
-            log.debug("OnlineStatusResponse: {}", response);
-            messagingTemplate.convertAndSendToUser(
-                    userId.toString(),
-                    "/queue/online-status",
-                    response
-            );
-        } catch (Exception e) {
-            log.error("Error handling request online status: {}", e.getMessage(), e);
-        }
-    }
-
     @MessageMapping("/notification.read")
     public void handleNotificationRead(@Payload Map<String, Object> request, 
                                       Principal principal,
@@ -270,6 +245,21 @@ public class WebSocketChatController {
         throw new IllegalStateException("Could not extract user ID from authentication");
     }
 
+    private String getStringValue(Object value) {
+        return value instanceof String str ? str.trim() : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getStringList(Object payloadValue) {
+        if (!(payloadValue instanceof List<?> rawList)) {
+            return null;
+        }
+        return rawList.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .collect(Collectors.toList());
+    }
+
     @MessageMapping("/heartbeat")
     public void handleHeartbeat(Principal principal,
                                @Header(value = "Authorization", required = false) String authHeader,
@@ -289,10 +279,13 @@ public class WebSocketChatController {
                 }
                 
                 log.debug("Heartbeat for user {} session {}", userId, sessionId);
+                presenceFlowMetrics.recordHeartbeat("success");
             } else {
                 log.warn("Heartbeat received without session ID for user {}", userId);
+                presenceFlowMetrics.recordHeartbeat("missing_session");
             }
         } catch (Exception e) {
+            presenceFlowMetrics.recordHeartbeat("error");
             log.error("Error handling heartbeat: {}", e.getMessage(), e);
         }
     }
@@ -328,14 +321,34 @@ public class WebSocketChatController {
                                    @Header(value = "Authorization", required = false) String authHeader) {
         try {
             UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
-            String status = payload.containsKey("status")
-                    ? payload.get("status").toString()
-                    : "ONLINE";
+            if (payload == null) {
+                presenceFlowMetrics.recordStatusChange("invalid_payload");
+                presenceFlowMetrics.recordStatusSyncEvent("error");
+                throw new IllegalArgumentException("Missing presence payload");
+            }
+
+            String status = getStringValue(payload.get("status"));
+            String traceId = getStringValue(payload.get("traceId"));
+            String requestId = getStringValue(payload.get("requestId"));
+            if (status == null || status.isBlank()) {
+                status = "ONLINE";
+            }
             
-            log.info("User {} setting status to {}", userId, status);
-            presenceService.setCustomStatus(userId, status);
+            log.info("User {} setting status to {} traceId={} requestId={}", userId, status, traceId, requestId);
+            presenceFlowMetrics.recordStatusChange("request");
+            presenceService.setCustomStatus(userId, status, traceId, requestId);
+            presenceFlowMetrics.recordStatusChange("processed");
         } catch (Exception e) {
+            presenceFlowMetrics.recordStatusChange("error");
             log.error("Error handling online-status: {}", e.getMessage(), e);
+            handlePresenceSyncError(
+                    principal,
+                    authHeader,
+                    "online-status-failed",
+                    e.getMessage(),
+                    null,
+                    null
+            );
         }
     }
 
@@ -347,17 +360,36 @@ public class WebSocketChatController {
     @MessageMapping("/presence.subscribe")
     public void handlePresenceSubscribe(@Payload Map<String, Object> payload,
                                         Principal principal,
-                                        @Header(value = "Authorization", required = false) String authHeader) {
+                                        @Header(value = "Authorization", required = false) String authHeader,
+                                        @Header(value = "simpSessionId", required = false) String sessionId) {
         try {
+            if (payload == null) {
+                presenceFlowMetrics.recordPresenceSubscription("subscribe", 0, "invalid_payload");
+                throw new IllegalArgumentException("Missing presence.subscribe payload");
+            }
+
             UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
-            List<String> userIdStrings = (List<String>) payload.get("userIds");
-            
+            String traceId = getStringValue(payload.get("traceId"));
+            String requestId = getStringValue(payload.get("requestId"));
+            String watcherSessionId = sessionId != null ? sessionId : ("legacy-" + userId);
+            Object rawUserIds = payload.get("userIds");
+
+            List<String> userIdStrings = getStringList(rawUserIds);
             if (userIdStrings != null && !userIdStrings.isEmpty()) {
+                presenceFlowMetrics.recordPresenceSubscription("subscribe", userIdStrings.size(), "start");
                 List<UUID> targetIds = userIdStrings.stream()
+                        .filter(Objects::nonNull)
                         .map(UUID::fromString)
                         .collect(Collectors.toList());
-                presenceService.addSubscriptions(userId, targetIds);
-                log.info("User {} subscribed to {} users presence", userId, targetIds.size());
+                presenceService.addSubscriptions(userId, watcherSessionId, targetIds);
+                log.info(
+                        "User {} subscribed to {} users presence traceId={} requestId={}",
+                        userId,
+                        targetIds.size(),
+                        traceId,
+                        requestId
+                );
+                presenceFlowMetrics.recordPresenceSubscription("subscribe", targetIds.size(), "success");
 
                 Map<UUID, UserPresenceResponse> batch = presenceService.getBatchPresence(targetIds);
                 if (batch != null && !batch.isEmpty()) {
@@ -366,7 +398,9 @@ public class WebSocketChatController {
                                 .userId(resp.getUserId())
                                 .online(resp.isOnline())
                                 .status(resp.getStatus())
-                                .timestamp(Instant.now())
+                                .device(resp.getDevice())
+                                .lastSeen(resp.getLastSeen())
+                                .timestamp(resp.getLastSeen() != null ? resp.getLastSeen() : Instant.now())
                                 .build();
                         messagingTemplate.convertAndSendToUser(
                                 userId.toString(),
@@ -375,9 +409,20 @@ public class WebSocketChatController {
                         );
                     }
                 }
+            } else {
+                presenceFlowMetrics.recordPresenceSubscription("subscribe", 0, "empty");
             }
         } catch (Exception e) {
+            presenceFlowMetrics.recordPresenceSubscription("subscribe", 0, "error");
             log.error("Error handling presence.subscribe: {}", e.getMessage(), e);
+            handlePresenceSyncError(
+                    principal,
+                    authHeader,
+                    "presence-subscribe-failed",
+                    e.getMessage(),
+                    null,
+                    null
+            );
         }
     }
 
@@ -389,20 +434,49 @@ public class WebSocketChatController {
     @MessageMapping("/presence.unsubscribe")
     public void handlePresenceUnsubscribe(@Payload Map<String, Object> payload,
                                           Principal principal,
-                                          @Header(value = "Authorization", required = false) String authHeader) {
+                                          @Header(value = "Authorization", required = false) String authHeader,
+                                          @Header(value = "simpSessionId", required = false) String sessionId) {
         try {
+            if (payload == null) {
+                presenceFlowMetrics.recordPresenceSubscription("unsubscribe", 0, "invalid_payload");
+                throw new IllegalArgumentException("Missing presence.unsubscribe payload");
+            }
+
             UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
-            List<String> userIdStrings = (List<String>) payload.get("userIds");
-            
+            String traceId = getStringValue(payload.get("traceId"));
+            String requestId = getStringValue(payload.get("requestId"));
+            List<String> userIdStrings = getStringList(payload.get("userIds"));
+
             if (userIdStrings != null && !userIdStrings.isEmpty()) {
+                presenceFlowMetrics.recordPresenceSubscription("unsubscribe", userIdStrings.size(), "start");
+                String watcherSessionId = sessionId != null ? sessionId : ("legacy-" + userId);
                 List<UUID> targetIds = userIdStrings.stream()
+                        .filter(Objects::nonNull)
                         .map(UUID::fromString)
                         .collect(Collectors.toList());
-                presenceService.removeSubscriptions(userId, targetIds);
-                log.info("User {} unsubscribed from {} users presence", userId, userIdStrings.size());
+                presenceService.removeSubscriptions(userId, watcherSessionId, targetIds);
+                log.info(
+                        "User {} unsubscribed from {} users presence traceId={} requestId={}",
+                        userId,
+                        userIdStrings.size(),
+                        traceId,
+                        requestId
+                );
+                presenceFlowMetrics.recordPresenceSubscription("unsubscribe", userIdStrings.size(), "success");
+            } else {
+                presenceFlowMetrics.recordPresenceSubscription("unsubscribe", 0, "empty");
             }
         } catch (Exception e) {
+            presenceFlowMetrics.recordPresenceSubscription("unsubscribe", 0, "error");
             log.error("Error handling presence.unsubscribe: {}", e.getMessage(), e);
+            handlePresenceSyncError(
+                    principal,
+                    authHeader,
+                    "presence-unsubscribe-failed",
+                    e.getMessage(),
+                    null,
+                    null
+            );
         }
     }
 
@@ -416,9 +490,21 @@ public class WebSocketChatController {
                                     @Header(value = "Authorization", required = false) String authHeader) {
         try {
             UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
-            log.debug("Batch presence request from user {} for {} users", userId, request.getUserIds().size());
+            int requestSize = request == null || request.getUserIds() == null ? 0 : request.getUserIds().size();
+            String traceId = request == null ? "n/a" : request.getTraceId();
+            String requestId = request == null ? "n/a" : request.getRequestId();
+            log.debug(
+                    "Batch presence request from user {} for {} users traceId={} requestId={}",
+                    userId,
+                    requestSize,
+                    traceId,
+                    requestId
+            );
+            presenceFlowMetrics.recordPresenceSubscription("batch", requestSize, "start");
 
-            List<UUID> targetIds = request.getUserIds().stream()
+            List<UUID> targetIds = request == null || request.getUserIds() == null
+                    ? Collections.emptyList()
+                    : request.getUserIds().stream()
                     .map(id -> (UUID) id)
                     .collect(Collectors.toList());
 
@@ -429,8 +515,18 @@ public class WebSocketChatController {
                     "/queue/presence-batch",
                     presenceMap
             );
+            presenceFlowMetrics.recordPresenceSubscription("batch", requestSize, "success");
         } catch (Exception e) {
+            presenceFlowMetrics.recordPresenceSubscription("batch", 0, "error");
             log.error("Error handling presence.batch: {}", e.getMessage(), e);
+            handlePresenceSyncError(
+                    principal,
+                    authHeader,
+                    "presence-batch-failed",
+                    e.getMessage(),
+                    request == null ? null : request.getTraceId(),
+                    request == null ? null : request.getRequestId()
+            );
         }
     }
     private void sendErrorToUser(Principal principal, String authHeader, String errorMessage) {
@@ -442,14 +538,103 @@ public class WebSocketChatController {
                 "timestamp", Instant.now()
             );
             messagingTemplate.convertAndSendToUser(
-                userId.toString(),
-                "/queue/errors",
-                errorResponse
+                    userId.toString(),
+                    "/queue/errors",
+                    errorResponse
             );
             log.debug("Error message sent to user: {}", userId);
         } catch (Exception ex) {
             log.error("Failed to send error response: {}", ex.getMessage());
         }
     }
-    
+
+    private void handlePresenceSyncError(
+            Principal principal,
+            String authHeader,
+            String errorType,
+            String message,
+            String traceId,
+            String requestId
+    ) {
+        try {
+            UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
+            presenceFlowMetrics.recordStatusSyncEvent("error");
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/presence-sync",
+                    Map.of(
+                            "type", "STATUS_SYNC_ERROR",
+                            "errorType", errorType,
+                            "message", message == null ? "Unknown presence sync error" : message,
+                            "traceId", traceId == null ? "n/a" : traceId,
+                            "requestId", requestId == null ? "n/a" : requestId,
+                            "timestamp", Instant.now().toString()
+                    )
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to send presence sync error event: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * Handle conversation list update events from Kafka
+     * This is called when a conversation's lastActivityAt is updated (e.g., new message)
+     */
+    @MessageMapping("/conversation.refresh")
+    public void handleConversationRefresh(@Payload Map<String, Object> payload,
+                                         Principal principal,
+                                         @Header(value = "Authorization", required = false) String authHeader) {
+        try {
+            UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
+            UUID conversationId = UUID.fromString((String) payload.get("conversationId"));
+
+            log.debug("Conversation refresh request from user {} for conversation {}", userId, conversationId);
+
+            // Send updated conversation data to the user
+            // The frontend will use this to update the conversation list in real-time
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    "/queue/conversation-updated",
+                    payload
+            );
+
+        } catch (Exception e) {
+            log.error("Error handling conversation refresh: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handle conversation pin/unpin events
+     */
+    @MessageMapping("/conversation.pin")
+    public void handleConversationPin(@Payload Map<String, Object> payload,
+                                      Principal principal,
+                                      @Header(value = "Authorization", required = false) String authHeader) {
+        try {
+            UUID userId = extractUserIdFromPrincipalOrToken(principal, authHeader);
+            UUID conversationId = UUID.fromString((String) payload.get("conversationId"));
+            boolean pin = (Boolean) payload.get("pin");
+
+            log.info("User {} {} conversation {}", userId, pin ? "pinning" : "unpinning", conversationId);
+
+            // Broadcast to all members of the conversation
+            List<UUID> memberIds = conversationMemberService.getConversationMemberIds(conversationId);
+            for (UUID memberId : memberIds) {
+                messagingTemplate.convertAndSendToUser(
+                        memberId.toString(),
+                        "/queue/conversation-pin-changed",
+                        Map.of(
+                                "conversationId", conversationId,
+                                "pinned", pin,
+                                "userId", userId,
+                                "timestamp", Instant.now()
+                        )
+                );
+            }
+
+        } catch (Exception e) {
+            log.error("Error handling conversation pin: {}", e.getMessage(), e);
+        }
+    }
+
 }

@@ -29,6 +29,8 @@ public class OnlineStatusEvent {
     private String status = "ONLINE";
 
     private String device;
+
+    private Instant lastSeen;
     
     private Instant timestamp;
     

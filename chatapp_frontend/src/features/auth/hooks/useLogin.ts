@@ -5,7 +5,7 @@ import { login as loginApi } from '../api/auth.api';
 import type { LoginRequest } from '../types/auth.types';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
-import { toast } from 'react-hot-toast';
+import { notifyError, notifySuccess } from '@/shared/lib/notification';
 
 export const useLogin = () => {
     const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export const useLogin = () => {
 
             await login(response.token);
 
-            toast.success(`Chào mừng trở lại, ${response.displayName}!`);
+            notifySuccess(`Chào mừng trở lại, ${response.displayName}!`);
 
             // Cast the location state safely to extract the 'from' path
             const state = location.state as { from?: { pathname?: string } } | null;
@@ -44,7 +44,7 @@ export const useLogin = () => {
                 }
             }
             setError(message);
-            toast.error(message);
+            notifyError(message);
             logger.error('Login error', err);
         } finally {
             setLoading(false);

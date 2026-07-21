@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-21T00:00:00.000Z",
+  "title": "Design System: NovaChat",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Nova Primary",
+        "canonical": "oklch(0.55 0.17 257)",
+        "tonalRamp": [
+          "oklch(0.96 0.03 257)",
+          "oklch(0.75 0.15 257)",
+          "oklch(0.55 0.17 257)",
+          "oklch(0.38 0.16 257)",
+          "oklch(0.22 0.12 257)"
+        ]
+      },
+      "success": {
+        "role": "success",
+        "displayName": "Nova Success",
+        "canonical": "oklch(0.56 0.14 155)",
+        "tonalRamp": [
+          "oklch(0.93 0.05 155)",
+          "oklch(0.72 0.15 155)",
+          "oklch(0.56 0.14 155)",
+          "oklch(0.42 0.12 155)"
+        ]
+      },
+      "warning": {
+        "role": "warning",
+        "displayName": "Nova Warning",
+        "canonical": "oklch(0.84 0.13 85)",
+        "tonalRamp": [
+          "oklch(0.96 0.09 85)",
+          "oklch(0.84 0.13 85)",
+          "oklch(0.64 0.11 85)"
+        ]
+      }
+    },
+    "motion": [
+      {
+        "name": "focus-ease",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "default ease-out for controls and transitions"
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary CTA for login, register and major actions.",
+      "html": "<button class=\"ds-btn-primary\">Start</button>",
+      "css": ".ds-btn-primary { background: oklch(0.55 0.17 257); color: oklch(0.99 0.01 262); border: 0; border-radius: 0.75rem; padding: 12px 20px; font-weight: 700; font-size: 1rem; transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease; } .ds-btn-primary:hover { transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--background), 0 0 0 5px var(--ring); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Surface card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Neutral container for feature and settings surfaces.",
+      "html": "<article class=\"ds-card\"><p>Title</p></article>",
+      "css": ".ds-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 0.875rem; padding: 1.25rem; box-shadow: 0 4px 12px -10px rgba(0,0,0,0.35); } .ds-card:hover { box-shadow: 0 12px 30px -24px rgba(0,0,0,0.45); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fast Relay",
+    "overview": "NovaChat focuses on flow-first conversation and fast task completion.",
+    "keyCharacteristics": [
+      "Readable layout",
+      "State-first updates",
+      "Small, clear, and extensible shell"
+    ],
+    "rules": [
+      { "name": "Sparse Accent Rule", "body": "Primary should stay under 25% visual occupancy per full page.", "section": "colors" },
+      { "name": "Readable Hierarchy Rule", "body": "Spacing and weight carry hierarchy before color does.", "section": "layout" }
+    ],
+    "dos": [
+      "Use visible focus states for all interactive elements.",
+      "Use established spacing scale instead of random values.",
+      "Keep surfaces compact and avoid oversizing cards."
+    ],
+    "donts": [
+      "Do not repeat identical card grids across every section.",
+      "Do not use decorative gradients for non-decorative contexts.",
+      "Do not add shadows to static neutral containers."
+    ]
+  }
+}

@@ -192,15 +192,18 @@ interface ConversationResponseDto {
 ### **Subscription Topics**
 - `/topic/conversation/{conversationId}` - Messages for specific conversation
 - `/queue/typing` - Typing indicators
-- `/queue/online-status` - Online status responses
-- `/topic/presence` - Global presence events
+- `/user/queue/presence` - Presence updates for subscribed users
+- `/user/queue/presence-sync` - Presence sync acknowledgements/errors
+- `/user/queue/presence-batch` - Presence batch snapshot on reconnect
 - `/queue/notifications` - User notifications
 
 ### **Send Destinations**
 - `/app/message.send` - Send message
 - `/app/typing` - Send typing indicator  
 - `/app/online-status` - Set online status
-- `/app/request-online-status` - Request online status of users
+- `/app/presence.subscribe` - Subscribe to presence updates
+- `/app/presence.unsubscribe` - Unsubscribe from presence updates
+- `/app/presence.batch` - Request presence snapshot
 - `/app/notification.read` - Mark notification as read
 
 ## 🚀 Usage Example

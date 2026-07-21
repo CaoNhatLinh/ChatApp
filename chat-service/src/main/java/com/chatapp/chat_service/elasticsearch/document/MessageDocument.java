@@ -16,6 +16,7 @@ import java.util.UUID;
 /**
  * Elasticsearch document for message search and filtering
  * Enables full-text search on content and filtering by sender, type, etc.
+ * Uses Vietnamese analyzer for better Vietnamese text search
  */
 @Data
 @Builder
@@ -23,49 +24,49 @@ import java.util.UUID;
 @AllArgsConstructor
 @Document(indexName = "messages")
 public class MessageDocument {
-    
+
     @Id
-    private String id; 
-    
+    private String id;
+
     @Field(type = FieldType.Keyword)
     private UUID conversationId;
-    
+
     @Field(type = FieldType.Keyword)
     private UUID messageId;
-    
+
     @Field(type = FieldType.Keyword)
     private UUID senderId;
-    
-    @Field(type = FieldType.Text)
+
+    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
     private String senderUsername;
-    
-    @Field(type = FieldType.Text)
+
+    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
     private String senderDisplayName;
-    
-    @Field(type = FieldType.Text, analyzer = "standard")
+
+    @Field(type = FieldType.Text, analyzer = "vietnamese_analyzer")
     private String content;
-    
+
     @Field(type = FieldType.Keyword)
-    private String type; 
-    
+    private String type;
+
     @Field(type = FieldType.Date)
     private Instant createdAt;
-    
+
     @Field(type = FieldType.Date)
     private Instant editedAt;
-    
+
     @Field(type = FieldType.Boolean)
     private boolean isDeleted;
-    
+
     @Field(type = FieldType.Keyword)
     private UUID replyTo;
-    
+
     @Field(type = FieldType.Keyword)
     private List<UUID> mentionedUserIds;
-    
+
     @Field(type = FieldType.Integer)
     private int reactionCount;
-    
+
     @Field(type = FieldType.Boolean)
     private boolean hasAttachments;
 }

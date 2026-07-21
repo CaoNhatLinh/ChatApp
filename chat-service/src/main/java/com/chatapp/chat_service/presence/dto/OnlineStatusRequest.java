@@ -14,4 +14,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class OnlineStatusRequest {
     private Set<UUID> userIds;
+    private String traceId;
+    private String requestId;
 }

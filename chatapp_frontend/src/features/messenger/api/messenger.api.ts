@@ -1,4 +1,4 @@
-import apiClient from '@/shared/api/apiClient';
+﻿import apiClient from '@/shared/api/apiClient';
 import type {
     Conversation,
     ConversationMember,
@@ -23,8 +23,30 @@ export interface PaginatedResponse<T> {
     size: number;
 }
 
+export interface MessageSearchFilters {
+    conversationId?: string;
+    recipientUserId?: string;
+    content?: string;
+    senderId?: string;
+    type?: string;
+    from?: string;
+    to?: string;
+    mentionedUserId?: string;
+    replyToMessageId?: string;
+    page?: number;
+    size?: number;
+}
+
+export interface MessageSearchResult {
+    messageId: string;
+    conversationId: string;
+    senderDisplayName?: string;
+    senderUsername?: string;
+    content: string;
+}
+
 /**
- * Các interface DTO phản ánh chính xác cấu trúc dữ liệu từ Java Backend.
+ * DTO interface definitions for payloads from Java backend.
  */
 export interface BackendMessage {
     messageId: string;
@@ -92,6 +114,54 @@ const normalizeConversation = (conversation: Conversation): Conversation => ({
         : 0
 });
 
+const getPaginationData = <T>(payload: unknown): PaginatedResponse<T> => {
+    if (!payload || typeof payload !== 'object') {
+        return { content: [], hasNext: false, number: 0, size: 0 };
+    }
+
+    const source = payload as {
+        content?: unknown;
+        hasNext?: unknown;
+        number?: unknown;
+        page?: unknown;
+        size?: unknown;
+        totalElements?: unknown;
+        totalPages?: unknown;
+        last?: unknown;
+    };
+
+    const contentSource = Array.isArray(source.content) ? source.content : [];
+    const content = contentSource.filter((item): item is T => item !== null && item !== undefined);
+    const hasNextRaw = source.hasNext;
+    const number = typeof source.number === 'number' ? source.number : 0;
+    const size = typeof source.size === 'number' ? source.size : content.length;
+    const pageValue = typeof source.page === 'number' ? source.page : number;
+    const totalPages = typeof source.totalPages === 'number' ? source.totalPages : undefined;
+    const totalElements = typeof source.totalElements === 'number' ? source.totalElements : undefined;
+    const hasNextExplicit = typeof hasNextRaw === 'boolean' ? hasNextRaw : undefined;
+    const last = typeof source.last === 'boolean' ? source.last : undefined;
+
+    const hasNext =
+        typeof hasNextExplicit === 'boolean'
+            ? hasNextExplicit
+            : typeof last === 'boolean'
+                ? !last
+                : typeof totalPages === 'number'
+                    ? pageValue < totalPages - 1
+                    : typeof totalElements === 'number' && size > 0
+                        ? (pageValue + 1) * size < totalElements
+                        : false;
+
+    return {
+        content,
+        hasNext,
+        number: number,
+        size
+    };
+};
+
+export type UploadResult = SendMessageRequest['attachments'];
+
 interface PaginatedDto<T> {
     content: T[];
     hasNext?: boolean;
@@ -101,7 +171,7 @@ interface PaginatedDto<T> {
 }
 
 /**
- * Chuyển đổi dữ liệu từ Backend sang định dạng Message của Frontend một cách an toàn.
+ * Chuy?n d?i d? li?u t? Backend sang d?nh d?ng Message c?a Frontend m?t cách an toàn.
  */
 export const mapToMessage = (dto: Partial<BackendMessage>): Message => {
     const createdAt = dto.createdAt ?? new Date().toISOString();
@@ -122,7 +192,7 @@ export const mapToMessage = (dto: Partial<BackendMessage>): Message => {
         status: dto.status ?? 'sent',
         senderBlockedByViewer: dto.senderBlockedByViewer ?? false,
         readReceipts: dto.readReceipts ?? [],
-        // Map Mentions (UUIDs) sang cấu trúc Tag của Frontend
+        // Map Mentions (UUIDs) sang c?u trúc Tag c?a Frontend
         mentions: dto.mentionedUsers?.map(uid => ({
             userId: uid,
             displayName: uid,
@@ -224,6 +294,50 @@ export const togglePinMessage = async (conversationId: string, messageId: string
     await apiClient.post(`/messages/${conversationId}/${messageId}/pin`);
 };
 
+export const markMessagesAsRead = async (conversationId: string, messageIds: string[]): Promise<void> => {
+    if (!conversationId || messageIds.length === 0) {
+        return;
+    }
+    const uniqueMessageIds = [...new Set(messageIds)];
+    const promises = uniqueMessageIds.map((messageId) => markMessageAsRead(conversationId, messageId));
+    await Promise.allSettled(promises);
+};
+
+export const getConversationUnreadCount = async (conversationId: string): Promise<number> => {
+    if (!conversationId) {
+        return 0;
+    }
+    const response = await getConversations(0, 200);
+    const matched = response.content.find((conversation) => conversation.conversationId === conversationId);
+    return matched?.unreadCount ?? 0;
+};
+
+export const searchMessages = async (
+    filters: MessageSearchFilters,
+    options?: { signal?: AbortSignal }
+): Promise<PaginatedResponse<MessageSearchResult>> => {
+    const request = {
+        page: filters.page ?? 0,
+        size: filters.size ?? 20,
+        conversationId: filters.conversationId,
+        recipientUserId: filters.recipientUserId,
+        content: filters.content,
+        senderId: filters.senderId,
+        type: filters.type,
+        from: filters.from,
+        to: filters.to,
+        mentionedUserId: filters.mentionedUserId,
+        replyToMessageId: filters.replyToMessageId
+    };
+
+    const response = await apiClient.get('/search/messages', {
+        params: request,
+        signal: options?.signal
+    });
+    const responseData = unwrapData(response.data);
+    return getPaginationData<MessageSearchResult>(responseData);
+};
+
 export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['attachments']> => {
     if (files.length === 0) {
         return [];
@@ -279,7 +393,7 @@ export const unpinConversation = async (conversationId: string): Promise<void> =
     await apiClient.put(`/conversations/${conversationId}/unpin`);
 };
 
-// --- Additional Conversation helpers (migrated from legacy @/api/conversationApi) ---
+// --- Additional Conversation helpers ---
 
 export const getConversationMembers = async (conversationId: string): Promise<ConversationMember[]> => {
     const response = await apiClient.get<ConversationMember[]>(`/conversations/${conversationId}/members`);
@@ -290,3 +404,6 @@ export const findDmConversation = async (userId1: string, userId2: string): Prom
     const response = await apiClient.get<Conversation>(`/conversations/dm?userId1=${userId1}&userId2=${userId2}`);
     return response.data;
 };
+
+
+

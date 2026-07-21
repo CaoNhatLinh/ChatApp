@@ -73,7 +73,13 @@ public class KafkaConfig {
 
     private <T> ConsumerFactory<String, Object> createConsumerFactory(String groupId) {
         JsonDeserializer<Object> deserializer = new JsonDeserializer<>();
-        deserializer.addTrustedPackages("*");
+        // Security: Restrict trusted packages to prevent gadget chain attacks
+        deserializer.addTrustedPackages(
+                "com.chatapp.chat_service.message.event",
+                "com.chatapp.chat_service.friendship.event",
+                "com.chatapp.chat_service.presence.event",
+                "com.chatapp.chat_service.notification.event"
+        );
         deserializer.setUseTypeHeaders(true);
         return new DefaultKafkaConsumerFactory<>(consumerProps(groupId), new StringDeserializer(), deserializer);
     }

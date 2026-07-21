@@ -1,14 +1,16 @@
-import React, { useState } from "react";
-import { Check, Clock, UserPlus, X, MessageCircle, MoreVertical } from "lucide-react";
+import { useState } from "react";
+import { Check, Clock, MessageCircle, MoreVertical, UserPlus, X } from "lucide-react";
 import { useMessenger } from "@/features/messenger/model/useMessenger";
-import { findDmConversation, createConversation } from "@/features/messenger/api/messenger.api";
+import { createConversation, findDmConversation } from "@/features/messenger/api/messenger.api";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/Avatar";
-import { Button } from "@/shared/ui/Button";
 import { Badge } from "@/shared/ui/Badge";
+import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/lib/cn";
-import { useIsUserOnline } from "@/features/presence/model/presence.store";
-import { friendRequestErrors, showSuccessToast } from "@/shared/lib/errorHandler";
+import { usePresence } from "@/features/presence/model/presence.store";
+import { StatusDot } from "@/features/presence/ui/StatusSelector";
+import { friendRequestErrors } from "@/shared/lib/errorHandler";
+import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import type { UserDTO } from "@/entities/user/model/user.types";
 
 interface FriendItemProps {
@@ -23,7 +25,7 @@ interface FriendItemProps {
   isReceivedRequest?: boolean;
 }
 
-export const FriendItem: React.FC<FriendItemProps> = ({
+export const FriendItem = ({
   friend,
   onClick,
   onAddFriend,
@@ -32,75 +34,78 @@ export const FriendItem: React.FC<FriendItemProps> = ({
   isFriend = false,
   hasPendingRequest = false,
   isSentRequest = false,
-}) => {
+}: FriendItemProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuthStore();
-  const isFriendOnline = useIsUserOnline(friend.userId);
+  const { presence } = usePresence(friend.userId);
+  const isFriendOnline = presence?.isOnline ?? false;
+  const friendStatus = presence?.status ?? "OFFLINE";
   const { selectConversation } = useMessenger();
 
-  const handleAddFriend = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleAddFriend = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onAddFriend || isLoading) return;
 
     setIsLoading(true);
-
     try {
       await onAddFriend(friend);
-      showSuccessToast(`Friend request sent to ${friend.displayName}`);
+      notifySuccess(`Đã gửi lời mời kết bạn tới ${friend.displayName || friend.userName}`);
     } catch (error) {
       friendRequestErrors.send(error);
+      notifyError(`Không thể gửi lời mời tới ${friend.displayName || friend.userName}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const openChatWithFriend = async (friend: UserDTO) => {
-    if (!friend || !friend.userId || !user?.userId) {
-      return;
-    }
+  const openChatWithFriend = async (friendTarget: UserDTO) => {
+    if (!friendTarget || !friendTarget.userId || !user?.userId) return;
 
     try {
-      const conversation = await findDmConversation(user.userId, friend.userId);
+      const conversation = await findDmConversation(user.userId, friendTarget.userId);
       void selectConversation(conversation.conversationId);
     } catch {
       try {
         const conv = await createConversation({
           type: "dm",
-          memberIds: [friend.userId],
+          memberIds: [friendTarget.userId],
         });
         void selectConversation(conv.conversationId);
-        showSuccessToast(`Started conversation with ${friend.displayName}`);
+        notifySuccess(`Đã mở cuộc trò chuyện với ${friendTarget.displayName || friendTarget.userName}`);
       } catch (error) {
         friendRequestErrors.send(error);
+        notifyError(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName || friendTarget.userName}`);
       }
     }
   };
 
-  const handleAccept = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleAccept = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onAcceptFriend || isLoading) return;
 
     setIsLoading(true);
     try {
       await onAcceptFriend(friend.userId);
-      showSuccessToast(`Friend request from ${friend.displayName} accepted`);
+      notifySuccess(`Đã chấp nhận lời mời của ${friend.displayName || friend.userName}`);
     } catch (error) {
       friendRequestErrors.accept(error);
+      notifyError(`Không thể chấp nhận lời mời của ${friend.displayName || friend.userName}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleReject = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleReject = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!onRejectFriend || isLoading) return;
 
     setIsLoading(true);
     try {
       await onRejectFriend(friend.userId);
-      showSuccessToast(`Friend request from ${friend.displayName} declined`);
+      notifySuccess(`Đã từ chối lời mời của ${friend.displayName || friend.userName}`);
     } catch (error) {
       friendRequestErrors.reject(error);
+      notifyError(`Không thể từ chối lời mời của ${friend.displayName || friend.userName}`);
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +115,7 @@ export const FriendItem: React.FC<FriendItemProps> = ({
     <div
       className={cn(
         "flex items-center justify-between gap-3 px-4 py-3 rounded-lg hover:bg-accent cursor-pointer transition",
-        isLoading && "opacity-70"
+        isLoading && "opacity-70",
       )}
       onClick={onClick}
     >
@@ -118,23 +123,19 @@ export const FriendItem: React.FC<FriendItemProps> = ({
         <div className="relative">
           <Avatar className="h-12 w-12">
             <AvatarImage src={friend.avatarUrl || undefined} alt={friend.displayName} />
-            <AvatarFallback>
-              {(friend.displayName || friend.userName)[0].toUpperCase()}
-            </AvatarFallback>
+            <AvatarFallback>{(friend.displayName || friend.userName || "?").charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
-          <div className={cn(
-            "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-card",
-            isFriendOnline ? "bg-green-500" : "bg-muted-foreground"
-          )} />
+          <StatusDot
+            status={friendStatus}
+            isOnline={isFriendOnline}
+            size="sm"
+            className="absolute -bottom-0.5 -right-0.5 border-2 border-card"
+          />
         </div>
 
         <div className="min-w-0">
-          <div className="font-semibold truncate">
-            {friend.displayName || friend.userName}
-          </div>
-          <div className="text-xs text-muted-foreground truncate">
-            @{friend.userName}
-          </div>
+          <div className="font-semibold truncate">{friend.displayName || friend.userName}</div>
+          <div className="text-xs text-muted-foreground truncate">@{friend.userName}</div>
         </div>
       </div>
 
@@ -146,45 +147,23 @@ export const FriendItem: React.FC<FriendItemProps> = ({
               size="icon"
               className="h-8 w-8"
               title="Message"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={(event) => {
+                event.stopPropagation();
                 void openChatWithFriend(friend);
               }}
             >
               <MessageCircle className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="More options"
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Context menu
-              }}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8" title="More options" onClick={(event) => event.stopPropagation()}>
               <MoreVertical className="h-4 w-4" />
             </Button>
           </>
         ) : hasPendingRequest ? (
           <>
-            <Button
-              onClick={handleAccept}
-              disabled={isLoading}
-              size="icon"
-              className="h-8 w-8 bg-green-600 hover:bg-green-700"
-              title="Accept"
-            >
+            <Button onClick={handleAccept} disabled={isLoading} size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700" title="Accept">
               <Check className="h-4 w-4" />
             </Button>
-            <Button
-              onClick={handleReject}
-              disabled={isLoading}
-              variant="destructive"
-              size="icon"
-              className="h-8 w-8"
-              title="Reject"
-            >
+            <Button onClick={handleReject} disabled={isLoading} variant="destructive" size="icon" className="h-8 w-8" title="Reject">
               <X className="h-4 w-4" />
             </Button>
           </>
@@ -193,24 +172,12 @@ export const FriendItem: React.FC<FriendItemProps> = ({
             <Badge variant="outline" className="gap-1">
               <Clock className="h-3 w-3" /> Pending
             </Badge>
-            <Button
-              onClick={handleReject}
-              disabled={isLoading}
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="Cancel request"
-            >
+            <Button onClick={handleReject} disabled={isLoading} variant="ghost" size="icon" className="h-8 w-8" title="Cancel request">
               <X className="h-4 w-4" />
             </Button>
           </>
         ) : (
-          <Button
-            onClick={handleAddFriend}
-            disabled={isLoading}
-            size="sm"
-            className="gap-1"
-          >
+          <Button onClick={handleAddFriend} disabled={isLoading} size="sm" className="gap-1">
             <UserPlus className="h-4 w-4" /> Add Friend
           </Button>
         )}
@@ -218,3 +185,5 @@ export const FriendItem: React.FC<FriendItemProps> = ({
     </div>
   );
 };
+
+export default FriendItem;

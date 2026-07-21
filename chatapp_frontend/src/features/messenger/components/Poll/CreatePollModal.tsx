@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
 import { X, Plus, Trash2, BarChart3, Clock, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
+import { motion } from 'framer-motion';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import type { CreatePollRequest } from '../../types/messenger.types';
 
 interface CreatePollModalProps {
@@ -79,7 +81,12 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
             {/* Modal */}
-            <div className="relative w-full max-w-lg mx-4 bg-card border border-border/60 rounded-3xl neo-shadow animate-in zoom-in-95 fade-in duration-300 overflow-hidden">
+            <motion.div
+                className="relative w-full max-w-lg mx-4 bg-card border border-border/60 rounded-3xl neo-shadow overflow-hidden"
+                initial={UI_MOTION_CONFIG.initialState}
+                animate={UI_MOTION_CONFIG.animateState}
+                variants={UI_MOTION_VARIANTS.zoomReveal}
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border/40">
                     <div className="flex items-center gap-3">
@@ -216,7 +223,12 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                         {/* Deadline datetime inputs */}
                         {hasDeadline && (
-                            <div className="flex gap-2 pl-9 animate-in slide-in-from-top-2 fade-in duration-200">
+                            <motion.div
+                                className="flex gap-2 pl-9"
+                                initial={UI_MOTION_CONFIG.initialState}
+                                animate={UI_MOTION_CONFIG.animateState}
+                                variants={UI_MOTION_VARIANTS.slideInFromTop}
+                            >
                                 <input
                                     type="date"
                                     value={deadlineDate}
@@ -230,7 +242,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                     onChange={(e) => setDeadlineTime(e.target.value)}
                                     className="w-28 bg-background/60 border border-border/50 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 ring-primary/20 outline-none"
                                 />
-                            </div>
+                            </motion.div>
                         )}
                     </div>
                 </div>
@@ -251,7 +263,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                         Tạo bình chọn
                     </button>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 };

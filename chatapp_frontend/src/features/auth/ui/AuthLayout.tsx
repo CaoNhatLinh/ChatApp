@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
-import { ThemeToggle } from '@/features/settings/ui/ThemeToggle';
+import type { ReactNode } from "react";
+import AuthShellHeader from "@/pages/shared/layout/AuthShellHeader";
+import { ShellFrame } from "@/pages/shared/layout/ShellFrame";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -9,27 +10,19 @@ interface AuthLayoutProps {
 
 export const AuthLayout = ({ children, title, subtitle }: AuthLayoutProps) => {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background relative overflow-hidden px-4">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-foreground/20 rounded-full blur-[120px] animate-pulse delay-700" />
-
-      <div className="absolute top-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
-
-      <div className="w-full max-w-md z-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="glass p-8 rounded-[2rem] neo-shadow relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-
-          <div className="mb-8">
-            {title ? <h2 className="text-2xl font-bold mb-1">{title}</h2> : null}
-            {subtitle ? <p className="text-muted-foreground text-sm">{subtitle}</p> : null}
+    <ShellFrame ambient="normal" className="w-full flex items-center justify-center px-4 py-10">
+      <AuthShellHeader />
+      <div className="w-full max-w-md z-10">
+        <div className="surface-elevated rounded-[1.25rem] p-8 md:p-10">
+          <div className="layout-stack">
+            {title ? <h2 className="text-3xl font-black tracking-[-0.02em]">{title}</h2> : null}
+            {subtitle ? <p className="text-sm leading-6 text-muted-foreground max-w-prose">{subtitle}</p> : null}
           </div>
 
           {children}
         </div>
       </div>
-    </div>
+    </ShellFrame>
   );
 };
 

@@ -1,47 +1,66 @@
-﻿import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+﻿import { useMemo } from 'react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+import { cn } from '@/shared/lib/cn';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 
 interface TypingIndicatorProps {
   conversationId: string;
+  excludeUserIds?: Set<string>;
+  className?: string;
 }
 
-export const TypingIndicator = ({ conversationId }: TypingIndicatorProps) => {
+export const TypingIndicator = ({
+  conversationId,
+  excludeUserIds,
+  className,
+}: TypingIndicatorProps) => {
   const typingEvents = useMessengerStore(state => state.typingUsers[conversationId] || []);
   const { user } = useAuthStore();
 
-  // Get typing users for this conversation and filter out current user
-  const otherTypingUsers = typingEvents.filter(event => event.user.userId !== user?.userId);
+  const otherTypingUsers = useMemo(
+    () =>
+      typingEvents.filter((event) => {
+        const id = event.user?.userId;
+        if (id === user?.userId) return false;
+        return id ? !excludeUserIds?.has(id) : true;
+      }),
+    [excludeUserIds, typingEvents, user?.userId]
+  );
+
+  const typingText = useMemo(() => {
+    if (otherTypingUsers.length === 0) return '';
+    if (otherTypingUsers.length === 1) {
+      const typingUser = otherTypingUsers[0].user;
+      const displayName = typingUser.displayName || typingUser.userName || MESSENGER_COPY.typingIndicator.defaultUser;
+      return MESSENGER_COPY.typingIndicator.userTyping.replace('{name}', displayName);
+    }
+
+    return MESSENGER_COPY.typingIndicator.othersTyping.replace(
+      '{count}',
+      String(otherTypingUsers.length),
+    );
+  }, [otherTypingUsers]);
 
   if (otherTypingUsers.length === 0) {
     return null;
   }
 
-  const getTypingText = () => {
-    if (otherTypingUsers.length === 1) {
-      const typingUser = otherTypingUsers[0].user;
-      const displayName = typingUser.displayName || typingUser.userName || 'Ai đó';
-      return `${displayName} đang nhập...`;
-    } else if (otherTypingUsers.length === 2) {
-      const names = otherTypingUsers.map(tu => tu.user.displayName || tu.user.userName || 'Ai đó');
-      return `${names.join(' và ')} đang nhập...`;
-    } else if (otherTypingUsers.length === 3) {
-      const names = otherTypingUsers.slice(0, 2).map(tu => tu.user.displayName || tu.user.userName || 'Ai đó');
-      return `${names.join(', ')} và 1 người khác đang nhập...`;
-    } else {
-      return `${otherTypingUsers.length} người đang nhập...`;
-    }
-  };
-
   return (
-    <div className="px-4 py-2 border-t border-gray-700">
-      <div className="flex items-center space-x-2 text-sm text-gray-400">
-        <div className="flex space-x-1">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-        </div>
-        <span className="italic">{getTypingText()}</span>
+    <div
+      className={cn(
+        'mb-2 flex items-center gap-2 rounded-xl border border-border/50 bg-card/60 px-4 py-2 text-muted-foreground',
+        className
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
       </div>
+      <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">{typingText}</p>
     </div>
   );
 };
+
+export default TypingIndicator;

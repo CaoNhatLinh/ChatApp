@@ -1,6 +1,6 @@
 import { createContext } from 'react';
-import { useAuthStore } from '@/features/auth/model/auth.store';
+import { type useAuthStore } from '@/features/auth/model/auth.store';
 
-export type AuthContextValue = ReturnType<typeof useAuthStore.getState>;
+export type AuthContextValue = ReturnType<typeof useAuthStore.getState> | null;
 
-export const AuthContext = createContext<AuthContextValue>(useAuthStore.getState());
+export const AuthContext = createContext<AuthContextValue>(null);

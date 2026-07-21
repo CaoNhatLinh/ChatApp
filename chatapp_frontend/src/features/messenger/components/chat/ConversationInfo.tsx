@@ -1,5 +1,6 @@
 ﻿import React from 'react';
 import { X, Users, Search, Image as ImageIcon, FileText, Bell, Trash2, LogOut, ChevronRight, Palette, Edit3, Ban, ShieldOff } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useMessenger } from '@/features/messenger/model/useMessenger';
 import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
@@ -7,6 +8,8 @@ import { useAuthStore } from '@/features/auth/model/auth.store';
 import { friendApi } from '@/features/relationships/api/friends.api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/Avatar';
 import { Button } from '@/shared/ui/Button';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 
 interface ConversationInfoProps {
     isOpen: boolean;
@@ -37,26 +40,31 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     const handleBlock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
-        if (!confirm('Bạn có chắc chắn muốn phát lệnh chặn người dùng này?')) return;
-        await blockFriend(currentUser.userId, activeConv.otherParticipant.userId);
+        if (!confirm(MESSENGER_COPY.conversationInfo.confirmBlock)) return;
+        await blockFriend(activeConv.otherParticipant.userId);
         setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-        void fetchBlockedUsers(currentUser.userId);
+        void fetchBlockedUsers();
     };
 
     const handleUnblock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
-        await unblockFriend(currentUser.userId, activeConv.otherParticipant.userId);
+        await unblockFriend(activeConv.otherParticipant.userId);
         setBlockStatus({ hasBlocked: false, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-        void fetchBlockedUsers(currentUser.userId);
+        void fetchBlockedUsers();
     };
 
     if (!isOpen || !activeConv) return null;
 
     return (
-        <div className="w-[300px] border-l border-border/50 bg-background/50 flex flex-col h-full animate-in slide-in-from-right-4 duration-300 z-20">
+        <motion.div
+            className="w-[300px] border-l border-border/50 bg-background/50 flex flex-col h-full z-20"
+            initial={UI_MOTION_CONFIG.initialState}
+            animate={UI_MOTION_CONFIG.animateState}
+            variants={UI_MOTION_VARIANTS.slideInFromRight}
+        >
             {/* Header */}
             <div className="h-20 border-b border-border/50 px-4 flex items-center justify-between glass sticky top-0">
-                <h3 className="text-lg font-black uppercase tracking-tight">Thông tin</h3>
+                <h3 className="text-lg font-black uppercase tracking-tight">{MESSENGER_COPY.conversationInfo.title}</h3>
                 <Button
                     variant="ghost"
                     size="icon"
@@ -85,18 +93,21 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
                     <div className="w-full px-2">
                         {isRenaming ? (
-                            <input
-                                type="text"
-                                value={newChatName}
-                                onChange={(e) => setNewChatName(e.target.value)}
-                                className="w-full bg-background/50 border-2 border-primary rounded-xl py-2 px-3 outline-none text-center font-bold animate-in zoom-in-95"
-                                autoFocus
-                                onBlur={() => setIsRenaming(false)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') setIsRenaming(false);
-                                    if (e.key === 'Escape') setIsRenaming(false);
-                                }}
-                            />
+                        <motion.input
+                            type="text"
+                            value={newChatName}
+                            onChange={(e) => setNewChatName(e.target.value)}
+                            className="w-full bg-background/50 border-2 border-primary rounded-xl py-2 px-3 outline-none text-center font-bold"
+                            autoFocus
+                            onBlur={() => setIsRenaming(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') setIsRenaming(false);
+                                if (e.key === 'Escape') setIsRenaming(false);
+                            }}
+                            initial={UI_MOTION_CONFIG.initialState}
+                            animate={UI_MOTION_CONFIG.animateState}
+                            variants={UI_MOTION_VARIANTS.zoomReveal}
+                        />
                         ) : (
                             <div
                                 className="flex items-center justify-center gap-2 group cursor-pointer hover:bg-primary/5 rounded-xl p-2 transition-colors"
@@ -118,26 +129,32 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                         <div className="bg-background rounded-xl p-2.5 neo-shadow border border-border/50">
                             <Search size={18} />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Tìm kiếm</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                            {MESSENGER_COPY.conversationInfo.search}
+                        </span>
                     </button>
                     <button className="flex flex-col items-center gap-2 p-2 rounded-2xl hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all flex-1">
                         <div className="bg-background rounded-xl p-2.5 neo-shadow border border-border/50">
                             <Bell size={18} />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest">Tắt âm</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                            {MESSENGER_COPY.conversationInfo.mute}
+                        </span>
                     </button>
                 </div>
 
                 <div className="space-y-6">
                     {/* Customization */}
                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">Tùy chỉnh</h4>
+                        <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">
+                            {MESSENGER_COPY.conversationInfo.customization}
+                        </h4>
                         <button className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-primary/5 transition-all group">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                     <Palette size={18} />
                                 </div>
-                                <span className="font-bold text-sm">Chủ đề & Màu sắc</span>
+                                <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.themeLabel}</span>
                             </div>
                             <div className="w-4 h-4 rounded-full bg-primary neo-shadow" />
                         </button>
@@ -145,14 +162,16 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
                     {/* Shared Media */}
                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">Phương tiện chia sẻ</h4>
+                        <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">
+                            {MESSENGER_COPY.conversationInfo.mediaLabel}
+                        </h4>
                         <div className="space-y-1">
                             <button className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-primary/5 transition-all group text-left">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                         <ImageIcon size={18} />
                                     </div>
-                                    <span className="font-bold text-sm">Ảnh & Video</span>
+                                    <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.photoVideoLabel}</span>
                                 </div>
                                 <ChevronRight size={16} className="text-muted-foreground group-hover:text-primary transition-all" />
                             </button>
@@ -161,7 +180,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                         <FileText size={18} />
                                     </div>
-                                    <span className="font-bold text-sm">Tài liệu</span>
+                                    <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.documentsLabel}</span>
                                 </div>
                                 <ChevronRight size={16} className="text-muted-foreground group-hover:text-primary transition-all" />
                             </button>
@@ -171,7 +190,9 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                         <div className="p-2 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                             <Users size={18} />
                                         </div>
-                                        <span className="font-bold text-sm">Thành viên ({activeConv.memberCount})</span>
+                                        <span className="font-bold text-sm">
+                                            {MESSENGER_COPY.conversationInfo.memberLabel} ({activeConv.memberCount})
+                                        </span>
                                     </div>
                                     <ChevronRight size={16} className="text-muted-foreground group-hover:text-primary transition-all" />
                                 </button>
@@ -181,7 +202,9 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
                     {/* Danger Zone */}
                     <div>
-                        <h4 className="text-[10px] font-black uppercase text-destructive tracking-widest mb-3 px-1">Vùng nguy hiểm</h4>
+                        <h4 className="text-[10px] font-black uppercase text-destructive tracking-widest mb-3 px-1">
+                            {MESSENGER_COPY.conversationInfo.dangerZone}
+                        </h4>
                         <div className="space-y-1">
                             {activeConv.type === 'dm' && activeConv.otherParticipant && (
                                 blockStatus?.hasBlocked ? (
@@ -192,7 +215,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                         <div className="p-2 bg-primary/10 rounded-xl group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                             <ShieldOff size={18} />
                                         </div>
-                                        <span className="font-bold text-sm">Bỏ chặn người dùng</span>
+                                        <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.unblockUser}</span>
                                     </button>
                                 ) : (
                                     <button
@@ -202,7 +225,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                         <div className="p-2 bg-destructive/10 rounded-xl group-hover:bg-destructive group-hover:text-destructive-foreground transition-colors">
                                             <Ban size={18} />
                                         </div>
-                                        <span className="font-bold text-sm">Chặn người dùng</span>
+                                        <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.blockUser}</span>
                                     </button>
                                 )
                             )}
@@ -211,20 +234,20 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                 <div className="p-2 bg-destructive/10 rounded-xl group-hover:bg-destructive group-hover:text-destructive-foreground transition-colors">
                                     <Trash2 size={18} />
                                 </div>
-                                <span className="font-bold text-sm">Xóa lịch sử trò chuyện</span>
+                                <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.deleteHistory}</span>
                             </button>
                             {activeConv.type === 'group' && (
                                 <button className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-destructive/10 text-destructive transition-all group">
                                     <div className="p-2 bg-destructive/10 rounded-xl group-hover:bg-destructive group-hover:text-destructive-foreground transition-colors">
                                         <LogOut size={18} />
                                     </div>
-                                    <span className="font-bold text-sm">Rời khỏi nhóm</span>
+                                    <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.leaveGroup}</span>
                                 </button>
                             )}
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 };

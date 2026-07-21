@@ -1,7 +1,8 @@
 // src/store/messenger/createMessageSlice.ts
 
 import type { MessengerSlice, MessageSlice } from './messenger.store.types';
-import type { Message, Conversation } from '@/features/messenger/types/messenger.types';
+import type { Message } from '@/features/messenger/types/messenger.types';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 
 export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
@@ -10,8 +11,6 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
 
     addMessage: (conversationId, message) => set((state) => {
         const currentMessages = state.messages[conversationId] || [];
-        const activeConversationId = state.activeConversationId;
-        const currentUserId = useAuthStore.getState().user?.userId;
         const existingIndex = currentMessages.findIndex(m => m.messageId === message.messageId);
 
         let updatedMessages: Message[];
@@ -23,6 +22,7 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             isServerMessage = true;
         }
 
+        const now = Date.now();
         if (isServerMessage && message.sender) {
             if (existingIndex !== -1) {
                 updatedMessages = [...currentMessages];
@@ -32,6 +32,9 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                     m => m.messageId && typeof m.messageId === 'string' && m.messageId.startsWith('temp-')
                         && m.sender?.userId === message.sender?.userId
                         && m.content === message.content
+                        && m.type === message.type
+                        && m.status === 'sending'
+                        && now - new Date(m.createdAt).getTime() < 120000
                 );
                 if (tempIdx !== -1) {
                 updatedMessages = [...currentMessages];
@@ -49,55 +52,8 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             }
         }
 
-        let targetConversation: Conversation | undefined;
-        const otherConversations = state.conversations.filter(c => {
-            if (c.conversationId === conversationId) {
-                targetConversation = {
-                    ...c,
-                    lastActivityAt: message.createdAt,
-                    lastMessage: {
-                        messageId: message.messageId,
-                        senderId: message.sender?.userId || '',
-                        senderName: message.sender?.displayName || '',
-                        content: message.content,
-                        type: message.type || 'TEXT',
-                        createdAt: message.createdAt
-                    }
-                };
-                return false;
-            }
-            return true;
-        });
-
-        let updatedConversations: Conversation[];
-
-        if (targetConversation) {
-            const pinned = otherConversations.filter(c => c.isPinned);
-            const unpinned = otherConversations.filter(c => !c.isPinned);
-
-            if (targetConversation.isPinned) {
-                updatedConversations = [targetConversation, ...pinned, ...unpinned];
-            } else {
-                updatedConversations = [...pinned, targetConversation, ...unpinned];
-            }
-        } else {
-            updatedConversations = state.conversations;
-        }
-
         return {
             messages: { ...state.messages, [conversationId]: updatedMessages },
-            conversations: updatedConversations.map(conversation => {
-                if (
-                    conversation.conversationId === conversationId &&
-                    existingIndex === -1 &&
-                    message.sender?.userId &&
-                    message.sender.userId !== currentUserId &&
-                    activeConversationId !== conversationId
-                ) {
-                    return { ...conversation, unreadCount: (conversation.unreadCount ?? 0) + 1 };
-                }
-                return conversation;
-            })
         };
     }, false, 'addMessage'),
 
@@ -105,7 +61,7 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         messages: { ...state.messages, [conversationId]: messages },
         messagesPagination: {
             ...state.messagesPagination,
-            [conversationId]: { hasNext, page }
+            [conversationId]: { hasNext, page, fetchedAt: Date.now() }
         }
     }), false, 'setMessages'),
 
@@ -116,7 +72,7 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             messages: { ...state.messages, [conversationId]: [...currentMessages, ...uniqueNewMessages] },
             messagesPagination: {
                 ...state.messagesPagination,
-                [conversationId]: { hasNext, page }
+                [conversationId]: { hasNext, page, fetchedAt: Date.now() }
             }
         };
     }, false, 'appendMessages'),
@@ -128,7 +84,7 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             messages: { ...state.messages, [conversationId]: [...uniqueNewMessages, ...currentMessages] },
             messagesPagination: {
                 ...state.messagesPagination,
-                [conversationId]: { hasNext, page }
+                [conversationId]: { hasNext, page, fetchedAt: Date.now() }
             }
         };
     }, false, 'prependMessages'),
@@ -263,7 +219,7 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                         messageId: message.messageId,
                         senderId: message.sender.userId,
                         senderName: message.sender.displayName,
-                        content: message.isDeleted ? 'Tin nhắn đã bị xóa' : message.content,
+                        content: message.isDeleted ? MESSENGER_COPY.messageStatus.deleted : message.content,
                         type: message.type,
                         createdAt: message.createdAt,
                     }

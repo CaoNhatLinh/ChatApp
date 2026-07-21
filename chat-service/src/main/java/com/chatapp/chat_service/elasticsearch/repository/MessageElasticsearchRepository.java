@@ -13,6 +13,12 @@ import java.util.UUID;
 @Repository
 @ConditionalOnProperty(name = "elasticsearch.enabled", havingValue = "true")
 public interface MessageElasticsearchRepository extends ElasticsearchRepository<MessageDocument, String> {
+
+    /**
+     * Get all messages in a conversation (non-deleted), newest first
+     */
+    Page<MessageDocument> findByConversationIdAndIsDeletedFalseOrderByCreatedAtDesc(
+            UUID conversationId, Pageable pageable);
     
     /**
      * Search messages by content (full-text search)
@@ -31,6 +37,54 @@ public interface MessageElasticsearchRepository extends ElasticsearchRepository<
      */
     Page<MessageDocument> findByConversationIdAndIsDeletedFalseAndTypeOrderByCreatedAtDesc(
             UUID conversationId, String type, Pageable pageable);
+
+    /**
+     * Search messages in multiple conversations (non-deleted), newest first
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseOrderByCreatedAtDesc(
+            List<UUID> conversationIds, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by sender
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndSenderIdOrderByCreatedAtDesc(
+            List<UUID> conversationIds, UUID senderId, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by type
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndTypeOrderByCreatedAtDesc(
+            List<UUID> conversationIds, String type, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by content
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndContentContainingIgnoreCaseOrderByCreatedAtDesc(
+            List<UUID> conversationIds, String content, Pageable pageable);
+
+    /**
+     * Search messages in multiple conversations by content and sender
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndSenderIdAndContentContainingIgnoreCaseOrderByCreatedAtDesc(
+            List<UUID> conversationIds, UUID senderId, String content, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by content and type
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndTypeAndContentContainingIgnoreCaseOrderByCreatedAtDesc(
+            List<UUID> conversationIds, String type, String content, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by sender and type
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndSenderIdAndTypeOrderByCreatedAtDesc(
+            List<UUID> conversationIds, UUID senderId, String type, Pageable pageable);
+    
+    /**
+     * Search messages in multiple conversations by sender, type and content
+     */
+    Page<MessageDocument> findByConversationIdInAndIsDeletedFalseAndSenderIdAndTypeAndContentContainingIgnoreCaseOrderByCreatedAtDesc(
+            List<UUID> conversationIds, UUID senderId, String type, String content, Pageable pageable);
     
     /**
      * Combined search: content + sender

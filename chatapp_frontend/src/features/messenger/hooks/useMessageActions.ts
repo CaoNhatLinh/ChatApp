@@ -6,9 +6,9 @@ import type { Message } from '@/features/messenger/types/messenger.types';
 
 interface UseMessageActionsOptions {
     conversationId: string;
-    allMessages: Message[];
     fetchMessages: () => Promise<void>;
     onReply?: (message: Message) => void;
+    onEdit?: (message: Message) => void;
 }
 
 interface UseMessageActionsReturn {
@@ -19,10 +19,10 @@ interface UseMessageActionsReturn {
 }
 
 export function useMessageActions({
-    conversationId: _conversationId,
-    allMessages: _allMessages,
+    conversationId,
     fetchMessages,
     onReply,
+    onEdit,
 }: UseMessageActionsOptions): UseMessageActionsReturn {
 
     const handleReply = useCallback((message: Message) => {
@@ -39,19 +39,23 @@ export function useMessageActions({
         }
     }, [fetchMessages]);
 
-    const handleEdit = useCallback((_messageId: string) => {
-        // TODO: implement edit UI
-    }, []);
+    const handleEdit = useCallback((messageId: string) => {
+        const message = messageId ? { messageId } as Message : undefined;
+        if (message && onEdit) {
+            onEdit(message);
+            return;
+        }
+    }, [onEdit]);
 
     const handleDelete = useCallback(async (messageId: string) => {
         try {
             const { deleteMessage } = await import('@/features/messenger/api/messenger.api');
-            await deleteMessage(_conversationId, messageId);
+            await deleteMessage(conversationId, messageId);
             await fetchMessages();
         } catch (error) {
             console.error('Failed to delete message:', error instanceof Error ? error.message : error);
         }
-    }, [_conversationId, fetchMessages]);
+    }, [conversationId, fetchMessages]);
 
     return { handleReply, handleReact, handleEdit, handleDelete };
 }

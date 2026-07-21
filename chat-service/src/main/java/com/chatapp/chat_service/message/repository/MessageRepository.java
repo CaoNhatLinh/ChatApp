@@ -40,4 +40,13 @@ public interface MessageRepository extends CassandraRepository<Message, Message.
 
     @Query("SELECT * FROM messages_by_conversation WHERE conversation_id = ?0")
     List<Message> findAllByConversationId(UUID conversationId);
+
+    @Query("SELECT * FROM messages_by_conversation WHERE conversation_id = ?0 AND reply_to = ?1")
+    List<Message> findByConversationIdAndReplyTo(UUID conversationId, UUID replyTo);
+
+    @Query("SELECT * FROM messages_by_conversation WHERE conversation_id = ?0 AND reply_to = ?1 ORDER BY message_id DESC LIMIT ?2")
+    List<Message> findByConversationIdAndReplyToPaginated(UUID conversationId, UUID replyTo, Pageable pageable);
+
+    @Query("SELECT COUNT(*) FROM messages_by_conversation WHERE conversation_id = ?0 AND reply_to = ?1")
+    long countByConversationIdAndReplyTo(UUID conversationId, UUID replyTo);
 }

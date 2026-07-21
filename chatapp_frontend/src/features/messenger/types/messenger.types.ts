@@ -11,7 +11,7 @@ export interface MessageSummary {
     senderId: string;
     senderName?: string;
     content: string;
-    type: MessageType;
+    type?: MessageType;
     createdAt: string;
 }
 

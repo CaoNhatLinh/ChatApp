@@ -1,13 +1,16 @@
 ﻿import React from 'react';
 import type { Message } from '../../types/messenger.types';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/cn';
 import { MoreHorizontal, Reply, Copy, Trash2, RefreshCw, Pencil, Pin } from 'lucide-react';
-import { ReactionPicker, ReactionDisplay } from '@/features/messenger/components/chat/ui/ReactionPicker';
+import { ReactionPicker } from '@/features/messenger/components/chat/ui/ReactionPicker';
+import { ReactionDisplay as ReactionBadgeList } from '@/features/messenger/components/chat/ui/ReactionDisplay';
 import { MentionText } from './MentionText';
 import { PollCard } from '../Poll/PollCard';
-import { useIsUserOnline } from '@/features/presence/model/presence.store';
+import { usePresence } from '@/features/presence/model/presence.store';
+import { StatusDot } from '@/features/presence/ui/StatusSelector';
 import { Avatar, AvatarImage, AvatarFallback } from '@/shared/ui/Avatar';
 import {
     DropdownMenu,
@@ -16,11 +19,16 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/shared/ui/DropdownMenu';
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 
 interface MessageItemProps {
     message: Message;
     showAvatar: boolean;
     isBlocked?: boolean;
+    isHighlighted?: boolean;
+    roomBubbleStyle?: string;
+    dataMessageId?: string;
     onAction?: (action: string, message: Message) => void;
     onUserClick?: (userId: string) => void;
     onRetry?: (messageId: string) => void;
@@ -30,6 +38,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     message,
     showAvatar,
     isBlocked,
+    isHighlighted,
+    roomBubbleStyle,
+    dataMessageId,
     onAction,
     onUserClick,
     onRetry
@@ -38,7 +49,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const [isRevealed, setIsRevealed] = React.useState(false);
     const isOwn = message.sender.userId === user?.userId;
     const isPoll = message.type === 'POLL' && message.poll;
-    const isOnline = useIsUserOnline(message.sender.userId);
+    const { presence } = usePresence(message.sender.userId);
+    const isOnline = presence?.isOnline ?? false;
+    const status = presence?.status ?? 'OFFLINE';
     const isFailed = message.status === 'failed';
     const latestSeenAt = React.useMemo(() => {
         if (!isOwn || !message.readReceipts || message.readReceipts.length === 0) {
@@ -63,10 +76,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }, [message.createdAt]);
 
     return (
-        <div className={cn(
-            "flex w-full gap-3 animate-in fade-in duration-300",
-            isPoll ? "justify-center" : (isOwn ? "flex-row-reverse" : "flex-row")
-        )}>
+        <motion.div
+            data-message-id={dataMessageId}
+            className={cn(
+                "flex w-full gap-3",
+                isPoll ? "justify-center" : (isOwn ? "flex-row-reverse" : "flex-row"),
+                isHighlighted ? "ring-2 ring-primary ring-offset-2 rounded-2xl" : undefined
+            )}
+            initial={UI_MOTION_CONFIG.initialState}
+            animate={UI_MOTION_CONFIG.animateState}
+            variants={UI_MOTION_VARIANTS.fadeIn}
+        >
             {/* Avatar Container */}
             {!isPoll && (
                 <div className="w-10 h-10 flex-shrink-0 mt-auto relative">
@@ -81,10 +101,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                     {message.sender.displayName?.charAt(0)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className={cn(
-                                "absolute bottom-[-1px] right-[-1px] w-3 h-3 rounded-full border-2 border-background shadow-sm",
-                                isOnline ? "bg-green-500" : "bg-muted-foreground"
-                            )} />
+                            <StatusDot
+                                status={status}
+                                isOnline={isOnline}
+                                size="sm"
+                                className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
+                            />
                         </>
                     )}
                 </div>
@@ -114,6 +136,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     ) : (
                         <div className={cn(
                             "px-4 py-3 rounded-3xl relative transition-all duration-300",
+                            roomBubbleStyle,
                             isOwn
                                 ? "bg-primary text-primary-foreground rounded-tr-none neo-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]"
                                 : "glass rounded-tl-none hover:bg-background/40"
@@ -133,8 +156,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                             )}
                             {isBlocked && !isRevealed ? (
                                 <div className="flex items-center gap-2 group/blocked cursor-pointer" onClick={() => setIsRevealed(true)}>
-                                    <span className="italic opacity-70 text-sm">Tin nhắn đã bị ẩn</span>
-                                    <span className="text-[10px] font-bold text-primary opacity-0 group-hover/blocked:opacity-100 transition-opacity uppercase">Xem</span>
+                                    <span className="italic opacity-70 text-sm">{MESSENGER_COPY.message.hidden}</span>
+                                    <span className="text-[10px] font-bold text-primary opacity-0 group-hover/blocked:opacity-100 transition-opacity uppercase">{MESSENGER_COPY.message.revealAction}</span>
                                 </div>
                             ) : (
                                 <MentionText
@@ -182,25 +205,25 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                 isFailed ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                                 isOwn ? "right-2" : "left-2"
                             )}>
-                                <span className="text-[9px] font-bold uppercase tracking-tighter opacity-70">
+                                <span className="text-[9px] font-bold uppercase tracking-tighter">
                                     {format(createdAt, 'HH:mm')}
                                 </span>
                                 {!message.isDeleted && message.updatedAt && message.updatedAt !== message.createdAt && (
                                     <button type="button" onClick={() => handleAction('view-history')} className="text-[9px] font-black uppercase text-amber-600 hover:text-amber-500">
-                                        Da sua
+                                        {MESSENGER_COPY.message.historyLabel}
                                     </button>
                                 )}
                                 {isOwn && (
                                     latestSeenAt ? (
                                         <button type="button" onClick={() => handleAction('view-seen')} className="text-[9px] font-black uppercase text-primary">
-                                            Da xem
+                                            {MESSENGER_COPY.message.seenLabel}
                                         </button>
                                     ) : (
                                         <span className={cn(
                                             "text-[9px] font-black uppercase",
                                             message.status === 'failed' ? "text-destructive" : "text-primary"
                                         )}>
-                                            {message.status === 'sending' ? 'Đang gửi...' : message.status === 'failed' ? 'Không gửi được' : 'Đã gửi'}
+                                            {message.status === 'sending' ? MESSENGER_COPY.message.sending : message.status === 'failed' ? MESSENGER_COPY.message.failed : MESSENGER_COPY.message.sent}
                                         </span>
                                     )
                                 )}
@@ -212,7 +235,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                         <button
                             onClick={() => onRetry?.(message.messageId)}
                             className="ml-1 p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-full transition-colors flex z-10 items-center justify-center cursor-pointer"
-                            title="Thử gửi lại"
+                            title={MESSENGER_COPY.message.retryTitle}
                         >
                             <RefreshCw size={14} className="stroke-[2.5px]" />
                         </button>
@@ -237,21 +260,21 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                         className="gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-xs font-bold cursor-pointer"
                                     >
                                         <Reply size={14} className="text-primary" />
-                                        <span>Trả lời</span>
+                                        <span>{MESSENGER_COPY.message.replyLabel}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                         onClick={() => handleAction('copy')}
                                         className="gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-xs font-bold cursor-pointer"
                                     >
                                         <Copy size={14} className="text-primary" />
-                                        <span>Sao chép</span>
+                                        <span>{MESSENGER_COPY.message.copyLabel}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                         onClick={() => handleAction('pin')}
                                         className="gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-xs font-bold cursor-pointer"
                                     >
                                         <Pin size={14} className="text-primary" />
-                                        <span>Ghim</span>
+                                        <span>{MESSENGER_COPY.message.pinLabel}</span>
                                     </DropdownMenuItem>
                                     {isOwn && (
                                         <>
@@ -262,7 +285,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                                     className="gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-xs font-bold cursor-pointer"
                                                 >
                                                     <Pencil size={14} className="text-primary" />
-                                                    <span>Sửa</span>
+                                                    <span>{MESSENGER_COPY.message.editLabel}</span>
                                                 </DropdownMenuItem>
                                             )}
                                             <DropdownMenuItem
@@ -270,7 +293,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                                 className="gap-3 px-3 py-2.5 rounded-xl hover:bg-destructive/10 text-destructive transition-colors text-xs font-bold cursor-pointer"
                                             >
                                                 <Trash2 size={14} />
-                                                <span>Xóa bộ nhớ</span>
+                                                <span>{MESSENGER_COPY.message.deleteLabel}</span>
                                             </DropdownMenuItem>
                                         </>
                                     )}
@@ -281,15 +304,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                 </div>
 
                 {message.reactions && message.reactions.length > 0 && (
-                    <div className={cn("px-2", isOwn ? "flex justify-end" : "")}>
-                        <ReactionDisplay
+                    <div className={cn("px-2", isOwn ? "flex justify-end" : "") }>
+                        <ReactionBadgeList
                             reactions={message.reactions}
-                            conversationId={message.conversationId}
                             messageId={message.messageId}
                         />
                     </div>
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 };

@@ -1,428 +1,519 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useMessenger } from '@/features/messenger/model/useMessenger';
-import { Send, Smile, Paperclip, Image, Mic, BarChart3 } from 'lucide-react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
-import type { EmojiClickData } from 'emoji-picker-react';
-import { cn } from '@/shared/lib/cn';
-import { MentionMenu } from './MentionMenu';
-import { getMentionQuery, insertMention } from '../../utils/mention.utils';
-import { CreatePollModal } from '../Poll/CreatePollModal';
-import { createPoll } from '../../api/poll.api';
-import { friendApi } from '@/features/relationships/api/friends.api';
-import { useMessengerStore } from '@/features/messenger/model/messenger.store';
-import { useAuthStore } from '@/features/auth/model/auth.store';
-import { useFriendStore } from '@/features/relationships/model/friend.store';
-import type { CreatePollRequest } from '../../types/messenger.types';
-import type { Attachment, Message } from '../../types/messenger.types';
+﻿import React, { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import EmojiPicker, { Theme } from "emoji-picker-react";
+import type { EmojiClickData } from "emoji-picker-react";
+import { notifyError, notifySuccess, notifyWarning } from "@/shared/lib/notification";
+import { useMessenger } from "@/features/messenger/model/useMessenger";
+import { useMessengerStore } from "@/features/messenger/model/messenger.store";
+import { useAuthStore } from "@/features/auth/model/auth.store";
+import { useFriendStore } from "@/features/relationships/model/friend.store";
+import { Textarea } from "@/shared/ui/Textarea";
+import { CreatePollModal } from "../Poll/CreatePollModal";
+import { friendApi } from "@/features/relationships/api/friends.api";
+import { createPoll } from "../../api/poll.api";
+import { getMentionQuery, insertMention } from "../../utils/mention.utils";
+import { MessageInputBlockedState } from "./components/MessageInputBlockedState";
+import { MessageInputDraftPanel } from "./components/MessageInputDraftPanel";
+import { MessageInputToolbar } from "./components/MessageInputToolbar";
+import type { Attachment, CreatePollRequest, Message } from "../../types/messenger.types";
+import { MentionMenu } from "./MentionMenu";
+import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 
 interface MessageInputProps {
-    replyingTo?: Message | null;
-    editingMessage?: Message | null;
-    onCancelReply?: () => void;
-    onCancelEdit?: () => void;
+  replyingTo?: Message | null;
+  editingMessage?: Message | null;
+  onCancelReply?: () => void;
+  onCancelEdit?: () => void;
 }
 
+const MAX_FILES_PER_MESSAGE = 10;
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_MEDIA_TYPES = ["image/", "video/", "audio/"];
+const ALLOWED_EXACT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+  "text/csv",
+]);
+const ALLOWED_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "txt",
+  "csv",
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "mp4",
+  "avi",
+  "mov",
+  "wmv",
+  "webm",
+  "mp3",
+  "wav",
+  "ogg",
+  "m4a",
+  "aac",
+]);
+
 export const MessageInput: React.FC<MessageInputProps> = ({
-    replyingTo,
-    editingMessage,
-    onCancelReply,
-    onCancelEdit,
+  replyingTo,
+  editingMessage,
+  onCancelReply,
+  onCancelEdit,
 }) => {
-    const [text, setText] = useState('');
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const [showPollModal, setShowPollModal] = useState(false);
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
-    // Use ref instead of state to avoid re-triggering the typing useEffect on flag change
-    const isTypingRef = useRef(false);
-    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
+  const fetchBlockedUsers = useFriendStore((state) => state.fetchBlockedUsers);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const isTypingRef = useRef(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSendingRef = useRef(false);
+  const conversationsFromStore = useMessengerStore((state) => state.conversations);
+  const user = useAuthStore((state) => state.user);
+  const unblockFriend = useFriendStore((state) => state.unblockFriend);
 
-    // Mention state
-    const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.content);
+    }
+  }, [editingMessage]);
 
-    // Block state
-    const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
-    const conversations = useMessengerStore(state => state.conversations);
-    const user = useAuthStore(state => state.user);
-    const unblockFriend = useFriendStore(state => state.unblockFriend);
+  useEffect(() => {
+    if (!activeConversationId) {
+      setBlockStatus(null);
+      return;
+    }
 
-    useEffect(() => {
-        if (editingMessage) {
-            setText(editingMessage.content);
-        }
-    }, [editingMessage]);
-
-    // Fetch block status when conversation changes
-    useEffect(() => {
-        let isMounted = true;
-        if (!activeConversationId) {
-            setBlockStatus(null);
-            return;
-        }
-        const conv = conversations.find(c => c.conversationId === activeConversationId);
-        if (conv?.type === 'dm' && conv.otherParticipant?.userId) {
-            friendApi.checkBlockStatus(conv.otherParticipant.userId)
-                .then(status => {
-                    if (isMounted) setBlockStatus(status);
-                })
-                .catch(err => console.error("[MessageInput] Failed to check block status", err));
-        } else {
-            setBlockStatus(null);
-        }
-
-        return () => {
-            isMounted = false;
-        };
-    }, [activeConversationId, conversations]);
-
-    // Track cursor position for mention detection
-    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newText = e.target.value;
-        setText(newText);
-
-        // Detect mention query
-        const cursorPos = e.target.selectionStart ?? newText.length;
-        const query = getMentionQuery(newText, cursorPos);
-        setMentionQuery(query);
-    };
-
-    // Handle mention selection from MentionMenu
-    const handleMentionSelect = useCallback((userId: string, displayName: string) => {
-        const textarea = textareaRef.current;
-        const cursorPos = textarea?.selectionStart ?? text.length;
-
-        const { newContent, newCursorPos } = insertMention(text, cursorPos, userId, displayName);
-        setText(newContent);
-        setMentionQuery(null);
-
-        // Restore cursor position after React re-render
-        requestAnimationFrame(() => {
-            if (textarea) {
-                textarea.focus();
-                textarea.setSelectionRange(newCursorPos, newCursorPos);
-            }
+    const conv = conversationsFromStore.find((item) => item.conversationId === activeConversationId);
+    if (conv?.type === "dm" && conv.otherParticipant?.userId) {
+      let isMounted = true;
+      friendApi
+        .checkBlockStatus(conv.otherParticipant.userId)
+        .then((status) => {
+          if (isMounted) {
+            setBlockStatus(status);
+          }
+        })
+        .catch((error) => {
+          console.error("[MessageInput] Failed to check block status", error);
         });
-    }, [text]);
 
-    const handleMentionClose = useCallback(() => {
-        setMentionQuery(null);
-    }, []);
-
-    // Typing effect: only depends on text + sendTyping, not on the flag itself
-    useEffect(() => {
-        if (text.length > 0) {
-            if (!isTypingRef.current) {
-                // First keystroke — announce typing
-                isTypingRef.current = true;
-                sendTyping(true);
-            }
-            // Reset 2-second inactivity timer
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = setTimeout(() => {
-                isTypingRef.current = false;
-                sendTyping(false);
-            }, 2000);
-        } else {
-            // Text cleared — stop typing immediately
-            if (isTypingRef.current) {
-                isTypingRef.current = false;
-                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                sendTyping(false);
-            }
-        }
-
-        return () => {
-            // Clear typing timeout on unmount to prevent memory leak
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        };
-    }, [text, sendTyping]);
-
-    const handleSend = useCallback(async () => {
-        if (!text.trim() && selectedFiles.length === 0) return;
-
-        // Stop typing indicator immediately when message is sent
-        if (isTypingRef.current) {
-            isTypingRef.current = false;
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            sendTyping(false);
-        }
-        setMentionQuery(null);
-
-        let attachments: Attachment[] = [];
-        if (selectedFiles.length > 0) {
-            attachments = (await uploadMessageFiles(selectedFiles)) ?? [];
-        }
-
-        if (editingMessage) {
-            await editMessage(editingMessage.messageId, text.trim());
-            onCancelEdit?.();
-        } else {
-            const hasMedia = attachments.some(attachment => {
-                const contentType = attachment.contentType ?? attachment.mimeType ?? '';
-                return contentType.startsWith('image/') || contentType.startsWith('video/');
-            });
-            const messageType = attachments.length > 0 ? (hasMedia ? 'IMAGE' : 'FILE') : 'TEXT';
-            await sendMessage(text, messageType, {
-                replyToId: replyingTo?.messageId,
-                attachments,
-            });
-            onCancelReply?.();
-        }
-        setText('');
-        setSelectedFiles([]);
-        setShowEmojiPicker(false);
-
-        // Reset textarea height
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-        }
-    }, [selectedFiles, sendMessage, text, sendTyping, uploadMessageFiles, editingMessage, editMessage, onCancelEdit, replyingTo, onCancelReply]);
-
-    const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
-        try {
-            await createPoll(data);
-            showToast('Bình chọn đã được tạo');
-        } catch (err) {
-            console.error('[MessageInput] Failed to create poll:', err);
-            showToast('Lỗi khi tạo bình chọn');
-        }
-    }, []);
-
-    const showToast = (message: string) => {
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(null), 3000);
-    };
-
-    const showFeaturePlaceholder = (featureName: string) => {
-        showToast(`Tính năng ${featureName} đang phát triển`);
-    };
-
-    const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(event.target.files ?? []);
-        if (files.length === 0) {
-            return;
-        }
-        setSelectedFiles(prev => [...prev, ...files]);
-        event.target.value = '';
-    };
-
-    const removeSelectedFile = (index: number) => {
-        setSelectedFiles(prev => prev.filter((_, fileIndex) => fileIndex !== index));
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        // Let MentionMenu handle keyboard when it's open
-        if (mentionQuery !== null) {
-            if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
-                return; // MentionMenu's global keydown handler will catch this
-            }
-        }
-
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            void handleSend();
-        }
-    };
-
-    const onEmojiClick = (emojiData: EmojiClickData) => {
-        setText(prev => prev + emojiData.emoji);
-    };
-
-    const handleUnblock = async () => {
-        const conv = conversations.find(c => c.conversationId === activeConversationId);
-        if (conv?.otherParticipant?.userId && user?.userId) {
-            await unblockFriend(user.userId, conv.otherParticipant.userId);
-            // Refresh block status after unblocking
-            const newStatus = await friendApi.checkBlockStatus(conv.otherParticipant.userId);
-            setBlockStatus(newStatus);
-        }
-    };
-
-    if (blockStatus?.hasBlocked) {
-        return (
-            <div className="flex flex-col items-center justify-center p-4 glass rounded-[2rem] neo-shadow gap-3">
-                <span className="text-muted-foreground font-medium text-sm">Bạn đã chặn người dùng này.</span>
-                <button
-                    onClick={handleUnblock}
-                    className="px-5 py-2 bg-primary text-primary-foreground rounded-xl font-bold hover:opacity-90 transition-opacity text-sm shadow-md"
-                >
-                    Bỏ chặn
-                </button>
-            </div>
-        );
+      return () => {
+        isMounted = false;
+      };
     }
 
-    if (blockStatus?.isBlockedBy) {
-        return (
-            <div className="flex items-center justify-center p-4 glass rounded-[2rem] neo-shadow">
-                <span className="text-muted-foreground font-medium text-sm">Bạn không thể gửi tin nhắn cho người này.</span>
-            </div>
-        );
+    setBlockStatus(null);
+  }, [activeConversationId, conversationsFromStore]);
+
+  const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextText = event.target.value;
+    setText(nextText);
+    const cursorPos = event.target.selectionStart ?? nextText.length;
+    setMentionQuery(getMentionQuery(nextText, cursorPos));
+  };
+
+  const handleMentionSelect = useCallback(
+    (userId: string, displayName: string) => {
+      const textarea = textareaRef.current;
+      const cursorPos = textarea?.selectionStart ?? text.length;
+      const { newContent, newCursorPos } = insertMention(text, cursorPos, userId, displayName);
+
+      setText(newContent);
+      setMentionQuery(null);
+
+      requestAnimationFrame(() => {
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPos, newCursorPos);
+      });
+    },
+    [text],
+  );
+
+  const handleMentionClose = useCallback(() => {
+    setMentionQuery(null);
+  }, []);
+
+  const validateFile = useCallback((file: File): string | null => {
+    if (file.size <= 0) {
+      return MESSENGER_COPY.messageInput.actionError.fileInvalid(file.name);
     }
 
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return MESSENGER_COPY.messageInput.actionError.fileTooLarge(file.name);
+    }
+
+    const mimeType = (file.type || "").toLowerCase();
+    const extension = file.name.includes(".")
+      ? file.name.substring(file.name.lastIndexOf(".") + 1).toLowerCase()
+      : "";
+    const hasAllowedPrefix = ALLOWED_MEDIA_TYPES.some((prefix) => mimeType.startsWith(prefix));
+    const hasAllowedType = ALLOWED_EXACT_TYPES.has(mimeType) || (extension && ALLOWED_EXTENSIONS.has(extension));
+
+    if (!hasAllowedPrefix && !hasAllowedType) {
+      return MESSENGER_COPY.messageInput.actionError.fileUnsupportedType(file.name);
+    }
+
+    return null;
+  }, []);
+
+  const buildValidFiles = useCallback((files: File[]): { validFiles: File[]; invalidMessages: string[] } => {
+    const normalized = files.filter((file) => !!file && !!file.name);
+    const validFiles: File[] = [];
+    const invalidMessages: string[] = [];
+
+    normalized.forEach((file) => {
+      const validationError = validateFile(file);
+      if (validationError) {
+        invalidMessages.push(validationError);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    return { validFiles, invalidMessages };
+  }, [validateFile]);
+
+  useEffect(() => {
+    if (text.length > 0) {
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        sendTyping(true);
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        sendTyping(false);
+      }, 2000);
+      return;
+    }
+
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      sendTyping(false);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [text, sendTyping]);
+
+  const showSuccess = (message: string) => notifySuccess(message);
+  const showError = (message: string) => notifyError(message);
+  const showWarning = (message: string, options?: Parameters<typeof notifyWarning>[1]) => notifyWarning(message, options);
+  const showFeaturePlaceholder = (featureName: string) => {
+    showWarning(MESSENGER_COPY.messageInput.actionError.toastInvalidFeature(featureName));
+  };
+
+  const clearTypingState = useCallback(() => {
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      sendTyping(false);
+    }
+  }, [sendTyping]);
+
+  const handleSend = useCallback(async () => {
+    const hasText = text.trim().length > 0;
+    const hasFiles = selectedFiles.length > 0;
+
+    if (!hasText && !hasFiles) return;
+    if (!activeConversationId) {
+      showError(MESSENGER_COPY.messageInput.actionError.noConversationToSend);
+      return;
+    }
+    if (isSendingRef.current) return;
+
+    clearTypingState();
+    setMentionQuery(null);
+    setIsSending(true);
+    isSendingRef.current = true;
+    const trimmedText = text.trim();
+
+    try {
+      let attachments: Attachment[] = [];
+
+      if (!editingMessage && selectedFiles.length > 0) {
+        const { validFiles, invalidMessages } = buildValidFiles(selectedFiles);
+
+        invalidMessages.forEach((error) => {
+          showWarning(error, { icon: "ðŸ˜¢" });
+        });
+
+        if (validFiles.length === 0) {
+          showError(MESSENGER_COPY.messageInput.actionSuccess.noValidFileToSend);
+          return;
+        }
+
+        const uploadedAttachments = await uploadMessageFiles(validFiles);
+        if (!uploadedAttachments || uploadedAttachments.length === 0) {
+          showError(MESSENGER_COPY.messageInput.actionSuccess.uploadFailed);
+          return;
+        }
+
+        if (uploadedAttachments.length < validFiles.length) {
+          const rejectedCount = validFiles.length - uploadedAttachments.length;
+          showError(MESSENGER_COPY.messageInput.actionSuccess.uploadShortage(rejectedCount));
+        }
+
+        attachments = uploadedAttachments;
+      } else if (editingMessage && hasFiles) {
+        showWarning(MESSENGER_COPY.messageInput.actionError.attachmentDisabledDuringEdit(), { icon: "ðŸ˜¢" });
+      }
+
+      if (editingMessage) {
+        await editMessage(editingMessage.messageId, trimmedText);
+        onCancelEdit?.();
+        showSuccess(MESSENGER_COPY.messageInput.actionSuccess.editSuccess);
+      } else {
+        const hasImageOrVideo = attachments.some((attachment) => {
+          const contentType = attachment.contentType ?? attachment.mimeType ?? "";
+          return contentType.startsWith("image/") || contentType.startsWith("video/");
+        });
+        const messageType = attachments.length > 0 ? (hasImageOrVideo ? "IMAGE" : "FILE") : "TEXT";
+        await sendMessage(trimmedText, messageType, {
+          replyToId: replyingTo?.messageId,
+          attachments,
+        });
+        onCancelReply?.();
+        showSuccess(MESSENGER_COPY.messageInput.actionSuccess.sendSuccess);
+      }
+
+      setText("");
+      setSelectedFiles([]);
+      setShowEmojiPicker(false);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+    } catch (error) {
+      console.error("[MessageInput] Failed to send message:", error);
+      showError(MESSENGER_COPY.messageInput.actionSuccess.sendFailure);
+    } finally {
+      isSendingRef.current = false;
+      setIsSending(false);
+    }
+  }, [
+    activeConversationId,
+    clearTypingState,
+    editMessage,
+    editingMessage,
+    onCancelEdit,
+    onCancelReply,
+    replyingTo?.messageId,
+    selectedFiles,
+    sendMessage,
+    text,
+    buildValidFiles,
+    uploadMessageFiles,
+  ]);
+
+  const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
+    try {
+      await createPoll(data);
+      showSuccess(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreated);
+    } catch (error) {
+      console.error("[MessageInput] Failed to create poll:", error);
+      showError(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError);
+    }
+  }, []);
+
+  const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    const { validFiles, invalidMessages } = buildValidFiles(files);
+
+    invalidMessages.forEach((message) => {
+      showWarning(message, { icon: "ðŸ˜¢" });
+    });
+
+    if (validFiles.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedFiles((current) => {
+      const remainingSlots = MAX_FILES_PER_MESSAGE - current.length;
+      if (remainingSlots <= 0) {
+        showWarning(MESSENGER_COPY.messageInput.actionSuccess.maxFilesPerMessage);
+        return current.slice(0, MAX_FILES_PER_MESSAGE);
+      }
+
+      const accepted = validFiles.slice(0, remainingSlots);
+      if (accepted.length < validFiles.length) {
+        showWarning(MESSENGER_COPY.messageInput.actionSuccess.fileExtraAllowed(remainingSlots));
+      }
+
+      return [...current, ...accepted];
+    });
+
+    event.target.value = "";
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (mentionQuery !== null) {
+      if (["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+        return;
+      }
+    }
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend();
+    }
+  };
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setText((current) => current + emojiData.emoji);
+  };
+
+  const handleUnblock = async () => {
+    const conv = conversationsFromStore.find((conversation) => conversation.conversationId === activeConversationId);
+    if (conv?.otherParticipant?.userId && user?.userId) {
+      await unblockFriend(conv.otherParticipant.userId);
+      const status = await friendApi.checkBlockStatus(conv.otherParticipant.userId);
+      setBlockStatus(status);
+      void fetchBlockedUsers();
+    }
+  };
+
+  if (blockStatus?.hasBlocked || blockStatus?.isBlockedBy) {
     return (
-        <div className="relative">
-            {/* Toast Notification */}
-            {toastMessage && (
-                <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 fade-in duration-300">
-                    <div className="bg-card glass border border-border/50 neo-shadow px-6 py-3 rounded-2xl flex items-center gap-3">
-                        <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Emoji Picker Popover */}
-            {showEmojiPicker && (
-                <div className="absolute bottom-full mb-4 left-0 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <div className="neo-shadow rounded-2xl overflow-hidden glass border-2 border-border/50">
-                        <EmojiPicker
-                            onEmojiClick={onEmojiClick}
-                            theme={Theme.AUTO}
-                            width={320}
-                            height={400}
-                            lazyLoadEmojis={true}
-                            searchPlaceHolder="Tìm emoji..."
-                        />
-                    </div>
-                    {/* Backdrop to close */}
-                    <div className="fixed inset-0 z-[-1]" onClick={() => setShowEmojiPicker(false)} />
-                </div>
-            )}
-
-            {/* Mention Menu */}
-            {activeConversationId && (
-                <MentionMenu
-                    conversationId={activeConversationId}
-                    query={mentionQuery}
-                    onSelect={handleMentionSelect}
-                    onClose={handleMentionClose}
-                />
-            )}
-
-            {/* Poll Create Modal */}
-            {activeConversationId && (
-                <CreatePollModal
-                    conversationId={activeConversationId}
-                    isOpen={showPollModal}
-                    onClose={() => setShowPollModal(false)}
-                    onSubmit={handleCreatePoll}
-                />
-            )}
-
-            <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-all duration-300 focus-within:ring-2 ring-primary/20">
-                {(replyingTo || editingMessage || selectedFiles.length > 0) && (
-                    <div className="px-4 pt-3 space-y-2">
-                        {replyingTo && !editingMessage && (
-                            <div className="flex items-start justify-between gap-3 rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-primary">Đang trả lời</p>
-                                    <p className="text-xs font-semibold text-foreground/80 line-clamp-2">{replyingTo.content || 'Tin nhắn đính kèm'}</p>
-                                </div>
-                                <button onClick={onCancelReply} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary">Hủy</button>
-                            </div>
-                        )}
-                        {editingMessage && (
-                            <div className="flex items-start justify-between gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 px-4 py-3">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Đang chỉnh sửa</p>
-                                    <p className="text-xs font-semibold text-foreground/80 line-clamp-2">{editingMessage.content}</p>
-                                </div>
-                                <button onClick={onCancelEdit} className="text-[10px] font-bold uppercase text-muted-foreground hover:text-primary">Hủy</button>
-                            </div>
-                        )}
-                        {selectedFiles.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                                {selectedFiles.map((file, index) => (
-                                    <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-xl bg-background/60 border border-border/50 px-3 py-2 text-xs font-semibold">
-                                        <span className="max-w-[180px] truncate">{file.name}</span>
-                                        <button onClick={() => removeSelectedFile(index)} className="text-muted-foreground hover:text-destructive">X</button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-                <div className="flex items-end gap-2 px-2">
-                    {/* Attachment Options */}
-                    <div className="flex gap-1 mb-1.5">
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
-                            title="Đính kèm file"
-                        >
-                            <Paperclip size={20} />
-                        </button>
-                        <button
-                            onClick={() => mediaInputRef.current?.click()}
-                            className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
-                            title="Gửi Ảnh / Video"
-                        >
-                            <Image size={20} />
-                        </button>
-                        <button
-                            onClick={() => setShowPollModal(true)}
-                            className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
-                            title="Tạo bình chọn"
-                        >
-                            <BarChart3 size={20} />
-                        </button>
-                    </div>
-
-                    <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
-                    <input ref={mediaInputRef} type="file" className="hidden" accept="image/*,video/*" multiple onChange={handleFilesSelected} />
-
-                    <div className="flex-1 px-2 py-1">
-                        <textarea
-                            ref={textareaRef}
-                            value={text}
-                            onChange={handleTextChange}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Viết tin nhắn của bạn... (Gõ @ để nhắc đến)"
-                            rows={1}
-                            className="w-full bg-transparent border-none focus:ring-0 text-sm font-medium placeholder:text-muted-foreground/40 py-3 block resize-none custom-scrollbar max-h-32 outline-none"
-                            style={{ height: 'auto' }}
-                            onInput={(e) => {
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = 'auto';
-                                target.style.height = `${target.scrollHeight}px`;
-                            }}
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-1 mb-1.5">
-                        <button
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className={cn(
-                                "p-2.5 rounded-xl transition-all",
-                                showEmojiPicker ? "bg-primary text-primary-foreground neo-shadow" : "hover:bg-primary/10 text-muted-foreground hover:text-primary"
-                            )}
-                            title="Biểu tượng cảm xúc"
-                        >
-                            <Smile size={20} />
-                        </button>
-                        <button
-                            onClick={() => showFeaturePlaceholder('Ghi âm')}
-                            className="p-2.5 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-primary transition-all"
-                            title="Ghi âm giọng nói"
-                        >
-                            <Mic size={20} />
-                        </button>
-
-                        <button
-                            onClick={handleSend}
-                            disabled={!text.trim() && selectedFiles.length === 0}
-                            className="ml-2 w-11 h-11 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center neo-shadow hover:translate-x-[1px] hover:translate-y-[1px] transition-all disabled:opacity-30 disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-none group"
-                        >
-                            <Send size={20} className="group-hover:rotate-12 transition-transform" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+      <MessageInputBlockedState
+        hasBlocked={blockStatus?.hasBlocked}
+        isBlockedBy={blockStatus?.isBlockedBy}
+        onUnblock={handleUnblock}
+      />
     );
+  }
+
+  return (
+    <div className="relative">
+      {showEmojiPicker && (
+        <motion.div
+          className="absolute bottom-full mb-4 left-0 z-50"
+          initial={UI_MOTION_CONFIG.initialState}
+          animate={UI_MOTION_CONFIG.animateState}
+          variants={UI_MOTION_VARIANTS.slideInFromBottom}
+        >
+          <div className="neo-shadow rounded-2xl overflow-hidden glass border-2 border-border/50">
+            <EmojiPicker
+              onEmojiClick={onEmojiClick}
+              theme={Theme.AUTO}
+              width={320}
+              height={400}
+              lazyLoadEmojis
+              searchPlaceHolder={MESSENGER_COPY.messageInput.toolbar.searchEmoji}
+            />
+          </div>
+          <div className="fixed inset-0 z-[-1]" onClick={() => setShowEmojiPicker(false)} />
+        </motion.div>
+      )}
+
+      {activeConversationId && (
+        <MentionMenu conversationId={activeConversationId} query={mentionQuery} onSelect={handleMentionSelect} onClose={handleMentionClose} />
+      )}
+
+      {activeConversationId && (
+        <CreatePollModal
+          conversationId={activeConversationId}
+          isOpen={showPollModal}
+          onClose={() => setShowPollModal(false)}
+          onSubmit={handleCreatePoll}
+        />
+      )}
+
+      <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-all duration-300 focus-within:ring-2 ring-primary/20">
+        <MessageInputDraftPanel
+          replyingTo={replyingTo}
+          editingMessage={editingMessage}
+          selectedFiles={selectedFiles}
+          onCancelReply={onCancelReply}
+          onCancelEdit={onCancelEdit}
+          onRemoveFile={removeSelectedFile}
+        />
+
+        <div className="flex items-end gap-2 px-2">
+          <MessageInputToolbar
+            onAttachFile={() => fileInputRef.current?.click()}
+            onAttachMedia={() => mediaInputRef.current?.click()}
+            onOpenPoll={() => setShowPollModal(true)}
+            onToggleEmoji={() => setShowEmojiPicker((isOpen) => !isOpen)}
+            showEmojiPicker={showEmojiPicker}
+            onShowVoice={() => showFeaturePlaceholder(MESSENGER_COPY.messageInput.toolbar.voiceFeatureLabel)}
+            onSend={() => void handleSend()}
+            canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
+          />
+
+          <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
+          <input
+            ref={mediaInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,video/*,audio/*"
+            multiple
+            onChange={handleFilesSelected}
+          />
+
+          <div className="flex-1 px-2 py-1">
+            <Textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              placeholder={MESSENGER_COPY.messageInput.placeholder}
+              rows={1}
+              className="border-0 bg-transparent p-0 py-3 text-sm font-medium placeholder:text-muted-foreground/40 outline-none custom-scrollbar max-h-32"
+              style={{ height: "auto" }}
+              onInput={(event) => {
+                const target = event.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = `${target.scrollHeight}px`;
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
+
+export default MessageInput;
+

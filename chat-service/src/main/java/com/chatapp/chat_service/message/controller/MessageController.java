@@ -1,7 +1,6 @@
 package com.chatapp.chat_service.message.controller;
 
 import com.chatapp.chat_service.common.dto.ApiResponse;
-import com.chatapp.chat_service.kafka.KafkaEventProducer;
 import com.chatapp.chat_service.message.dto.AggregatedReactionDto;
 import com.chatapp.chat_service.message.dto.MessageAttachmentDto;
 import com.chatapp.chat_service.message.dto.MessageReactionDto;
@@ -11,9 +10,10 @@ import com.chatapp.chat_service.message.dto.MessageResponseDto;
 import com.chatapp.chat_service.message.dto.UpdateMessageRequest;
 import com.chatapp.chat_service.message.entity.MessageReadReceipt;
 import com.chatapp.chat_service.message.entity.PinnedMessage;
-import com.chatapp.chat_service.message.event.MessageEvent;
 import com.chatapp.chat_service.message.service.MessageEnhancementService;
 import com.chatapp.chat_service.message.service.MessageService;
+import com.chatapp.chat_service.security.core.SecurityContextHelper;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,27 +34,18 @@ public class MessageController {
 
     private final MessageService messageService;
     private final MessageEnhancementService enhancementService;
-    private final KafkaEventProducer kafkaEventProducer;
+    private final SecurityContextHelper securityContextHelper;
 
     @PostMapping
-    public ResponseEntity<MessageResponseDto> sendMessage(@RequestBody MessageRequest request, Authentication authentication) {
-        UUID senderId = extractUserIdFromAuthentication(authentication);
+    public ResponseEntity<MessageResponseDto> sendMessage(@Valid @RequestBody MessageRequest request, Authentication authentication) {
+        UUID senderId = securityContextHelper.getCurrentUserId(authentication);
         request.setSenderId(senderId);
-        
-        MessageEvent kafkaEvent = MessageEvent.forKafkaProcessing(request);
-        kafkaEventProducer.sendMessageEvent(kafkaEvent);
-        
-        MessageResponseDto ack = MessageResponseDto.builder()
-                .conversationId(request.getConversationId())
-                .content(request.getContent())
-                .messageType(request.getType())
-                .createdAt(java.time.Instant.now())
-                .build();
-        return ResponseEntity.ok(ack);
+        MessageResponseDto response = messageService.sendMessage(request);
+        return ResponseEntity.ok(response);
     }
 
     /**
-     * Lấy tin nhắn mới nhất của conversation
+     * Láº¥y tin nháº¯n má»›i nháº¥t cá»§a conversation
      * GET /api/messages/{conversationId}?size=20&page=0
      */
     @GetMapping("/{conversationId}")
@@ -64,15 +55,15 @@ public class MessageController {
             @RequestParam(defaultValue = "0") int page,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100)); 
+        securityContextHelper.getCurrentUserId(authentication);
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(size, 100));
         return ResponseEntity.ok(
                 messageService.getLatestMessages(conversationId, pageable)
         );
     }
 
     /**
-     * Lấy tin nhắn mới nhất của conversation (API đơn giản)
+     * Láº¥y tin nháº¯n má»›i nháº¥t cá»§a conversation (API Ä‘Æ¡n giáº£n)
      * GET /api/messages/conversations/{conversationId}?limit=20
      */
     @GetMapping("/conversations/{conversationId}")
@@ -81,20 +72,20 @@ public class MessageController {
             @RequestParam(defaultValue = "20") int limit,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        securityContextHelper.getCurrentUserId(authentication);
         Pageable pageable = PageRequest.of(0, Math.min(limit, 100));
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getLatestMessages(conversationId, pageable);
-        
+
         ApiResponse<org.springframework.data.domain.Slice<MessageResponseDto>> response = ApiResponse.success(
-            "Get messages of conversation successfully", 
-            messages
+                "Get messages of conversation successfully",
+                messages
         );
-        
+
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Lấy tin nhắn cũ hơn một message nhất định (pagination thủ công)
+     * Láº¥y tin nháº¯n cÅ© hÆ¡n má»™t message nháº¥t Ä‘á»‹nh (pagination thá»§ cÃ´ng)
      * GET /api/messages/conversations/{conversationId}/older?beforeMessageId={messageId}
      */
     @GetMapping("/conversations/{conversationId}/older")
@@ -104,20 +95,20 @@ public class MessageController {
             @RequestParam(defaultValue = "20") int limit,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        securityContextHelper.getCurrentUserId(authentication);
         Pageable pageable = PageRequest.of(0, limit);
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getOlderMessages(conversationId, beforeMessageId, pageable);
-        
+
         ApiResponse<org.springframework.data.domain.Slice<MessageResponseDto>> response = ApiResponse.success(
-            "Get older messages successfully", 
-            messages
+                "Get older messages successfully",
+                messages
         );
-        
+
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Lấy tin nhắn với filter thời gian
+     * Láº¥y tin nháº¯n vá»›i filter thá»i gian
      * GET /api/messages/conversations/{conversationId}/filtered?before=2024-01-01T10:00:00&after=2024-01-01T09:00:00&size=20
      */
     @GetMapping("/conversations/{conversationId}/filtered")
@@ -129,18 +120,17 @@ public class MessageController {
             @RequestParam(defaultValue = "0") int page,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+        securityContextHelper.getCurrentUserId(authentication);
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(size, 100));
         org.springframework.data.domain.Slice<MessageResponseDto> messages = messageService.getConversationMessages(conversationId, before, after, pageable);
-        
+
         ApiResponse<org.springframework.data.domain.Slice<MessageResponseDto>> response = ApiResponse.success(
-            "Get filtered messages successfully", 
-            messages
+                "Get filtered messages successfully",
+                messages
         );
-        
+
         return ResponseEntity.ok(response);
     }
-
 
     @PostMapping("/{conversationId}/{messageId}/attachments")
     public ResponseEntity<MessageAttachmentDto> addAttachment(
@@ -149,7 +139,7 @@ public class MessageController {
             @RequestBody MessageAttachmentDto attachmentDto,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        UUID userId = securityContextHelper.getCurrentUserId(authentication);
         MessageAttachmentDto result = enhancementService.addAttachment(conversationId, messageId, attachmentDto, userId);
         return ResponseEntity.ok(result);
     }
@@ -160,7 +150,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        UUID userId = securityContextHelper.getCurrentUserId(authentication);
         List<MessageAttachmentDto> attachments = enhancementService.getMessageAttachments(conversationId, messageId, userId);
         return ResponseEntity.ok(attachments);
     }
@@ -173,7 +163,7 @@ public class MessageController {
             @PathVariable String emoji,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        UUID userId = securityContextHelper.getCurrentUserId(authentication);
         enhancementService.toggleReaction(conversationId, messageId, emoji, userId);
         return ResponseEntity.ok().build();
     }
@@ -184,11 +174,10 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID currentUserId = extractUserIdFromAuthentication(authentication);
+        UUID currentUserId = securityContextHelper.getCurrentUserId(authentication);
         List<AggregatedReactionDto> reactions = enhancementService.getMessageReactions(conversationId, messageId, currentUserId);
         return ResponseEntity.ok(reactions);
     }
-
 
     @PostMapping("/{conversationId}/{messageId}/read")
     public ResponseEntity<Void> markAsRead(
@@ -196,7 +185,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID readerId = extractUserIdFromAuthentication(authentication);
+        UUID readerId = securityContextHelper.getCurrentUserId(authentication);
         enhancementService.markAsRead(conversationId, messageId, readerId);
         return ResponseEntity.ok().build();
     }
@@ -208,7 +197,7 @@ public class MessageController {
             @RequestBody UpdateMessageRequest request,
             Authentication authentication
     ) {
-        UUID editorId = extractUserIdFromAuthentication(authentication);
+        UUID editorId = securityContextHelper.getCurrentUserId(authentication);
         return ResponseEntity.ok(messageService.editMessage(conversationId, messageId, request.getContent(), editorId));
     }
 
@@ -218,7 +207,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID requesterId = extractUserIdFromAuthentication(authentication);
+        UUID requesterId = securityContextHelper.getCurrentUserId(authentication);
         return ResponseEntity.ok(messageService.deleteMessage(conversationId, messageId, requesterId));
     }
 
@@ -228,7 +217,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID requesterId = extractUserIdFromAuthentication(authentication);
+        UUID requesterId = securityContextHelper.getCurrentUserId(authentication);
         return ResponseEntity.ok(messageService.getMessageRevisions(conversationId, messageId, requesterId));
     }
 
@@ -238,7 +227,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        UUID userId = securityContextHelper.getCurrentUserId(authentication);
         List<MessageReadReceipt> receipts = enhancementService.getMessageReadReceipts(conversationId, messageId, userId);
         return ResponseEntity.ok(receipts);
     }
@@ -250,7 +239,7 @@ public class MessageController {
             @PathVariable UUID messageId,
             Authentication authentication
     ) {
-        UUID pinnedBy = extractUserIdFromAuthentication(authentication);
+        UUID pinnedBy = securityContextHelper.getCurrentUserId(authentication);
         enhancementService.togglePinMessage(conversationId, messageId, pinnedBy);
         return ResponseEntity.ok().build();
     }
@@ -260,13 +249,13 @@ public class MessageController {
             @PathVariable UUID conversationId,
             Authentication authentication
     ) {
-        UUID userId = extractUserIdFromAuthentication(authentication);
+        UUID userId = securityContextHelper.getCurrentUserId(authentication);
         List<PinnedMessage> pinnedMessages = enhancementService.getPinnedMessages(conversationId, userId);
         return ResponseEntity.ok(pinnedMessages);
     }
 
     /**
-     * Test endpoint để debug pagination issue
+     * Test endpoint Ä‘á»ƒ debug pagination issue
      * GET /api/messages/conversations/{conversationId}/debug?limit=20&method=custom
      */
     @GetMapping("/conversations/{conversationId}/debug")
@@ -276,63 +265,30 @@ public class MessageController {
             @RequestParam(defaultValue = "custom") String method
     ) {
         Pageable pageable = PageRequest.of(0, Math.min(limit, 100));
-        
+
         List<MessageResponseDto> messages;
         String methodUsed;
-        
+
         if ("derived".equals(method)) {
-            messages = messageService.getLatestMessagesAlternative(conversationId, pageable);
+            messages = messageService.getLatestMessages(conversationId, pageable).getContent();
             methodUsed = "Derived Query Method";
         } else {
             messages = messageService.getLatestMessages(conversationId, pageable).getContent();
             methodUsed = "Custom @Query with LIMIT";
         }
-        
+
         Object debugInfo = Map.of(
-            "method", methodUsed,
-            "requestedLimit", limit,
-            "actualCount", messages.size(),
-            "messages", messages
+                "method", methodUsed,
+                "requestedLimit", limit,
+                "actualCount", messages.size(),
+                "messages", messages
         );
-        
+
         ApiResponse<Object> response = ApiResponse.success(
-            "Debug messages - " + methodUsed, 
-            debugInfo
+                "Debug messages - " + methodUsed,
+                debugInfo
         );
-        
+
         return ResponseEntity.ok(response);
-    }
-
-
-    private UUID extractUserIdFromAuthentication(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Authentication is required");
-        }
-
-        try {
-            Object principal = authentication.getPrincipal();
-            
-            if (principal instanceof com.chatapp.chat_service.security.core.AppUserPrincipal) {
-                com.chatapp.chat_service.security.core.AppUserPrincipal userPrincipal = 
-                    (com.chatapp.chat_service.security.core.AppUserPrincipal) principal;
-                return userPrincipal.getUserId();
-            }
-            else if (principal instanceof String) {
-                return UUID.fromString((String) principal);
-            }
-            else {
-                String name = authentication.getName();
-                if (name != null && !name.isEmpty()) {
-                    try {
-                        return UUID.fromString(name);
-                    } catch (IllegalArgumentException e) {
-                        throw new RuntimeException("Authentication name is not a valid UUID: " + name);
-                    }
-                }
-                throw new RuntimeException("Invalid principal type: " + principal.getClass().getSimpleName());
-            }
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Invalid user ID format: " + e.getMessage());
-        }
     }
 }

@@ -1,36 +1,41 @@
-// src/services/websocketService.ts
 import SockJS from 'sockjs-client';
 import { Client, type IMessage, type StompHeaders, type StompSubscription } from '@stomp/stompjs';
 import { logger } from '@/shared/lib/logger';
 
-// 🌐 WebSocket URL from environment or default
+// WebSocket URL from environment or default
 const WS_URL = String(import.meta.env.VITE_WS_URL || 'http://localhost:8084/ws');
 
 let stompClient: Client | null = null;
-const subscriptions = new Map<string, { subscription: StompSubscription; callback: SubscribeCallback }>();
+const subscriptions = new Map<
+  string,
+  {
+    subscription: StompSubscription | null;
+    callbacks: Set<SubscribeCallback>;
+  }
+>();
 let connectingPromise: Promise<Client> | null = null;
 
-type SubscribeCallback = (message: Record<string, string | number | boolean | null | Record<string, string | number | boolean | null>>) => void;
+type ParsedPayload = Record<string | number | symbol, unknown>;
+type SubscribeCallback = (message: ParsedPayload) => void;
 
 /**
- * Kết nối tới WebSocket server qua SockJS + STOMP.
- * Idempotent: nếu đã kết nối hoặc đang kết nối, trả về promise hiện tại.
+ * Kết nối WebSocket qua SockJS + STOMP.
+ * Idempotent: nếu đã kết nối/đang kết nối, trả về promise hiện tại.
  */
 export const connectWebSocket = (token: string): Promise<Client> => {
-  // Already connected — return immediately
   if (stompClient?.active && stompClient?.connected) {
     return Promise.resolve(stompClient);
   }
 
-  // Connection already in progress — return existing promise
   if (connectingPromise) {
     return connectingPromise;
   }
 
   connectingPromise = new Promise<Client>((resolve, reject) => {
     if (stompClient) {
-      stompClient.deactivate()
-        .catch(err => logger.error('[WebSocket] Deactivate error:', err instanceof Error ? err.message : String(err)));
+      stompClient.deactivate().catch((err) => {
+        logger.error('[WebSocket] Deactivate error:', err instanceof Error ? err.message : String(err));
+      });
       stompClient = null;
     }
 
@@ -47,11 +52,9 @@ export const connectWebSocket = (token: string): Promise<Client> => {
       onConnect: () => {
         logger.info('[WebSocket] Connected');
         connectingPromise = null;
-        // Khôi phục các subscription cũ
-        subscriptions.forEach((subInfo, destination) => {
-          subscribe(destination, subInfo.callback);
+        subscriptions.forEach((_, destination) => {
+          bindSubscription(destination);
         });
-        // Thông báo connection ready
         notifyConnectionReady();
         if (stompClient) {
           resolve(stompClient);
@@ -62,16 +65,21 @@ export const connectWebSocket = (token: string): Promise<Client> => {
 
       onStompError: (frame) => {
         connectingPromise = null;
-        const errorMsg = typeof frame === 'string' ? frame :
-          (frame && typeof frame === 'object' && 'headers' in frame && frame.headers ?
-            String((frame.headers as Record<string, string>).message || 'Unknown STOMP error') : 'Unknown STOMP error');
+        const errorMsg = typeof frame === 'string'
+          ? frame
+          : (frame && typeof frame === 'object' && 'headers' in frame && frame.headers
+            ? String((frame.headers as Record<string, string>).message || 'Unknown STOMP error')
+            : 'Unknown STOMP error');
 
         logger.error('[WebSocket] STOMP error:', errorMsg);
         reject(new Error(errorMsg));
       },
 
-      onWebSocketClose: (event) => {
-        logger.warn('[WebSocket] Connection closed', event);
+      onWebSocketClose: () => {
+        logger.warn('[WebSocket] Connection closed');
+        subscriptions.forEach((subInfo) => {
+          subInfo.subscription = null;
+        });
       },
 
       onDisconnect: () => {
@@ -94,30 +102,52 @@ export const getStompClient = (): Client | null => {
 };
 
 /**
- * Đăng ký nhận dữ liệu từ 1 topic
+ * Bật callback vào một destination.
+ * Trả về hàm unsubscribe có thể gọi lúc cleanup.
  */
 export const subscribe = (
   destination: string,
   callback: SubscribeCallback
-): void => {
-  if (!stompClient) {
-    logger.warn('[WebSocket] Cannot subscribe, stompClient is null:', destination);
+): (() => void) => {
+  let state = subscriptions.get(destination);
+  if (!state) {
+    state = {
+      subscription: null,
+      callbacks: new Set()
+    };
+    subscriptions.set(destination, state);
+  }
+
+  state.callbacks.add(callback);
+
+  if (stompClient?.active && stompClient?.connected) {
+    bindSubscription(destination);
+  } else {
+    logger.warn('[WebSocket] Not connected, queued subscription for:', destination);
+  }
+
+  return () => {
+    const entry = subscriptions.get(destination);
+    if (!entry) return;
+
+    entry.callbacks.delete(callback);
+    if (entry.callbacks.size === 0) {
+      if (entry.subscription) {
+        entry.subscription.unsubscribe();
+      }
+      subscriptions.delete(destination);
+      logger.debug(`[WebSocket] Unsubscribed from ${destination}`);
+    }
+  };
+};
+
+const bindSubscription = (destination: string): void => {
+  const entry = subscriptions.get(destination);
+  if (!entry || !entry.callbacks.size || !stompClient?.connected) {
     return;
   }
 
-  if (!stompClient.active) {
-    logger.warn('[WebSocket] Not connected, cannot subscribe to:', destination);
-    // Store the subscription for later when connection is re-established
-    subscriptions.set(destination, {
-      subscription: null as unknown as StompSubscription,
-      callback
-    });
-    return;
-  }
-
-  // Kiểm tra nếu đã đăng ký trước đó
-  if (subscriptions.has(destination)) {
-    logger.debug(`[WebSocket] Already subscribed to ${destination}`);
+  if (entry.subscription) {
     return;
   }
 
@@ -126,21 +156,14 @@ export const subscribe = (
       destination,
       (message: IMessage) => {
         try {
-          // Parse message body safely
-          const body = JSON.parse(message.body) as Record<string, string | number | boolean | null | Record<string, string | number | boolean | null>>;
-          callback(body);
+          const body = JSON.parse(message.body) as ParsedPayload;
+          entry.callbacks.forEach((cb) => cb(body));
         } catch (err) {
           logger.error('[WebSocket] Failed to parse message:', message.body, err instanceof Error ? err.message : String(err));
         }
       }
     );
-
-    // Lưu subscription để quản lý
-    subscriptions.set(destination, {
-      subscription,
-      callback
-    });
-
+    entry.subscription = subscription;
     logger.debug(`[WebSocket] Successfully subscribed to ${destination}`);
   } catch (error) {
     logger.error('[WebSocket] Failed to subscribe to:', destination, error instanceof Error ? error.message : error);
@@ -148,17 +171,17 @@ export const subscribe = (
 };
 
 /**
- * Hủy đăng ký từ một topic
+ * Hủy đăng ký 1 destination
  */
 export const unsubscribe = (destination: string): void => {
   const subInfo = subscriptions.get(destination);
-  if (subInfo) {
-    if (subInfo.subscription) {
-      subInfo.subscription.unsubscribe();
-    }
-    subscriptions.delete(destination);
-    logger.debug(`[WebSocket] Unsubscribed from ${destination}`);
+  if (!subInfo) return;
+
+  if (subInfo.subscription) {
+    subInfo.subscription.unsubscribe();
   }
+  subscriptions.delete(destination);
+  logger.debug(`[WebSocket] Unsubscribed from ${destination}`);
 };
 
 /**
@@ -174,12 +197,7 @@ export const send = (
     return;
   }
 
-  if (!stompClient.active) {
-    logger.warn('[WebSocket] Cannot send, not connected to:', destination);
-    return;
-  }
-
-  if (!stompClient.connected) {
+  if (!stompClient.active || !stompClient.connected) {
     logger.warn('[WebSocket] Cannot send, STOMP not connected to:', destination);
     return;
   }
@@ -197,22 +215,22 @@ export const send = (
 };
 
 /**
- * Ngắt kết nối WebSocket và dọn dẹp
+ * Ngắt kết nối WebSocket và cleanup toàn bộ subscription
  */
 export const disconnectWebSocket = (): void => {
   connectingPromise = null;
-  if (stompClient) {
-    // Hủy tất cả subscriptions
-    subscriptions.forEach((_, destination) => {
-      unsubscribe(destination);
-    });
+  subscriptions.forEach((_, destination) => {
+    unsubscribe(destination);
+  });
 
-    stompClient.deactivate()
+  if (stompClient) {
+    stompClient
+      .deactivate()
       .then(() => {
         logger.info('[WebSocket] Disconnected');
         stompClient = null;
       })
-      .catch(err => {
+      .catch((err) => {
         logger.error('[WebSocket] Disconnect error:', err instanceof Error ? err.message : String(err));
         stompClient = null;
       });
@@ -220,14 +238,14 @@ export const disconnectWebSocket = (): void => {
 };
 
 /**
- * Kiểm tra xem WebSocket có sẵn sàng để gửi tin nhắn không
+ * Kiểm tra WebSocket sẵn sàng
  */
 export const isWebSocketReady = (): boolean => {
   return !!stompClient?.active && !!stompClient?.connected;
 };
 
 /**
- * Chờ cho WebSocket kết nối xong trước khi thực hiện action
+ * Chờ WebSocket kết nối xong trước khi thực hiện action
  */
 export const waitForConnection = (
   action: () => void,
@@ -237,11 +255,9 @@ export const waitForConnection = (
   let retries = 0;
 
   const checkConnection = () => {
-    const clientState = stompClient ? {
-      active: stompClient.active,
-      connected: stompClient.connected,
-      state: stompClient.state
-    } : null;
+    const clientState = stompClient
+      ? { active: stompClient.active, connected: stompClient.connected, state: stompClient.state }
+      : null;
 
     logger.debug(`[WebSocket] Connection check (${retries}/${maxRetries}):`, clientState);
 
@@ -280,16 +296,10 @@ export const waitForConnectionPromise = (timeout: number = 10000): Promise<void>
       resolve();
     });
 
-    // Cleanup timeout if connection fails
-    const cleanup = () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
-
-    // Handle connection failure
     setTimeout(() => {
       if (!isWebSocketReady()) {
-        cleanup();
+        clearTimeout(timeoutId);
+        unsubscribe();
         reject(new Error('[WebSocket] Connection failed'));
       }
     }, timeout);
@@ -316,12 +326,10 @@ export const sendWithConnectionWait = async (
 
 // Connection state listeners
 const connectionListeners = new Set<() => void>();
-
-/** Persistent connection listeners — survive reconnects (not cleared after notify) */
 const persistentConnectionListeners = new Set<() => void>();
 
 /**
- * Đăng ký listener cho sự kiện kết nối thành công (one-shot: cleared after first connect)
+ * Đăng ký listener cho sự kiện kết nối thành công (one-shot)
  */
 export const onConnectionReady = (callback: () => void): (() => void) => {
   if (isWebSocketReady()) {
@@ -330,34 +338,30 @@ export const onConnectionReady = (callback: () => void): (() => void) => {
     connectionListeners.add(callback);
   }
 
-  // Return unsubscribe function
   return () => {
     connectionListeners.delete(callback);
   };
 };
 
 /**
- * Register a persistent connection listener that fires on EVERY connect/reconnect.
- * Unlike onConnectionReady, these listeners are NOT cleared after firing.
- * Returns an unsubscribe function.
+ * Đăng ký listener cho mọi lần reconnect thành công
  */
 export const addConnectionListener = (callback: () => void): (() => void) => {
   persistentConnectionListeners.add(callback);
-  // If already connected, fire immediately
   if (isWebSocketReady()) {
-    try { callback(); } catch (e) {
-      logger.error('[WebSocket] Error in persistent connection listener:', e instanceof Error ? e.message : e);
+    try {
+      callback();
+    } catch (error) {
+      logger.error('[WebSocket] Error in persistent connection listener:', error instanceof Error ? error.message : error);
     }
   }
-  return () => { persistentConnectionListeners.delete(callback); };
+  return () => {
+    persistentConnectionListeners.delete(callback);
+  };
 };
 
-/**
- * Thông báo cho các listener rằng kết nối đã sẵn sàng
- */
 const notifyConnectionReady = (): void => {
-  // One-shot listeners
-  connectionListeners.forEach(callback => {
+  connectionListeners.forEach((callback) => {
     try {
       callback();
     } catch (error) {
@@ -366,8 +370,7 @@ const notifyConnectionReady = (): void => {
   });
   connectionListeners.clear();
 
-  // Persistent listeners (survive reconnects)
-  persistentConnectionListeners.forEach(callback => {
+  persistentConnectionListeners.forEach((callback) => {
     try {
       callback();
     } catch (error) {

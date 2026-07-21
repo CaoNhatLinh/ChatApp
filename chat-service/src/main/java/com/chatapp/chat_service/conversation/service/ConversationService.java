@@ -408,9 +408,12 @@ public class ConversationService {
     }
 
     public org.springframework.data.domain.Slice<ConversationResponseDto> getUserConversationsWithDetails(UUID userId, Pageable pageable) {
-        org.springframework.data.domain.Slice<UserConversation> userConversations = getUserConversations(userId, pageable);
-        
-        if (userConversations.getContent().isEmpty() && pageable.getPageNumber() == 0) {
+        // Get all conversations for the user (without pagination for proper sorting)
+        List<UserConversation> allUserConversations = userConversationRepository.findByUserId(userId, org.springframework.data.domain.PageRequest.of(0, 1000))
+                .getContent();
+
+        if (allUserConversations.isEmpty()) {
+            // Self-healing: create UserConversation records if missing
             List<ConversationMembers> memberEntries = memberRepository.findByUserId(userId);
             if (!memberEntries.isEmpty()) {
                 logger.info("Self-healing: creating {} UserConversation records for user {}", memberEntries.size(), userId);
@@ -431,23 +434,46 @@ public class ConversationService {
                         })
                         .toList();
                 userConversationRepository.saveAll(userConvs);
-                userConversations = getUserConversations(userId, pageable);
+                allUserConversations = userConversationRepository.findByUserId(userId, org.springframework.data.domain.PageRequest.of(0, 1000))
+                        .getContent();
             }
         }
-        
-        List<ConversationResponseDto> dtos = userConversations.getContent().stream()
+
+        // Sort conversations: pinned first, then by lastActivityAt (descending)
+        allUserConversations.sort((uc1, uc2) -> {
+            // Pinned conversations always come first
+            if (uc1.getKey().isPinned() && !uc2.getKey().isPinned()) {
+                return -1;
+            }
+            if (!uc1.getKey().isPinned() && uc2.getKey().isPinned()) {
+                return 1;
+            }
+            // Within same pin status, sort by lastActivityAt descending
+            Instant activity1 = uc1.getKey().getLastActivityAt() != null ? uc1.getKey().getLastActivityAt() : Instant.EPOCH;
+            Instant activity2 = uc2.getKey().getLastActivityAt() != null ? uc2.getKey().getLastActivityAt() : Instant.EPOCH;
+            return activity2.compareTo(activity1);
+        });
+
+        // Apply pagination after sorting
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), allUserConversations.size());
+        List<UserConversation> paginatedUserConversations = allUserConversations.subList(start, end);
+
+        List<ConversationResponseDto> dtos = paginatedUserConversations.stream()
                 .map(uc -> {
                     Optional<Conversation> convOpt = conversationRepository.findByConversationId(uc.getKey().getConversationId());
                     return convOpt.map(conversation -> buildConversationResponse(
-                            conversation, 
-                            userId, 
-                            uc.getKey().isPinned(), 
+                            conversation,
+                            userId,
+                            uc.getKey().isPinned(),
                             uc.getKey().getLastActivityAt()
                     )).orElse(null);
                 })
                 .filter(Objects::nonNull)
                 .toList();
-        return new org.springframework.data.domain.SliceImpl<>(dtos, pageable, userConversations.hasNext());
+
+        boolean hasNext = end < allUserConversations.size();
+        return new org.springframework.data.domain.SliceImpl<>(dtos, pageable, hasNext);
     }
 
     /**

@@ -91,11 +91,9 @@
 - `POST /api/files/upload/multiple` - Upload multiple files concurrently
 - `DELETE /api/files/delete/{publicId}` - Remove an uploaded file (from Cloudinary/storage)
 
-### 9. Presence (`PresenceController`)
-- `POST /api/presence/heartbeat` - Refresh user online session
-- `POST /api/presence/subscribe` - Subscribe to explicitly track a user's presence
-- `POST /api/presence/unsubscribe` - Stop tracking a user's presence
-- `POST /api/presence/batch-get` - Get presence bounds for a list of users
+### 9. Presence (WebSocket-Only, `/app` + `/user/queue`)
+- Presence presence is now managed through STOMP/WebSocket channels only.
+- REST presence APIs (`/api/presence/*`) were removed to avoid duplicate flow and orphan state.
 
 ### 10. Cache Management (`CacheManagementController`)
 - `GET /api/cache/stats` - Read Redis cache metrics
@@ -121,7 +119,9 @@ Connect to WebSocket at: `ws://localhost:8084/ws`
 - `/user/queue/messages` - Receive personal messages
 - `/user/queue/message-echo` - Receive echo of your sent messages (for instant UI update)
 - `/user/queue/notifications` - Receive push notifications
-- `/user/queue/online-status` - Receive updates when friends come online/offline
+- `/user/queue/presence` - Receive per-user presence updates
+- `/user/queue/presence-sync` - Receive presence status sync acknowledgements/errors
+- `/user/queue/presence-batch` - Receive presence batch snapshot on reconnect/re-sync
 - `/user/queue/errors` - Receive WebSocket-level errors
 - `/topic/conversation/{conversationId}` - Global conversation updates
 - `/topic/conversation/{conversationId}/typing` - Typing indicators
@@ -133,7 +133,6 @@ Connect to WebSocket at: `ws://localhost:8084/ws`
 - `/app/message.send` - Send a text message payload
 - `/app/message.file` - Send a file attachment message payload
 - `/app/typing` - Broadcast typing status (`{ "typing": true }`)
-- `/app/request-online-status` - Query explicit online status of someone
 - `/app/heartbeat` - Send heartbeat frame to maintain presence
 - `/app/notification.read` - Acknowledge a push notification as read
 - `/app/notifications.read-all` - Acknowledge all notifications as read

@@ -1,156 +1,90 @@
-// src/components/chat/ReactionPicker.tsx
-// Emoji reaction picker for chat messages
-
-import React, { useState, useRef, useEffect } from 'react';
 import { SmilePlus } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { reactToMessage } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
 
-// Standard reaction emojis matching backend: "like", "love", "laugh", "angry", "sad", "wow"
 const REACTIONS = [
-    { emoji: '👍', key: 'like', label: 'Like' },
-    { emoji: '❤️', key: 'love', label: 'Love' },
-    { emoji: '😂', key: 'laugh', label: 'Laugh' },
-    { emoji: '😮', key: 'wow', label: 'Wow' },
-    { emoji: '😢', key: 'sad', label: 'Sad' },
-    { emoji: '😡', key: 'angry', label: 'Angry' },
+  { emoji: '\u{1F44D}', key: 'like', label: 'Like' },
+  { emoji: '\u{2764}\u{FE0F}', key: 'love', label: 'Love' },
+  { emoji: '\u{1F602}', key: 'laugh', label: 'Laugh' },
+  { emoji: '\u{1F61B}', key: 'wow', label: 'Wow' },
+  { emoji: '\u{1F622}', key: 'sad', label: 'Sad' },
+  { emoji: '\u{1F620}', key: 'angry', label: 'Angry' },
 ] as const;
 
 interface ReactionPickerProps {
-    conversationId: string;
-    messageId: string;
-    onReactionAdded?: () => void;
+  conversationId: string;
+  messageId: string;
+  onReactionAdded?: () => void;
 }
 
-export const ReactionPicker: React.FC<ReactionPickerProps> = ({
-    conversationId: _conversationId,
-    messageId,
-    onReactionAdded,
-}) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const pickerRef = useRef<HTMLDivElement>(null);
+const ReactionPicker = ({
+  conversationId: _conversationId,
+  messageId,
+  onReactionAdded,
+}: ReactionPickerProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
-    // Close picker when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-                setIsOpen(false);
-            }
-        };
+  useEffect(() => {
+    if (!isOpen) return undefined;
 
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
-
-    const handleReaction = async (emojiKey: string) => {
-        if (loading) return;
-        setLoading(true);
-
-        try {
-            await reactToMessage(messageId, emojiKey);
-            onReactionAdded?.();
-            setIsOpen(false);
-        } catch (err) {
-            logger.error('[ReactionPicker] Failed to add reaction:', err instanceof Error ? err.message : String(err));
-        } finally {
-            setLoading(false);
-        }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
     };
 
-    return (
-        <div ref={pickerRef} className="relative inline-flex">
-            {/* Trigger */}
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const handleReaction = useCallback(async (emojiKey: string) => {
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      await reactToMessage(messageId, emojiKey);
+      onReactionAdded?.();
+      setIsOpen(false);
+    } catch (error) {
+      logger.error('[ReactionPicker] Failed to add reaction:', error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, messageId, onReactionAdded]);
+
+  return (
+    <div ref={pickerRef} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        className="rounded-full p-1 text-muted-foreground transition-opacity hover:text-primary group-hover:opacity-100"
+        title="Them cam xuc"
+      >
+        <SmilePlus size={16} />
+      </button>
+
+      {isOpen ? (
+        <div className="absolute bottom-full left-0 z-50 mb-1 flex items-center gap-1 rounded-full border border-border bg-card px-2 py-1 shadow-lg">
+          {REACTIONS.map(({ emoji, key, label }) => (
             <button
-                type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Add reaction"
+              type="button"
+              key={key}
+              onClick={() => void handleReaction(key)}
+              disabled={loading}
+              className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-primary/10 disabled:opacity-50"
+              title={label}
             >
-                <SmilePlus className="w-4 h-4" />
+              <span className="text-lg leading-none">{emoji}</span>
             </button>
-
-            {/* Picker popup */}
-            {isOpen && (
-                <div className="absolute bottom-full left-0 mb-1 flex gap-1 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                    {REACTIONS.map(({ emoji, key, label }) => (
-                        <button
-                            key={key}
-                            onClick={() => void handleReaction(key)}
-                            disabled={loading}
-                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-all hover:scale-125 disabled:opacity-50"
-                            title={label}
-                        >
-                            <span className="text-lg">{emoji}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
+          ))}
         </div>
-    );
+      ) : null}
+    </div>
+  );
 };
 
-// Display reactions under a message
-interface ReactionDisplayProps {
-    reactions: Array<{
-        emoji: string;
-        count: number;
-        reactedByCurrentUser: boolean;
-    }>;
-    conversationId: string;
-    messageId: string;
-    onToggle?: () => void;
-}
-
-// Map backend keys to emoji characters
-const EMOJI_MAP: Record<string, string> = {
-    like: '👍',
-    love: '❤️',
-    laugh: '😂',
-    wow: '😮',
-    sad: '😢',
-    angry: '😡',
-};
-
-export const ReactionDisplay: React.FC<ReactionDisplayProps> = ({
-    reactions,
-    conversationId: _conversationId,
-    messageId,
-    onToggle,
-}) => {
-    if (!reactions || reactions.length === 0) return null;
-
-    const handleToggle = async (emojiKey: string) => {
-        try {
-            await reactToMessage(messageId, emojiKey);
-            onToggle?.();
-        } catch (err) {
-            logger.error('[ReactionDisplay] Toggle failed:', err instanceof Error ? err.message : String(err));
-        }
-    };
-
-    return (
-        <div className="flex flex-wrap gap-1 mt-1">
-            {reactions.map(({ emoji, count, reactedByCurrentUser }) => {
-                const displayEmoji = EMOJI_MAP[emoji] || emoji;
-                return (
-                    <button
-                        key={emoji}
-                        onClick={() => void handleToggle(emoji)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${reactedByCurrentUser
-                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                    >
-                        <span>{displayEmoji}</span>
-                        <span>{count}</span>
-                    </button>
-                );
-            })}
-        </div>
-    );
-};
-
+export { ReactionPicker };
 export default ReactionPicker;
