@@ -10,7 +10,7 @@ services:
       - chat-net
 
   kafka:
-    image: docker.io/bitnami/kafka:4.0
+    image: docker.io/soldevelo/kafka:4.0
     container_name: kafka
     ports:
       - "9092:9092"
