@@ -11,6 +11,7 @@ import { usePresence } from "@/features/presence/model/presence.store";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
 import { friendRequestErrors } from "@/shared/lib/errorHandler";
 import { notifyError, notifySuccess } from "@/shared/lib/notification";
+import { localizeText } from "@/shared/i18n";
 import type { UserDTO } from "@/entities/user/model/user.types";
 
 interface FriendItemProps {
@@ -49,10 +50,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onAddFriend(friend);
-      notifySuccess(`Đã gửi lời mời kết bạn tới ${friend.displayName}`);
+      notifySuccess(localizeText(`Đã gửi lời mời kết bạn tới ${friend.displayName}`));
     } catch (error) {
       friendRequestErrors.send(error);
-      notifyError(`Không thể gửi lời mời tới ${friend.displayName}`);
+      notifyError(localizeText(`Không thể gửi lời mời tới ${friend.displayName}`));
     } finally {
       setIsLoading(false);
     }
@@ -71,10 +72,10 @@ export const FriendItem = ({
           memberIds: [friendTarget.userId],
         });
         void selectConversation(conv.conversationId);
-        notifySuccess(`Đã mở cuộc trò chuyện với ${friendTarget.displayName}`);
+        notifySuccess(localizeText(`Đã mở cuộc trò chuyện với ${friendTarget.displayName}`));
       } catch (error) {
         friendRequestErrors.send(error);
-        notifyError(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName}`);
+        notifyError(localizeText(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName}`));
       }
     }
   };
@@ -86,10 +87,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onAcceptFriend(friend.userId);
-      notifySuccess(`Đã chấp nhận lời mời của ${friend.displayName}`);
+      notifySuccess(localizeText(`Đã chấp nhận lời mời của ${friend.displayName}`));
     } catch (error) {
       friendRequestErrors.accept(error);
-      notifyError(`Không thể chấp nhận lời mời của ${friend.displayName}`);
+      notifyError(localizeText(`Không thể chấp nhận lời mời của ${friend.displayName}`));
     } finally {
       setIsLoading(false);
     }
@@ -102,10 +103,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onRejectFriend(friend.userId);
-      notifySuccess(`Đã từ chối lời mời của ${friend.displayName}`);
+      notifySuccess(localizeText(`Đã từ chối lời mời của ${friend.displayName}`));
     } catch (error) {
       friendRequestErrors.reject(error);
-      notifyError(`Không thể từ chối lời mời của ${friend.displayName}`);
+      notifyError(localizeText(`Không thể từ chối lời mời của ${friend.displayName}`));
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +147,7 @@ export const FriendItem = ({
               variant="default"
               size="icon"
               className="h-8 w-8"
-              title="Message"
+              title={localizeText("Nhắn tin")}
               onClick={(event) => {
                 event.stopPropagation();
                 void openChatWithFriend(friend);
@@ -154,31 +155,31 @@ export const FriendItem = ({
             >
               <MessageCircle className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="More options" onClick={(event) => event.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" title={localizeText("Tùy chọn khác")} onClick={(event) => event.stopPropagation()}>
               <MoreVertical className="h-4 w-4" />
             </Button>
           </>
         ) : hasPendingRequest ? (
           <>
-            <Button onClick={handleAccept} disabled={isLoading} size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700" title="Accept">
+            <Button onClick={handleAccept} disabled={isLoading} size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700" title={localizeText("Chấp nhận")}>
               <Check className="h-4 w-4" />
             </Button>
-            <Button onClick={handleReject} disabled={isLoading} variant="destructive" size="icon" className="h-8 w-8" title="Reject">
+            <Button onClick={handleReject} disabled={isLoading} variant="destructive" size="icon" className="h-8 w-8" title={localizeText("Từ chối")}>
               <X className="h-4 w-4" />
             </Button>
           </>
         ) : isSentRequest ? (
           <>
             <Badge variant="outline" className="gap-1">
-              <Clock className="h-3 w-3" /> Pending
+              <Clock className="h-3 w-3" /> {localizeText("Đang chờ")}
             </Badge>
-            <Button onClick={handleReject} disabled={isLoading} variant="ghost" size="icon" className="h-8 w-8" title="Cancel request">
+            <Button onClick={handleReject} disabled={isLoading} variant="ghost" size="icon" className="h-8 w-8" title={localizeText("Hủy lời mời")}>
               <X className="h-4 w-4" />
             </Button>
           </>
         ) : (
           <Button onClick={handleAddFriend} disabled={isLoading} size="sm" className="gap-1">
-            <UserPlus className="h-4 w-4" /> Add Friend
+            <UserPlus className="h-4 w-4" /> {localizeText("Thêm bạn")}
           </Button>
         )}
       </div>

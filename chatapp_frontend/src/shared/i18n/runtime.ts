@@ -64,7 +64,16 @@ export const localizeText = (value: string): string => {
     [/^(\d+) phút trước$/, (match) => `${match[1]} min ago`],
     [/^(\d+) giờ trước$/, (match) => `${match[1]} hr ago`],
     [/^(\d+) ngày trước$/, (match) => `${match[1]} d ago`],
+    [/^(\d+) phiếu$/, (match) => `${match[1]} ${match[1] === '1' ? 'vote' : 'votes'}`],
     [/^Tin nhắn từ (.+) trong cuộc trò chuyện$/, (match) => `Message from ${match[1]} in conversation`],
+    [/^Đã gửi lời mời kết bạn tới (.+)$/, (match) => `Friend request sent to ${match[1]}`],
+    [/^Không thể gửi lời mời tới (.+)$/, (match) => `Unable to send a friend request to ${match[1]}`],
+    [/^Đã mở cuộc trò chuyện với (.+)$/, (match) => `Conversation opened with ${match[1]}`],
+    [/^Không thể mở cuộc trò chuyện với (.+)$/, (match) => `Unable to open a conversation with ${match[1]}`],
+    [/^Đã chấp nhận lời mời của (.+)$/, (match) => `Accepted ${match[1]}'s request`],
+    [/^Không thể chấp nhận lời mời của (.+)$/, (match) => `Unable to accept ${match[1]}'s request`],
+    [/^Đã từ chối lời mời của (.+)$/, (match) => `Declined ${match[1]}'s request`],
+    [/^Không thể từ chối lời mời của (.+)$/, (match) => `Unable to decline ${match[1]}'s request`],
   ];
   const dynamic = dynamicPatterns.find(([pattern]) => pattern.test(value));
   if (dynamic) return dynamic[1](value.match(dynamic[0]) as RegExpMatchArray);

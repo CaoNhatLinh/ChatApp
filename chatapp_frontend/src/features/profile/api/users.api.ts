@@ -38,8 +38,6 @@ export const searchUsers = async (keyword: string): Promise<UserDTO[]> => {
     return response.data.content.map(toUserDto);
 };
 
-export const searchUsersNew = searchUsers;
-
 export const getUserProfile = async (userId: string): Promise<UserDTO> => {
     const response = await apiClient.get<CanonicalPublicUser>(`/users/${userId}`);
     return toUserDto(response.data);

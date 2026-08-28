@@ -6,8 +6,9 @@ import { useAuthStore } from '@/features/auth/model/auth.store';
 import { votePoll, closePoll, removePollVote } from '../../api/poll.api';
 import type { PollData } from '../../types/messenger.types';
 import { formatDistanceToNow, isPast } from 'date-fns';
-import { vi } from 'date-fns/locale';
+import { enUS, vi } from 'date-fns/locale';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 interface PollCardProps {
     poll: PollData;
@@ -17,6 +18,7 @@ interface PollCardProps {
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 
 export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate }) => {
+    const { locale } = useAppLocale();
     const currentUser = useAuthStore(state => state.user);
     const updatePollData = useMessengerStore(state => state.updatePollData);
     const [selectedOptions, setSelectedOptions] = useState<string[]>(poll.currentUserVotes ?? []);
@@ -148,11 +150,11 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                         <div className="flex items-center gap-2">
                             <BarChart3 size={14} className="text-primary/70" />
                             <span className="text-[8px] font-black uppercase tracking-[0.15em] text-primary/60">
-                                Bình chọn
+                                {localizeText('Bình chọn')}
                             </span>
                         </div>
                         <span className="text-[8px] font-bold text-muted-foreground/50 uppercase">
-                            Tạo bởi {localPoll.createdByUsername || 'Hệ thống'}
+                            {localizeText('Tạo bởi')} {localPoll.createdByUsername || localizeText('Hệ thống')}
                         </span>
                     </div>
                     <h4 className="text-sm font-bold leading-tight text-foreground/90">
@@ -167,7 +169,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             ? "bg-blue-500/5 text-blue-500 border-blue-500/10"
                             : "bg-primary/5 text-primary border-primary/10"
                     )}>
-                        {localPoll.isMultipleChoice ? 'Nhiều lựa chọn' : 'Một lựa chọn'}
+                        {localizeText(localPoll.isMultipleChoice ? 'Nhiều lựa chọn' : 'Một lựa chọn')}
                     </div>
 
                     {localPoll.expiresAt && (
@@ -178,13 +180,13 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                                 : "bg-amber-500/5 text-amber-500 border-amber-500/10"
                         )}>
                             <Clock size={8} />
-                            {isExpired ? 'Hết hạn' : formatDistanceToNow(new Date(localPoll.expiresAt), { locale: vi, addSuffix: true })}
+                            {isExpired ? localizeText('Hết hạn') : formatDistanceToNow(new Date(localPoll.expiresAt), { locale: locale === 'en' ? enUS : vi, addSuffix: true })}
                         </div>
                     )}
 
                     {isClosed && !isExpired && (
                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase bg-muted/20 text-muted-foreground border border-border/20">
-                            <Lock size={8} /> Đã đóng
+                            <Lock size={8} /> {localizeText('Đã đóng')}
                         </div>
                     )}
                 </div>
@@ -262,7 +264,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                         ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
                         : "bg-green-500/10 text-green-500 border-green-500/20"
                 )}>
-                    {localPoll.isAnonymous ? 'Bình chọn ẩn danh' : 'Bình chọn công khai'}
+                    {localizeText(localPoll.isAnonymous ? 'Bình chọn ẩn danh' : 'Bình chọn công khai')}
                 </div>
             </div>
 
@@ -271,7 +273,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground/60 uppercase tracking-tighter">
                         <Users size={9} />
-                        {localPoll.totalVotes} PHIẾU
+                        {localizeText(`${localPoll.totalVotes} phiếu`)}
                     </div>
 
                     {localPoll.totalVotes > 0 && (
@@ -279,7 +281,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             onClick={() => setShowVoters(!showVoters)}
                             className="text-[8px] font-black text-primary/70 hover:text-primary uppercase tracking-tighter"
                         >
-                            {showVoters ? 'ẨN' : 'CHI TIẾT'}
+                            {localizeText(showVoters ? 'Ẩn' : 'Chi tiết')}
                         </button>
                     )}
                 </div>
@@ -290,7 +292,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             onClick={() => void handleRemoveVote()}
                             disabled={isVoting}
                             className="p-1 hover:bg-destructive/5 rounded transition-colors text-destructive/40 hover:text-destructive"
-                            title="Hủy phiếu"
+                            title={localizeText('Hủy phiếu')}
                         >
                             <XCircle size={12} />
                         </button>
@@ -302,7 +304,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             disabled={isVoting}
                             className="px-3 py-1 text-[9px] font-black uppercase bg-primary text-primary-foreground rounded-md shadow-sm hover:shadow active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40"
                         >
-                            {isVoting ? '...' : hasVoted ? 'ĐỔI' : 'GỬI'}
+                            {isVoting ? '...' : hasVoted ? localizeText('Đổi') : localizeText('Gửi')}
                         </button>
                     )}
 
@@ -310,7 +312,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                         <button
                             onClick={() => void handleClosePoll()}
                             className="p-1 hover:bg-amber-500/5 rounded transition-colors text-amber-500/60 hover:text-amber-500"
-                            title="Đóng poll"
+                            title={localizeText('Đóng bình chọn')}
                         >
                             <Lock size={12} />
                         </button>
@@ -331,7 +333,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             <div key={option.option} className="flex flex-col gap-1.5 p-2 border-b border-border/5 last:border-0 bg-muted/5 rounded-lg">
                                 <div className="flex items-center justify-between">
                                     <span className="text-[10px] font-bold text-foreground/80">{option.option}</span>
-                                    <span className="text-[9px] font-black tabular-nums text-primary/60">{option.voteCount} PHIẾU</span>
+                                    <span className="text-[9px] font-black tabular-nums text-primary/60">{localizeText(`${option.voteCount} phiếu`)}</span>
                                 </div>
                                 {!localPoll.isAnonymous && option.voterNames && option.voterNames.length > 0 && (
                                     <div className="flex flex-wrap gap-1">

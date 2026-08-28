@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { friendApi } from '@/features/relationships/api/friends.api';
-import { searchUsersNew as searchUsersApi } from '@/features/profile/api/users.api';
+import { searchUsers as searchUsersApi } from '@/features/profile/api/users.api';
 import { logger } from '@/shared/lib/logger';
 import type { FriendDetails } from '@/features/relationships/model/friend.types';
 import type { UserDTO } from '@/entities/user/model/user.types';

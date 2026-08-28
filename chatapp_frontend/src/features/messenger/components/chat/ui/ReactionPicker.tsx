@@ -2,14 +2,15 @@ import { SmilePlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { reactToMessage } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
+import { localizeText } from '@/shared/i18n';
 
 const REACTIONS = [
-  { emoji: '\u{1F44D}', key: 'like', label: 'Like' },
-  { emoji: '\u{2764}\u{FE0F}', key: 'love', label: 'Love' },
-  { emoji: '\u{1F602}', key: 'laugh', label: 'Laugh' },
-  { emoji: '\u{1F61B}', key: 'wow', label: 'Wow' },
-  { emoji: '\u{1F622}', key: 'sad', label: 'Sad' },
-  { emoji: '\u{1F620}', key: 'angry', label: 'Angry' },
+  { emoji: '\u{1F44D}', key: 'like', label: 'Thích' },
+  { emoji: '\u{2764}\u{FE0F}', key: 'love', label: 'Yêu thích' },
+  { emoji: '\u{1F602}', key: 'laugh', label: 'Cười' },
+  { emoji: '\u{1F61B}', key: 'wow', label: 'Ngạc nhiên' },
+  { emoji: '\u{1F622}', key: 'sad', label: 'Buồn' },
+  { emoji: '\u{1F620}', key: 'angry', label: 'Tức giận' },
 ] as const;
 
 interface ReactionPickerProps {
@@ -65,7 +66,7 @@ const ReactionPicker = ({
         disabled={!messageBucket || loading}
         onClick={() => setIsOpen((value) => !value)}
         className="rounded-full p-1 text-muted-foreground transition-opacity hover:text-primary group-hover:opacity-100"
-        title="Them cam xuc"
+        title={localizeText("Thêm cảm xúc")}
       >
         <SmilePlus size={16} />
       </button>
@@ -79,7 +80,7 @@ const ReactionPicker = ({
               onClick={() => void handleReaction(key)}
               disabled={loading}
               className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-primary/10 disabled:opacity-50"
-              title={label}
+              title={localizeText(label)}
             >
               <span className="text-lg leading-none">{emoji}</span>
             </button>
