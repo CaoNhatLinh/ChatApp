@@ -22,6 +22,11 @@ Cassandra + Redis + Kafka + Elasticsearch, Playwright authenticated journeys
 with seeded users, STOMP reconnect/read/reaction assertions, accessibility tree
 checks, and performance trace budgets.
 
+`npm run test:e2e:locale` verifies the persisted VI→EN switch, English landing
+copy, English `html[lang]`, and 404 recovery links. The expected document 404
+response is recorded separately; unexpected console errors and request failures
+still fail the script.
+
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the
 HTTP boundary inside the test process; no runtime code contains that stub.
