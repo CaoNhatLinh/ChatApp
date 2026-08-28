@@ -19,15 +19,16 @@ import { UserSettingsProfilePanel } from './UserSettingsProfilePanel';
 import { Button } from '@/shared/ui/Button';
 import { ReportHistoryPanel } from '@/features/moderation/components/ReportHistoryPanel';
 import { localizeText } from '@/shared/i18n';
+import { NotificationSettingsPanel } from '@/features/notifications/components/NotificationSettingsPanel';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'profile' | 'appearance' | 'reports';
+  initialTab?: 'profile' | 'appearance' | 'notifications' | 'reports';
   mode?: 'modal' | 'page';
 }
 
-type TabType = 'profile' | 'appearance' | 'reports';
+type TabType = 'profile' | 'appearance' | 'notifications' | 'reports';
 type ThemePreference = 'light' | 'dark' | 'system';
 
 export const UserSettingsModal: FC<UserSettingsModalProps> = ({
@@ -161,7 +162,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background px-6">
           <h2 className="hidden text-lg font-semibold tracking-tight sm:block">
-            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : localizeText('Báo cáo của tôi')}
+            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
           </h2>
           <Button
             variant="ghost"
@@ -195,7 +196,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
                 themePreference={themePreference as ThemePreference}
                 onThemeChange={setThemePreference}
               />
-            ) : <ReportHistoryPanel />}
+            ) : activeTab === 'notifications' ? <NotificationSettingsPanel /> : <ReportHistoryPanel />}
           </div>
         </div>
       </div>

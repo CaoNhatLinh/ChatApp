@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { Flag, LogOut, Palette, UserCircle } from 'lucide-react';
+import { Bell, Flag, LogOut, Palette, UserCircle } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
 
-type TabType = 'profile' | 'appearance' | 'reports';
+type TabType = 'profile' | 'appearance' | 'notifications' | 'reports';
 
 interface UserSettingsModalNavigationProps {
   activeTab: TabType;
@@ -35,6 +35,11 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
       icon: <Palette size={20} />,
     },
     {
+      key: 'notifications',
+      label: localizeText('Thông báo'),
+      icon: <Bell size={20} />,
+    },
+    {
       key: 'reports',
       label: localizeText('Báo cáo'),
       icon: <Flag size={20} />,
@@ -59,7 +64,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
         <h2 className="text-lg font-semibold tracking-tight">{localizeText('Cài đặt')}</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
         {navigationItems.map((item) => (
           <button
             key={item.key}

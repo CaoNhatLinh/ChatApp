@@ -17,7 +17,7 @@ end-to-end evidence.
 | ID-MESSAGE-002 | Edit/delete/reaction/read/pin | Implemented but not fully verified | backend tests plus realtime publisher; browser evidence pending |
 | ID-MESSAGE-003 | Poll create/vote/close | Implemented but not fully verified | service path exists; live persistence/realtime pending |
 | ID-ROOM-003 | Invites and join requests | Implemented but not fully verified | controller/service paths; live link journey pending |
-| ID-NOTIFY-001 | Notifications and notification settings | Implemented but not fully verified | canonical controller scans the latest 12 monthly partitions; live Cassandra pagination pending |
+| ID-NOTIFY-001 | Notifications and notification settings | Implemented but not fully verified | canonical inbox plus bilingual channel/quiet-hour settings UI; canonical controller scans the latest 12 monthly partitions; live Cassandra pagination pending |
 | ID-REALTIME-001 | Presence/heartbeat/typing | Implemented but not fully verified | STOMP services/controllers; Redis and browser reconnect pending |
 | ID-CALL-001 | Audio/video call signalling + native 1–1 WebRTC session | Implemented but not fully verified | Authenticated `/app/call.*` STOMP controller, explicit target-user routing, native `RTCPeerConnection` offer/answer/ICE flow, incoming accept/decline, mute/camera/hang-up UI; live browser/media and reconnect evidence pending |
 | ID-MEDIA-001 | Attachments | Implemented but not fully verified | Cloudinary is configuration-gated; local provider is externally blocked |

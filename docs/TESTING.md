@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, and infrastructure manifests (73 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, and infrastructure manifests (75 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -26,6 +26,11 @@ checks, and performance trace budgets.
 copy, English `html[lang]`, and 404 recovery links. The expected document 404
 response is recorded separately; unexpected console errors and request failures
 still fail the script.
+
+`npm run test:e2e:notifications` loads the authenticated notification-settings
+page with an explicit HTTP-boundary fixture, toggles push delivery, verifies the
+canonical `PUT /notifications/settings` payload, and fails on console or request
+errors.
 
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the

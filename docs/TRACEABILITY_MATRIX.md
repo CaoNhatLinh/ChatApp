@@ -18,7 +18,7 @@ permission and verification evidence.
 | Create and vote on a poll | Composer/poll card | `/polls`, `/polls/{pollId}/votes`, `/close` | `CanonicalPollController` | compile; live persistence pending |
 | See live changes | Messenger subscriptions | `docs/api/asyncapi.yaml` | `PresenceController`, realtime publisher | compile/unit; broker pending |
 | Start a direct call | Conversation header/composer (DM only) | `/app/call.start`, `/app/call.join`, `/app/call.leave`, `/app/call.signal`, `/app/call.end` with required `targetUserId` | `CallController`, `ConversationAuthorizationService`, `useWebRtcCall` | 73 backend tests; frontend build/type-check; live two-browser media/reconnect pending |
-| Manage notifications | Notification panel/settings | `/notifications/**`, `/user/queue/notifications` | `CanonicalNotificationController` | compile; live Cassandra pending |
+| Manage notifications | Notification panel/settings, channel and quiet-hour controls | `/notifications/**`, `/user/queue/notifications` | `CanonicalNotificationController`, `NotificationSettingsPanel` | `test:e2e:notifications` payload smoke; live Cassandra/provider delivery pending |
 | Share a room | Invite manager/join page | `/invites/**`, `/public/invites/{token}` | `CanonicalInviteController` | service tests; browser pending |
 | Upload and share media | Composer attachment picker | `POST /files/upload` | `MediaController`, `CloudinaryMediaService` | configuration-gated; provider pending |
 | Search message history | Search page | `POST /search/messages` | `MessageSearchController`, Elasticsearch projector | index/integration pending |
