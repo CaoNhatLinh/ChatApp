@@ -6,13 +6,14 @@ Authenticated: `/app` (messenger), `/friends`, `/settings`, `/search`,
 `/profile`, `/admin` (server-authorized admin workspace).
 The global `/admin` surface is a native App Router route with a client feature
 island. Supported public/authenticated routes use the same native entry pattern;
-BrowserRouter remains only inside the current interactive feature shell until
-its navigation hooks are decomposed.
+all feature navigation uses Next App Router APIs and no BrowserRouter
+compatibility layer remains.
 
 Cross-cutting surfaces: auth provider, theme provider, presence manager,
 notification panel, conversation shell, message composer, and error/loading/
 empty states. Each listed URL is a native `src/app/**/page.tsx` entry; client
-feature components are mounted through the shared native route shell.
+feature components are mounted through the shared native route shell. The root
+layout owns the bilingual provider so recovery pages use the same locale state.
 
 Admin IA: capability overview -> runtime health -> global room directory (monthly
 partition) → room policy/archive moderation → report queue/resolution and sanctions

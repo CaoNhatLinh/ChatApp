@@ -5,11 +5,10 @@
 2. **Canonical contracts and storage** — complete for identity, directory,
    friendships, conversations, messages, reactions, reads, pins, polls, invites,
    notifications, presence command surfaces, and the admin capability/role slice.
-3. **Next App Router migration** — native route entries are implemented for all
-   supported URLs, including the dynamic invite route, and the obsolete catch-all
-   entry/App bootstrap was removed. Feature components still use BrowserRouter
-   hooks inside the shared client shell; decomposing those hooks is the remaining
-   migration increment before claiming a server-first route architecture.
+3. **Next App Router migration** — complete for the supported route surface.
+   Native entries cover every supported URL, including the dynamic invite route;
+   the obsolete catch-all entry/App bootstrap and all BrowserRouter hooks were
+   removed. Interactive feature trees remain explicit client islands by design.
 4. **Realtime and integrations** — in progress. Message, presence, notification,
    and targeted 1–1 call signalling/media flows are wired; Redis, Cassandra,
    Elasticsearch, Cloudinary, Kafka, a reviewed STUN/TURN provider, and a

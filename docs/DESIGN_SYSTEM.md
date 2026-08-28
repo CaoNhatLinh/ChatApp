@@ -10,6 +10,12 @@ Signal orange, cool ink neutrals, one sans family, and a restrained elevation
 language. The landing page may be expressive and asymmetric; product and admin
 screens stay familiar and state-first.
 
+Brand assets are intentionally separated: the personal mark supplied by the
+owner is reference-only, while the app uses the NovaChat mark at
+`chatapp_frontend/public/novachat-app-mark.png`. Shared shells, loading states
+and operator surfaces use the app mark; personal-brand artwork is never used as
+the product identity.
+
 ## Token contract
 
 | Role | Token | Use |
@@ -49,3 +55,13 @@ or compatibility layer for those non-canonical routes.
 Every data surface exposes loading, empty, error and success/updated states.
 Interactive controls expose keyboard focus, hover, active, disabled and pending
 states. Realtime state uses text and icons in addition to color.
+
+## Language
+
+The product supports Vietnamese (`vi`, canonical copy) and English (`en`). The
+`AppI18nProvider` is mounted at the root layout and retained by feature shells;
+`LanguageToggle` persists the selected locale in the `novachat_locale` cookie
+and local storage and updates the document language. New user-visible strings
+must be added to `COPY_TRANSLATIONS` with concise, reviewed translations rather
+than silently falling back to guessed text. User-generated content, protocol
+enums and opaque IDs are not translated.

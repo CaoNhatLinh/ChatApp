@@ -88,3 +88,24 @@ browser evidence after the integrated global-admin increment.
   Playwright smoke and admin route smoke pass; JDK 20 `mvnw test` passes 73 tests.
   Docker/Cassandra/Redis/Kafka/Elasticsearch and authenticated multi-account
   browser/media proof remain externally blocked on this host.
+
+# Follow-up self-review (2026-08-29)
+
+The post-checkpoint review re-scanned active source for removed routing APIs and
+visible hard-coded feature copy. Remaining route references are documentation or
+canonical API paths; no `react-router-dom`, BrowserRouter hook, Vite env key, or
+removed page consumer remains in active source. Feature/admin/error copy now
+uses the root bilingual provider and the canonical `localizeText`/copy maps;
+the app mark is used for product surfaces and is separate from the supplied
+personal-brand logo.
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Bilingual UI coverage | Partial | `src/shared/i18n`, root `app/layout.tsx`, feature/admin/error source scan, Playwright VI→EN and 404 check | Authenticated live data, provider delivery copy and some protocol/status values are intentionally not translated | Keep canonical enums/user content unchanged; add every new UI string to the map |
+| Route/source consistency | Pass | `rg` audit for legacy router/Vite/removed routes; `npm run build` lists 16 canonical routes | Live deployment verification remains unavailable | Keep Next App Router as the only runtime |
+| Runtime verification | Partial | `npm run validate`, `npm run build`, `test:e2e:smoke`, `test:e2e:admin`; zero console/request failures | Cassandra/Redis/Kafka/Elasticsearch and authenticated multi-account/media E2E remain blocked | Do not claim clean-stack completion |
+| Documentation consistency | Pass for this increment | `DESIGN_SYSTEM.md`, `CONTENT_GUIDELINES.md`, `INFORMATION_ARCHITECTURE.md`, `AGENT_WORK_PLAN.md`, `tasks/function-audit.md` | Long-range admin analytics/export and provider-backed delivery remain planned | Updated stale BrowserRouter and lint claims; preserve explicit external blockers |
+
+Current frontend lint has six non-runtime `react-refresh/only-export-components`
+warnings in the shared i18n module; this is recorded in the audit rather than
+reported as zero-warning output.

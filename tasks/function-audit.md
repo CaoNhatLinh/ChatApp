@@ -1,6 +1,6 @@
 # NovaChat End-to-End Function Audit
 
-Audit date: 2026-08-28 (Asia/Saigon)
+Audit date: 2026-08-29 (Asia/Saigon)
 
 ## Status legend
 
@@ -18,7 +18,7 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 | Gate | Result | Evidence |
 | --- | --- | --- |
 | Frontend type-check | Working | `npm run type-check` exited 0. |
-| Frontend lint | Working | `npm run lint` exits 0 with zero warnings. |
+| Frontend lint | Working | `npm run lint` exits 0 with 6 `react-refresh/only-export-components` warnings in the shared i18n module; no errors. These are development fast-refresh advisories, not runtime fallback behavior. |
 | Frontend production build | Working with risk | Next.js App Router production build exits 0; authenticated bundle/runtime profiling remains pending. |
 | Backend compile/test | Working at unit level | Canonical backend compiles and `mvnw test` reports 73 tests, 0 failures, 0 errors. Clean-stack integration is still pending. |
 | Docker Compose validation | Blocked | Docker executable is not installed or not in `PATH`. |

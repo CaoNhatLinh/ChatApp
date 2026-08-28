@@ -10,9 +10,8 @@ commands and user/conversation destinations.
 The frontend is React 19 + TypeScript with Zustand feature stores. Next.js 16
 App Router is the only build/runtime entrypoint. Every supported URL now has a
 native App Router entry; those entries delegate interactive feature trees to a
-shared client shell. Browser-only APIs are behind an explicit client boundary,
-while the remaining feature components are being decomposed away from their
-internal BrowserRouter hooks.
+shared client shell. Browser-only APIs are behind explicit client boundaries;
+there are no BrowserRouter hooks or secondary routing runtimes in source.
 
 Global operators use the same frontend/backend deployment through a protected
 `/admin` route and `/api/admin/**` controllers. App-level permissions are
