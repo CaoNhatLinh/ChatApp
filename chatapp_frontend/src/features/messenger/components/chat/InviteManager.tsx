@@ -63,7 +63,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     return (
         <div className="space-y-4 rounded-2xl border border-border/50 p-3">
             <div className="flex gap-2">
-                <button onClick={() => setKind('LINK')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'LINK' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Link2 className="mx-auto mb-1 size-4" />Link</button>
+                <button onClick={() => setKind('LINK')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'LINK' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Link2 className="mx-auto mb-1 size-4" />{localizeText('Liên kết')}</button>
                 <button onClick={() => setKind('QR')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'QR' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><QrCode className="mx-auto mb-1 size-4" />QR</button>
             </div>
             <select value={policy} onChange={event => setPolicy(event.target.value as typeof policy)} className="w-full rounded-lg border border-border bg-background p-2 text-xs">
@@ -91,7 +91,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
 
             {requests.filter(request => request.status === 'PENDING').map(request => (
                 <div key={request.requestId} className="rounded-lg border border-border/50 p-2 text-[10px]">
-                    <p className="mb-2 truncate font-bold">User {request.userId}</p>
+                    <p className="mb-2 truncate font-bold">{localizeText('Người dùng')} {request.userId}</p>
                     <div className="flex gap-2">
                         <button onClick={() => void resolveJoinRequest(request, 'APPROVE').then(refresh)} className="flex flex-1 items-center justify-center gap-1 rounded bg-emerald-500/10 p-1 text-emerald-600"><UserCheck className="size-3" />{localizeText('Duyệt')}</button>
                         <button onClick={() => void resolveJoinRequest(request, 'DECLINE').then(refresh)} className="flex flex-1 items-center justify-center gap-1 rounded bg-destructive/10 p-1 text-destructive"><UserX className="size-3" />{localizeText('Từ chối')}</button>

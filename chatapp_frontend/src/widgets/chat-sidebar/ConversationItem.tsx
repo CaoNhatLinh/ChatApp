@@ -1,13 +1,14 @@
 import { Pin, PinOff } from 'lucide-react';
 import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { formatDistanceToNow } from 'date-fns';
-import { vi } from 'date-fns/locale';
+import { enUS, vi } from 'date-fns/locale';
 import { cn } from '@/shared/lib/cn';
 import { usePresence } from '@/features/presence/model/presence.store';
 import { StatusDot } from '@/features/presence/ui/StatusSelector';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
 import { getConversationLastMessagePreview } from '@/features/messenger/utils/conversation-preview';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -17,7 +18,7 @@ interface ConversationItemProps {
   onUnpin?: (id: string) => void;
 }
 
-const getTimeDistance = (dateInput?: string | number | Date) => {
+const getTimeDistance = (dateInput: string | number | Date | undefined, locale: 'vi' | 'en') => {
   if (!dateInput) {
     return '';
   }
@@ -25,7 +26,7 @@ const getTimeDistance = (dateInput?: string | number | Date) => {
   try {
     return formatDistanceToNow(new Date(dateInput), {
       addSuffix: false,
-      locale: vi,
+      locale: locale === 'en' ? enUS : vi,
     });
   } catch {
     return '';
@@ -40,8 +41,13 @@ const getPresenceTitle = (
 ) => {
   const formatWithDevice = (statusText: string) =>
     device ? `${statusText}${MESSENGER_COPY.presence.deviceSeparator}${device}` : statusText;
+  const localizedLastActiveAgo = lastActiveAgo === 'just now'
+    ? localizeText('Vừa mới')
+    : lastActiveAgo === 'offline'
+      ? localizeText('Ngoại tuyến')
+      : lastActiveAgo ? localizeText(lastActiveAgo) : '';
   const formatWithLastActive = (statusText: string) =>
-    lastActiveAgo ? `${statusText}${MESSENGER_COPY.presence.deviceSeparator}${lastActiveAgo}` : statusText;
+    localizedLastActiveAgo ? `${statusText}${MESSENGER_COPY.presence.deviceSeparator}${localizedLastActiveAgo}` : statusText;
 
   if (isOnline) {
     if (status === 'DND') {
@@ -61,6 +67,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   onPin,
   onUnpin,
 }) => {
+  const { locale } = useAppLocale();
   const lastMsg = conversation.lastMessage;
   const isDM = conversation.type === 'dm';
   const otherUser = conversation.otherParticipant;
@@ -121,7 +128,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
         >
           {isDM && otherUser?.avatarUrl ? (
-            <img src={otherUser.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+            <img src={otherUser.avatarUrl} alt={localizeText('Ảnh đại diện')} className="h-full w-full object-cover" />
           ) : (
             <div
               className={cn(
@@ -153,7 +160,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           </div>
           {lastMsg ? (
             <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
-              {getTimeDistance(lastMsg.createdAt)}
+              {localizeText(getTimeDistance(lastMsg.createdAt, locale))}
             </span>
           ) : null}
         </div>

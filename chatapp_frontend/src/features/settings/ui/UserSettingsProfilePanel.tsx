@@ -69,7 +69,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
           title={localizeText('Đổi ảnh đại diện')}
         >
           {avatarUrl ? (
-            <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+            <img src={avatarUrl} alt={localizeText('Ảnh đại diện')} className="h-full w-full object-cover" />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-3xl font-black text-primary">
               {initials}

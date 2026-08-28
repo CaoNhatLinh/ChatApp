@@ -5,6 +5,7 @@ import type { User } from "@/features/auth/types/auth.types";
 import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/lib/cn";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { localizeText } from "@/shared/i18n";
 
 interface SidebarFooterProps {
   user: User | null;
@@ -40,7 +41,7 @@ export const SidebarFooter = ({ user, onOpenSettings, onOpenContacts }: SidebarF
           <div className="relative">
             <div className="h-10 w-10 rounded-[var(--radius-md)] border border-border bg-primary/10 flex items-center justify-center overflow-hidden">
               {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                <img src={user.avatarUrl} alt={localizeText("Ảnh đại diện")} className="h-full w-full object-cover" />
               ) : (
                 <span className="text-sm font-semibold text-primary">
                   {getUserDisplay(user?.displayName).charAt(0)}
