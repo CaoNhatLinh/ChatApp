@@ -36,7 +36,8 @@
    removed routes. Visual QA covered desktop landing/recovery and mobile public
    pages without horizontal overflow.
 
-Current evidence: backend `./mvnw test` = 73 tests, 0 failures, 0 errors;
+Current evidence: backend Java 20 `./mvnw test` = 73 tests, 0 failures, 0 errors
+(the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:e2e:smoke`, and mock-authenticated `npm run test:e2e:admin` pass.
 The canonical message UI mapping rejects incompatible payload shapes instead of

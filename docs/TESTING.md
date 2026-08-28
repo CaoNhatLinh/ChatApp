@@ -3,7 +3,9 @@
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
 contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, and infrastructure manifests (73 tests, 0
-failures, 0 errors). Frontend: `npm run type-check`,
+failures, 0 errors) when run with Java 20. On this host the default Java 17
+cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
+Frontend: `npm run type-check`,
 `npm run build` (Next), `npm run lint`
 (zero errors), and `npm run test:e2e:smoke` with `next start` running.
 

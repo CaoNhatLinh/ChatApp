@@ -106,6 +106,5 @@ personal-brand logo.
 | Runtime verification | Partial | `npm run validate`, `npm run build`, `test:e2e:smoke`, `test:e2e:admin`; zero console/request failures | Cassandra/Redis/Kafka/Elasticsearch and authenticated multi-account/media E2E remain blocked | Do not claim clean-stack completion |
 | Documentation consistency | Pass for this increment | `DESIGN_SYSTEM.md`, `CONTENT_GUIDELINES.md`, `INFORMATION_ARCHITECTURE.md`, `AGENT_WORK_PLAN.md`, `tasks/function-audit.md` | Long-range admin analytics/export and provider-backed delivery remain planned | Updated stale BrowserRouter and lint claims; preserve explicit external blockers |
 
-Current frontend lint has six non-runtime `react-refresh/only-export-components`
-warnings in the shared i18n module; this is recorded in the audit rather than
-reported as zero-warning output.
+The i18n barrel, runtime, provider and hooks are split so the current frontend
+lint completes with no warnings or errors.
