@@ -32,8 +32,7 @@ export const TypingIndicator = ({
     if (otherTypingUsers.length === 0) return '';
     if (otherTypingUsers.length === 1) {
       const typingUser = otherTypingUsers[0].user;
-      const displayName = typingUser.displayName || typingUser.userName || MESSENGER_COPY.typingIndicator.defaultUser;
-      return MESSENGER_COPY.typingIndicator.userTyping.replace('{name}', displayName);
+      return MESSENGER_COPY.typingIndicator.userTyping.replace('{name}', typingUser.displayName);
     }
 
     return MESSENGER_COPY.typingIndicator.othersTyping.replace(
@@ -49,16 +48,16 @@ export const TypingIndicator = ({
   return (
     <div
       className={cn(
-        'mb-2 flex items-center gap-2 rounded-xl border border-border/50 bg-card/60 px-4 py-2 text-muted-foreground',
+        'mb-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-card px-4 py-2 text-muted-foreground',
         className
       )}
     >
       <div className="flex items-center gap-1">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-bounce" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
       </div>
-      <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">{typingText}</p>
+      <p className="text-xs font-medium text-muted-foreground">{typingText}</p>
     </div>
   );
 };

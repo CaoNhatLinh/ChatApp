@@ -1,155 +1,68 @@
-# NovaChat Backend
+# NovaChat Backend (Canonical Runtime)
 
-A real-time chat application backend built with Spring Boot, featuring WebSocket communication, Elasticsearch search, and comprehensive notification system.
+Backend của NovaChat dùng mô hình dữ liệu **Cassandra-first**, realtime STOMP
+và một contract duy nhất. Runtime không đọc schema/API legacy và không có
+mock-success fallback.
 
-## 🚀 Features
+## Current stack
 
-### ✅ Implemented Features
+- Spring Boot 3.5 + Java 20
+- Cassandra 4.1 là nguồn sự thật cho dữ liệu bền vững
+- Redis cho presence/typing TTL, cache bounded và distributed rate limit
+- Kafka cho outbox events, consumer projection và DLQ
+- Elasticsearch cho search projection được phân quyền và có thể rebuild
+- Cloudinary cho binary media khi đã cấu hình provider
+- JWT + STOMP/SockJS cho REST/realtime được xác thực
 
-- **Real-time Messaging**: WebSocket-based instant messaging with STOMP protocol
-- **File Attachments**: Support for images, videos, audio, and documents via Cloudinary
-- **Typing Indicators**: Real-time typing status with Redis TTL (2s auto-expiry)
-- **User Presence System**: Basic online/offline status tracking (session-based)
-- **Friend Management**: Send/accept/reject friend requests and manage friend list
-- **Conversation Management**: 
-  - DM (Direct Message) conversations
-  - Group conversations
-  - Soft delete with restore capability
-  - Conversation search via Elasticsearch
-- **Notification System**: 
-  - Real-time notifications via WebSocket
-  - Kafka event streaming for scalability
-  - Persistent notifications for friend requests, DM messages, mentions, replies, reactions, pins, polls, and system events
-- **Message Features**:
-  - Reply to messages
-  - Message deletion
-  - Message editing with revision history
-  - Message pinning with server-side limits
-  - Read receipts
-  - Conversation unread counts
-  - Last message preview in conversation lists
-  - Mention parsing and mention notifications
-  - File and media attachments persisted with message records
-  - Immediate echo feedback for better UX
-- **Authentication**: JWT-based authentication with Spring Security
-- **Caching**: Redis caching for optimal performance
-- **WebSocket**: STOMP over WebSocket for bidirectional communication
+## Current scope
 
-### 🚧 Partially Implemented / In Progress
+- Messages, conversations, roles, invites, notifications, polls, attachments,
+  mentions, search APIs và admin/owner actions dùng canonical service paths.
+- Global admin endpoints cover capability gating, bounded all-room directory,
+  room policy/archive, account status/app-role mutations, bounded session/device
+  revoke, daily analytics và monthly audit timeline. Mọi mutation đều kiểm tra
+  quyền và ghi audit/outbox.
+- Cloudinary là provider binary tùy cấu hình; Cassandra luôn giữ attachment
+  metadata authoritative và snapshot bất biến trên message.
+- Cuộc gọi hiện tại chỉ là 1–1 DM native WebRTC. Group/SFU không được expose
+  cho tới khi có provider contract, capacity plan và kiểm thử riêng.
 
-- **User Presence System**: Device-aware online state is exposed, but large-scale fan-out optimization is still pending
-- **Search**: Conversation search works, and mention-oriented message search exists; general-purpose message search still needs refinement
+## Quick setup
 
-### ❌ Not Yet Implemented
-
-- **Audit Logging**: Detailed tracking of user activities
-- **Voice/Video Calls**: Real-time audio/video communication
-- **Advanced Presence**: Fan-out presence system for very large-scale deployments
-
-## 🛠️ Tech Stack
-
-- **Java 20** with Spring Boot 3.5.3
-- **Apache Cassandra** - Primary database for chat data
-- **Redis** - Caching and session management
-- **Elasticsearch** - Search engine for conversations and messages
-- **Apache Kafka** - Message queue for event streaming
-- **WebSocket (STOMP)** - Real-time bidirectional communication
-- **Spring Security** - Authentication and authorization
-- **Docker & Docker Compose** - Containerization
-
-## 📋 Prerequisites
-
-- Java 20 or higher
-- Docker and Docker Compose
-- Maven 3.6+
-
-## 🔧 Installation & Setup
-
-### 1. Clone the repository
+### 1. Start dependencies
 
 ```bash
-git clone https://github.com/CaoNhatLinh/NovaChat-backend.git
-cd NovaChat-backend
+cd chat-service
+docker compose up -d
 ```
 
-### 2. Start required services with Docker
+Manifest mặc định và `docker-compose-full.yml` đều khởi động Cassandra + schema
+init, Redis, Kafka và Elasticsearch. Existing keyspaces phải apply các migration
+additive trong `migrations/` trước khi chạy các projection mới.
+
+### 2. Configure application
+
+Đặt các biến môi trường trong deployment; không commit secret. Tối thiểu cần
+`JWT_SECRET`, Cassandra connection, CORS/WebSocket origins và các broker URL.
+
+### 3. Run
 
 ```bash
-# Start Cassandra, Redis, Kafka, Zookeeper
-docker-compose up -d
-
-# Optional: Start Elasticsearch (if using search features)
-docker-compose -f docker-compose-elasticsearch.yml up -d
-```
-
-### 3. Configure application
-
-Update `src/main/resources/application.properties` with your configurations:
-
-```properties
-# Cassandra
-spring.cassandra.keyspace-name=chat_db
-spring.cassandra.contact-points=localhost
-spring.cassandra.port=9042
-
-# Redis
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
-
-# Kafka
-spring.kafka.bootstrap-servers=localhost:9092
-
-# Elasticsearch (optional)
-spring.elasticsearch.uris=http://localhost:9200
-```
-
-### 4. Build and run
-
-```bash
-# Build the project
-./mvnw clean install
-
-# Run the application
+./mvnw test
 ./mvnw spring-boot:run
 ```
 
-The application will start on `http://localhost:8084`
+REST chạy tại `http://localhost:8084`; SockJS/STOMP tại
+`http://localhost:8084/ws`.
 
-## 📚 API Documentation
+## Useful documents
 
-For complete REST & WebSocket API documentation, please refer to:
-👉 **[API_REFERENCE.md](./API_REFERENCE.md)**
+- [API Reference](./API_REFERENCE.md)
+- [Backend architecture](./docs/ARCHITECTURE.md)
+- [Repository work plan](./docs/AGENT_WORK_PLAN.md)
+- [Feature inventory](./docs/FEATURE_INVENTORY.md)
+- [Contributing](./CONTRIBUTING.md)
 
-## 📖 Project Documentation
-
-### Core Documents
-- **[API Reference](./API_REFERENCE.md)** - Complete documentation for Endpoints and WebSockets.
-- **[Social & Messaging Technical Guide](../TECHNICAL_SOCIAL_MESSAGING.md)** - Cross-layer behavior for friendship, block, unread/read, notifications, pinning, reply, attachments, and presence.
-- **[Roadmap & Future Plans](./ROADMAP.md)** - Feature development plan.
-- **[Incomplete Features](./INCOMPLETE_FEATURES.md)** - ⚠️ Track unfinished modules and known limitations.
-- **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute to the project.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 👤 Author
-
-**Cao Nhat Linh**
-
-- GitHub: [@CaoNhatLinh](https://github.com/CaoNhatLinh)
-
-## 🙏 Acknowledgments
-
-- Spring Boot Team for the excellent framework
-- Apache Cassandra, Kafka, and Elasticsearch communities
-- STOMP.js and SockJS for WebSocket support
-- All contributors and users of this project
+Production phải dùng full manifest, environment đã review và provider external
+được phê duyệt cho media/NAT traversal. Nếu provider thiếu, tính năng báo trạng
+thái unavailable rõ ràng thay vì giả thành công.

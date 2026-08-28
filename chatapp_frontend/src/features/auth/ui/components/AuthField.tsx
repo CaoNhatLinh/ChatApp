@@ -1,4 +1,4 @@
-import { type ChangeEventHandler, type InputHTMLAttributes, type ReactNode } from "react";
+import { useId, type ChangeEventHandler, type InputHTMLAttributes, type ReactNode } from "react";
 
 interface AuthFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: string;
@@ -16,12 +16,16 @@ export const AuthField = ({
   rightAction,
   value,
   onValueChange,
+  id,
   className = "",
   ...props
 }: AuthFieldProps) => {
+  const generatedId = useId();
+  const fieldId = id ?? generatedId;
+
   return (
     <div className="space-y-2 group">
-      <label className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground/90 ml-1">
+      <label htmlFor={fieldId} className="text-sm font-semibold text-foreground">
         {label}
       </label>
       <div className="relative">
@@ -29,10 +33,11 @@ export const AuthField = ({
           {icon}
         </div>
         <input
+          id={fieldId}
           type={inputType}
           value={value}
           onChange={onValueChange}
-          className={`focus-brand w-full bg-background/50 border border-border rounded-xl py-3 pl-12 pr-12 font-medium text-sm transition-all placeholder:text-muted-foreground/60 ${className}`}
+          className={`focus-ring h-11 w-full rounded-[var(--radius-md)] border border-border bg-background py-3 pl-11 pr-12 text-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] placeholder:text-muted-foreground ${className}`}
           {...props}
         />
         {rightAction ? (
@@ -46,3 +51,4 @@ export const AuthField = ({
 };
 
 export default AuthField;
+

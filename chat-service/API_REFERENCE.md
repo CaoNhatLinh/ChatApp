@@ -1,142 +1,73 @@
-# API Reference
+# Canonical API reference
 
-## REST API Endpoints
+The only supported runtime contract is [`docs/api/openapi.yaml`](../docs/api/openapi.yaml)
+for HTTP and [`docs/api/asyncapi.yaml`](../docs/api/asyncapi.yaml) for STOMP.
+The backend base path is `/api`; every endpoint below is relative to that base.
 
-### 1. Authentication (`AuthController`)
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login user and receive a JWT token
-- `POST /api/auth/refresh` - Refresh an expired JWT token
-- `POST /api/auth/logout` - Logout and invalidate user session
-- `GET /api/auth/me` - Get current authenticated user details
+## HTTP surface
 
-### 2. User Profiles (`UserController`)
-- `GET /api/users/search` - Search users by name/email
-- `GET /api/users/{userId}` - Get specific user profile
-- `PUT /api/users/profile` - Update current user profile
+- **Identity:** `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`,
+  `/auth/logout`
+- **Users:** `/users/search`, `/users/{userId}`, `/users/me`
+- **Friendships and blocking:** `/friends`, `/friends/request`,
+  `/friends/requests/received`, `/friends/requests/sent`, `/friends/accept`,
+  `/friends/reject`, `/friends/status/{status}`, `/friends/{friendId}/cancel`,
+  `/friends/{friendId}`, `/friends/block/{friendId}`,
+  `/friends/unblock/{friendId}`, `/friends/check-block/{friendId}`,
+  `/friends/mutual/{userId}`
+- **Conversations:** `/conversations`, `/conversations/{conversationId}`,
+  `/conversations/dm/{otherUserId}`, member/role/chat-policy routes under
+  `/conversations/{conversationId}`
+- **Messages:** message list/create/update/delete, read receipts, revisions,
+  pins and reactions under `/conversations/{conversationId}/messages`
+- **Polls:** `/polls`, `/polls/{pollId}`, `/polls/{pollId}/votes`,
+  `/polls/{pollId}/close`
+- **Invites:** `/invites`, `/invites/conversation/{conversationId}`,
+  `/invites/consume`, `/invites/{token}`, and invite-request resolution routes
+- **Notifications:** `/notifications` plus unread, read, bulk-read, type, latest,
+  stats and settings routes
+- **Files:** `/files/upload`, `/files/upload/multiple`, `/files/{assetId}`
+- **Search:** `/search/messages`
+- **Reports:** `/reports`, `/reports/mine`
+- **Global administration:** `/admin/overview`, `/admin/audit`,
+  `/admin/analytics`, `/admin/conversations/**`, `/admin/reports/**`,
+  `/admin/sanctions`, `/admin/users/{userId}/sanctions/**`,
+  `/admin/users/{userId}/app-roles/**`, `/admin/users/{userId}/sessions/**`,
+  `/admin/users/{userId}/devices/**`, `/admin/users/{userId}/status`
 
-### 3. Friendship & Blocking (`FriendController`)
-- `GET /api/friends/` - Get user's friend list
-- `GET /api/friends/requests/received/{userId}` - Get pending received requests
-- `GET /api/friends/requests/sent/{userId}` - Get sent friend requests
-- `POST /api/friends/request` - Send a friend request
-- `PUT /api/friends/accept` - Accept a friend request
-- `PUT /api/friends/reject` - Reject a friend request
-- `DELETE /api/friends/{friendId}` - Unfriend a user
-- `POST /api/friends/block/{userId}` - Block a user
-- `POST /api/friends/unblock/{userId}` - Unblock a user
-- `GET /api/friends/check-block/{otherUserId}` - Check blocking status with another user
+Global admin authorization is app-scoped. A conversation-local role never grants
+access to `/api/admin/**`.
 
-### 4. Conversations (`ConversationController` & `ConversationManagementController`)
-- `GET /api/conversations/my` - Get all conversations (groups/DMs) for current user
-- `GET /api/conversations/{conversationId}` - Get details of a specific conversation
-- `GET /api/conversations/dm` - Find private conversation between two users
-- `POST /api/conversations` - Create a new conversation (Group/DM)
-- `PUT /api/conversations/{conversationId}` - Update conversation details (name, background)
-- `DELETE /api/conversations/{conversationId}` - Soft delete a conversation
-- `PUT /api/conversations/{conversationId}/restore` - Restore a soft-deleted conversation
-- `DELETE /api/conversations/{conversationId}/permanent` - Permanently delete a conversation
-- `PUT /api/conversations/{conversationId}/pin` - Pin conversation to top
-- `PUT /api/conversations/{conversationId}/unpin` - Unpin conversation
+## STOMP surface
 
-**Management (Group Members & Roles)**
-- `GET /api/conversations/{conversationId}/management/members` - Get conversation members
-- `POST /api/conversations/{conversationId}/management/members/add` - Add members to group
-- `DELETE /api/conversations/{conversationId}/management/members/{memberId}` - Remove member from group
-- `POST /api/conversations/{conversationId}/management/leave` - Leave conversation
-- `POST /api/conversations/{conversationId}/management/transfer-ownership` - Transfer owner role
-- `POST /api/conversations/{conversationId}/management/grant-admin` - Grant admin role
-- `POST /api/conversations/{conversationId}/management/revoke-admin` - Revoke admin role
+Connect to `ws://localhost:8084/ws`. The exact payloads and operations are in
+`docs/api/asyncapi.yaml`.
 
-**Invitation Links**
-- `POST /api/conversations/{conversationId}/management/invitations` - Create an invite link
-- `GET /api/conversations/{conversationId}/management/invitations` - Get all invite links
-- `DELETE /api/conversations/{conversationId}/management/invitations/{linkId}` - Delete invite link
-- `PUT /api/conversations/{conversationId}/management/invitations/{linkId}/deactivate` - Deactivate link
-- `POST /api/conversations/{conversationId}/management/invitations/join/{linkToken}` - Join via link
+- **Client commands:** `/app/typing`, `/app/online-status`,
+  `/app/call.start`, `/app/call.join`, `/app/call.leave`, `/app/call.signal`,
+  `/app/call.end`
+- **Conversation streams:** `/topic/conversation/{conversationId}`,
+  `/topic/conversation/{conversationId}/typing`, `/reactions`, `/read`,
+  `/pins`, `/attachments`, `/calls`
+- **User queues:** `/user/queue/notifications`, `/presence`,
+  `/presence-sync`, `/presence-batch`
 
-### 5. Messages & Enhancements (`MessageController`)
-- `GET /api/messages/{conversationId}` - Get latest messages within a conversation
-- `GET /api/messages/conversations/{conversationId}/older` - Get older messages (pagination before ID)
-- `GET /api/messages/conversations/{conversationId}/filtered` - Get messages mapped between date ranges
-- `POST /api/messages` - Send a message to a conversation
-- `POST /api/messages/{conversationId}/{messageId}/attachments` - Add attachment to a message
-- `GET /api/messages/{conversationId}/{messageId}/attachments` - Get attachments of a message
-- `POST /api/messages/{conversationId}/{messageId}/reactions/{emoji}` - Toggle emoji reaction
-- `GET /api/messages/{conversationId}/{messageId}/reactions` - Get aggregated reactions
-- `POST /api/messages/{conversationId}/{messageId}/read` - Mark specific message as read
-- `GET /api/messages/{conversationId}/{messageId}/read-receipts` - Get list of users who read message
-- `POST /api/messages/{conversationId}/{messageId}/pin` - Toggle pinning a message in conversation
-- `GET /api/messages/{conversationId}/pinned` - Get all pinned messages of a conversation
+Typing commands contain only `conversationId` and `isTyping`; the server adds
+the canonical sender summary to the emitted event. Presence events carry the
+canonical `online`, `status`, timestamp and correlation fields defined by
+AsyncAPI.
 
-### 6. Search (Elasticsearch) (`SearchController`)
-- `GET /api/search/conversations` - Full-text search conversations by name/type
-- `GET /api/search/messages` - Full-text search messages by content/sender/type
-- `GET /api/search/messages/mentions` - Find messages mentioning a specific user
+Call commands are direct-call only: every command includes `targetUserId`, the
+conversation must be a DM containing both users, and `maxParticipants` is 2.
+The frontend uses native browser WebRTC for SDP/ICE and sends those envelopes
+through `/app/call.signal`; production NAT traversal still needs an explicit
+STUN/TURN configuration.
 
-### 7. Notifications (`NotificationController`)
-- `GET /api/notifications` - Get user notifications (paginated)
-- `GET /api/notifications/unread` - Get unread notifications
-- `GET /api/notifications/unread/count` - Get number of unread notifications
-- `GET /api/notifications/type/{type}` - Filter by notification type
-- `GET /api/notifications/search` - Search through notifications
-- `GET /api/notifications/latest` - Fetch the most recent notifications
-- `PUT /api/notifications/{notificationId}/read` - Mark specific notification as read
-- `PUT /api/notifications/read-all` - Mark ALL user notifications as read
-- `PUT /api/notifications/bulk-read` - Mark multiple specified notifications as read
-- `DELETE /api/notifications/{notificationId}` - Delete single notification
-- `DELETE /api/notifications/all` - Delete all notifications
+## Contract rules
 
-### 8. File Uploads (`FileUploadController`)
-- `POST /api/files/upload` - Upload a single text/image/video/audio file
-- `POST /api/files/upload/multiple` - Upload multiple files concurrently
-- `DELETE /api/files/delete/{publicId}` - Remove an uploaded file (from Cloudinary/storage)
-
-### 9. Presence (WebSocket-Only, `/app` + `/user/queue`)
-- Presence presence is now managed through STOMP/WebSocket channels only.
-- REST presence APIs (`/api/presence/*`) were removed to avoid duplicate flow and orphan state.
-
-### 10. Cache Management (`CacheManagementController`)
-- `GET /api/cache/stats` - Read Redis cache metrics
-- `GET /api/cache/health` - Check Redis cache connection health
-- `DELETE /api/cache/clear/all` - Flush entire Redis cache (Admin only)
-- `DELETE /api/cache/clear/conversation/{conversationId}` - Clear cache for a specific conversation
-- `DELETE /api/cache/clear/user/{userId}` - Clear cache for a specific user
-
-### 11. Polls (`PollController`) - *Currently Mocked/Stubbed*
-- `POST /api/polls` - Create a new poll
-- `POST /api/polls/{pollId}/vote` - Cast a vote
-- `GET /api/polls/{pollId}/results` - Get poll results
-- `POST /api/polls/{pollId}/close` - Close an active poll
-- `DELETE /api/polls/{pollId}/vote` - Revoke vote
-
----
-
-## 🔌 WebSocket (STOMP) Endpoints
-
-Connect to WebSocket at: `ws://localhost:8084/ws`
-
-### Subscribe Channels (Client listens):
-- `/user/queue/messages` - Receive personal messages
-- `/user/queue/message-echo` - Receive echo of your sent messages (for instant UI update)
-- `/user/queue/notifications` - Receive push notifications
-- `/user/queue/presence` - Receive per-user presence updates
-- `/user/queue/presence-sync` - Receive presence status sync acknowledgements/errors
-- `/user/queue/presence-batch` - Receive presence batch snapshot on reconnect/re-sync
-- `/user/queue/errors` - Receive WebSocket-level errors
-- `/topic/conversation/{conversationId}` - Global conversation updates
-- `/topic/conversation/{conversationId}/typing` - Typing indicators
-- `/topic/conversation/{conversationId}/reactions` - Real-time reaction updates
-- `/topic/conversation/{conversationId}/read` - Real-time read receipt updates
-- `/topic/conversation/{conversationId}/pins` - Real-time pin/unpin updates
-
-### Send Channels (Client sends):
-- `/app/message.send` - Send a text message payload
-- `/app/message.file` - Send a file attachment message payload
-- `/app/typing` - Broadcast typing status (`{ "typing": true }`)
-- `/app/heartbeat` - Send heartbeat frame to maintain presence
-- `/app/notification.read` - Acknowledge a push notification as read
-- `/app/notifications.read-all` - Acknowledge all notifications as read
-- `/app/presence/logout` - Broadcast offline status immediately
-- `/app/presence.subscribe` - Subscribe to presence push for array of users
-- `/app/presence.unsubscribe` - Unsubscribe from presence push
-- `/app/presence.batch` - Request immediate presence list
+- Request and response fields are canonical and validated at the boundary.
+- Bounded list endpoints require an explicit limit within the server cap.
+- Cassandra is the durable authority; Redis, Kafka and Elasticsearch are
+  projections or delivery infrastructure.
+- Mutations that affect moderation or administration require server-side app
+  permissions and an immutable audit event.

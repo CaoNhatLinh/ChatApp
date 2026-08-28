@@ -1,4 +1,6 @@
-﻿export const MESSENGER_COPY = {
+import { localizedCopy } from '@/shared/i18n';
+
+const rawMessengerCopy = {
   presence: {
     statusLabel: {
       dnd: "Không làm phiền",
@@ -34,10 +36,6 @@
       searchHintMinChars: "Nhập tối thiểu 2 ký tự để tìm người dùng.",
       creatingConversation: "Đang tạo...",
       startConversation: "Bắt đầu trò chuyện",
-      createConversationButton: "Tạo phòng ngay",
-      createConversationDone: "Tạo phòng mới",
-      createConversationStep1: "Thiết lập",
-      createConversationStep2: "Thành viên",
       connectUser: "Kết nối mới",
       modalHint: "Tìm bạn và bắt đầu trò chuyện",
       modalCloseAria: "Đóng modal",
@@ -63,7 +61,7 @@
     imageMessage: "đã gửi ảnh",
     fileMessage: "đã gửi tệp đính kèm",
     fileMessageWithName: "đã gửi tệp: ",
-    newMessageFallback: "Tin mới",
+    emptyTextMessage: "Tin nhắn mới",
   },
   conversationItem: {
     presence: {
@@ -105,19 +103,9 @@
   },
   conversationInfo: {
     title: "Thông tin",
-    search: "Tìm kiếm",
-    mute: "Tắt âm",
-    customization: "Tùy chỉnh",
-    themeLabel: "Chủ đề & Màu sắc",
-    mediaLabel: "Phương tiện chia sẻ",
-    photoVideoLabel: "Ảnh & Video",
-    documentsLabel: "Tài liệu",
-    memberLabel: "Thành viên",
     dangerZone: "Vùng nguy hiểm",
     unblockUser: "Bỏ chặn người dùng",
     blockUser: "Chặn người dùng",
-    deleteHistory: "Xóa lịch sử trò chuyện",
-    leaveGroup: "Rời khỏi nhóm",
     confirmBlock: "Bạn có chắc chắn muốn chặn người dùng này?",
   },
   messageHistory: {
@@ -141,9 +129,8 @@
       attachMedia: "Đính kèm ảnh / video",
       createPoll: "Tạo bình chọn",
       pickEmoji: "Chọn emoji",
-      callVoice: "Gọi ghi âm",
+      callVoice: "Gọi thoại",
       searchEmoji: "Tìm emoji...",
-      voiceFeatureLabel: "Gọi ghi âm",
     },
     actionSuccess: {
       copyPollCreated: "Đã tạo bình chọn.",
@@ -164,14 +151,10 @@
       noConversationToSend: "Vui lòng chọn cuộc trò chuyện để gửi.",
       attachmentDisabledDuringEdit: () =>
         "Gửi file không được áp dụng khi chỉnh sửa tin nhắn.",
-      toastInvalidFeature: (featureName: string) =>
-        `Tính năng ${featureName} đang phát triển`,
     },
     draftPanel: {
       replyLabel: "Đang trả lời",
       editLabel: "Đang chỉnh sửa",
-      unknownReplyContent: "Nội dung chưa có",
-      unknownEditContent: "Nội dung chưa có",
     },
   },
   messageInputBlocked: {
@@ -180,7 +163,6 @@
     blockedByOther: "Bạn không thể gửi tin nhắn cho người này.",
   },
   typingIndicator: {
-    defaultUser: "Một người",
     userTyping: "{name} đang nhập...",
     othersTyping: "{count} người đang nhập...",
   },
@@ -204,11 +186,6 @@
     deleted: "Tin nhắn đã bị xóa",
   },
   chatWindow: {
-    featureHint: {
-      search: "Tìm tin nhắn",
-      video: "Gọi video",
-      voice: "Gọi thoại",
-    },
     status: {
       dnd: "Không làm phiền",
       online: "Đang hoạt động",
@@ -222,21 +199,12 @@
       seenAt: (timestamp: string) => `Đã xem lúc ${timestamp}`,
       noReplyTarget: "Không có tin nhắn reply.",
       noMessageFoundInHistory: "Không tìm thấy tin nhắn trong lịch sử đã tải.",
-      featureMissing: (featureName: string) =>
-        `Hành động tin nhắn chưa được hỗ trợ: ${featureName}`,
-      todoMessage: "Không có tin nhắn để sao chép.",
     },
     placeholder: {
       emptyTitle: "Chọn một cuộc trò chuyện",
       emptyMessage: "Bắt đầu kết nối với bạn bè của bạn trong không gian trò chuyện mới.",
     },
-    roomTheme: {
-      defaultRoomName: "DM",
-      defaultGroupName: "Nhóm",
-    },
     header: {
-      dmFallback: "Cuộc trò chuyện",
-      groupFallback: "Nhóm",
       goBackLabel: "Quay lại danh sách",
       searchTooltip: "Tìm trong cuộc trò chuyện",
       themeTooltip: "Thiết lập chủ đề phòng",
@@ -249,16 +217,14 @@
   search: {
     messageFilter: {
       emptyMessage: "Không có kết quả phù hợp.",
-      contentPlaceholder: "Nội dung tin nhắn",
       senderIdPlaceholder: "UUID người gửi",
       replyToMessagePlaceholder: "UUID tin nhắn reply",
       mentionedUserPlaceholder: "UUID người được nhắc",
       recipientUserPlaceholder: "UUID người nhận",
       typeLabel: "Loại",
-      messageTypeOptions: ["Tất cả", "TEXT", "IMAGE", "FILE", "NOTIFICATION", "POLL"],
+      messageTypeOptions: ["Tất cả", "TEXT", "IMAGE", "FILE", "AUDIO", "VIDEO", "STICKER", "POLL", "SYSTEM"],
       fromLabel: "Từ ngày",
       toLabel: "Đến ngày",
-      applyLabel: "Lọc",
       clearLabel: "Xóa bộ lọc",
       disabledHint:
         "Vui lòng mở một cuộc trò chuyện để dùng tìm kiếm nâng cao tin nhắn.",
@@ -268,7 +234,6 @@
     title: "Tạo phòng mới",
     stepOneTitle: "Thiết lập",
     stepTwoTitle: "Thành viên",
-    roomAvatarHint: "Ảnh đại diện phòng",
     roomNameLabel: "Tên phòng chat",
     roomNamePlaceholder: "VD: Team Frontend, Coffee Group...",
     roomDescriptionLabel: "Mô tả (Không bắt buộc)",
@@ -280,24 +245,15 @@
     roomTypeChannelHint: "Công khai, thông báo",
     membersEmpty: "Chưa chọn thành viên nào",
     searchPlaceholder: "Tìm kiếm bạn bè theo tên đăng nhập...",
-    noSearchResult: "Không có kết quả",
-    searchRetryHint: "Nhập username khác để thử lại.",
     backButton: "Quay lại",
     nextButton: "Tiếp theo",
     createButtonLoading: "Đang tạo phòng...",
     createButton: "Tạo phòng ngay",
-    createButtonIconLabel: "Tạo phòng ngay",
   },
   newConversationModal: {
-    title: "Kết nối mới",
-    hint: "Tìm bạn và bắt đầu trò chuyện",
-    searchPlaceholder: "Nhập username để tìm...",
-    noSearchResult: "Không có kết quả",
-    searchRetryHint: "Nhập username khác để thử lại.",
-    minSearchHint: "Nhập tối thiểu 2 ký tự để tìm người dùng.",
-    createButtonLoading: "Đang tạo...",
-    createButton: "Bắt đầu trò chuyện",
     closeAriaLabel: "Đóng modal",
     removeChipAriaPrefix: "Bỏ chọn",
   },
 } as const;
+
+export const MESSENGER_COPY = localizedCopy(rawMessengerCopy);

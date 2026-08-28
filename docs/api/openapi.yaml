@@ -1,0 +1,648 @@
+openapi: 3.1.0
+info:
+  title: NovaChat Canonical HTTP API
+  version: 1.0.0
+  description: |
+    Source-controlled contract for the authenticated NovaChat web client.
+    Cassandra remains authoritative; cursors are opaque and must not be decoded by clients.
+servers:
+  - url: http://localhost:8084/api
+    description: Local development
+tags:
+  - name: Auth
+  - name: Users
+  - name: Friends
+  - name: Conversations
+  - name: Messages
+  - name: Polls
+  - name: Invites
+  - name: Notifications
+  - name: Files
+  - name: Search
+  - name: Admin
+  - name: Operations
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      security: []
+      summary: Read backend and Cassandra health
+      responses: {'200': {description: Health snapshot}}
+  /health/ping:
+    get:
+      tags: [Operations]
+      security: []
+      summary: Liveness probe
+      responses: {'200': {description: Liveness response}}
+  /auth/register:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Register a local account
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/RegisterRequest'}}}
+      responses: {'201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}}
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login and set an HttpOnly refresh cookie
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/LoginRequest'}}}
+      responses: {'200': {description: Authenticated, headers: {Set-Cookie: {$ref: '#/components/headers/RefreshCookie'}}, content: {application/json: {schema: {$ref: '#/components/schemas/AuthResponse'}}}}}
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Rotate the refresh cookie and issue a short-lived access token
+      responses: {'200': {description: Refreshed, headers: {Set-Cookie: {$ref: '#/components/headers/RefreshCookie'}}, content: {application/json: {schema: {$ref: '#/components/schemas/AuthResponse'}}}}}
+  /auth/me:
+    get:
+      tags: [Auth]
+      security: [{bearerAuth: []}]
+      responses: {'200': {description: Current user, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}}
+  /auth/logout:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Revoke the refresh cookie (safe after access-token expiry)
+      responses: {'204': {description: Logged out}}
+  /users/search:
+    get:
+      tags: [Users]
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 2}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses: {'200': {description: Public user page, content: {application/json: {schema: {$ref: '#/components/schemas/UserSearchPage'}}}}}
+  /users/{userId}:
+    get:
+      tags: [Users]
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      responses: {'200': {description: Public profile, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}}
+  /users/me:
+    patch:
+      tags: [Users]
+      requestBody:
+        content: {application/json: {schema: {$ref: '#/components/schemas/UpdateProfileRequest'}}}
+      responses: {'200': {description: Updated profile, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}}
+  /friends:
+    get:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Accepted friendships, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
+  /friends/request:
+    post:
+      tags: [Friends]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FriendRequest'}}}}
+      responses: {'200': {description: Pending request}}
+  /friends/requests/received:
+    get:
+      tags: [Friends]
+      responses: {'200': {description: Incoming requests, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
+  /friends/requests/sent:
+    get:
+      tags: [Friends]
+      responses: {'200': {description: Outgoing requests, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
+  /friends/status/{status}:
+    get:
+      tags: [Friends]
+      parameters:
+        - {name: status, in: path, required: true, schema: {type: string}}
+        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {description: Filtered friendship status, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
+  /friends/accept:
+    put:
+      tags: [Friends]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FriendAction'}}}}
+      responses: {'200': {description: Accepted friendship}}
+  /friends/reject:
+    put:
+      tags: [Friends]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FriendAction'}}}}
+      responses: {'204': {description: Rejected}}
+  /friends/{friendId}/cancel:
+    post:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/FriendId'}]
+      responses: {'204': {description: Cancelled}}
+  /friends/{friendId}:
+    delete:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/FriendId'}]
+      responses: {'204': {description: Removed}}
+  /friends/block/{friendId}:
+    post:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/FriendId'}]
+      responses: {'204': {description: Blocked}}
+  /friends/unblock/{friendId}:
+    post:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/FriendId'}]
+      responses: {'204': {description: Unblocked}}
+  /friends/check-block/{friendId}:
+    get:
+      tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/FriendId'}]
+      responses: {'200': {description: Blocking relationship}}
+  /friends/mutual/{userId}:
+    get:
+      tags: [Friends]
+      parameters:
+        - {$ref: '#/components/parameters/UserId'}
+        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {description: Mutual friends}}
+  /conversations:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Member conversation projections, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ConversationListItem'}}}}}}
+    post:
+      tags: [Conversations]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationCreate'}}}}
+      responses: {'201': {description: Created conversation, content: {application/json: {schema: {$ref: '#/components/schemas/Conversation'}}}}}
+  /conversations/{conversationId}:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'200': {description: Conversation}}
+  /conversations/dm/{otherUserId}:
+    get:
+      tags: [Conversations]
+      parameters: [{name: otherUserId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Existing direct conversation}}
+  /conversations/{conversationId}/members:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'200': {description: Members, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ConversationMember'}}}}}}
+    post:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {content: {application/json: {schema: {type: object, required: [userId], properties: {userId: {type: string, format: uuid}}}}}}
+      responses: {'204': {description: Added}}
+  /conversations/{conversationId}/members/{userId}:
+    delete:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Removed}}
+  /conversations/{conversationId}/leave:
+    post:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'204': {description: Left conversation}}
+  /conversations/{conversationId}/pin:
+    post:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'204': {description: Pinned}}
+    delete:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'204': {description: Unpinned}}
+  /conversations/{conversationId}/roles:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'200': {description: Conversation roles}}
+    post:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/ConversationRoleRequest'}}}}
+      responses: {'201': {description: Role created}}
+  /conversations/{conversationId}/roles/{roleId}:
+    delete:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: roleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Role deleted}}
+  /conversations/{conversationId}/members/{userId}/roles:
+    post:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {content: {application/json: {schema: {type: object, required: [roleIds], properties: {roleIds: {type: array, items: {type: string, format: uuid}}}}}}}
+      responses: {'204': {description: Roles assigned}}
+  /conversations/{conversationId}/ownership/{userId}:
+    post:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/UserId'}]
+      responses: {'204': {description: Ownership transferred}}
+  /conversations/{conversationId}/chat-policy:
+    put:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/ConversationChatPolicy'}}}}
+      responses: {'204': {description: Policy updated}}
+  /conversations/{conversationId}/members/{userId}/chat-policy:
+    put:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/MemberChatPolicy'}}}}
+      responses: {'204': {description: Member policy updated}}
+  /conversations/{conversationId}/messages:
+    get:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}, {name: cursor, in: query, schema: {type: string}}]
+      responses: {'200': {description: Cursor page, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePage'}}}}}
+    post:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MessageSend'}}}}
+      responses: {'201': {description: Created message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
+  /conversations/{conversationId}/messages/{messageId}:
+    get:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'200': {description: Message}}
+    put:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
+      requestBody: {content: {application/json: {schema: {type: object, required: [content], properties: {content: {type: string, maxLength: 20000}}}}}}
+      responses: {'200': {description: Edited message}}
+    delete:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'200': {description: Deleted message}}
+  /conversations/{conversationId}/messages/{messageId}/read:
+    post:
+      tags: [Messages]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'204': {description: Marked read}}
+  /conversations/{conversationId}/messages/{messageId}/read-receipts:
+    get:
+      tags: [Messages]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'200': {description: Read receipts}}
+  /conversations/{conversationId}/messages/{messageId}/revisions:
+    get:
+      tags: [Messages]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'200': {description: Message revisions}}
+  /conversations/{conversationId}/messages/{messageId}/pin:
+    post:
+      tags: [Messages]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'204': {description: Pinned}}
+    delete:
+      tags: [Messages]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
+      responses: {'204': {description: Unpinned}}
+  /conversations/{conversationId}/messages/{messageId}/reactions:
+    post:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
+      requestBody: {content: {application/json: {schema: {type: object, required: [emoji], properties: {emoji: {type: string, maxLength: 8}}}}}}
+      responses: {'204': {description: Added}}
+    delete:
+      tags: [Messages]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}, {name: emoji, in: query, required: true, schema: {type: string}}]
+      responses: {'204': {description: Removed}}
+  /polls:
+    post:
+      tags: [Polls]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/PollCreate'}}}}
+      responses: {'201': {description: Poll created}}
+  /polls/{pollId}:
+    get:
+      tags: [Polls]
+      parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Poll view}}
+  /polls/{pollId}/votes:
+    post:
+      tags: [Polls]
+      parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {content: {application/json: {schema: {type: object, properties: {selectedOptionIndexes: {type: array, items: {type: integer}}}}}}}
+      responses: {'200': {description: Vote recorded}}
+    delete:
+      tags: [Polls]
+      parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Vote removed}}
+  /polls/{pollId}/close:
+    post:
+      tags: [Polls]
+      parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Poll closed}}
+  /invites:
+    post:
+      tags: [Invites]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/InviteCreate'}}}}
+      responses: {'201': {description: Invite created}}
+  /invites/conversation/{conversationId}:
+    get:
+      tags: [Invites]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Active invite links}}
+  /invites/consume:
+    post:
+      tags: [Invites]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/InviteConsume'}}}}
+      responses: {'200': {description: Invite consumed}}
+  /invites/{token}:
+    delete:
+      tags: [Invites]
+      parameters: [{name: token, in: path, required: true, schema: {type: string}}]
+      responses: {'204': {description: Invite revoked}}
+  /invites/{token}/decline:
+    post:
+      tags: [Invites]
+      parameters: [{name: token, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: Invite declined}}
+  /invites/conversation/{conversationId}/requests:
+    get:
+      tags: [Invites]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Pending join requests}}
+  /invites/conversation/{conversationId}/requests/{requestId}/resolve:
+    post:
+      tags: [Invites]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: requestId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/JoinRequestDecision'}}}}
+      responses: {'200': {description: Join request resolved}}
+  /public/invites/{token}:
+    get:
+      tags: [Invites]
+      security: []
+      parameters: [{name: token, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: Public preview}}
+  /notifications:
+    get:
+      tags: [Notifications]
+      parameters: [{$ref: '#/components/parameters/Limit'}, {name: page, in: query, schema: {type: integer, minimum: 0}}]
+      responses: {'200': {description: Notifications from the latest 12 monthly partitions}}
+  /notifications/unread:
+    get:
+      tags: [Notifications]
+      responses: {'200': {description: Unread notifications}}
+  /notifications/unread/count:
+    get:
+      tags: [Notifications]
+      responses: {'200': {description: Unread count}}
+  /notifications/{notificationId}/read:
+    put:
+      tags: [Notifications]
+      parameters: [{name: notificationId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Marked read}}
+  /notifications/read-all:
+    put:
+      tags: [Notifications]
+      responses: {'204': {description: Marked all read}}
+  /notifications/bulk-read:
+    put:
+      tags: [Notifications]
+      requestBody: {content: {application/json: {schema: {type: array, items: {type: string, format: uuid}}}}}
+      responses: {'204': {description: Marked selected notifications read}}
+  /notifications/{notificationId}:
+    delete:
+      tags: [Notifications]
+      parameters: [{name: notificationId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Deleted}}
+  /notifications/all:
+    delete:
+      tags: [Notifications]
+      responses: {'204': {description: Deleted notifications from the latest 12 monthly partitions}}
+  /notifications/stats:
+    get:
+      tags: [Notifications]
+      responses: {'200': {description: Notification statistics}}
+  /notifications/type/{type}:
+    get:
+      tags: [Notifications]
+      parameters: [{name: type, in: path, required: true, schema: {type: string}}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Notifications filtered by type}}
+  /notifications/latest:
+    get:
+      tags: [Notifications]
+      responses: {'200': {description: Latest notification}}
+  /notifications/settings:
+    get:
+      tags: [Notifications]
+      responses: {'200': {description: Notification settings}}
+    put:
+      tags: [Notifications]
+      requestBody: {content: {application/json: {schema: {type: object}}}}
+      responses: {'204': {description: Updated}}
+  /files/upload:
+    post:
+      tags: [Files]
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
+      responses: {'201': {description: Uploaded asset}}
+  /files/upload/multiple:
+    post:
+      tags: [Files]
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [files], properties: {files: {type: array, maxItems: 10, items: {type: string, format: binary}}}}}}}
+      responses: {'201': {description: Uploaded assets}}
+  /files/{assetId}:
+    delete:
+      tags: [Files]
+      parameters: [{name: assetId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Asset deleted}}
+  /search/messages:
+    post:
+      tags: [Search]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/MessageSearch'}}}}
+      responses: {'200': {description: Search page}}
+  /admin/overview:
+    get:
+      tags: [Admin]
+      summary: Return the authenticated administrator's capabilities
+      responses: {'200': {description: Admin capability snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/AdminOverview'}}}}}
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: List bounded global audit events for a UTC month
+      parameters:
+        - {name: month, in: query, schema: {type: string, pattern: '^\d{4}-\d{2}$'}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {description: Audit events, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/AdminAuditEvent'}}}}}}
+  /admin/analytics:
+    get:
+      tags: [Admin]
+      summary: Read bounded daily analytics aggregates
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: eventType, in: query, schema: {type: string, enum: [ALL, ROOM_CREATED, ROOM_JOINED, MESSAGE_SENT, POLLS_CREATED, POLL_VOTED, CALL_STARTED], default: ALL}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 2000, default: 200}}
+      responses: {'200': {description: Bounded analytics points, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/AdminAnalyticsPoint'}}}}}}
+  /reports:
+    post:
+      tags: [Moderation]
+      summary: Submit a user report
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateReport'}}}}
+      responses: {'201': {description: Created report}}
+  /reports/mine:
+    get:
+      tags: [Moderation]
+      parameters: [{$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Reports submitted by the authenticated user}}
+  /admin/reports:
+    get:
+      tags: [Admin]
+      summary: List reports for one bounded UTC day
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED], default: OPEN}}
+        - {name: day, in: query, schema: {type: string, format: date}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {description: Moderation queue}}
+  /admin/reports/{reportId}:
+    put:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/ReportId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResolveReport'}}}}
+      responses: {'200': {description: Updated report}}
+  /admin/sanctions:
+    post:
+      tags: [Admin]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SanctionRequest'}}}}
+      responses: {'200': {description: Applied sanction}}
+  /admin/users/{userId}/sanctions:
+    get:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: User sanctions}}
+  /admin/users/{userId}/sanctions/{sanctionId}:
+    delete:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/SanctionId'}, {name: imposedAt, in: query, required: true, schema: {type: string, format: uuid}}, {name: reason, in: query, required: true, schema: {type: string, maxLength: 500}}]
+      responses: {'200': {description: Revoked sanction}}
+  /admin/users/{userId}/app-roles:
+    get:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      responses: {'200': {description: Application roles}}
+    post:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/AppRoleMutation'}}}}
+      responses: {'201': {description: Application role assigned}}
+  /admin/conversations:
+    get:
+      tags: [Admin]
+      summary: List rooms from the bounded monthly operator directory
+      parameters:
+        - {name: month, in: query, schema: {type: string, pattern: '^\d{4}-\d{2}$'}}
+        - {$ref: '#/components/parameters/Limit'}
+      responses: {'200': {description: Room summaries for the requested month}}
+  /admin/conversations/{conversationId}:
+    get:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'200': {description: Room detail and bounded member snapshot}}
+    delete:
+      tags: [Admin]
+      summary: Archive a room globally
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
+      responses: {'200': {description: Archived room}}
+  /admin/conversations/{conversationId}/restore:
+    post:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
+      responses: {'200': {description: Restored room}}
+  /admin/conversations/{conversationId}/chat-policy:
+    put:
+      tags: [Admin]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminChatPolicyMutation'}}}}
+      responses: {'200': {description: Updated global room policy}}
+  /admin/users/{userId}/app-roles/{roleCode}:
+    delete:
+      tags: [Admin]
+      parameters: [{name: userId, in: path, required: true, schema: {type: string, format: uuid}}, {name: roleCode, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AppRoleMutation'}}}}
+      responses: {'204': {description: Application role revoked}}
+  /admin/users/{userId}/sessions:
+    get:
+      tags: [Admin]
+      summary: List bounded refresh sessions for a user
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Refresh session inventory}}
+  /admin/users/{userId}/sessions/{tokenId}:
+    delete:
+      tags: [Admin]
+      summary: Revoke one refresh session
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/TokenId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
+      responses: {'204': {description: Session revoked}}
+  /admin/users/{userId}/devices:
+    get:
+      tags: [Admin]
+      summary: List bounded registered devices for a user
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Device inventory}}
+  /admin/users/{userId}/devices/{deviceId}:
+    delete:
+      tags: [Admin]
+      summary: Revoke one device and its indexed sessions
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/DeviceId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
+      responses: {'204': {description: Device revoked}}
+  /admin/users/{userId}/status:
+    put:
+      tags: [Admin]
+      summary: Suspend, ban or restore a user account globally
+      parameters: [{$ref: '#/components/parameters/UserId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminAccountStatusMutation'}}}}
+      responses: {'200': {description: Updated user account status, content: {application/json: {schema: {$ref: '#/components/schemas/AdminAccountStatusResponse'}}}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  headers:
+    RefreshCookie:
+      description: HttpOnly rotating refresh cookie; Secure is enabled in production.
+      schema: {type: string}
+    SessionHintCookie:
+      description: Non-authorizing startup hint (`novachat_session=1`); it is not a credential and does not grant access.
+      schema: {type: string}
+  parameters:
+    UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+    FriendId: {name: friendId, in: path, required: true, schema: {type: string, format: uuid}}
+    ConversationId: {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+    MessageId: {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}
+    ReportId: {name: reportId, in: path, required: true, schema: {type: string, format: uuid}}
+    SanctionId: {name: sanctionId, in: path, required: true, schema: {type: string, format: uuid}}
+    TokenId: {name: tokenId, in: path, required: true, schema: {type: string, format: uuid}}
+    DeviceId: {name: deviceId, in: path, required: true, schema: {type: string, format: uuid}}
+    Bucket: {name: bucket, in: query, required: true, schema: {type: string, pattern: '^\\d{4}-\\d{2}-\\d{2}-\\d{2}:\\d{2}$'}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+  schemas:
+    RegisterRequest: {type: object, required: [username, email, password], properties: {username: {type: string, minLength: 2, maxLength: 64}, email: {type: string, format: email}, password: {type: string, minLength: 8}, displayName: {type: string}}}
+    LoginRequest: {type: object, required: [username, password], properties: {username: {type: string}, password: {type: string, format: password}}}
+    AuthResponse: {type: object, required: [accessToken, user], properties: {accessToken: {type: string}, user: {$ref: '#/components/schemas/User'}}}
+    User: {type: object, required: [userId, username, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, email: {type: string, format: email}, displayName: {type: string}, avatarUrl: {type: string, format: uri}, accountStatus: {type: string}}}
+    UpdateProfileRequest: {type: object, properties: {displayName: {type: string, maxLength: 120}, avatarUrl: {type: string, format: uri}}}
+    UserSearchPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/User'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}
+    AdminOverview: {type: object, required: [actorId, roles, permissions, availableRoleCodes], properties: {actorId: {type: string, format: uuid}, roles: {type: array, items: {type: string}}, permissions: {type: array, items: {type: string}}, availableRoleCodes: {type: array, items: {type: string}}}}
+    AdminAuditEvent: {type: object, required: [eventMonth, eventId, action, resourceType, resourceId, outcome, createdAt], properties: {eventMonth: {type: string}, eventId: {type: string, format: uuid}, action: {type: string}, resourceType: {type: string}, resourceId: {type: string}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, targetUserId: {type: string, format: uuid, nullable: true}, outcome: {type: string}, reasonCode: {type: string, nullable: true}, beforeState: {type: object, additionalProperties: {type: string}}, afterState: {type: object, additionalProperties: {type: string}}, requestId: {type: string, format: uuid, nullable: true}, createdAt: {type: string, format: date-time}}}
+    CreateReport: {type: object, required: [targetType, reasonCode], properties: {targetType: {type: string, enum: [USER, MESSAGE, CONVERSATION]}, targetUserId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, reasonCode: {type: string, maxLength: 80}, description: {type: string, maxLength: 2000}}}
+    ResolveReport: {type: object, required: [currentStatus, reportDay, createdAtKey, nextStatus, reason], properties: {currentStatus: {type: string}, reportDay: {type: string, format: date}, createdAtKey: {type: string, format: uuid}, nextStatus: {type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED]}, assignedTo: {type: string, format: uuid}, resolutionCode: {type: string}, reason: {type: string, maxLength: 500}}}
+    SanctionRequest: {type: object, required: [userId, scope, sanctionType, reasonText], properties: {userId: {type: string, format: uuid}, scope: {type: string, enum: [APP, CONVERSATION]}, conversationId: {type: string, format: uuid}, sanctionType: {type: string, enum: [BAN, MUTE, SUSPEND, WARNING]}, startsAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time}, reasonCode: {type: string}, reasonText: {type: string, maxLength: 500}}}
+    AdminChatPolicyMutation: {type: object, required: [chatMode, reason], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}, reason: {type: string, minLength: 1, maxLength: 500}}}
+    AdminAccountStatusMutation: {type: object, required: [accountStatus, reason], properties: {accountStatus: {type: string, enum: [ACTIVE, SUSPENDED, BANNED]}, reason: {type: string, minLength: 1, maxLength: 500}}}
+    AdminAccountStatusResponse: {type: object, required: [userId, username, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, accountStatus: {type: string}, updatedAt: {type: string, format: date-time}}}
+    AdminSession: {type: object, required: [tokenId, issuedAt], properties: {tokenId: {type: string, format: uuid}, issuedAt: {type: string, format: uuid, description: Cassandra timeuuid}, deviceId: {type: string, format: uuid, nullable: true}, expiresAt: {type: string, format: date-time, nullable: true}, revokedAt: {type: string, format: date-time, nullable: true}, replacedByTokenId: {type: string, format: uuid, nullable: true}}}
+    AdminDevice: {type: object, required: [deviceId, active], properties: {deviceId: {type: string, format: uuid}, platform: {type: string, nullable: true}, pushProvider: {type: string, nullable: true}, deviceName: {type: string, nullable: true}, appVersion: {type: string, nullable: true}, active: {type: boolean}, createdAt: {type: string, format: date-time, nullable: true}, lastSeenAt: {type: string, format: date-time, nullable: true}}}
+    AdminAnalyticsPoint: {type: object, required: [eventDay, eventType, eventShard, eventId], properties: {eventDay: {type: string, format: date}, eventType: {type: string, enum: [ROOM_CREATED, ROOM_JOINED, MESSAGE_SENT, POLLS_CREATED, POLL_VOTED, CALL_STARTED]}, eventShard: {type: integer, minimum: 0, maximum: 15}, eventId: {type: string, format: uuid}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, dimensions: {type: object, additionalProperties: {type: string}}}}
+    FriendRequest: {type: object, required: [recipientId], properties: {recipientId: {type: string, format: uuid}, message: {type: string, maxLength: 500}}}
+    FriendAction: {type: object, required: [friendId], properties: {friendId: {type: string, format: uuid}}}
+    FriendUserSummary: {type: object, required: [userId, username, displayName, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}, accountStatus: {type: string}}}
+    FriendshipStatus: {type: object, required: [status, userId, userDetails], properties: {status: {type: string}, userId: {type: string, format: uuid}, userDetails: {type: array, items: {$ref: '#/components/schemas/FriendUserSummary'}}}}
+    ConversationCreate: {type: object, required: [conversationType], properties: {conversationType: {type: string, enum: [DM, GROUP, CHANNEL]}, name: {type: string}, memberIds: {type: array, items: {type: string, format: uuid}}}}
+    Conversation: {type: object, required: [conversationId, conversationType], properties: {conversationId: {type: string, format: uuid}, conversationType: {type: string}, name: {type: string}, memberCount: {type: integer}}}
+    ConversationListItem: {type: object, required: [conversation, pinned, unreadCount], properties: {conversation: {$ref: '#/components/schemas/Conversation'}, pinned: {type: boolean}, unreadCount: {type: integer}}}
+    ConversationMember: {type: object, required: [userId, conversationId, role, joinedAt, username, displayName], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}}}
+    ConversationRoleRequest: {type: object, properties: {roleCode: {type: string}, displayName: {type: string}, colorHex: {type: string}, permissionCodes: {type: array, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer}}}
+    ConversationChatPolicy: {type: object, required: [chatMode], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
+    MemberChatPolicy: {type: object, properties: {mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}, reason: {type: string, maxLength: 500}}}
+    MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, attachments: {type: array}}}
+    Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
+    MessagePage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}
+    PollCreate: {type: object, required: [conversationId, clientMessageId, question, options], properties: {conversationId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid}, question: {type: string}, options: {type: array, minItems: 2, maxItems: 10, items: {type: string}}}}
+    InviteCreate: {type: object, required: [conversationId], properties: {conversationId: {type: string, format: uuid}, inviteKind: {type: string, enum: [LINK, QR]}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL]}, maxUses: {type: integer}, expiresAt: {type: string, format: date-time}}}
+    InviteConsume: {type: object, required: [linkToken], properties: {linkToken: {type: string}}}
+    JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}
+    AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
+    MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, pageCursor: {type: string}}}

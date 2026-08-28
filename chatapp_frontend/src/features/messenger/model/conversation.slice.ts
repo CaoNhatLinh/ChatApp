@@ -41,10 +41,9 @@ const mergeConversations = (stateConversations: Conversation[], incomingConversa
 const updateConversationFromMessage = (
     conversation: Conversation,
     message: Message,
-    shouldIncreaseUnread: boolean,
-    userId?: string
+    shouldIncreaseUnread: boolean
 ) => {
-    const senderName = message.sender.displayName || message.sender.userName || userId || '';
+    const senderName = message.sender.displayName;
     const nextUnread = shouldIncreaseUnread
         ? (conversation.unreadCount ?? 0) + 1
         : conversation.unreadCount ?? 0;
@@ -144,8 +143,7 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         const updatedConversation = updateConversationFromMessage(
             existingConversation,
             message,
-            shouldIncreaseUnread,
-            currentUserId
+            shouldIncreaseUnread
         );
 
         return {

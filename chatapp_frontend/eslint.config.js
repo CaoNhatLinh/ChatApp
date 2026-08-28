@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { globalIgnores } from 'eslint/config'
 
 export default tseslint.config([
-  globalIgnores(['dist', 'node_modules', '*.config.*']),
+  globalIgnores(['dist', '.next', '.ui-captures', 'node_modules', 'eslint.json', 'lint.json', '*.config.*']),
 
   // TypeScript + React files
   {
@@ -15,7 +15,7 @@ export default tseslint.config([
       js.configs.recommended,
       ...tseslint.configs.strictTypeChecked,
       reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
+      reactRefresh.configs.recommended,
     ],
     languageOptions: {
       ecmaVersion: 2022,
@@ -78,5 +78,9 @@ export default tseslint.config([
       'no-var': 'error',
       'eqeqeq': ['error', 'always'],
     },
+  },
+  {
+    files: ['src/app/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
 ])

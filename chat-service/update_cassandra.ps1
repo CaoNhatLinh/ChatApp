@@ -1,5 +1,5 @@
 param (
-    [string]$SqlFile = "..\chat_app_master.cql"
+    [string]$SqlFile = "..\chat_app_complete.cql"
 )
 
 Write-Host "🚀 Bắt đầu cập nhật lại toàn bộ Cassandra Database..." -ForegroundColor Cyan

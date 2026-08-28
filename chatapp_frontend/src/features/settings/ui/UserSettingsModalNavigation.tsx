@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
-import { LogOut, Palette, UserCircle } from 'lucide-react';
+import { Flag, LogOut, Palette, UserCircle } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText } from '@/shared/i18n';
 
-type TabType = 'profile' | 'appearance';
+type TabType = 'profile' | 'appearance' | 'reports';
 
 interface UserSettingsModalNavigationProps {
   activeTab: TabType;
@@ -25,18 +26,23 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
   const navigationItems: NavigationItem[] = [
     {
       key: 'profile',
-      label: 'Tài khoản & Hồ sơ',
+      label: localizeText('Tài khoản & Hồ sơ'),
       icon: <UserCircle size={20} />,
     },
     {
       key: 'appearance',
-      label: 'Giao diện',
+      label: localizeText('Giao diện'),
       icon: <Palette size={20} />,
+    },
+    {
+      key: 'reports',
+      label: localizeText('Báo cáo'),
+      icon: <Flag size={20} />,
     },
   ];
 
   const tabClassName = (isActive: boolean) =>
-    `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
+    `focus-ring w-full flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 transition-[color,background-color,border-color,box-shadow,transform,opacity] ${
       isActive
         ? 'bg-primary text-primary-foreground neo-shadow'
         : 'hover:bg-primary/10 text-muted-foreground hover:text-foreground'
@@ -50,10 +56,10 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
       variants={UI_MOTION_VARIANTS.fadeIn}
     >
       <div className="p-4 pb-3">
-        <h2 className="text-lg font-black uppercase tracking-tight">Cài đặt</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{localizeText('Cài đặt')}</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 px-4">
+      <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-3">
         {navigationItems.map((item) => (
           <button
             key={item.key}
@@ -63,7 +69,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
             aria-pressed={activeTab === item.key}
           >
             {item.icon}
-            <span className="font-bold text-[0.72rem] uppercase tracking-[0.12em] leading-tight">
+            <span className="font-semibold text-sm leading-tight">
               {item.label}
             </span>
           </button>
@@ -74,10 +80,10 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
         <button
           type="button"
           onClick={() => onLogout()}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-destructive text-destructive hover:text-destructive-foreground transition-all neo-shadow active:scale-95 group"
+          className="focus-ring w-full flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground group"
         >
           <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="font-bold text-[0.72rem] uppercase tracking-[0.12em]">Đăng xuất</span>
+          <span className="font-bold text-[0.72rem] uppercase tracking-[0.12em]">{localizeText('Đăng xuất')}</span>
         </button>
       </div>
     </motion.div>
@@ -92,7 +98,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
         variants={UI_MOTION_VARIANTS.fadeIn}
       >
         <div className="p-6 pb-4">
-          <h2 className="text-xl font-black uppercase tracking-tight mb-2">Cài đặt</h2>
+          <h2 className="text-xl font-semibold tracking-tight mb-2">{localizeText('Cài đặt')}</h2>
         </div>
 
         <div className="flex-1 px-3 space-y-2">
@@ -104,7 +110,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
               className={tabClassName(activeTab === item.key)}
             >
               {item.icon}
-              <span className="font-bold text-sm">{item.label}</span>
+              <span className="font-semibold text-sm">{item.label}</span>
             </button>
           ))}
         </div>
@@ -113,10 +119,10 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
           <button
             type="button"
             onClick={() => onLogout()}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-destructive text-destructive hover:text-destructive-foreground transition-all neo-shadow active:scale-95 group"
+            className="focus-ring w-full flex items-center gap-3 rounded-[var(--radius-md)] px-4 py-3 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground group"
           >
             <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="font-bold text-sm uppercase tracking-widest">Đăng xuất</span>
+            <span className="font-semibold text-sm">{localizeText('Đăng xuất')}</span>
           </button>
         </div>
       </motion.div>

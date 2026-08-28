@@ -12,6 +12,7 @@ import {
   type NotificationRecord,
 } from '@/features/notifications/api/notifications.api';
 import { realtimeService } from '@/shared/websocket/realtime-service';
+import { logger } from '@/shared/lib/logger';
 
 interface RealtimeHandle {
   isNotificationConnected: boolean;
@@ -40,6 +41,70 @@ interface NotificationStore {
 let notificationRealtimeUnsubscribers: Array<() => void> = [];
 let reconnectHandle: RealtimeHandle | null = null;
 
+type NotificationReadEvent =
+  | { action: 'MARK_ALL_READ' }
+  | { action: 'MARK_READ'; notificationId: string }
+  | { action: 'MARK_READ'; notificationIds: string[] };
+
+type NotificationDeleteEvent =
+  | { action: 'DELETE_ALL' }
+  | { action: 'DELETE'; notificationId: string };
+
+const notificationTypes = new Set<NotificationRecord['type']>([
+  'FRIEND_REQUEST', 'MESSAGE', 'SYSTEM', 'MENTION', 'REACTION',
+  'CONVERSATION_INVITE', 'POLL', 'PIN_MESSAGE', 'REPLY',
+]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseNotificationEvent = (payload: unknown): NotificationRecord | null => {
+  if (!isRecord(payload)
+    || typeof payload.notificationId !== 'string'
+    || typeof payload.userId !== 'string'
+    || typeof payload.type !== 'string'
+    || !notificationTypes.has(payload.type as NotificationRecord['type'])
+    || typeof payload.title !== 'string'
+    || typeof payload.body !== 'string'
+    || typeof payload.isRead !== 'boolean'
+    || typeof payload.createdAt !== 'string') {
+    return null;
+  }
+
+  return {
+    notificationId: payload.notificationId,
+    userId: payload.userId,
+    type: payload.type as NotificationRecord['type'],
+    title: payload.title,
+    body: payload.body,
+    isRead: payload.isRead,
+    createdAt: payload.createdAt,
+    ...(isRecord(payload.metadata) ? { metadata: payload.metadata } : {}),
+  };
+};
+
+const parseReadEvent = (payload: unknown): NotificationReadEvent | null => {
+  if (!isRecord(payload)) return null;
+  if (payload.action === 'MARK_ALL_READ') return { action: 'MARK_ALL_READ' };
+  if (payload.action !== 'MARK_READ') return null;
+  if (typeof payload.notificationId === 'string') {
+    return { action: 'MARK_READ', notificationId: payload.notificationId };
+  }
+  if (Array.isArray(payload.notificationIds) && payload.notificationIds.every((id) => typeof id === 'string')) {
+    return { action: 'MARK_READ', notificationIds: payload.notificationIds };
+  }
+  return null;
+};
+
+const parseDeleteEvent = (payload: unknown): NotificationDeleteEvent | null => {
+  if (!isRecord(payload)) return null;
+  if (payload.action === 'DELETE_ALL') return { action: 'DELETE_ALL' };
+  if (payload.action === 'DELETE' && typeof payload.notificationId === 'string') {
+    return { action: 'DELETE', notificationId: payload.notificationId };
+  }
+  return null;
+};
+
 const upsertNotification = (notifications: NotificationRecord[], notification: NotificationRecord): NotificationRecord[] => {
   const existingIndex = notifications.findIndex(item => item.notificationId === notification.notificationId);
   if (existingIndex === -1) {
@@ -63,8 +128,8 @@ const disconnectAllNotificationSubscriptions = () => {
   notificationRealtimeUnsubscribers.forEach((unsubscribe) => {
     try {
       unsubscribe();
-    } catch {
-      // noop
+    } catch (error) {
+      logger.warn('Notification realtime unsubscribe failed', error);
     }
   });
   notificationRealtimeUnsubscribers = [];
@@ -92,7 +157,8 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         unreadCount,
         loading: false,
       });
-    } catch {
+    } catch (error) {
+      logger.warn('Notification initialization failed', error);
       set({ loading: false });
     }
   },
@@ -104,16 +170,24 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
     disconnectAllNotificationSubscriptions();
 
-    const unsubNotification = realtimeService.subscribe(`/user/${userId}/queue/notifications`, (payload: unknown) => {
-      const notification = payload as NotificationRecord;
+    const unsubNotification = realtimeService.subscribe('/user/queue/notifications', (payload: unknown) => {
+      const notification = parseNotificationEvent(payload);
+      if (!notification) {
+        logger.warn('Ignoring invalid notification event payload');
+        return;
+      }
       set(state => ({
         notifications: upsertNotification(state.notifications, notification),
         unreadCount: state.unreadCount + (notification.isRead ? 0 : 1),
       }));
     });
 
-    const unsubRead = realtimeService.subscribe(`/user/${userId}/queue/notification-read`, (payload: unknown) => {
-      const data = payload as { notificationId?: string; notificationIds?: string[]; action?: string };
+    const unsubRead = realtimeService.subscribe('/user/queue/notification-read', (payload: unknown) => {
+      const data = parseReadEvent(payload);
+      if (!data) {
+        logger.warn('Ignoring invalid notification read event payload');
+        return;
+      }
       set(state => {
         if (data.action === 'MARK_ALL_READ') {
           return {
@@ -122,14 +196,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
           };
         }
 
-        const ids = new Set<string>([
-          ...(typeof data.notificationId === 'string' ? [data.notificationId] : []),
-          ...((data.notificationIds ?? []).filter((id): id is string => typeof id === 'string')),
-        ]);
-
-        if (ids.size === 0) {
-          return state;
-        }
+        const ids = new Set<string>('notificationId' in data ? [data.notificationId] : data.notificationIds);
 
         return {
           notifications: markNotificationsRead(state.notifications, ids),
@@ -141,15 +208,15 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       });
     });
 
-    const unsubDelete = realtimeService.subscribe(`/user/${userId}/queue/notification-delete`, (payload: unknown) => {
-      const data = payload as { notificationId?: string; action?: string };
+    const unsubDelete = realtimeService.subscribe('/user/queue/notification-delete', (payload: unknown) => {
+      const data = parseDeleteEvent(payload);
+      if (!data) {
+        logger.warn('Ignoring invalid notification delete event payload');
+        return;
+      }
       set(state => {
         if (data.action === 'DELETE_ALL') {
           return { notifications: [], unreadCount: 0 };
-        }
-
-        if (!data.notificationId) {
-          return state;
         }
 
         const target = state.notifications.find(notification => notification.notificationId === data.notificationId);

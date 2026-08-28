@@ -32,19 +32,19 @@ export interface ConversationSlice {
 
 export interface MessageSlice {
     messages: Record<string, Message[]>;
-    messagesPagination: Record<string, { hasNext: boolean, page: number; fetchedAt?: number }>;
+    messagesPagination: Record<string, { hasNext: boolean, page: number; nextCursor?: string; fetchedAt?: number }>;
 
     addMessage: (conversationId: string, message: Message) => void;
-    setMessages: (conversationId: string, messages: Message[], hasNext?: boolean, page?: number) => void;
+    setMessages: (conversationId: string, messages: Message[], hasNext?: boolean, page?: number, nextCursor?: string) => void;
     appendMessages: (conversationId: string, messages: Message[], hasNext: boolean, page: number) => void;
-    prependMessages: (conversationId: string, messages: Message[], hasNext: boolean, page: number) => void;
+    prependMessages: (conversationId: string, messages: Message[], hasNext: boolean, page: number, nextCursor?: string) => void;
     updateMessageReactions: (conversationId: string, messageId: string, reactionEvent: { emoji: string; userId: string; action: 'ADD' | 'REMOVE' }) => void;
     updatePollData: (conversationId: string, pollData: Message['poll']) => void;
     updateMessageStatus: (conversationId: string, messageId: string, status: Message['status']) => void;
     updateMessage: (conversationId: string, message: Message) => void;
     addReadReceipt: (conversationId: string, messageId: string, readReceipt: MessageReadReceipt) => void;
     updateMessagePinStatus: (conversationId: string, messageId: string, isPinned: boolean) => void;
-    addMessageAttachment: (conversationId: string, messageId: string, attachment: Message['attachments'][0]) => void;
+    addMessageAttachment: (conversationId: string, messageId: string, attachment: NonNullable<Message['attachments']>[number]) => void;
     removeMessage: (conversationId: string, messageId: string) => void;
 }
 

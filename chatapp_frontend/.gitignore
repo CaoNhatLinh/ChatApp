@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+next-env.d.ts
 *.local
+*.tsbuildinfo
+artifacts-*.png
+.ui-captures/
+eslint.json
+lint.json
 
 # Environment variables (NEVER commit secrets)
 .env

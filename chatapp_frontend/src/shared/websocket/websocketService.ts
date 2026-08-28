@@ -1,9 +1,10 @@
 import SockJS from 'sockjs-client';
 import { Client, type IMessage, type StompHeaders, type StompSubscription } from '@stomp/stompjs';
 import { logger } from '@/shared/lib/logger';
+import { runtimeEnv } from '@/shared/config/runtimeEnv';
 
 // WebSocket URL from environment or default
-const WS_URL = String(import.meta.env.VITE_WS_URL || 'http://localhost:8084/ws');
+const WS_URL = runtimeEnv.websocketUrl;
 
 let stompClient: Client | null = null;
 const subscriptions = new Map<

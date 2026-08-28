@@ -19,23 +19,30 @@ export const SidebarFooter = ({ user, onOpenSettings, onOpenContacts }: SidebarF
   const isOnline = myStatus === "ONLINE" || myStatus === "DND";
 
   return (
-    <div className="border-t border-border/50 px-4 py-3">
-      <div className="rounded-[1rem] p-2">
-        <button
+    <div className="border-t border-border px-4 py-3">
+      <div className="rounded-[var(--radius-md)] p-1">
+        <div
+          role="button"
+          tabIndex={0}
           onClick={onOpenSettings}
-          type="button"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onOpenSettings();
+            }
+          }}
           className={cn(
-            "w-full group relative flex items-center gap-3 rounded-[1rem] px-3 py-2 text-left",
-            "transition-all hover:bg-accent/60",
+            "w-full group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-left",
+            "transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:bg-accent/60",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
           )}
         >
           <div className="relative">
-            <div className="h-10 w-10 rounded-[0.95rem] border-2 border-border/60 bg-primary/10 flex items-center justify-center overflow-hidden">
+            <div className="h-10 w-10 rounded-[var(--radius-md)] border border-border bg-primary/10 flex items-center justify-center overflow-hidden">
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-sm font-black uppercase tracking-tight text-primary">
+                <span className="text-sm font-semibold text-primary">
                   {getUserDisplay(user?.displayName).charAt(0)}
                 </span>
               )}
@@ -50,7 +57,7 @@ export const SidebarFooter = ({ user, onOpenSettings, onOpenContacts }: SidebarF
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-black">{getUserDisplay(user?.displayName)}</p>
-            <p className="truncate text-xs uppercase tracking-wide text-muted-foreground">@{getUserDisplay(user?.userName)}</p>
+            <p className="truncate text-xs text-muted-foreground">@{getUserDisplay(user?.userName)}</p>
           </div>
 
           <div className="ml-auto flex gap-2">
@@ -77,10 +84,11 @@ export const SidebarFooter = ({ user, onOpenSettings, onOpenContacts }: SidebarF
               <Settings size={16} />
             </Button>
           </div>
-        </button>
+        </div>
       </div>
     </div>
   );
 };
 
 export default SidebarFooter;
+

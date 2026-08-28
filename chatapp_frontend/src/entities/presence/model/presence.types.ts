@@ -14,15 +14,14 @@ export interface UserPresence {
 
 export interface OnlineStatusEvent {
   userId: string;
-  online?: boolean;
-  isOnline?: boolean;
-  status?: PublicPresenceStatus | PresencePreferenceStatus | 'OFFLINE';
+  online: boolean;
+  status: PublicPresenceStatus | PresencePreferenceStatus | 'OFFLINE';
   timestamp: string;
-  lastSeen?: string | null;
-  device?: string;
-  lastActiveAgo?: string | null;
-  requestId?: string;
-  traceId?: string;
+  lastSeen: string | null;
+  device: string | null;
+  lastActiveAgo: string | null;
+  requestId: string | null;
+  traceId: string | null;
 }
 
 export interface NormalizedPresenceEvent {
@@ -31,8 +30,8 @@ export interface NormalizedPresenceEvent {
   status: PublicPresenceStatus | PresencePreferenceStatus;
   timestamp: string;
   lastSeen: string | null;
-  device?: string;
-  lastActiveAgo?: string | null;
+  device: string | null;
+  lastActiveAgo: string | null;
 }
 
 export const isPublicPresenceStatus = (value: unknown): value is PublicPresenceStatus => {
@@ -40,26 +39,32 @@ export const isPublicPresenceStatus = (value: unknown): value is PublicPresenceS
 };
 
 export const normalizeOnlineStatusEvent = (value: OnlineStatusEvent | null | undefined): NormalizedPresenceEvent | null => {
-  if (!value || typeof value.userId !== 'string' || !value.userId.trim()) {
+  if (!value || typeof value.userId !== 'string' || !value.userId.trim()
+    || typeof value.online !== 'boolean'
+    || typeof value.status !== 'string'
+    || typeof value.timestamp !== 'string' || !value.timestamp.trim()
+    || (value.lastSeen !== null && typeof value.lastSeen !== 'string')
+    || (value.device !== null && typeof value.device !== 'string')
+    || (value.lastActiveAgo !== null && typeof value.lastActiveAgo !== 'string')) {
     return null;
   }
 
-  const online = value.isOnline ?? value.online ?? false;
-  const rawStatus = typeof value.status === 'string' ? value.status.toUpperCase() : '';
-  const status: PublicPresenceStatus | PresencePreferenceStatus = isPublicPresenceStatus(rawStatus)
-    ? rawStatus
-    : online
-      ? 'ONLINE'
-      : 'OFFLINE';
+  const rawStatus = value.status.toUpperCase();
+  if (!isPublicPresenceStatus(rawStatus) && rawStatus !== 'INVISIBLE') {
+    return null;
+  }
+  const status: PublicPresenceStatus | PresencePreferenceStatus = rawStatus === 'INVISIBLE'
+    ? 'OFFLINE'
+    : rawStatus;
 
   return {
     userId: value.userId,
-    online,
+    online: rawStatus === 'INVISIBLE' ? false : value.online,
     status,
     timestamp: value.timestamp,
-    lastSeen: value.lastSeen ?? null,
+    lastSeen: value.lastSeen,
     device: value.device,
-    lastActiveAgo: value.lastActiveAgo ?? null,
+    lastActiveAgo: value.lastActiveAgo,
   };
 };
 

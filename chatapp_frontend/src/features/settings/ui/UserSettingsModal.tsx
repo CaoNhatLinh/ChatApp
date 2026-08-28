@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { FC } from 'react';
@@ -17,15 +17,16 @@ import { UserSettingsAppearancePanel } from './UserSettingsAppearancePanel';
 import { UserSettingsModalNavigation } from './UserSettingsModalNavigation';
 import { UserSettingsProfilePanel } from './UserSettingsProfilePanel';
 import { Button } from '@/shared/ui/Button';
+import { ReportHistoryPanel } from '@/features/moderation/components/ReportHistoryPanel';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'profile' | 'appearance';
+  initialTab?: 'profile' | 'appearance' | 'reports';
   mode?: 'modal' | 'page';
 }
 
-type TabType = 'profile' | 'appearance';
+type TabType = 'profile' | 'appearance' | 'reports';
 type ThemePreference = 'light' | 'dark' | 'system';
 
 export const UserSettingsModal: FC<UserSettingsModalProps> = ({
@@ -43,13 +44,13 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
 
   const { user, logout: logoutStore, updateUser } = useAuthStore();
   const { themePreference, setThemePreference } = useTheme();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
-    setDisplayName(user.displayName || '');
-    setAvatarUrl(user.avatarUrl || '');
-    setNickname(user.nickName || '');
+    setDisplayName(user.displayName);
+    setAvatarUrl(user.avatarUrl ?? '');
+    setNickname(user.nickName ?? '');
   }, [user, user?.userId, user?.displayName, user?.avatarUrl, user?.nickName, isOpen]);
 
   useEffect(() => {
@@ -57,12 +58,12 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   }, [initialTab]);
 
   const normalizedDisplayName = useMemo(() => displayName.trim(), [displayName]);
-  const currentDisplayName = useMemo(() => (user?.displayName || '').trim(), [user?.displayName]);
+  const currentDisplayName = useMemo(() => user?.displayName.trim() ?? '', [user?.displayName]);
   const isProfileUnchanged = useMemo(
     () =>
       normalizedDisplayName === currentDisplayName &&
-      avatarUrl === (user?.avatarUrl || '') &&
-      nickname === (user?.nickName || ''),
+      avatarUrl === (user?.avatarUrl ?? '') &&
+      nickname === (user?.nickName ?? ''),
     [
       avatarUrl,
       currentDisplayName,
@@ -127,7 +128,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     } finally {
       disconnectWebSocket();
       logoutStore();
-      void navigate('/login');
+      router.replace('/login');
       onClose();
       setIsLoggingOut(false);
     }
@@ -143,8 +144,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     <motion.div
       className={
         isPageMode
-          ? 'relative w-full max-w-5xl h-full min-h-0 sm:min-h-[560px] bg-card/70 rounded-none sm:rounded-[2rem] border border-border/60 overflow-hidden flex flex-col'
-          : 'relative w-full max-w-4xl h-[85vh] max-h-[850px] bg-card/60 rounded-[2.5rem] border border-border/60 flex flex-col sm:flex-row overflow-hidden z-10'
+          ? 'relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card'
+          : 'relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:flex-row'
       }
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
@@ -157,16 +158,16 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-16 flex items-center justify-between px-6 border-b border-border/50 bg-background/30 sticky top-0 z-10">
-          <h3 className="text-lg font-black uppercase tracking-tight hidden sm:block">
-            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : 'Giao diện'}
-          </h3>
+        <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background px-6">
+          <h2 className="hidden text-lg font-semibold tracking-tight sm:block">
+            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? 'Giao diện' : 'Báo cáo của tôi'}
+          </h2>
           <Button
             variant="ghost"
             size="icon"
             onClick={handleClose}
             className="ml-auto"
-            aria-label="Close settings"
+            aria-label="Đóng cài đặt"
             disabled={isWorking}
           >
             <X size={24} />
@@ -176,8 +177,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-8">
           <div className="max-w-xl mx-auto">
             {activeTab === 'profile' ? (
-              <UserSettingsProfilePanel
-                userName={user?.userName || ''}
+              user ? <UserSettingsProfilePanel
+                userName={user.userName}
                 displayName={displayName}
                 avatarUrl={avatarUrl}
                 nickname={nickname}
@@ -187,13 +188,13 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
                 onAvatarChange={setAvatarUrl}
                 onNicknameChange={setNickname}
                 onSave={handleSaveProfile}
-              />
-            ) : (
+              /> : null
+            ) : activeTab === 'appearance' ? (
               <UserSettingsAppearancePanel
                 themePreference={themePreference as ThemePreference}
                 onThemeChange={setThemePreference}
               />
-            )}
+            ) : <ReportHistoryPanel />}
           </div>
         </div>
       </div>

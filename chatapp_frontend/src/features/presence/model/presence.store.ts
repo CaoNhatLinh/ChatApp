@@ -36,8 +36,8 @@ const normalizeStatus = (rawStatus: string | undefined, online: boolean): Presen
     if (!online) {
         return 'OFFLINE';
     }
-    if (rawStatus === 'DND') return 'DND';
-    return rawStatus === 'ONLINE' || rawStatus === 'OFFLINE' ? rawStatus : 'ONLINE';
+    if (rawStatus === 'ONLINE' || rawStatus === 'DND') return rawStatus;
+    throw new Error('Presence event contains an invalid online status');
 };
 
 const toUserPresence = (userId: string, presence: UserPresence) => {
@@ -45,11 +45,11 @@ const toUserPresence = (userId: string, presence: UserPresence) => {
     const status = normalizeStatus(presence.status, isOnline);
     return {
         ...presence,
-        userId: presence.userId ?? userId,
+        userId,
         isOnline,
         status,
-        lastSeen: presence.lastSeen ?? null,
-        lastActiveAgo: presence.lastActiveAgo ?? null
+        lastSeen: presence.lastSeen,
+        lastActiveAgo: presence.lastActiveAgo
     } as UserPresence;
 };
 

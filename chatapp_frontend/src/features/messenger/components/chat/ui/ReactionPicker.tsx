@@ -14,12 +14,14 @@ const REACTIONS = [
 
 interface ReactionPickerProps {
   conversationId: string;
+  messageBucket?: string;
   messageId: string;
   onReactionAdded?: () => void;
 }
 
 const ReactionPicker = ({
-  conversationId: _conversationId,
+  conversationId,
+  messageBucket,
   messageId,
   onReactionAdded,
 }: ReactionPickerProps) => {
@@ -45,7 +47,8 @@ const ReactionPicker = ({
 
     setLoading(true);
     try {
-      await reactToMessage(messageId, emojiKey);
+      if (!messageBucket) throw new Error('Message bucket is required');
+      await reactToMessage(conversationId, messageBucket, messageId, emojiKey);
       onReactionAdded?.();
       setIsOpen(false);
     } catch (error) {
@@ -53,12 +56,13 @@ const ReactionPicker = ({
     } finally {
       setLoading(false);
     }
-  }, [loading, messageId, onReactionAdded]);
+  }, [conversationId, loading, messageBucket, messageId, onReactionAdded]);
 
   return (
     <div ref={pickerRef} className="relative inline-flex">
       <button
         type="button"
+        disabled={!messageBucket || loading}
         onClick={() => setIsOpen((value) => !value)}
         className="rounded-full p-1 text-muted-foreground transition-opacity hover:text-primary group-hover:opacity-100"
         title="Them cam xuc"

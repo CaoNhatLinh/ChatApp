@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useMessenger, useMessengerSetup } from "@/features/messenger/model/useMessenger";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "next/navigation";
 import { ChatSidebar } from "@/widgets/chat-sidebar/ChatSidebar";
 import { ChatWindow } from "@/widgets/chat-window/ChatWindow";
 import { ContactListView } from "@/features/relationships/components/Contacts/ContactListView";
@@ -21,7 +21,7 @@ export const MessengerLayout: React.FC = () => {
   } = useMessenger();
 
   useMessengerSetup(initMessenger);
-  const [searchParams] = useSearchParams();
+  const searchParams = useSearchParams();
   const conversationIdFromQuery = searchParams.get("conversationId");
 
   useEffect(() => {

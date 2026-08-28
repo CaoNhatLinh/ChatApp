@@ -49,10 +49,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onAddFriend(friend);
-      notifySuccess(`Đã gửi lời mời kết bạn tới ${friend.displayName || friend.userName}`);
+      notifySuccess(`Đã gửi lời mời kết bạn tới ${friend.displayName}`);
     } catch (error) {
       friendRequestErrors.send(error);
-      notifyError(`Không thể gửi lời mời tới ${friend.displayName || friend.userName}`);
+      notifyError(`Không thể gửi lời mời tới ${friend.displayName}`);
     } finally {
       setIsLoading(false);
     }
@@ -71,10 +71,10 @@ export const FriendItem = ({
           memberIds: [friendTarget.userId],
         });
         void selectConversation(conv.conversationId);
-        notifySuccess(`Đã mở cuộc trò chuyện với ${friendTarget.displayName || friendTarget.userName}`);
+        notifySuccess(`Đã mở cuộc trò chuyện với ${friendTarget.displayName}`);
       } catch (error) {
         friendRequestErrors.send(error);
-        notifyError(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName || friendTarget.userName}`);
+        notifyError(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName}`);
       }
     }
   };
@@ -86,10 +86,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onAcceptFriend(friend.userId);
-      notifySuccess(`Đã chấp nhận lời mời của ${friend.displayName || friend.userName}`);
+      notifySuccess(`Đã chấp nhận lời mời của ${friend.displayName}`);
     } catch (error) {
       friendRequestErrors.accept(error);
-      notifyError(`Không thể chấp nhận lời mời của ${friend.displayName || friend.userName}`);
+      notifyError(`Không thể chấp nhận lời mời của ${friend.displayName}`);
     } finally {
       setIsLoading(false);
     }
@@ -102,10 +102,10 @@ export const FriendItem = ({
     setIsLoading(true);
     try {
       await onRejectFriend(friend.userId);
-      notifySuccess(`Đã từ chối lời mời của ${friend.displayName || friend.userName}`);
+      notifySuccess(`Đã từ chối lời mời của ${friend.displayName}`);
     } catch (error) {
       friendRequestErrors.reject(error);
-      notifyError(`Không thể từ chối lời mời của ${friend.displayName || friend.userName}`);
+      notifyError(`Không thể từ chối lời mời của ${friend.displayName}`);
     } finally {
       setIsLoading(false);
     }
@@ -122,8 +122,8 @@ export const FriendItem = ({
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="relative">
           <Avatar className="h-12 w-12">
-            <AvatarImage src={friend.avatarUrl || undefined} alt={friend.displayName} />
-            <AvatarFallback>{(friend.displayName || friend.userName || "?").charAt(0).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={friend.avatarUrl} alt={friend.displayName} />
+            <AvatarFallback>{friend.displayName.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
           <StatusDot
             status={friendStatus}
@@ -134,7 +134,7 @@ export const FriendItem = ({
         </div>
 
         <div className="min-w-0">
-          <div className="font-semibold truncate">{friend.displayName || friend.userName}</div>
+          <div className="font-semibold truncate">{friend.displayName}</div>
           <div className="text-xs text-muted-foreground truncate">@{friend.userName}</div>
         </div>
       </div>

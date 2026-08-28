@@ -9,16 +9,9 @@ import { addConnectionListener, isWebSocketReady } from '@/shared/websocket/webs
 import { logger } from '@/shared/lib/logger';
 import { notifyError } from '@/shared/lib/notification';
 
-const RATE_LIMIT_RETRY_FLOOR_SECONDS = 1;
-
 function subscribeConversationPartners(partnerIds: string[]): void {
     logger.info('[PresenceManager] Syncing', partnerIds.length, 'conversation partners');
     presenceTracker.replaceManaged(partnerIds);
-}
-
-function safeNumber(value: unknown, fallback = 0): number {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
 }
 
 export function PresenceManager(): null {
@@ -78,41 +71,6 @@ export function PresenceManager(): null {
                 (status, requestId, traceId) => {
                     logger.info('[PresenceManager] Status synced', { status, requestId, traceId });
                     usePresenceStore.getState().setMyStatusFromServer(status, requestId, traceId);
-                },
-                (retryAfterSeconds, requestId, traceId) => {
-                    logger.warn('[PresenceManager] Status change rate limited', {
-                        retryAfterSeconds,
-                        requestId,
-                        traceId,
-                    });
-
-                    const requestedStatus = usePresenceStore.getState().pendingStatusDesired;
-                    const didRollback = usePresenceStore.getState().rollbackMyStatus(requestId, traceId);
-                    if (didRollback) {
-                        const retryDelaySeconds = Math.max(
-                            RATE_LIMIT_RETRY_FLOOR_SECONDS,
-                            safeNumber(retryAfterSeconds, RATE_LIMIT_RETRY_FLOOR_SECONDS)
-                        );
-                        notifyError(`Status update was rate limited. Retrying in ${retryDelaySeconds} seconds.`);
-                        setTimeout(() => {
-                            const latest = usePresenceStore.getState();
-                            if (latest.isUpdatingMyStatus) {
-                                return;
-                            }
-
-                            if (!requestedStatus || latest.myStatus !== requestedStatus) {
-                                return;
-                            }
-
-                            const statusChange = presenceWsService.setStatus(requestedStatus);
-                            usePresenceStore.getState().setMyStatus(requestedStatus, statusChange.requestId, statusChange.traceId);
-                            logger.info('[PresenceManager] Retrying status sync', {
-                                status: requestedStatus,
-                                requestId: statusChange.requestId,
-                                traceId: statusChange.traceId,
-                            });
-                        }, retryDelaySeconds * 1000);
-                    }
                 },
                 (errorType, message, requestId, traceId) => {
                     logger.warn('[PresenceManager] Status sync error', {

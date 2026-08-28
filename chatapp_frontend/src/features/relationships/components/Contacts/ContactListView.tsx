@@ -5,7 +5,7 @@ import { createConversation, findDmConversation } from "@/features/messenger/api
 import { getUserProfile } from "@/features/profile/api/users.api";
 import type { CreateConversationRequest } from "@/features/messenger/types/messenger.types";
 import type { UserDTO } from "@/entities/user/model/user.types";
-import type { UserProfileModal as UserProfile } from "@/entities/conversation/model/room.types";
+import type { UserProfileModal as UserProfile } from "@/shared/types/room.types";
 import { UserProfileModal } from "@/features/profile/components/user/UserProfileModal";
 import { FRIEND_COPY } from "@/features/relationships/constants/friends.constants";
 import { useFriendTabsState } from "@/features/relationships/hooks/useFriendTabsState";
@@ -60,7 +60,7 @@ export const ContactListView = () => {
       setUserProfile({
         userId: profile.userId,
         username: profile.userName,
-        displayName: profile.displayName || profile.userName,
+        displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
         joinedAt: profile.createdAt,
         isOnline: profile.status === "ONLINE",
@@ -199,19 +199,18 @@ export const ContactListView = () => {
         </div>
       </div>
 
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        userId={selectedUserId || ""}
-        userProfile={userProfile}
-        isLoading={isProfileLoading}
-        onSendMessage={async () => {
-          if (selectedUserId) {
+      {selectedUserId ? <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          userId={selectedUserId}
+          userProfile={userProfile}
+          isLoading={isProfileLoading}
+          onSendMessage={async () => {
             await handleOpenChat(selectedUserId);
             setIsProfileModalOpen(false);
-          }
-        }}
-      />
+          }}
+          onReport={() => setIsProfileModalOpen(false)}
+        /> : null}
     </div>
   );
 };

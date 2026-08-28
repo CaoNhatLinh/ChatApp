@@ -2,22 +2,25 @@ import { useState } from 'react';
 import { useRegister } from './useRegister';
 
 export const useRegisterForm = () => {
-    const [display_name, setDisplayName] = useState('');
+    const [displayName, setDisplayName] = useState('');
     const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
     const { handleRegister, loading, error } = useRegister();
 
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        void handleRegister({ display_name, username, password });
+        void handleRegister({ displayName, username, email, password });
     };
 
     return {
-        display_name,
+        displayName,
         setDisplayName,
         username,
         setUsername,
+        email,
+        setEmail,
         password,
         setPassword,
         onSubmit,

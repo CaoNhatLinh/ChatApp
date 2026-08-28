@@ -27,16 +27,16 @@ export const ContactListHeader = ({
   onSearchChange,
 }: ContactListHeaderProps) => {
   return (
-    <header className="surface sticky top-0 z-20 border-b border-border/50 px-4 py-4 sm:px-6 sm:py-0 sm:h-20 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <header className="surface sticky top-0 z-20 border-b border-border px-4 py-4 sm:px-6 sm:py-0 sm:h-20 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-2 sm:gap-4 sm:flex-row sm:items-center sm:flex-nowrap">
-        <h2 className="text-lg font-black uppercase tracking-tight text-foreground sm:text-xl">{FRIEND_COPY.sectionTitle.friendsHeader}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{FRIEND_COPY.sectionTitle.friendsHeader}</h2>
         <div className="hidden sm:block h-6 w-px bg-border/50 mx-2" />
         <div className="flex gap-2 overflow-x-auto pb-0.5">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => onTabChange(tab.key)}
-              className={`rounded-xl px-3 py-2 sm:px-4 sm:py-2 font-black text-[10px] sm:text-xs uppercase tracking-[0.08em] transition-all ${
+              className={`rounded-md px-3 py-2 sm:px-4 sm:py-2 font-medium text-xs transition-[color,background-color,border-color,box-shadow,transform,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 activeTab === tab.key
                   ? "bg-primary text-primary-foreground"
                   : "bg-transparent text-muted-foreground hover:bg-primary/10 hover:text-foreground"
@@ -74,3 +74,4 @@ export const ContactListHeader = ({
 };
 
 export default ContactListHeader;
+

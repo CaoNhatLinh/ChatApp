@@ -1,13 +1,14 @@
 // authStore.ts
 import { create } from "zustand";
 import { disconnectWebSocket } from '@/shared/websocket/websocketService';
-import { getCurrentUser } from "@/features/auth/api/auth.api";
+import { getCurrentUser, refreshAccessToken } from "@/features/auth/api/auth.api";
 import type { User } from "@/features/auth/types/auth.types";
 import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { useMessengerStore } from "@/features/messenger/model/messenger.store";
 import { useNotificationStore } from "@/features/notifications/model/notification.store";
 import { usePresenceStore } from "@/features/presence/model/presence.store";
 import { logger } from '@/shared/lib/logger';
+import { clearAccessToken, clearSessionHint, getAccessToken, hasSessionHint, setAccessToken } from '@/shared/auth/access-token';
 
 interface AuthState {
   user: User | null;
@@ -20,7 +21,6 @@ interface AuthState {
 }
 
 let initAuthPromise: Promise<void> | null = null;
-let initAuthToken: string | null = null;
 
 const resetCrossFeatureState = () => {
   useFriendStore.getState().reset();
@@ -33,16 +33,17 @@ const resetCrossFeatureState = () => {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
-  token: localStorage.getItem("token") || undefined,
+  token: getAccessToken(),
 
   login: async (token) => {
-    localStorage.setItem("token", token);
+    setAccessToken(token);
     set({ token });
     await get().initializeAuth();
   },
 
   logout: () => {
-    localStorage.removeItem("token");
+    clearAccessToken();
+    clearSessionHint();
     set({ user: null, token: undefined, loading: false });
     resetCrossFeatureState();
     try {
@@ -59,20 +60,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })),
 
   initializeAuth: async () => {
-    const token = localStorage.getItem("token") || undefined;
-    if (!token) {
-      set({ loading: false, token: undefined });
-      return;
-    }
-
-    const currentTokenKey = `${token}-${(get().user?.userId ?? 'anon')}`;
-    if (initAuthPromise && initAuthToken === currentTokenKey) {
+    if (initAuthPromise) {
       return initAuthPromise;
     }
 
+    if (!getAccessToken() && !hasSessionHint()) {
+      set({ user: null, loading: false, token: undefined });
+      resetCrossFeatureState();
+      return;
+    }
+
     const task = (async () => {
-      set({ token, loading: true });
+      set({ loading: true });
       try {
+        const token = getAccessToken() ?? await refreshAccessToken();
+        setAccessToken(token);
         const user = await getCurrentUser();
         set({ user, loading: false, token });
         logger.debug('[AuthStore] user loaded from /auth/me:', user);
@@ -82,18 +84,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           usePresenceStore.getState().setMyStatusFromServer(savedPref);
         }
       } catch (error) {
-        localStorage.removeItem("token");
+        clearAccessToken();
+        clearSessionHint();
         set({ user: null, loading: false, token: undefined });
         resetCrossFeatureState();
         logger.error('[AuthStore] initializeAuth failed', error instanceof Error ? error.message : String(error));
       } finally {
         initAuthPromise = null;
-        initAuthToken = null;
       }
     })();
 
     initAuthPromise = task;
-    initAuthToken = currentTokenKey;
     await task;
   },
 }));

@@ -3,11 +3,9 @@ package com.chatapp.chat_service.common.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.cassandra.config.AbstractCassandraConfiguration;
-import org.springframework.data.cassandra.repository.config.EnableCassandraRepositories;
 import org.springframework.data.cassandra.config.SchemaAction;
 
 @Configuration
-@EnableCassandraRepositories(basePackages = "com.chatapp.chat_service")
 public class CassandraConfig extends AbstractCassandraConfiguration {
 
     @Value("${spring.cassandra.keyspace-name:chat_app}")

@@ -1,4 +1,6 @@
-﻿export const UI_COPY = {
+import { localizedCopy } from '@/shared/i18n';
+
+const rawUICopy = {
   brand: "NovaChat",
 
   status: {
@@ -17,29 +19,17 @@
       { to: "/", label: "Trang chủ" },
       { to: "/about", label: "Giới thiệu" },
       { to: "/help", label: "Trợ giúp" },
-      { to: "/privacy", label: "Quyền riêng tư" },
-      { to: "/terms", label: "Điều khoản" },
     ],
     navApp: [
       { to: "/app", label: "Chat", icon: "MessageCircle" },
       { to: "/friends", label: "Bạn bè", icon: "Users" },
       { to: "/search", label: "Tìm kiếm", icon: "Search" },
-      { to: "/activity", label: "Hoạt động", icon: "Bell" },
       { to: "/profile", label: "Hồ sơ", icon: "UserRound" },
       { to: "/settings", label: "Cài đặt", icon: "Settings" },
     ],
     publicActions: {
-      chat: "Trò chuyện",
       login: "Đăng nhập",
       register: "Đăng ký",
-      friends: "Bạn bè",
-      privacy: "Bảo mật",
-      search: "Tìm kiếm",
-    },
-    publicHeaderLinks: {
-      friendHint: "Mạng xã hội bạn bè",
-      privacyHint: "Chính sách bảo mật",
-      searchHint: "Tìm nhanh",
     },
   },
 
@@ -137,16 +127,10 @@
         description: "Mở giao diện nhận tin realtime với sidebar và bảng trò chuyện.",
       },
       {
-        category: "chat",
-        title: "Tin nhắn riêng",
-        path: "/messages",
-        description: "Mở nhanh phần chat khi cần trao đổi theo cuộc trò chuyện tập trung.",
-      },
-      {
         category: "friends",
         title: "Danh sách bạn bè",
         path: "/friends",
-        description: "Quản lý danh sách bạn bè, lời mời kết bạn và truy cập nhanh.",
+        description: "Quản lý bạn bè, lời mời kết nối và bắt đầu một cuộc trò chuyện.",
       },
       {
         category: "settings",
@@ -167,52 +151,7 @@
     resultDescriptionDefault: "Lọc theo phân nhóm để tìm nhanh hơn.",
   },
 
-  home: {
-    heroEyebrow: "NovaChat Experience",
-    heroTitle: "Chat nhanh, rõ ràng, ổn định. Kết nối nhóm và cá nhân một cách cân bằng công việc.",
-    heroDesc:
-      "Được thiết kế để mở cuộc trò chuyện nhanh, theo dõi trạng thái thời gian thực và duy trì công việc liên tục trên mọi thiết bị.",
-    ctaPrimary: "Tạo tài khoản",
-    ctaSecondary: "Mở giao diện chat",
-    aboutNova: "Về NovaChat",
-    featureTitle: {
-      chat: "Realtime chat",
-      friends: "Danh sách bạn bè",
-      security: "Ổn định và an toàn",
-      responsive: "Giao diện linh hoạt",
-    },
-    quickLinkHelp: "Hướng dẫn & hỗ trợ",
-    quickLinkPrivacy: "Chính sách bảo mật",
-    quickLinkSearch: "Tìm nhanh trong app",
-    quickLinkTerms: "Điều khoản dịch vụ",
-  },
-
-  homeCards: {
-    realtime: {
-      title: "Realtime chat",
-      description: "Nhắn tin nhanh, gửi file, thông tin trạng thái đúng lúc trong thời gian thực.",
-    },
-    friends: {
-      title: "Danh sách bạn bè",
-      description: "Quản lý bạn bè, lời mời kết bạn, tạo nhóm chat theo nhu cầu.",
-    },
-    stable: {
-      title: "Ổn định và an toàn",
-      description: "Theo dõi trạng thái online/offline, cảnh báo hiển thị, và lượng thông báo chính xác.",
-    },
-    responsive: {
-      title: "Giao diện linh hoạt",
-      description: "Tối ưu cho mobile và desktop với bố cục thông minh giữa chat, bạn bè và trang cá nhân.",
-    },
-  },
-
   about: {
-    eyebrow: "Giới thiệu sản phẩm",
-    title:
-      "NovaChat là nền tảng chat được thiết kế cho làm việc nhóm và kết nối cá nhân, vận hành nhanh và đơn thao tác.",
-    description:
-      "Chúng tôi ưu tiên trải nghiệm rõ ràng, điều hướng mạch lạc và hiệu năng ổn định cho đội nhóm, cộng đồng và người dùng cá nhân.",
-    cta: "Xem hướng dẫn sử dụng",
     values: [
       {
         title: "Thiết kế",
@@ -227,19 +166,19 @@
       {
         title: "Độ tin cậy cao",
         description:
-          "Ưu tiên vận hành ổn định, fallback dữ liệu và trải nghiệm tốt trên nhiều thiết bị.",
+          "Ưu tiên vận hành ổn định và trải nghiệm tốt trên nhiều thiết bị.",
       },
     ],
   },
 
   help: {
-    eyebrow: "Trợ giúp nhanh",
-    title: "Mỗi giây bạn cần để dùng NovaChat nhanh nhất",
+    eyebrow: "Trợ giúp",
+    title: "Giải đáp để bạn quay lại cuộc trò chuyện",
     description:
       "Mọi thao tác quan trọng đều được gom trong giao diện thân thiện. Nếu cần hỗ trợ sâu hơn, xem nhanh các bước dưới đây.",
-    faqTitle: "Lời giúp",
-    tipsTitle: "Lợi ích",
-    quickStartButton: "Dùng thử giao diện chat",
+    faqTitle: "Câu hỏi thường gặp",
+    tipsTitle: "Bắt đầu nhanh",
+    quickStartButton: "Mở NovaChat",
     supportLine:
       "Bạn đang gặp lỗi kỹ thuật? Vào menu Cài đặt > Hỗ trợ trong app để gửi yêu cầu.",
     faqs: [
@@ -293,8 +232,7 @@
     notes:
       "Dữ liệu của bạn được xử lý để vận hành đăng nhập, theo dõi phiên và truyền tin theo thời gian thực trong phạm vi ứng dụng.",
     actions: {
-      support: "Liên hệ hỗ trợ",
-      guide: "Tìm hiểu hướng dẫn",
+      support: "Mở trợ giúp",
     },
   },
 
@@ -325,64 +263,13 @@
 
   profile: {
     loading: "Đang tải thông tin...",
-    fallbackName: "Người dùng",
     quickLinksTitle: "Truy cập nhanh",
     quickLinkItems: {
       app: "Chat",
       search: "Tìm nhanh",
       friends: "Bạn bè",
       settings: "Cài đặt giao diện",
-      activity: "Hoạt động",
     },
-  },
-
-  notFound: {
-    code: "404",
-    title: "Không tìm thấy trang bạn cần tìm.",
-    home: "Về trang chủ",
-    openChat: "Mở chat",
-    search: "Tìm nhanh",
-    actionHome: "Về trang chủ",
-    actionChat: "Mở chat",
-    actionSearch: "Tìm nhanh",
-  },
-
-  activity: {
-    title: "Nhật ký hoạt động",
-    description: "Những gì bạn vừa làm trong ứng dụng",
-    tipTitle: "Nâng cao trải nghiệm",
-    tipBody:
-      "Bật nhanh `Ctrl + K` (hoặc tương đương) để quay lại tìm nhanh cuộc trò chuyện khi tính năng này được bật.",
-    tipHint: "Gợi ý: mở nhanh Hồ sơ > Cài đặt giao diện để gọn không gian nội dung trên desktop.",
-    feedTitle: "Hoạt động gần đây",
-    feedHint: "Những mục này giúp theo dõi sự kiện nội bộ của phiên làm việc của bạn.",
-    items: [
-      {
-        title: "Bạn có tin nhắn mới từ nhóm Dự án Mới",
-        type: "message",
-        time: "2 phút trước",
-        detail:
-          "Một tin nhắn kèm ảnh đã được gửi tới cuộc trò chuyện với hướng dẫn cập nhật tiến độ sprint.",
-      },
-      {
-        title: "Lời mời kết bạn đã được chấp nhận",
-        type: "friend",
-        time: "15 phút trước",
-        detail: "Anna vừa chấp nhận lời mời của bạn và bạn có thể nhắn tin trực tiếp ngay.",
-      },
-      {
-        title: "Bật chế độ nền tối",
-        type: "setting",
-        time: "2 giờ trước",
-        detail: "Bạn đã chuyển giao diện sang chế độ tối trong phần cài đặt giao diện.",
-      },
-      {
-        title: "Hệ thống bảo trì kết nối realtime",
-        type: "system",
-        time: "Hôm qua",
-        detail: "Đã cập nhật máy chủ để tối ưu trạng thái online và thông báo.",
-      },
-    ],
   },
 
   settings: {
@@ -409,3 +296,5 @@
     empty: "Không có thông báo nào.",
   },
 } as const;
+
+export const UI_COPY = localizedCopy(rawUICopy);

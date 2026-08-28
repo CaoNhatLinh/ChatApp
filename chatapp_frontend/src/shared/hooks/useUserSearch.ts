@@ -8,16 +8,19 @@ export type SearchableUser = User & { requestSent?: boolean };
 export const useUserSearch = (searchTerm: string, delay: number = 500) => {
     const [searchResults, setSearchResults] = useState<SearchableUser[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
     const { user: currentUser } = useAuthStore();
 
     useEffect(() => {
         const fetchUsers = async () => {
             if (searchTerm.trim().length < 2) {
                 setSearchResults([]);
+                setSearchError(null);
                 return;
             }
 
             setIsSearching(true);
+            setSearchError(null);
             try {
                 const results = await searchUsers(searchTerm);
                 // Filter out current user
@@ -25,6 +28,7 @@ export const useUserSearch = (searchTerm: string, delay: number = 500) => {
             } catch (error) {
                 console.error("Failed to search users", error);
                 setSearchResults([]);
+                setSearchError("Không thể tìm kiếm người dùng. Kiểm tra kết nối và thử lại.");
             } finally {
                 setIsSearching(false);
             }
@@ -34,5 +38,5 @@ export const useUserSearch = (searchTerm: string, delay: number = 500) => {
         return () => clearTimeout(timeoutId);
     }, [searchTerm, currentUser?.userId, delay]);
 
-    return { searchResults, isSearching, setSearchResults };
+    return { searchResults, isSearching, searchError, setSearchResults };
 };

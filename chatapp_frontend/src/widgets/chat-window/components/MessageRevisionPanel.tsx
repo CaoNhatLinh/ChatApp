@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/Dialog";
 import type { SafeRevision } from "./types";
+import { localizeText } from '@/shared/i18n';
 
 interface MessageRevisionPanelProps {
   isOpen: boolean;
@@ -16,9 +17,9 @@ export const MessageRevisionPanel = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Lich su chinh sua</DialogTitle>
+          <DialogTitle>{localizeText('Lịch sử chỉnh sửa')}</DialogTitle>
           <DialogDescription>
-            Cac phien ban cu cua tin nhan duoc luu dang revision rieng.
+            {localizeText('Các phiên bản cũ của tin nhắn được lưu thành bản chỉnh sửa riêng.')}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[420px] overflow-y-auto space-y-3">
@@ -35,12 +36,12 @@ export const MessageRevisionPanel = ({
                   </span>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm font-medium">
-                  {revision.content || "Tin nhan trong"}
+                  {revision.content}
                 </p>
               </div>
             ))
           ) : (
-            <p className="text-sm text-muted-foreground">Chua co revision nao.</p>
+            <p className="text-sm text-muted-foreground">{localizeText('Chưa có bản chỉnh sửa nào.')}</p>
           )}
         </div>
         <DialogFooter>
@@ -49,7 +50,7 @@ export const MessageRevisionPanel = ({
             className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold"
             type="button"
           >
-            Dong
+            {localizeText('Đóng')}
           </button>
         </DialogFooter>
       </DialogContent>

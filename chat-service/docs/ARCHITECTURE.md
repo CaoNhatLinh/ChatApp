@@ -1,59 +1,48 @@
 # NovaChat Backend Architecture
 
-This document provides a high-level overview of the backend architecture for NovaChat. It explains how different technologies interact to deliver a scalable, real-time messaging experience.
+## Canonical runtime
 
-## Core Technologies & Responsibility
+- **Spring Boot / Java 20** owns authentication, validation, authorization,
+  command orchestration, REST and authenticated STOMP/WebRTC signalling.
+- **Cassandra 4.1** is the authoritative query-designed store for identity,
+  rooms, membership/RBAC, messages, media metadata, notifications,
+  moderation, audit and outbox records.
+- **Redis** owns ephemeral presence/typing state, bounded cache and distributed
+  rate-limit state. It is never the source of durable product history.
+- **Kafka** transports Cassandra outbox events to durable consumers and DLQ;
+  it is not the source of truth for synchronous commands.
+- **Elasticsearch** is the authorized, rebuildable room/message search
+  projection. Search requests enforce membership/visibility before returning
+  projection data.
+- **Cloudinary** is the configured binary provider; Cassandra stores immutable
+  attachment snapshots and lifecycle metadata.
 
-1. **Spring Boot (Java 20)**: The core application framework handling REST APIs, WebSocket connections, security (JWT), and business logic.
-2. **Apache Cassandra**: The primary database. Used for storing historical data (Users, Conversations, Messages, Notifications). Chosen for its high write throughput and horizontal scalability, ideal for a chat application's append-heavy workload.
-3. **Redis**: Used as an in-memory data store for caching and real-time state.
-   - Caches frequently accessed data (User profiles, Conversational metadata).
-   - Manages WebSocket Session states and Presence (Online/Offline) via expiring keys (TTL).
-4. **Apache Kafka**: An event streaming platform enabling asynchronous processing.
-   - Decouples heavy operations (e.g. sending a chat message triggers a Kafka event, which is then picked up by the Notification service to push alerts to offline users).
-5. **Elasticsearch**: The search engine.
-   - Synchronizes with Cassandra to provide fast full-text search capabilities across conversations and messages.
-6. **Cloudinary**: External cloud storage for handling media uploads (Images, Videos, Files).
+## Canonical write flow
 
----
+`REST/STOMP command -> validation -> app/room authorization -> policy and
+rate-limit checks -> Cassandra authoritative write + projections + audit/outbox
+-> response -> Kafka consumers/realtime/search/notification projections`.
 
-## High-Level Data Flow
+Every query is bounded by its declared partition key and cursor. No Cassandra
+scan, `ALLOW FILTERING`, offset pagination, in-memory fake store or legacy API
+alias is part of the runtime.
 
-### 1. Sending a Message
-1. **Client** sends a message payload via WebSocket (`/app/message.send`) or REST.
-2. **MessageController/WebSocketChatController** receives the payload.
-3. The message is immediately broadcast back to the sender (`/user/queue/message-echo`) for instant UI feedback.
-4. An event is dispatched to **Kafka** (`message-topic`).
-5. **Kafka Consumers** process the event:
-   - Save the message to **Cassandra**.
-   - Sync the message text to **Elasticsearch**.
-   - Broadcast the message to all active participants via WebSocket (`/topic/conversation/{id}`).
-   - Check participant presence in **Redis**; if a user is offline, trigger a Push Notification via the **Notification Service**.
+## Realtime and calls
 
-### 2. Presence System (Online/Typing)
-1. **Client** sends a periodic heartbeat or typing event via WebSocket.
-2. **Spring Boot** updates a key in **Redis** with a short TTL (e.g., 5 seconds for typing, 60 seconds for online status).
-3. If the TTL expires (user disconnects or stops typing), Redis emits a Keyspace Notification or the absence of the key is noted during polling.
-4. **WebSocket** broadcasts the updated status to relevant subscribers.
+Authenticated STOMP destinations publish messages, reactions, read state, pins,
+notifications, presence and typing updates. Presence/typing state is TTL based
+and resynchronizes from the canonical snapshot after reconnect.
 
----
+Calls are explicitly **1–1 DM calls**. `CallController` verifies both peers,
+the DM membership and call permission before accepting start/join/leave/signal/
+end commands. The frontend owns native SDP/ICE media; the backend persists
+short-lived call metadata and targeted signalling events only. Group/SFU calls
+are not exposed until a separately approved media-provider contract exists.
 
-## Database Design (Cassandra)
-Due to Cassandra's NoSQL nature, data is mostly denormalized and queried by partition keys.
+## Security and operations
 
-- `users`: Partitioned by `id`.
-- `conversations`: Partitioned by `id`.
-- `conversation_members`: Composite partition keys for fast lookup of "which conversations a user is in".
-- `messages`: Partitioned by `conversationId`, clustered by `createdAt` (DESC) to allow efficient fetching of the latest messages.
-
----
-
-## Security Model
-- **Authentication**: Stateless JWT tokens passed in the `Authorization` header for HTTP, and injected during the WebSocket STOMP `CONNECT` frame.
-- **Authorization**: Pre-checks on controllers to ensure users can only access conversations they are members of.
-
----
-
-## Future Scaling Considerations
-- **Event-Driven Microservices**: While currently a modular monolith, the heavy use of Kafka allows easy extraction of the Notification or Search components into independent microservices.
-- **Presence Fan-out**: For millions of concurrent users, the current Redis TTL model will transition to a distributed Pub/Sub fan-out architecture.
+JWT access tokens are short-lived; refresh tokens are rotated and stored only as
+hashes. App-level permissions are separate from conversation-local roles.
+Mutation endpoints require explicit reason where policy demands it and append
+immutable audit/outbox records. Health/readiness and metrics are exposed only
+through the protected actuator policy.

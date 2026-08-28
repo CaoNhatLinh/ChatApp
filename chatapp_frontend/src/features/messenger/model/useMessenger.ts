@@ -20,7 +20,7 @@ import {
     type BackendMessage
 } from '../api/messenger.api';
 import { getReceivedRequests } from '@/features/relationships/api/friends.api';
-import type { FriendRequestsResponse } from '@/features/relationships/api/friends.api';
+import type { FriendshipStatusResponse } from '@/features/relationships/api/friends.api';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
 import type {
     Conversation,
@@ -28,7 +28,6 @@ import type {
     MessageRevision,
     SendMessageRequest,
     MessageType,
-    User,
     TypingEvent
 } from '../types/messenger.types';
 import type { ConversationSlice, MessageSlice } from './messenger.store.types';
@@ -178,7 +177,7 @@ export const useMessenger = (): UseMessengerResult => {
             useMessengerStore.getState().hoistConversation(conversation);
             const activeId = useMessengerStore.getState().activeConversationId;
             if (activeId !== conversationId) {
-                const unreadCount = await getConversationUnreadCount(conversationId).catch(() => 0);
+                const unreadCount = await getConversationUnreadCount(conversationId);
                 if (refreshConversationSeqRef.current.get(conversationId) !== requestId) return;
                 useMessengerStore.getState().setConversationUnreadCount(conversationId, unreadCount);
             }
@@ -221,14 +220,13 @@ export const useMessenger = (): UseMessengerResult => {
             try {
                 const [convResponse, requestResponse] = await Promise.all([
                     getConversations(0, CONVERSATION_PAGE_SIZE),
-                    user?.userId ? getReceivedRequests(0, 100) : Promise.resolve({ content: [] })
+                    user?.userId ? getReceivedRequests(100) : Promise.resolve<FriendshipStatusResponse | null>(null)
                 ]);
 
                 setConversations(convResponse.content, convResponse.hasNext, convResponse.number);
 
-                if (requestResponse && requestResponse.content) {
-                    const totalCount = requestResponse.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
-                    setFriendRequestCount(totalCount);
+                if (requestResponse) {
+                    setFriendRequestCount(requestResponse.userDetails.length);
                 }
 
                 if (!realtimeService.isConnected()) {
@@ -248,9 +246,8 @@ export const useMessenger = (): UseMessengerResult => {
                         if (requestStatus === 'PENDING') {
                             setFriendRequestCount(useMessengerStore.getState().friendRequestCount + 1);
                         } else if (requestStatus === 'ACCEPTED' || requestStatus === 'UNFRIENDED') {
-                            void getReceivedRequests(0, 100).then(res => {
-                                const totalCount = res.content.reduce((acc: number, r: FriendRequestsResponse) => acc + (r.userDetails?.length || 0), 0);
-                                setFriendRequestCount(totalCount);
+                            void getReceivedRequests(100).then(res => {
+                                setFriendRequestCount(res.userDetails.length);
                             });
                         }
                     });
@@ -345,18 +342,21 @@ export const useMessenger = (): UseMessengerResult => {
                 if (requestId !== conversationLoadRequestRef.current) return;
                 setConversationUnreadCount(conversationId, count);
             })
-            .catch(() => {});
+            .catch((error: unknown) => {
+                logger.debug('Failed to refresh conversation unread count', error);
+            });
 
         const cachedMessages = useMessengerStore.getState().messages[conversationId];
         const pagination = useMessengerStore.getState().messagesPagination[conversationId];
 
         if (cachedMessages && cachedMessages.length > 0 && pagination?.fetchedAt && Date.now() - pagination.fetchedAt <= MESSAGES_TTL_MS) {
-            const unreadMessageIds = cachedMessages
-                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId)
-                .map(message => message.messageId);
+            const unreadMessages = cachedMessages
+                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId);
 
-            if (unreadMessageIds.length > 0) {
-                void markMessagesAsRead(conversationId, unreadMessageIds).catch(() => {});
+            if (unreadMessages.length > 0) {
+                void markMessagesAsRead(conversationId, unreadMessages).catch((error: unknown) => {
+                    logger.debug('Failed to mark cached messages as read', error);
+                });
             }
 
             void getConversationUnreadCount(conversationId)
@@ -364,7 +364,9 @@ export const useMessenger = (): UseMessengerResult => {
                     if (requestId !== conversationLoadRequestRef.current) return;
                     setConversationUnreadCount(conversationId, count);
                 })
-                .catch(() => {});
+                .catch((error: unknown) => {
+                    logger.debug('Failed to refresh cached conversation unread count', error);
+                });
             return;
         }
 
@@ -372,18 +374,17 @@ export const useMessenger = (): UseMessengerResult => {
             if (requestId !== conversationLoadRequestRef.current) return;
             const response = await getMessages(conversationId, { page: 0, size: INITIAL_MESSAGES_PAGE_SIZE });
             if (requestId !== conversationLoadRequestRef.current) return;
-            setMessages(conversationId, response.content, response.hasNext, response.number);
+            setMessages(conversationId, response.content, response.hasNext, response.number, response.nextCursor);
 
-            const unreadMessageIds = response.content
-                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId)
-                .map(message => message.messageId);
+            const unreadMessages = response.content
+                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId);
 
-            if (unreadMessageIds.length > 0) {
-                await markMessagesAsRead(conversationId, unreadMessageIds);
+            if (unreadMessages.length > 0) {
+                await markMessagesAsRead(conversationId, unreadMessages);
             }
 
             if (requestId !== conversationLoadRequestRef.current) return;
-            const unreadCount = await getConversationUnreadCount(conversationId).catch(() => 0);
+            const unreadCount = await getConversationUnreadCount(conversationId);
             if (requestId !== conversationLoadRequestRef.current) return;
             setConversationUnreadCount(conversationId, unreadCount);
         } catch (err: unknown) {
@@ -434,8 +435,12 @@ export const useMessenger = (): UseMessengerResult => {
 
         try {
             const nextPage = pagination.page + 1;
-            const response = await getMessages(conversationId, { page: nextPage, size: LOAD_MORE_MESSAGES_PAGE_SIZE });
-            prependMessages(conversationId, response.content, response.hasNext, response.number);
+            const response = await getMessages(conversationId, {
+                page: nextPage,
+                size: LOAD_MORE_MESSAGES_PAGE_SIZE,
+                before: pagination.nextCursor,
+            });
+            prependMessages(conversationId, response.content, response.hasNext, response.number, response.nextCursor);
         } catch (err) {
             console.error('[useMessenger] Error loading more messages:', err);
         } finally {
@@ -446,12 +451,14 @@ export const useMessenger = (): UseMessengerResult => {
     const sendMessage = useCallback(async (
         content: string,
         type: MessageType = 'TEXT',
-        options?: { replyToId?: string; attachments?: SendMessageRequest['attachments'] }
+        options?: Partial<Pick<SendMessageRequest, 'clientMessageId' | 'replyToId' | 'attachments'>>
     ) => {
         const trimmedContent = content.trim();
         if (!activeConversationId || !user || (!trimmedContent && (!options?.attachments || options.attachments.length === 0))) return;
 
+        const clientMessageId = options?.clientMessageId ?? crypto.randomUUID();
         const request: SendMessageRequest = {
+            clientMessageId,
             conversationId: activeConversationId,
             content: trimmedContent,
             type,
@@ -459,9 +466,10 @@ export const useMessenger = (): UseMessengerResult => {
             attachments: options?.attachments
         };
 
-        const tempId = `temp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        const tempId = `temp-${clientMessageId}`;
         const tempMessage: Message = {
             messageId: tempId,
+            clientMessageId,
             conversationId: activeConversationId,
             sender: user,
             content,
@@ -490,26 +498,38 @@ export const useMessenger = (): UseMessengerResult => {
 
     const editMessage = useCallback(async (messageId: string, content: string) => {
         if (!activeConversationId) return null;
-        const updated = await editMessageApi(activeConversationId, messageId, content);
+        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        if (!messageBucket) throw new Error('Message bucket is required');
+        const updated = await editMessageApi(activeConversationId, messageBucket, messageId, content);
         updateMessage(activeConversationId, updated);
         return updated;
     }, [activeConversationId, updateMessage]);
 
     const deleteMessage = useCallback(async (messageId: string) => {
         if (!activeConversationId) return null;
-        const updated = await deleteMessageApi(activeConversationId, messageId);
+        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        if (!messageBucket) throw new Error('Message bucket is required');
+        const updated = await deleteMessageApi(activeConversationId, messageBucket, messageId);
         updateMessage(activeConversationId, updated);
         return updated;
     }, [activeConversationId, updateMessage]);
 
     const loadMessageRevisions = useCallback(async (messageId: string): Promise<MessageRevision[]> => {
         if (!activeConversationId) return [];
-        return getMessageRevisionsApi(activeConversationId, messageId);
+        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        if (!messageBucket) throw new Error('Message bucket is required');
+        return getMessageRevisionsApi(activeConversationId, messageBucket, messageId);
     }, [activeConversationId]);
 
     const pinMessage = useCallback(async (messageId: string) => {
         if (!activeConversationId) return;
-        await pinMessageApi(activeConversationId, messageId);
+        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        if (!messageBucket) throw new Error('Message bucket is required');
+        await pinMessageApi(activeConversationId, messageBucket, messageId);
     }, [activeConversationId]);
 
     const uploadMessageFiles = useCallback(async (files: File[]) => {
@@ -520,11 +540,6 @@ export const useMessenger = (): UseMessengerResult => {
         if (!activeConversationId || !user) return;
         realtimeService.publish(`/app/typing`, {
             conversationId: activeConversationId,
-            user: {
-                userId: user.userId,
-                userName: user.userName,
-                displayName: user.displayName
-            },
             isTyping
         });
     }, [activeConversationId, user]);
@@ -644,7 +659,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
         logger.debug(`[useMessengerSetup] Subscribing to conversation: ${activeConversationId}`);
 
-        const unsubMessage = realtimeService.subscribe(`/topic/conversation/${activeConversationId}`, (raw: Partial<BackendMessage>) => {
+        const unsubMessage = realtimeService.subscribe(`/topic/conversation/${activeConversationId}`, (raw: BackendMessage) => {
             const msg = mapToMessage(raw);
             if (!msg.messageId || !msg.sender?.userId) return;
 
@@ -656,36 +671,19 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             addMessage(activeConversationId, msg);
             upsertConversationFromMessage(msg);
             if (msg.sender.userId !== user.userId && !msg.isDeleted) {
-                void markMessagesAsRead(activeConversationId, [msg.messageId]);
+                void markMessagesAsRead(activeConversationId, [msg]);
             }
         });
 
         const typingTopic = `/topic/conversation/${activeConversationId}/typing`;
-        const unsubTyping = realtimeService.subscribe(typingTopic, (event: { isTyping?: boolean; typing?: boolean; user?: { userId?: string | number; userName?: string; displayName?: string; avatarUrl?: string } }) => {
-            const isTyping = event.isTyping !== undefined ? event.isTyping : event.typing;
-            const rawUser = event.user;
+        const unsubTyping = realtimeService.subscribe(typingTopic, (event: TypingEvent) => {
+            if (event.conversationId !== activeConversationId || event.user.userId === user.userId) return;
 
-            if (!rawUser) return;
-
-            const eventUserId = String(rawUser.userId ?? '');
-            if (!eventUserId || eventUserId === user.userId) return;
-
-            if (blockedUserIds.has(eventUserId)) {
+            if (blockedUserIds.has(event.user.userId)) {
                 return;
             }
 
-            const typingEvent: TypingEvent = {
-                conversationId: activeConversationId,
-                user: {
-                    userId: eventUserId,
-                    userName: String(rawUser.userName ?? ''),
-                    displayName: String(rawUser.displayName ?? rawUser.userName ?? 'User'),
-                    avatarUrl: rawUser.avatarUrl ?? undefined
-                } as User,
-                isTyping: Boolean(isTyping)
-            };
-
-            setTyping(typingEvent);
+            setTyping(event);
         });
 
         const unsubReactions = realtimeService.subscribe(
@@ -725,7 +723,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
         const unsubAttachments = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/attachments`,
-            (event: { messageId: string; attachment: Message['attachments'][0]; addedBy: string }) => {
+            (event: { messageId: string; attachment: NonNullable<Message['attachments']>[number]; addedBy: string }) => {
                 if (blockedUserIds.has(String(event.addedBy))) return;
                 addMessageAttachment(activeConversationId, event.messageId, event.attachment);
             }

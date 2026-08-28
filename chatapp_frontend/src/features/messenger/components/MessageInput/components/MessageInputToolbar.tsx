@@ -9,6 +9,7 @@ interface MessageInputToolbarProps {
   onToggleEmoji: () => void;
   showEmojiPicker: boolean;
   onShowVoice: () => void;
+  canShowVoice: boolean;
   onSend: () => void;
   canSend: boolean;
 }
@@ -20,6 +21,7 @@ export const MessageInputToolbar = ({
   onToggleEmoji,
   showEmojiPicker,
   onShowVoice,
+  canShowVoice,
   onSend,
   canSend,
 }: MessageInputToolbarProps) => {
@@ -75,11 +77,12 @@ export const MessageInputToolbar = ({
         </Button>
         <Button
           onClick={onShowVoice}
+          disabled={!canShowVoice}
           type="button"
           variant="ghost"
           size="icon"
           className="text-muted-foreground hover:text-primary"
-          title={MESSENGER_COPY.messageInput.toolbar.callVoice}
+          title={canShowVoice ? MESSENGER_COPY.messageInput.toolbar.callVoice : "Gọi trực tiếp chỉ hỗ trợ chat 1–1"}
         >
           <Mic size={19} />
         </Button>
@@ -91,7 +94,7 @@ export const MessageInputToolbar = ({
         type="button"
         variant="default"
         size="icon"
-        className="ml-2 neo-shadow transition-all disabled:translate-y-0 disabled:translate-x-0 disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
+        className="ml-2 neo-shadow transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:translate-y-0 disabled:translate-x-0 disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none"
       >
         <Send size={18} />
       </Button>
@@ -100,4 +103,5 @@ export const MessageInputToolbar = ({
 };
 
 export default MessageInputToolbar;
+
 

@@ -1,21 +1,12 @@
 ﻿import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 
-const MESSAGE_TYPES = ['TEXT', 'IMAGE', 'FILE', 'NOTIFICATION', 'POLL'] as const;
-type NormalizedMessageType = (typeof MESSAGE_TYPES)[number];
 const EMPTY_PREVIEW = MESSENGER_COPY.conversationPreview.emptyMessage;
 
 const stripDiacritics = (value: string): string =>
   value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-const normalizeMessageType = (type?: string): NormalizedMessageType => {
-  const normalized = (type ?? '').trim().toUpperCase();
-  return (MESSAGE_TYPES as readonly string[]).includes(normalized)
-    ? (normalized as NormalizedMessageType)
-    : 'TEXT';
-};
-
-const trimText = (value: string | null | undefined): string => value?.trim() ?? '';
+const trimText = (value: string): string => value.trim();
 const pickActor = (senderName?: string): string => (senderName?.trim() ? `${senderName}: ` : '');
 const isUuidLike = (value: string): boolean => {
   return /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(value);
@@ -97,7 +88,7 @@ export const getConversationLastMessagePreview = (conversation: Conversation): s
   }
 
   const actor = pickActor(message.senderName);
-  const normalizedType = normalizeMessageType(message.type);
+  const normalizedType = message.type;
   const rawContent = trimText(message.content);
   const contentWithPrefix = actor + rawContent;
 
@@ -110,11 +101,17 @@ export const getConversationLastMessagePreview = (conversation: Conversation): s
         : actor + MESSENGER_COPY.conversationPreview.fileMessageWithName + rawContent;
     case 'POLL':
       return actor + MESSENGER_COPY.conversationPreview.poll + (rawContent ? ': ' + rawContent : '');
-    case 'NOTIFICATION':
+    case 'SYSTEM':
       return actor + formatNotificationPreview(rawContent);
-    default:
+    case 'AUDIO':
+      return actor + 'đã gửi audio';
+    case 'VIDEO':
+      return actor + 'đã gửi video';
+    case 'STICKER':
+      return actor + 'đã gửi sticker';
+    case 'TEXT':
       if (!rawContent) {
-        return actor + MESSENGER_COPY.conversationPreview.newMessageFallback;
+        return actor + MESSENGER_COPY.conversationPreview.emptyTextMessage;
       }
       return contentWithPrefix;
   }

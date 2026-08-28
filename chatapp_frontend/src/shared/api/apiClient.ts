@@ -1,11 +1,14 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { logger } from '../lib/logger';
+import { runtimeEnv } from '../config/runtimeEnv';
+import { clearAccessToken, clearSessionHint, getAccessToken, hasSessionHint, setAccessToken } from '../auth/access-token';
 
-const API_BASE_URL = String(import.meta.env.VITE_API_URL || 'http://localhost:8084/api');
+const API_BASE_URL = runtimeEnv.apiBaseUrl;
 
 class ApiClient {
     private instance: AxiosInstance;
+    private refreshRequest: Promise<string> | null = null;
 
     constructor() {
         this.instance = axios.create({
@@ -24,12 +27,12 @@ class ApiClient {
         // Request Interceptor
         this.instance.interceptors.request.use(
             (config) => {
-                const token = localStorage.getItem('token');
+                const token = getAccessToken();
                 if (token && config.headers) {
                     config.headers.Authorization = `Bearer ${token}`;
                 }
 
-                if (import.meta.env.DEV) {
+                if (runtimeEnv.isDevelopment) {
                     logger.debug(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
                 }
                 return config;
@@ -44,7 +47,7 @@ class ApiClient {
         // Response Interceptor
         this.instance.interceptors.response.use(
             (response) => {
-                if (import.meta.env.DEV) {
+                if (runtimeEnv.isDevelopment) {
                     logger.debug(`API Response ${response.status}: ${response.config.url}`);
                 }
                 return response;
@@ -58,22 +61,56 @@ class ApiClient {
                 const axiosError = error;
                 const status = axiosError.response?.status;
 
-                if (status === 401) {
-                    logger.warn('Unauthorized access - potential token expiry');
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    if (typeof window !== 'undefined') {
+                if (status === 401 && typeof window !== 'undefined') {
+                    const config = axiosError.config as (AxiosRequestConfig & { _authRetry?: boolean }) | undefined;
+                    const isAuthEndpoint = config?.url?.includes('/auth/login')
+                        || config?.url?.includes('/auth/register')
+                        || config?.url?.includes('/auth/refresh')
+                        || config?.url?.includes('/auth/logout');
+                    if (config && !config._authRetry && !isAuthEndpoint && (getAccessToken() || hasSessionHint())) {
+                        config._authRetry = true;
+                        try {
+                            await this.refreshAccessToken();
+                            return await this.instance(config);
+                        } catch (refreshError) {
+                            logger.warn('Refresh token rejected; clearing in-memory session');
+                            clearAccessToken();
+                            clearSessionHint();
+                            window.location.href = '/login';
+                            return Promise.reject(refreshError instanceof Error ? refreshError : new Error(String(refreshError)));
+                        }
+                    }
+
+                    if (!isAuthEndpoint) {
+                        logger.warn('Unauthorized access - session expired');
+                        clearAccessToken();
+                        clearSessionHint();
                         window.location.href = '/login';
                     }
                 }
 
-                if (import.meta.env.DEV) {
+                if (runtimeEnv.isDevelopment) {
                     logger.error(`API Error ${String(status)}: ${axiosError.config?.url}`, JSON.stringify(axiosError.response?.data));
                 }
 
                 return Promise.reject(axiosError);
             }
         );
+    }
+
+    private refreshAccessToken(): Promise<string> {
+        if (!this.refreshRequest) {
+            this.refreshRequest = this.instance.post<{ accessToken: string }>('/auth/refresh')
+                .then((response) => {
+                    setAccessToken(response.data.accessToken);
+                    return response.data.accessToken;
+                })
+                .finally(() => {
+                    this.refreshRequest = null;
+                });
+        }
+
+        return this.refreshRequest;
     }
 
     public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {

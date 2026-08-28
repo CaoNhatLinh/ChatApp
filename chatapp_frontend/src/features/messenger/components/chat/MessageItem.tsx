@@ -1,10 +1,10 @@
-﻿import React from 'react';
+import React from 'react';
 import type { Message } from '../../types/messenger.types';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/cn';
-import { MoreHorizontal, Reply, Copy, Trash2, RefreshCw, Pencil, Pin } from 'lucide-react';
+import { MoreHorizontal, Reply, Copy, Trash2, RefreshCw, Pencil, Pin, Flag } from 'lucide-react';
 import { ReactionPicker } from '@/features/messenger/components/chat/ui/ReactionPicker';
 import { ReactionDisplay as ReactionBadgeList } from '@/features/messenger/components/chat/ui/ReactionDisplay';
 import { MentionText } from './MentionText';
@@ -45,6 +45,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     onUserClick,
     onRetry
 }) => {
+    const attachments = message.attachments;
     const { user } = useAuthStore();
     const [isRevealed, setIsRevealed] = React.useState(false);
     const isOwn = message.sender.userId === user?.userId;
@@ -68,11 +69,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     };
 
     const createdAt = React.useMemo(() => {
-        try {
-            return new Date(message.createdAt);
-        } catch {
-            return new Date();
-        }
+        return new Date(message.createdAt);
     }, [message.createdAt]);
 
     return (
@@ -93,10 +90,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     {showAvatar && !isOwn && (
                         <>
                             <Avatar
-                                className="w-10 h-10 rounded-xl border-2 border-primary/20 neo-shadow cursor-pointer hover:border-primary transition-all"
+                                className="w-10 h-10 rounded-xl border-2 border-primary/20 neo-shadow cursor-pointer hover:border-primary transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                                 onClick={() => onUserClick?.(message.sender.userId)}
                             >
-                                <AvatarImage src={message.sender.avatarUrl || ''} />
+                                <AvatarImage src={message.sender.avatarUrl} />
                                 <AvatarFallback className="bg-primary/10 text-primary font-black uppercase text-xs">
                                     {message.sender.displayName?.charAt(0)}
                                 </AvatarFallback>
@@ -118,7 +115,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                 isPoll ? "max-w-[85%]" : "max-w-[70%]",
                 isOwn ? "items-end" : "items-start"
             )}>
-                {showAvatar && !isOwn && !isPoll && (
+                {showAvatar && !isOwn && !isPoll && message.sender.displayName && (
                     <span
                         className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-1 ml-1 cursor-pointer hover:text-primary transition-colors"
                         onClick={() => onUserClick?.(message.sender.userId)}
@@ -135,7 +132,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                         message.poll && <PollCard poll={message.poll} />
                     ) : (
                         <div className={cn(
-                            "px-4 py-3 rounded-3xl relative transition-all duration-300",
+                            "px-4 py-3 rounded-3xl relative transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300",
                             roomBubbleStyle,
                             isOwn
                                 ? "bg-primary text-primary-foreground rounded-tr-none neo-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]"
@@ -167,9 +164,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                 />
                             )}
 
-                            {message.attachments.length > 0 && (
+                            {attachments && attachments.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    {message.attachments.map((attachment, index) => {
+                                    {attachments.map((attachment, index) => {
                                         const contentType = attachment.contentType ?? attachment.mimeType ?? '';
                                         const isImage = contentType.startsWith('image/');
                                         const isVideo = contentType.startsWith('video/');
@@ -242,9 +239,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     )}
 
                     {!isPoll && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200">
                             <ReactionPicker
                                 conversationId={message.conversationId}
+                                messageBucket={message.messageBucket}
                                 messageId={message.messageId}
                             />
 
@@ -276,6 +274,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                         <Pin size={14} className="text-primary" />
                                         <span>{MESSENGER_COPY.message.pinLabel}</span>
                                     </DropdownMenuItem>
+                                    {!isOwn && !message.isDeleted && (
+                                        <DropdownMenuItem
+                                            onClick={() => handleAction('report')}
+                                            className="gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-500/10 text-amber-700 transition-colors text-xs font-bold cursor-pointer"
+                                        >
+                                            <Flag size={14} />
+                                            <span>Báo cáo</span>
+                                        </DropdownMenuItem>
+                                    )}
                                     {isOwn && (
                                         <>
                                             <DropdownMenuSeparator className="bg-border/50 my-1 mx-2" />
@@ -303,11 +310,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     )}
                 </div>
 
-                {message.reactions && message.reactions.length > 0 && (
+                {message.messageBucket && message.reactions && message.reactions.length > 0 && (
                     <div className={cn("px-2", isOwn ? "flex justify-end" : "") }>
                         <ReactionBadgeList
                             reactions={message.reactions}
                             messageId={message.messageId}
+                            conversationId={message.conversationId}
+                            messageBucket={message.messageBucket}
                         />
                     </div>
                 )}
@@ -315,3 +324,4 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         </motion.div>
     );
 };
+

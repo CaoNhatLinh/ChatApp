@@ -2,7 +2,7 @@
 
 # Script phục vụ CI/CD cập nhật Cassandra Database
 
-SQL_FILE=${1:-"../chat_app_master.cql"}
+SQL_FILE=${1:-"../chat_app_complete.cql"}
 
 echo "🚀 Bắt đầu cập nhật lại toàn bộ Cassandra Database..."
 

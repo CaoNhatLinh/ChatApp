@@ -65,14 +65,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const isDM = conversation.type === 'dm';
   const otherUser = conversation.otherParticipant;
   const isPinned = conversation.isPinned;
-  const { presence: otherPresence } = usePresence(otherUser?.userId ?? '');
+  const { presence: otherPresence } = usePresence(otherUser?.userId);
   const isOtherOnline = otherPresence?.isOnline ?? false;
   const otherStatus = otherPresence?.status ?? 'OFFLINE';
   const blockedUserIds = useFriendStore((state) => state.blockedUserIds);
   const isLastMsgBlocked = lastMsg?.senderId ? blockedUserIds.has(lastMsg.senderId) : false;
-  const unreadCount = conversation.unreadCount ?? 0;
+  const unreadCount = conversation.unreadCount;
 
-  const displayAvatar = conversation.name?.trim()?.charAt(0) || '?';
+  const displayAvatar = conversation.name.trim().charAt(0);
   const activeClass = isActive
     ? 'bg-primary/10 border-primary/30 text-foreground'
     : 'border-transparent hover:bg-background/60';
@@ -96,19 +96,27 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   };
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'group relative w-full rounded-2xl border border-transparent p-2.5',
-        'flex items-center gap-3 transition-all hover:-translate-y-px',
+        'group relative w-full rounded-[var(--radius-md)] border border-transparent p-2.5',
+        'flex items-center gap-3 transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:-translate-y-px',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
         activeClass,
       )}
     >
       <div className="relative">
         <div
           className={cn(
-            'h-12 w-12 overflow-hidden rounded-xl border-2 transition-all',
+            'h-12 w-12 overflow-hidden rounded-[var(--radius-md)] border transition-[color,background-color,border-color,box-shadow,transform,opacity]',
             isActive ? 'border-primary/40' : 'border-border/70 group-hover:border-primary/50',
           )}
         >
@@ -117,7 +125,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           ) : (
             <div
               className={cn(
-                'h-full w-full flex items-center justify-center font-black text-sm',
+                'h-full w-full flex items-center justify-center font-semibold text-sm',
                 isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
               )}
             >
@@ -140,7 +148,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <div className="min-w-0 flex-1 text-left">
         <div className="mb-1 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <h4 className="truncate text-sm font-black">{conversation.name}</h4>
+            <h4 className="truncate text-sm font-semibold">{conversation.name}</h4>
             {isPinned ? <Pin size={11} className="text-primary" aria-hidden="true" /> : null}
           </div>
           {lastMsg ? (
@@ -184,9 +192,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         type="button"
         onClick={handlePinClick}
         className={cn(
-          'absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-border/40',
+          'absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-border/60',
           'bg-background/80 p-1.5 opacity-0 transition-opacity',
           'group-hover:opacity-100 group-focus-within:opacity-100',
+          'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           isActive ? 'text-foreground' : 'text-muted-foreground',
         )}
         title={
@@ -199,8 +208,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       </button>
 
       {isActive ? <div className="pointer-events-none absolute inset-y-4 left-1 w-1 rounded-full bg-primary" /> : null}
-    </button>
+    </div>
   );
 };
 
 export default ConversationItem;
+

@@ -69,8 +69,8 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
     }, [isUpdatingMyStatus]);
 
     useEffect(() => {
+        const currentTimeouts = pendingTimeoutsRef.current;
         return () => {
-            const currentTimeouts = pendingTimeoutsRef.current;
             currentTimeouts.forEach((timeout) => {
                 clearTimeout(timeout);
             });

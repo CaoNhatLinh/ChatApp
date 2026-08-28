@@ -52,7 +52,7 @@ export const ContactRequestsSection = ({
             <ContactRow
               key={request.userId}
               userId={request.userId}
-              displayName={request.displayName || request.userName}
+              displayName={request.displayName}
               userName={request.userName}
               avatarUrl={request.avatarUrl}
               onUserClick={onUserClick}

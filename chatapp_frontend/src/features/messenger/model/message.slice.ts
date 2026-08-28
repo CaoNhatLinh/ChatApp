@@ -29,12 +29,13 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                 updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], ...message };
             } else {
                 const tempIdx = currentMessages.findIndex(
-                    m => m.messageId && typeof m.messageId === 'string' && m.messageId.startsWith('temp-')
-                        && m.sender?.userId === message.sender?.userId
-                        && m.content === message.content
-                        && m.type === message.type
-                        && m.status === 'sending'
-                        && now - new Date(m.createdAt).getTime() < 120000
+                    m => (message.clientMessageId && m.clientMessageId === message.clientMessageId)
+                        || (m.messageId && typeof m.messageId === 'string' && m.messageId.startsWith('temp-')
+                            && m.sender?.userId === message.sender?.userId
+                            && m.content === message.content
+                            && m.type === message.type
+                            && m.status === 'sending'
+                            && now - new Date(m.createdAt).getTime() < 120000)
                 );
                 if (tempIdx !== -1) {
                 updatedMessages = [...currentMessages];
@@ -57,11 +58,11 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         };
     }, false, 'addMessage'),
 
-    setMessages: (conversationId, messages, hasNext = false, page = 0) => set((state) => ({
+    setMessages: (conversationId, messages, hasNext = false, page = 0, nextCursor) => set((state) => ({
         messages: { ...state.messages, [conversationId]: messages },
         messagesPagination: {
             ...state.messagesPagination,
-            [conversationId]: { hasNext, page, fetchedAt: Date.now() }
+            [conversationId]: { hasNext, page, nextCursor, fetchedAt: Date.now() }
         }
     }), false, 'setMessages'),
 
@@ -77,14 +78,14 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         };
     }, false, 'appendMessages'),
 
-    prependMessages: (conversationId, newMessages, hasNext, page) => set((state) => {
+    prependMessages: (conversationId, newMessages, hasNext, page, nextCursor) => set((state) => {
         const currentMessages = state.messages[conversationId] || [];
         const uniqueNewMessages = newMessages.filter(nm => !currentMessages.some(cm => cm.messageId === nm.messageId));
         return {
             messages: { ...state.messages, [conversationId]: [...uniqueNewMessages, ...currentMessages] },
             messagesPagination: {
                 ...state.messagesPagination,
-                [conversationId]: { hasNext, page, fetchedAt: Date.now() }
+                [conversationId]: { hasNext, page, nextCursor, fetchedAt: Date.now() }
             }
         };
     }, false, 'prependMessages'),

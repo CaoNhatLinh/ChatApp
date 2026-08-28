@@ -1,5 +1,5 @@
 /**
- * Mention utility functions (extracted for HMR/fast-refresh compatibility).
+ * Canonical mention formatting and query parsing.
  *
  * Mention format from backend: @[DisplayName|UUID]
  * Special: @[all|all] for mentioning everyone

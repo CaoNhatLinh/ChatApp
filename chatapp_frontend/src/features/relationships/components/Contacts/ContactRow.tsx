@@ -34,15 +34,15 @@ export const ContactRow: FC<ContactRowProps> = memo(({
   const status = presence?.status ?? "OFFLINE";
 
   return (
-    <div className="group flex items-center justify-between rounded-[1.2rem] border border-border/55 bg-card/55 px-4 py-3 transition-colors hover:bg-card">
+    <div className="group flex items-center justify-between rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
       <button
         onClick={() => onUserClick(userId)}
-        className="group flex min-w-0 flex-1 items-start gap-3 text-left sm:gap-4"
+          className="group flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 sm:gap-4"
         type="button"
       >
         <div className="relative">
-          <div className="h-12 w-12 overflow-hidden rounded-xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center font-black text-primary text-lg uppercase">
-            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : (displayName || userName || "?").charAt(0).toUpperCase()}
+          <div className="h-12 w-12 overflow-hidden rounded-[var(--radius-md)] bg-primary/10 border border-primary/20 flex items-center justify-center font-semibold text-primary text-lg">
+            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
           </div>
           <StatusDot
             status={status}
@@ -53,15 +53,15 @@ export const ContactRow: FC<ContactRowProps> = memo(({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold leading-snug sm:text-base">{displayName || userName}</p>
+          <p className="truncate text-sm font-bold leading-snug sm:text-base">{displayName}</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">@{userName}</p>
+            <p className="text-xs font-medium text-muted-foreground">@{userName}</p>
             {subtitle ? (
-              <span className="max-w-full truncate text-[10px] font-black uppercase text-primary">{subtitle}</span>
+                <span className="max-w-full truncate text-xs font-medium text-primary">{subtitle}</span>
             ) : (
               <>
                 <StatusDot status={status} isOnline={isOnline} size="sm" className="w-1.5 h-1.5" />
-                <span className="truncate text-[10px] font-black uppercase tracking-tighter opacity-60">
+                <span className="truncate text-xs text-muted-foreground">
                   {statusText[status] ?? status}
                 </span>
               </>

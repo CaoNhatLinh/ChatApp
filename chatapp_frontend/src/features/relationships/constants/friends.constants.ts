@@ -55,8 +55,5 @@ export const FRIEND_COPY = {
     notFound: UI_COPY.status.notFound,
     openProfileFailed: UI_COPY.status.openProfileFailed,
   },
-  profile: {
-    fallbackName: UI_COPY.profile.fallbackName,
-  },
 } as const;
 

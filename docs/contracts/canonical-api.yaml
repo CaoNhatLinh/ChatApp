@@ -1,0 +1,132 @@
+version: 1
+basePath: /api
+authentication:
+  scheme: bearer-jwt
+  public:
+    - POST /auth/register
+    - POST /auth/login
+    - POST /auth/refresh
+    - POST /auth/logout
+    - GET /public/invites/{token}
+http:
+  users:
+    - GET /auth/me
+    - POST /auth/logout
+    - GET /users/search
+    - GET /users/{userId}
+    - PATCH /users/me
+  friendships:
+    - POST /friends/request
+    - GET /friends
+    - GET /friends/status/{status}
+    - GET /friends/requests/received
+    - GET /friends/requests/sent
+    - PUT /friends/accept
+    - PUT /friends/reject
+    - POST /friends/{friendId}/cancel
+    - DELETE /friends/{friendId}
+    - POST /friends/block/{friendId}
+    - POST /friends/unblock/{friendId}
+    - GET /friends/check-block/{friendId}
+    - GET /friends/mutual/{userId}
+  conversations:
+    - POST /conversations
+    - GET /conversations
+    - GET /conversations/{conversationId}
+    - GET /conversations/dm/{otherUserId}
+    - GET /conversations/{conversationId}/members
+    - POST /conversations/{conversationId}/members
+    - DELETE /conversations/{conversationId}/members/{userId}
+    - POST /conversations/{conversationId}/leave
+    - POST /conversations/{conversationId}/pin
+    - DELETE /conversations/{conversationId}/pin
+  messages:
+    - GET /conversations/{conversationId}/messages
+    - POST /conversations/{conversationId}/messages
+    - GET /conversations/{conversationId}/messages/{messageId}
+    - PUT /conversations/{conversationId}/messages/{messageId}
+    - DELETE /conversations/{conversationId}/messages/{messageId}
+    - POST /conversations/{conversationId}/messages/{messageId}/reactions
+    - DELETE /conversations/{conversationId}/messages/{messageId}/reactions
+    - POST /conversations/{conversationId}/messages/{messageId}/read
+    - GET /conversations/{conversationId}/messages/{messageId}/read-receipts
+    - GET /conversations/{conversationId}/messages/{messageId}/revisions
+    - POST /conversations/{conversationId}/messages/{messageId}/pin
+    - DELETE /conversations/{conversationId}/messages/{messageId}/pin
+  notifications:
+    - GET /notifications
+    - GET /notifications/unread
+    - GET /notifications/unread/count
+    - PUT /notifications/{notificationId}/read
+    - PUT /notifications/read-all
+    - PUT /notifications/bulk-read
+    - DELETE /notifications/{notificationId}
+    - DELETE /notifications/all
+    - GET /notifications/stats
+    - GET /notifications/type/{type}
+    - GET /notifications/latest
+    - GET /notifications/settings
+    - PUT /notifications/settings
+  polls:
+    - POST /polls
+    - GET /polls/{pollId}
+    - POST /polls/{pollId}/votes
+    - DELETE /polls/{pollId}/votes
+    - POST /polls/{pollId}/close
+  invites:
+    - POST /invites
+    - GET /invites/conversation/{conversationId}
+    - POST /invites/consume
+    - DELETE /invites/{token}
+    - POST /invites/{token}/decline
+    - GET /invites/conversation/{conversationId}/requests
+  admin:
+    - GET /admin/overview
+    - GET /admin/audit
+    - GET /admin/analytics
+    - GET /admin/reports
+    - PUT /admin/reports/{reportId}
+    - POST /admin/sanctions
+    - GET /admin/users/{userId}/sanctions
+    - DELETE /admin/users/{userId}/sanctions/{sanctionId}
+    - GET /admin/conversations
+    - GET /admin/conversations/{conversationId}
+    - PUT /admin/conversations/{conversationId}/chat-policy
+    - DELETE /admin/conversations/{conversationId}
+    - POST /admin/conversations/{conversationId}/restore
+    - GET /admin/users/{userId}/app-roles
+    - POST /admin/users/{userId}/app-roles
+    - DELETE /admin/users/{userId}/app-roles/{roleCode}
+    - PUT /admin/users/{userId}/status
+    - GET /admin/users/{userId}/sessions
+    - DELETE /admin/users/{userId}/sessions/{tokenId}
+    - GET /admin/users/{userId}/devices
+    - DELETE /admin/users/{userId}/devices/{deviceId}
+  moderation:
+    - POST /reports
+    - GET /reports/mine
+realtime:
+  endpoint: /ws
+  applicationPrefix: /app
+  commands:
+    - SEND /app/typing
+    - SEND /app/presence.subscribe
+    - SEND /app/presence.unsubscribe
+    - SEND /app/presence.batch
+    - SEND /app/heartbeat
+    - SEND /app/online-status
+    - SEND /app/presence.logout
+  subscriptions:
+    - SUBSCRIBE /topic/conversation/{conversationId}
+    - SUBSCRIBE /topic/conversation/{conversationId}/typing
+    - SUBSCRIBE /topic/conversation/{conversationId}/reactions
+    - SUBSCRIBE /topic/conversation/{conversationId}/read
+    - SUBSCRIBE /topic/conversation/{conversationId}/pins
+    - SUBSCRIBE /topic/conversation/{conversationId}/attachments
+    - SUBSCRIBE /user/queue/friend-requests
+    - SUBSCRIBE /user/queue/notifications
+    - SUBSCRIBE /user/queue/presence
+    - SUBSCRIBE /user/queue/presence-sync
+    - SUBSCRIBE /user/queue/presence-batch
+status:
+  note: Only destinations with a backend publisher are canonical. Planned destinations stay out of this manifest until implemented.

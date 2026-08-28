@@ -1,4 +1,4 @@
-﻿import React, { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 
@@ -94,7 +94,7 @@ export const MentionText: React.FC<MentionTextProps> = ({ content, className, is
                     <span
                         key={index}
                         className={cn(
-                            "inline-flex items-center px-1.5 py-0.5 rounded-md font-bold text-xs cursor-pointer transition-all duration-200",
+                            "inline-flex items-center px-1.5 py-0.5 rounded-md font-bold text-xs cursor-pointer transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200",
                             segment.isAll
                                 ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30"
                                 : segment.isSelf
@@ -114,4 +114,5 @@ export const MentionText: React.FC<MentionTextProps> = ({ content, className, is
         </span>
     );
 };
+
 

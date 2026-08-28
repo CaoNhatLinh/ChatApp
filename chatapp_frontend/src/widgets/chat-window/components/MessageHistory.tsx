@@ -54,7 +54,7 @@ export const MessageHistory = ({
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 bg-gradient-to-b from-background/10 to-background/45"
+      className="custom-scrollbar flex-1 space-y-6 overflow-y-auto bg-background/70 p-6"
       style={roomStyle}
     >
       {hasNext ? (
@@ -67,7 +67,7 @@ export const MessageHistory = ({
           <button
             onClick={onLoadMore}
             disabled={loading}
-            className="px-6 py-2 rounded-full border border-primary/20 bg-primary/5 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/10 transition-all flex items-center gap-2"
+            className="focus-ring inline-flex items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
             type="button"
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : MESSENGER_COPY.messageHistory.loadMore}
@@ -110,3 +110,4 @@ export const MessageHistory = ({
 };
 
 export default MessageHistory;
+

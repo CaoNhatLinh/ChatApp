@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { login as loginApi } from '../api/auth.api';
 import type { LoginRequest } from '../types/auth.types';
@@ -12,8 +12,8 @@ export const useLogin = () => {
     const [error, setError] = useState<string | null>(null);
 
     const { login } = useAuthStore();
-    const navigate = useNavigate();
-    const location = useLocation();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     const handleLogin = async (data: LoginRequest) => {
         setLoading(true);
@@ -32,9 +32,9 @@ export const useLogin = () => {
             notifySuccess(`Chào mừng trở lại, ${response.displayName}!`);
 
             // Cast the location state safely to extract the 'from' path
-            const state = location.state as { from?: { pathname?: string } } | null;
-            const from = state?.from?.pathname || '/';
-            void navigate(from, { replace: true });
+            const requestedPath = searchParams.get('from');
+            const from = requestedPath?.startsWith('/') ? requestedPath : '/app';
+            router.replace(from);
         } catch (err: unknown) {
             let message = 'Tên đăng nhập hoặc mật khẩu không đúng.';
             if (axios.isAxiosError(err)) {

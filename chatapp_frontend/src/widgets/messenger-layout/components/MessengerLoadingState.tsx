@@ -3,43 +3,12 @@ import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-moti
 
 export const MessengerLoadingState = () => {
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-background relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none opacity-20">
-        <motion.div
-          className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[100px]"
-          initial={UI_MOTION_CONFIG.initialState}
-          animate={UI_MOTION_CONFIG.animateState}
-          variants={UI_MOTION_VARIANTS.loadingGlow}
-        />
-        <motion.div
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-foreground/20 rounded-full blur-[100px]"
-          initial={UI_MOTION_CONFIG.initialState}
-          animate={UI_MOTION_CONFIG.animateState}
-          variants={UI_MOTION_VARIANTS.loadingGlowShifted}
-        />
+    <div className="relative flex h-full min-h-[520px] w-full items-center justify-center overflow-hidden bg-background p-6">
+      <motion.div className="absolute left-1/4 top-1/4 h-64 w-64 rounded-full bg-primary/15 blur-[100px]" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.loadingGlow} aria-hidden="true" />
+      <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+        <motion.div className="brand-mark h-12 w-12 rounded-[0.8rem]" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.loadingSpin} aria-hidden="true">N</motion.div>
+        <p className="text-sm font-semibold text-muted-foreground">Đang tải dữ liệu...</p>
       </div>
-
-      <motion.div
-        className="flex flex-col items-center gap-4 z-10"
-        initial={UI_MOTION_CONFIG.initialState}
-        animate={UI_MOTION_CONFIG.animateState}
-        variants={UI_MOTION_VARIANTS.fadeIn}
-      >
-        <motion.div
-          className="w-12 h-12 border-3 border-border border-t-primary rounded-full"
-          initial={UI_MOTION_CONFIG.initialState}
-          animate={UI_MOTION_CONFIG.animateState}
-          variants={UI_MOTION_VARIANTS.loadingSpin}
-        />
-        <motion.p
-          className="text-sm font-black uppercase tracking-[0.16em] text-muted-foreground"
-          initial={UI_MOTION_CONFIG.initialState}
-          animate={UI_MOTION_CONFIG.animateState}
-          variants={UI_MOTION_VARIANTS.loadingPulse}
-        >
-          Dang tai du lieu...
-        </motion.p>
-      </motion.div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { register as registerApi } from '../api/auth.api';
 import type { RegisterRequest } from '../types/auth.types';
@@ -10,7 +10,7 @@ export const useRegister = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const navigate = useNavigate();
+    const router = useRouter();
 
     const handleRegister = async (data: RegisterRequest) => {
         setLoading(true);
@@ -24,7 +24,7 @@ export const useRegister = () => {
 
             // Delay slightly for user to see the success toast
             setTimeout(() => {
-                void navigate('/login');
+                router.replace('/login');
             }, 1500);
         } catch (err: unknown) {
             let message = 'Đăng ký thất bại. Tên đăng nhập có thể đã tồn tại.';

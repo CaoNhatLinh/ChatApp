@@ -7,9 +7,14 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/DropdownMenu';
 import { useTheme } from '@/app/providers/theme';
+import { useAppLocale } from '@/shared/i18n';
 
 export function ThemeToggle() {
   const { themePreference, setThemePreference } = useTheme();
+  const { locale } = useAppLocale();
+  const copy = locale === 'vi'
+    ? { toggle: 'Đổi giao diện', light: 'Sáng', dark: 'Tối', system: 'Theo hệ thống' }
+    : { toggle: 'Change theme', light: 'Light', dark: 'Dark', system: 'System' };
 
   const renderTriggerIcon = () => {
     switch (themePreference) {
@@ -34,7 +39,7 @@ export function ThemeToggle() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Toggle theme"
+          aria-label={copy.toggle}
           className="rounded-full hover:bg-accent/80 transition-colors"
         >
           {renderTriggerIcon()}
@@ -47,19 +52,19 @@ export function ThemeToggle() {
       >
         <DropdownMenuItem onClick={() => setThemePreference('light')} className={getMenuItemClasses('light')}>
           <Sun className="mr-2 h-4 w-4 text-amber-500" />
-          Light
+          {copy.light}
           {themePreference === 'light' ? <Check className="ml-auto h-4 w-4 text-success" /> : null}
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={() => setThemePreference('dark')} className={getMenuItemClasses('dark')}>
           <Moon className="mr-2 h-4 w-4 text-blue-500" />
-          Dark
+          {copy.dark}
           {themePreference === 'dark' ? <Check className="ml-auto h-4 w-4 text-success" /> : null}
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={() => setThemePreference('system')} className={getMenuItemClasses('system')}>
           <Laptop className="mr-2 h-4 w-4 text-cyan-500" />
-          System
+          {copy.system}
           {themePreference === 'system' ? <Check className="ml-auto h-4 w-4 text-success" /> : null}
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -16,3 +16,7 @@ node_modules/
 .vscode/
 *.log
 .DS_Store
+
+# Local credentials
+**/.env
+!**/.env.example

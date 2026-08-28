@@ -34,10 +34,10 @@ export const useFriendTabsState = () => {
 
   const searchUsersAction = useFriendStore((state) => state.searchUsers);
 
-  const friends = useMemo(() => friendsData?.userDetails || [], [friendsData]);
-  const requests = useMemo(() => requestsData?.userDetails || [], [requestsData]);
+  const friends = useMemo(() => friendsData?.userDetails ?? [], [friendsData]);
+  const requests = useMemo(() => requestsData?.userDetails ?? [], [requestsData]);
   const sentRequestIds = useMemo(
-    () => new Set(sentRequestsData?.userDetails.map((person) => person.userId) || []),
+    () => new Set(sentRequestsData?.userDetails.map((person) => person.userId) ?? []),
     [sentRequestsData]
   );
 
@@ -48,7 +48,7 @@ export const useFriendTabsState = () => {
     }
 
     return friends.filter((person) => {
-      const label = (person.displayName || person.userName || "").toLowerCase();
+      const label = person.displayName.toLowerCase();
       return label.includes(normalized);
     });
   }, [friends, searchQuery]);
@@ -95,4 +95,3 @@ export const useFriendTabsState = () => {
           : loadingSearch || loadingSent,
   };
 };
-

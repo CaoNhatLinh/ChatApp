@@ -65,19 +65,10 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     set({ loadingSent: true, error: null });
     try {
       await friendApi.sendRequest(friendId);
+      const pendingRequests = await friendApi.getUsersByStatus('PENDING');
       set((state) => {
-        const requestedUser = state.searchResults.find((candidate) => candidate.userId === friendId);
-        const pendingUsers = state.pendingRequests?.userDetails ?? [];
-        const alreadyPending = pendingUsers.some((candidate) => candidate.userId === friendId);
-
         return {
-          pendingRequests: requestedUser && !alreadyPending
-            ? {
-              userId: '',
-              status: 'PENDING',
-              userDetails: [...pendingUsers, requestedUser],
-            }
-            : state.pendingRequests,
+          pendingRequests,
           searchResults: state.searchResults.map((candidate) => (
             candidate.userId === friendId
               ? { ...candidate, isFriend: false, requestSent: true }
@@ -213,7 +204,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
           },
           friends: {
             ...state.friends,
-            userDetails: [...(state.friends.userDetails || []), acceptedUser],
+            userDetails: [...state.friends.userDetails, acceptedUser],
           },
         };
       });
@@ -320,7 +311,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     try {
       const response = await friendApi.getUsersByStatus('BLOCKED');
       const blockedIds = new Set<string>(
-        response?.userDetails?.map((u: { userId: string }) => u.userId) ?? []
+        response.userDetails.map((u: { userId: string }) => u.userId)
       );
       set({ blockedUserIds: blockedIds });
     } catch (err) {
@@ -339,13 +330,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         mutualFriends: {
           userId: otherUserId,
           status: 'ACCEPTED',
-          userDetails: response.content.map(f => ({
-            userId: f.friendId,
-            userName: f.username,
-            displayName: f.displayName,
-            avatarUrl: f.avatarUrl,
-            status: 'ONLINE', // Default if not provided
-          } as UserDTO))
+          userDetails: response,
         },
         error: null,
       });

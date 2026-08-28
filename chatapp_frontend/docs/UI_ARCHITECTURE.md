@@ -2,101 +2,60 @@
 
 ## Scope
 
-- Web routes and screen structure for the current project
-- Public marketing pages: Home, About, Help, Privacy, NotFound
-- Auth pages: Login, Register
-- Product routes: Chat page, friends/messages switching, settings, profile
+This document describes the single current web surface. It intentionally excludes removed routes, old Vite entrypoints, static activity screens, and compatibility redirects.
 
-## Current Routes
+## Route map
 
-### Public
-- `/` and `/home` => `src/pages/HomePage.tsx`
-- `/about` => `src/pages/AboutPage.tsx`
-- `/help` => `src/pages/HelpPage.tsx`
-- `/privacy` => `src/pages/PrivacyPage.tsx`
-- `/terms` => `src/pages/terms/TermsPage.tsx`
-- `/login` => `src/pages/LoginPage.tsx`
-- `/register` => `src/pages/RegisterPage.tsx`
-- `*` => `src/pages/NotFound.tsx`
+### Public and auth
 
-### App
-- `/app` => `src/pages/MessengerPage.tsx`
-- `/messages` => `src/pages/MessagesPage.tsx`
-- `/friends` => `src/pages/FriendsPage.tsx`
-- `/search` => `src/pages/SearchPage.tsx`
-- `/activity` => `src/pages/ActivityPage.tsx`
-- `/settings` => `src/pages/SettingsPage.tsx`
-- `/profile` => `src/pages/ProfilePage.tsx`
+- `/` — landing page
+- `/about` — product principles
+- `/help` — help centre and FAQ
+- `/privacy` — privacy policy
+- `/terms` — terms of service
+- `/login` — sign in
+- `/register` — account creation
+- `/403` — authenticated access denied
+- `not-found` — product-specific missing route state
 
-## Layout Components
+### Authenticated product
 
-- `src/pages/shared/layout/ShellFrame.tsx`  
-- `src/pages/shared/layout/PublicShellHeader.tsx`  
-- `src/pages/shared/layout/AppShellHeader.tsx`  
-- `src/pages/shared/layout/AuthShellHeader.tsx`  
-- `src/pages/shared/AppPageShell.tsx`  
-  Shared shell for app pages. This now delegates to `src/pages/shared/layout/AppPageShell.tsx`.
-- `src/pages/shared/PublicPageShell.tsx`  
-  Shared shell for public pages: decorative ambient layer, centered container, and optional top actions.
+- `/app` — realtime conversations and message workspace
+- `/friends` — contacts and friend requests
+- `/search` — canonical user, room, and message search
+- `/profile` — current user profile
+- `/settings` — account and appearance settings
 
-- `src/widgets/messenger-layout/MessengerLayout.tsx`  
-  App shell for chat view. It now delegates loading/error/content into dedicated components.
+### Global operations
 
-## Public Page Composition
+- `/admin` — application-wide operator console for users, rooms, reports, sanctions, audit, permissions, sessions, and device controls
 
-- `src/pages/home/components/HomeTopBar.tsx` handles top action links.
-- `src/pages/home/components/HomeHero.tsx`
-- `src/pages/home/components/HomeFeatureGrid.tsx`
-- `src/pages/home/components/HomeQuickLinks.tsx`
+Removed route aliases are not redirected or rendered. `/home`, `/messages`, and `/activity` had redundant or non-canonical content and are intentionally absent.
 
-- `src/pages/about/components/AboutIntro.tsx`
-- `src/pages/about/components/AboutValueCards.tsx`
+## Layout boundaries
 
-- `src/pages/help/components/HelpFaqList.tsx`
-- `src/pages/help/components/HelpTipCards.tsx`
+- `src/app/layout.tsx` owns providers and the document shell.
+- `src/app/native/NativeRouteShell.tsx` owns auth-aware route mounting.
+- `src/route-pages/*Page.tsx` owns route composition and page-level data flow.
+- `src/route-pages/shared/layout/*` owns public, auth, and product shells.
+- `src/widgets/messenger-layout/*` owns the responsive chat workspace shell and explicit loading/error states.
+- `src/shared/ui/*` owns tokens and reusable interaction primitives.
 
-- `src/pages/privacy/components/PrivacyPolicyCards.tsx`
-- `src/pages/privacy/components/PrivacyPageCta.tsx`
+## Composition rules
 
-- `src/pages/not-found/components/NotFoundVisual.tsx`
-- `src/pages/not-found/components/NotFoundActions.tsx`
+- Routes compose focused components and do not duplicate shell, typography, or control styles.
+- Feature components own domain behavior; route pages only orchestrate data and layout.
+- Every async surface has an explicit loading, empty, and error state tied to canonical request state.
+- Operator controls are available only on `/admin`; room member roles are not global operator permissions.
+- Navigation points only to canonical routes listed above.
 
-- `src/pages/profile/components/ProfileIdentityCard.tsx`
-- `src/pages/profile/components/ProfileInfoGrid.tsx`
-- `src/pages/profile/components/ProfileQuickLinks.tsx`
-- `src/pages/profile/components/ProfileAccessNote.tsx`
+## Design-system boundary
 
-## Auth UI Composition
+Tokens live in `src/index.css` and are consumed through semantic classes (`bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-primary`). New pages use the Nova signal-orange/cool-ink palette, one sans family, compact radii, deliberate borders, and responsive spacing. Decorative gradients, fake metrics, legacy serif/uppercase treatments, and uncontrolled arbitrary colors are not part of the system.
 
-- `src/features/auth/ui/AuthLayout.tsx` remains the shared container for auth routes.
-- `src/features/auth/components/Login.tsx`
-- `src/features/auth/components/Register.tsx`
-- `src/features/auth/components/LoginForm.tsx`
-- `src/features/auth/components/RegisterForm.tsx`
-- `src/features/auth/ui/components/AuthField.tsx` (shared form field component)
+## Editing rules
 
-## Messenger Layout Composition
-
-- `src/widgets/messenger-layout/components/MessengerLayoutShell.tsx`
-  Shared desktop/mobile shell, sidebar toggle behavior, ambient background layering.
-
-- `src/widgets/messenger-layout/components/MessengerLoadingState.tsx`
-- `src/widgets/messenger-layout/components/MessengerErrorState.tsx`
-
-## CSS / Spacing System
-
-- Base scale added in `src/index.css`:
-  - `--space-2xs`, `--space-xs`, `--space-sm`, `--space-md`, `--space-lg`,
-    `--space-xl`, `--space-2xl`, `--space-3xl`, `--space-4xl`
-- Utility classes:
-  - `layout-stack-tight`
-  - `layout-stack`
-  - `layout-stack-relaxed`
-  - `layout-grid-auto`
-
-## Editing Rules for New Screens
-
-- Route files should compose the page from small, focused components.
-- Keep route-level files short (orchestration + data flow only).
-- Put spacing rhythm into utility containers first, then per-element styles.
-- Shared interactive primitives (button, input, dialog, dropdown) should still use `shared/ui`.
+- Add a route only when it represents a distinct user task and has a canonical backend contract.
+- Prefer shared shells and primitives over page-local copies.
+- Keep visible copy concise, Vietnamese-first, and free of placeholder data.
+- Validate type-check, lint, production build, and browser smoke after route or shell changes.

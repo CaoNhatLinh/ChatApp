@@ -2,7 +2,7 @@ import type { User } from '@/features/auth/types/auth.types';
 export type { User };
 
 export type ConversationType = 'dm' | 'group' | 'channel';
-export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'NOTIFICATION' | 'POLL';
+export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'VIDEO' | 'STICKER' | 'POLL' | 'SYSTEM';
 
 /* --- Conversation Types --- */
 
@@ -11,7 +11,7 @@ export interface MessageSummary {
     senderId: string;
     senderName?: string;
     content: string;
-    type?: MessageType;
+    type: MessageType;
     createdAt: string;
 }
 
@@ -51,16 +51,18 @@ export interface ConversationMember {
     conversationId: string;
     role: 'owner' | 'admin' | 'member';
     joinedAt: string;
-    username?: string;
-    displayName?: string;
+    username: string;
+    displayName: string;
     avatarUrl?: string;
-    isOnline?: boolean;
 }
 
 /* --- Message Types --- */
 
 export interface Attachment {
     attachmentId?: string;
+    assetId?: string;
+    storageProvider?: string;
+    storageKey?: string;
     fileName: string;
     url: string;
     fileSize: number;
@@ -81,14 +83,23 @@ export interface Reaction {
     latestUserNames: string[];
 }
 
+export interface MessageSender {
+    userId: string;
+    userName?: string;
+    displayName?: string;
+    avatarUrl?: string;
+}
+
 export interface Message {
     messageId: string;
+    clientMessageId?: string;
+    messageBucket?: string;
     conversationId: string;
-    sender: User;
+    sender: MessageSender;
     content: string;
     type: MessageType;
-    attachments: Attachment[];
-    reactions: Reaction[];
+    attachments?: Attachment[];
+    reactions?: Reaction[];
     replyTo?: {
         messageId: string;
         content: string;
@@ -109,6 +120,7 @@ export interface Message {
 /* --- Request Types --- */
 
 export interface SendMessageRequest {
+    clientMessageId: string;
     conversationId: string;
     content: string;
     type: MessageType;
@@ -178,8 +190,36 @@ export interface CreatePollRequest {
 
 export interface TypingEvent {
     conversationId: string;
-    user: User;
+    user: {
+        userId: string;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
     isTyping: boolean;
+}
+
+export interface CallCommand {
+    conversationId: string;
+    callId: string;
+    callType?: 'VOICE' | 'VIDEO';
+    mediaRegion?: string;
+    maxParticipants?: number;
+    targetUserId: string;
+    signal?: Record<string, unknown>;
+}
+
+export interface CallEvent {
+    conversationId: string;
+    callId: string;
+    actorId: string;
+    action: 'START' | 'JOIN' | 'LEAVE' | 'SIGNAL' | 'END';
+    callType?: 'VOICE' | 'VIDEO';
+    mediaRegion?: string;
+    maxParticipants?: number;
+    targetUserId: string;
+    signal?: Record<string, unknown>;
+    occurredAt: string;
 }
 
 

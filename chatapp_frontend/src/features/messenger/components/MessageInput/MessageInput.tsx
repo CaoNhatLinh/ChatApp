@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import type { EmojiClickData } from "emoji-picker-react";
@@ -25,6 +25,8 @@ interface MessageInputProps {
   editingMessage?: Message | null;
   onCancelReply?: () => void;
   onCancelEdit?: () => void;
+  onStartCall: (callType: "VOICE" | "VIDEO") => void;
+  canStartCall: boolean;
 }
 
 const MAX_FILES_PER_MESSAGE = 10;
@@ -66,6 +68,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   editingMessage,
   onCancelReply,
   onCancelEdit,
+  onStartCall,
+  canStartCall,
 }) => {
   const [text, setText] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -221,12 +225,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, [text, sendTyping]);
 
-  const showSuccess = (message: string) => notifySuccess(message);
+  const showSuccess = useCallback((message: string) => notifySuccess(message), []);
   const showError = (message: string) => notifyError(message);
-  const showWarning = (message: string, options?: Parameters<typeof notifyWarning>[1]) => notifyWarning(message, options);
-  const showFeaturePlaceholder = (featureName: string) => {
-    showWarning(MESSENGER_COPY.messageInput.actionError.toastInvalidFeature(featureName));
-  };
+  const showWarning = useCallback((message: string, options?: Parameters<typeof notifyWarning>[1]) => notifyWarning(message, options), []);
 
   const clearTypingState = useCallback(() => {
     if (isTypingRef.current) {
@@ -330,6 +331,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     text,
     buildValidFiles,
     uploadMessageFiles,
+    showSuccess,
+    showWarning,
   ]);
 
   const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
@@ -340,7 +343,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       console.error("[MessageInput] Failed to create poll:", error);
       showError(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError);
     }
-  }, []);
+  }, [showSuccess]);
 
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -460,7 +463,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         />
       )}
 
-      <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-all duration-300 focus-within:ring-2 ring-primary/20">
+      <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300 focus-within:ring-2 ring-primary/20">
         <MessageInputDraftPanel
           replyingTo={replyingTo}
           editingMessage={editingMessage}
@@ -477,7 +480,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onOpenPoll={() => setShowPollModal(true)}
             onToggleEmoji={() => setShowEmojiPicker((isOpen) => !isOpen)}
             showEmojiPicker={showEmojiPicker}
-            onShowVoice={() => showFeaturePlaceholder(MESSENGER_COPY.messageInput.toolbar.voiceFeatureLabel)}
+            onShowVoice={() => onStartCall("VOICE")}
+            canShowVoice={canStartCall}
             onSend={() => void handleSend()}
             canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
           />
@@ -516,4 +520,5 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 };
 
 export default MessageInput;
+
 

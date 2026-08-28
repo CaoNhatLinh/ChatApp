@@ -16,6 +16,8 @@ interface ConversationHeaderProps {
   onVideoCall: () => void;
   onVoiceCall: () => void;
   onOpenRoomTheme: () => void;
+  canCall: boolean;
+  callDisabledReason: string;
 }
 
 export const ConversationHeader = ({
@@ -30,18 +32,17 @@ export const ConversationHeader = ({
   onVideoCall,
   onVoiceCall,
   onOpenRoomTheme,
+  canCall,
+  callDisabledReason,
 }: ConversationHeaderProps) => {
   const isGroup = conversation.type === "group";
-  const title =
-    conversation.type === "dm"
-      ? conversation.otherParticipant?.displayName || MESSENGER_COPY.chatWindow.header.dmFallback
-      : conversation.name || MESSENGER_COPY.chatWindow.header.groupFallback;
+  const title = conversation.name;
 
   const statusLabel = isGroup ? `${conversation.memberCount} ${MESSENGER_COPY.chatWindow.status.groupMemberSuffix}` : otherStatusLabel;
   const statusClassName = isGroup || !isOtherOnline ? "text-muted-foreground" : "text-primary";
 
   return (
-    <SurfacePanel className="rounded-none border-x-0 border-t-0">
+    <SurfacePanel className="rounded-none border-x-0 border-t-0 shadow-none">
       <div className="flex items-center justify-between gap-4 p-4">
         <div className="min-w-0 flex items-center gap-3">
           {canGoBack ? (
@@ -57,8 +58,8 @@ export const ConversationHeader = ({
           ) : null}
 
           <div className="min-w-0">
-            <h2 className="font-black text-lg tracking-tight truncate">{title}</h2>
-            <p className={`text-xs font-bold uppercase tracking-widest ${statusClassName}`}>
+            <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>
+            <p className={`text-xs font-medium ${statusClassName}`}>
               {statusLabel}
             </p>
           </div>
@@ -90,8 +91,9 @@ export const ConversationHeader = ({
             variant="ghost"
             size="icon"
             onClick={onVoiceCall}
+            disabled={!canCall}
             aria-label={MESSENGER_COPY.chatWindow.header.voiceTooltip}
-            title={MESSENGER_COPY.chatWindow.header.voiceTooltip}
+            title={canCall ? MESSENGER_COPY.chatWindow.header.voiceTooltip : callDisabledReason}
             className="rounded-full"
           >
             <Phone size={18} />
@@ -101,8 +103,9 @@ export const ConversationHeader = ({
             variant="ghost"
             size="icon"
             onClick={onVideoCall}
+            disabled={!canCall}
             aria-label={MESSENGER_COPY.chatWindow.header.videoTooltip}
-            title={MESSENGER_COPY.chatWindow.header.videoTooltip}
+            title={canCall ? MESSENGER_COPY.chatWindow.header.videoTooltip : callDisabledReason}
             className="rounded-full"
           >
             <Video size={18} />
@@ -125,4 +128,3 @@ export const ConversationHeader = ({
 };
 
 export default ConversationHeader;
-

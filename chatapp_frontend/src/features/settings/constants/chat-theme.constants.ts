@@ -24,38 +24,35 @@ export interface ChatBubbleStylePreset {
 export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
   {
     id: "aurora",
-    name: "Aurora Pulse",
-    description: "Gradient xanh tim nhieu tang, ton sang trong cho khong gian chat.",
-    accent: "bg-indigo-500/25",
-    overlay: "linear-gradient(135deg, rgba(79,70,229,0.4), rgba(56,189,248,0.28), rgba(14,165,233,0.2))",
-    backgroundImage:
-      "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1800&q=80",
+    name: "Signal Dawn",
+    description: "Lớp sáng cam nhẹ trên nền mực, giúp khu vực chat có nhịp rõ ràng.",
+    accent: "bg-primary/20",
+    overlay: "linear-gradient(135deg, color-mix(in oklab, var(--primary) 28%, transparent), transparent 68%)",
+    backgroundImage: undefined,
   },
   {
     id: "neon",
-    name: "Neon City",
-    description: "Phong cach cong nghe tuoi sang, no de nhan biet nhanh trong convo.",
-    accent: "bg-fuchsia-500/25",
-    overlay: "linear-gradient(145deg, rgba(192,38,211,0.35), rgba(14,165,233,0.24), rgba(16,185,129,0.18))",
-    backgroundImage:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1800&q=80",
+    name: "Signal Grid",
+    description: "Độ tương phản cao, giữ nhãn và tin nhắn dễ quét khi room đông.",
+    accent: "bg-primary/15",
+    overlay: "linear-gradient(145deg, color-mix(in oklab, var(--primary) 20%, transparent), color-mix(in oklab, var(--foreground) 8%, transparent))",
+    backgroundImage: undefined,
   },
   {
     id: "studio",
     name: "Studio Matte",
-    description: "Nen toi sach, toi uu cho noi dung va cam giac thong suot.",
-    accent: "bg-slate-500/25",
-    overlay: "linear-gradient(160deg, rgba(15,23,42,0.68), rgba(30,41,59,0.3), rgba(71,85,105,0.24))",
+    description: "Mặt nền phẳng và yên, ưu tiên đọc nội dung trong thời gian dài.",
+    accent: "bg-muted",
+    overlay: "linear-gradient(160deg, color-mix(in oklab, var(--foreground) 12%, transparent), transparent 72%)",
     backgroundImage: undefined,
   },
   {
     id: "vapor",
-    name: "Vapor Frame",
-    description: "Mau sac mo hieu ung, giup room tro choi co cam giac metaverse.",
-    accent: "bg-cyan-500/20",
-    overlay: "linear-gradient(160deg, rgba(6,182,212,0.25), rgba(59,130,246,0.22), rgba(217,70,239,0.2))",
-    backgroundImage:
-      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1800&q=80",
+    name: "Signal Haze",
+    description: "Một lớp mờ có chiều sâu nhưng vẫn giữ màu cam làm điểm neo.",
+    accent: "bg-primary/10",
+    overlay: "linear-gradient(160deg, color-mix(in oklab, var(--primary) 16%, transparent), color-mix(in oklab, var(--background) 14%, transparent))",
+    backgroundImage: undefined,
   },
 ];
 
@@ -63,30 +60,30 @@ export const CHAT_BUBBLE_PRESETS: ChatBubbleStylePreset[] = [
   {
     id: "tiktok",
     name: "TikTok Style",
-    description: "Bubble nang va reu, hover co hieu ung bo cong cu.",
+    description: "Tin của bạn có điểm nhấn vừa đủ, không làm mất nhịp đọc.",
     ownClass:
-      "bg-gradient-to-r from-primary/95 to-primary/85 text-primary-foreground rounded-[1.1rem] rounded-br-md shadow-[0_8px_24px_-14px_rgba(0,0,0,0.35)] border border-primary/20",
+      "bg-primary text-primary-foreground rounded-[var(--radius-md)] rounded-br-sm shadow-sm border border-primary/20",
     peerClass:
-      "border border-border/55 bg-background/85 text-foreground/95 backdrop-blur-sm rounded-[1.1rem] rounded-bl-md shadow-[0_8px_24px_-18px_rgba(0,0,0,0.32)]",
+      "border border-border bg-background text-foreground rounded-[var(--radius-md)] rounded-bl-sm",
     statusClass: "text-primary/90",
   },
   {
     id: "glass",
     name: "Glass Soft",
-    description: "Hieu ung nang, phu hop nen nang va de doc.",
+    description: "Bề mặt nhẹ, phù hợp khi muốn giữ nhiều khoảng thở trong room.",
     ownClass:
-      "bg-primary/15 text-primary-foreground border border-primary/20 rounded-[1.6rem] shadow-[0_10px_30px_-20px_rgba(37,99,235,0.45)]",
+      "bg-primary/15 text-foreground border border-primary/25 rounded-[var(--radius-lg)] rounded-br-sm",
     peerClass:
-      "bg-card/85 border border-border/60 backdrop-blur-sm rounded-[1.6rem] text-foreground/95",
+      "bg-card border border-border rounded-[var(--radius-lg)] rounded-bl-sm text-foreground",
     statusClass: "text-muted-foreground",
   },
   {
     id: "classic",
     name: "Classic Focus",
-    description: "Dong dan, gap mat, giu nhan tri nhat cho lich su chat.",
+    description: "Gọn và chắc, dành cho lịch sử tin nhắn cần quét nhanh.",
     ownClass:
-      "bg-primary text-primary-foreground rounded-[1.3rem] shadow-lg border border-primary/20",
-    peerClass: "bg-card border border-border/60 rounded-[1.3rem] text-foreground/95",
+      "bg-primary text-primary-foreground rounded-[var(--radius-md)] rounded-br-sm border border-primary/20",
+    peerClass: "bg-card border border-border rounded-[var(--radius-md)] rounded-bl-sm text-foreground",
     statusClass: "text-muted-foreground/90",
   },
 ];
@@ -149,25 +146,31 @@ export const getRoomVisualComputed = (
   };
 };
 
-export const CHAT_THEME_COPY = {
+import { localizedCopy } from '@/shared/i18n';
+
+const rawChatThemeCopy = {
   panelTitle: "Room Visual",
-  panelDescription: "Thiet lap kich ban phong chat hien tai.",
-  resetConversation: "Dat mac dinh",
-  activeRoomHint: (conversationName: string) => `Dang bo sung cho: ${conversationName}`,
-  noActiveConversation: "Mo phong chat de cai dat background",
-  defaultThemeLabel: "Theme mac dinh",
-  defaultBubbleLabel: "Kieu bubble",
-  roomThemeLabel: "Theme cho phong",
-  roomBackgroundLabel: "Nap background",
-  roomBackgroundPlaceholder: "Paste URL anh hoac de trong de dung mac dinh",
-  roomBackgroundApply: "Ap dung",
-  roomBackgroundClear: "Xoa hinh nen",
-  showMessage: "Xem truoc",
+  panelDescription: "Thiết lập giao diện phòng chat hiện tại.",
+  resetConversation: "Đặt mặc định",
+  activeRoomHint: (conversationName: string) => `Đang áp dụng cho: ${conversationName}`,
+  noActiveConversation: "Mở phòng chat để cài đặt hình nền",
+  defaultThemeLabel: "Chủ đề mặc định",
+  defaultBubbleLabel: "Kiểu bong bóng",
+  roomThemeLabel: "Chủ đề cho phòng",
+  roomBackgroundLabel: "Tải hình nền",
+  roomBackgroundPlaceholder: "Dán URL ảnh hoặc để trống để dùng mặc định",
+  roomBackgroundApply: "Áp dụng",
+  roomBackgroundClear: "Xóa hình nền",
+  showMessage: "Xem trước",
 } as const;
 
-export const CHAT_THEME_STATUS = {
+export const CHAT_THEME_COPY = localizedCopy(rawChatThemeCopy);
+
+const rawChatThemeStatus = {
   loading: UI_COPY.status.loading,
-  noConversationSelected: "Chua chon cuoc tro chuyen",
-  conversationSaved: "Da luu cai dat cho phong nay",
-  defaultsUpdated: "Da cap nhat cai dat mac dinh",
+  noConversationSelected: "Chưa chọn cuộc trò chuyện",
+  conversationSaved: "Đã lưu cài đặt cho phòng này",
+  defaultsUpdated: "Đã cập nhật cài đặt mặc định",
 } as const;
+
+export const CHAT_THEME_STATUS = localizedCopy(rawChatThemeStatus);

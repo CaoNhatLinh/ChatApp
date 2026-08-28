@@ -4,6 +4,7 @@ import { useRef, useState, type FC } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText } from '@/shared/i18n';
 
 interface UserSettingsProfilePanelProps {
   userName: string;
@@ -33,7 +34,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
   const avatarUrlInputRef = useRef<HTMLInputElement>(null);
   const [showAvatarHint, setShowAvatarHint] = useState(false);
 
-  const initials = displayName?.trim()?.charAt(0)?.toUpperCase() || userName?.charAt(0).toUpperCase() || '';
+  const initials = displayName.trim().charAt(0).toUpperCase();
 
   const handleOpenAvatarInput = () => {
     setShowAvatarHint(true);
@@ -49,14 +50,14 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
       variants={UI_MOTION_VARIANTS.panelReveal}
     >
       <div>
-        <h2 className="text-2xl font-black uppercase tracking-tight">Hồ sơ cá nhân</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{localizeText('Hồ sơ cá nhân')}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Cập nhật tên hiển thị, biệt danh và ảnh đại diện của bạn.
+          {localizeText('Cập nhật tên hiển thị, biệt danh và ảnh đại diện của bạn.')}
         </p>
       </div>
 
       <motion.div
-        className="rounded-3xl border border-border/60 bg-card/70 p-4 sm:p-6 flex flex-col gap-4 sm:items-center sm:flex-row sm:gap-6"
+        className="flex flex-col gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.rowReveal}
@@ -64,8 +65,8 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
         <button
           type="button"
           onClick={handleOpenAvatarInput}
-          className="group relative h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-2xl border-4 border-background bg-primary/10 transition-transform"
-          title="Đổi ảnh đại diện"
+          className="focus-ring group relative h-24 w-24 overflow-hidden rounded-[0.9rem] border-4 border-background bg-primary/10 transition-transform sm:h-28 sm:w-28"
+          title={localizeText('Đổi ảnh đại diện')}
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" />
@@ -75,13 +76,13 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
             </span>
           )}
           <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-primary-foreground grid place-items-center">
-            <span className="text-xs font-bold">Đổi</span>
+            <span className="text-xs font-bold">{localizeText('Đổi')}</span>
           </span>
         </button>
 
         <div className="space-y-1">
-          <p className="text-lg font-black">{displayName || 'Người dùng mới'}</p>
-          <p className="text-xs uppercase font-bold tracking-[0.14em] text-muted-foreground">@{userName}</p>
+          <p className="text-lg font-black">{displayName}</p>
+          <p className="text-xs font-semibold text-muted-foreground">@{userName}</p>
           <Button
             type="button"
             size="sm"
@@ -89,31 +90,31 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
             onClick={handleOpenAvatarInput}
             className="mt-2"
           >
-            Đổi ảnh đại diện
+            {localizeText('Đổi ảnh đại diện')}
           </Button>
         </div>
       </motion.div>
 
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-        <label className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Tên hiển thị</label>
-        <Input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} placeholder="Nhập tên hiển thị" />
+        <label className="text-sm font-semibold text-foreground">{localizeText('Tên hiển thị')}</label>
+        <Input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} placeholder={localizeText('Nhập tên hiển thị')} />
       </motion.div>
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-        <label className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Biệt danh</label>
-        <Input value={nickname} onChange={(event) => onNicknameChange(event.target.value)} placeholder="Nhập biệt danh" />
+        <label className="text-sm font-semibold text-foreground">{localizeText('Biệt danh')}</label>
+        <Input value={nickname} onChange={(event) => onNicknameChange(event.target.value)} placeholder={localizeText('Nhập biệt danh')} />
       </motion.div>
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-        <label className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Avatar URL</label>
+        <label className="text-sm font-semibold text-foreground">{localizeText('Avatar URL')}</label>
         <Input
           ref={avatarUrlInputRef}
           value={avatarUrl}
           onChange={(event) => onAvatarChange(event.target.value)}
-          placeholder="Nhập link ảnh đại diện"
+          placeholder={localizeText('Nhập link ảnh đại diện')}
           inputMode="url"
         />
         {showAvatarHint && (
           <p className="text-[0.75rem] text-muted-foreground">
-            Dán link ảnh trực tiếp (https://...) rồi nhấn Enter hoặc lưu ngay.
+            {localizeText('Dán link ảnh trực tiếp (https://...) rồi nhấn Enter hoặc lưu ngay.')}
           </p>
         )}
       </motion.div>
@@ -134,7 +135,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
               <Loader2 size={18} />
             </motion.span>
           ) : (
-            'Lưu thay đổi'
+            localizeText('Lưu thay đổi')
           )}
         </Button>
       </motion.div>

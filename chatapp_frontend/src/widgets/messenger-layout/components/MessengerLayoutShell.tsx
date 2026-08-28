@@ -15,43 +15,35 @@ export const MessengerLayoutShell = ({
   sidebar,
   children,
 }: MessengerLayoutShellProps) => {
-  const handleOverlayClick = useCallback(() => {
-    setSidebarOpen(false);
-  }, [setSidebarOpen]);
+  const handleOverlayClick = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   return (
-    <section className="h-full w-full overflow-hidden bg-background text-foreground relative">
+    <section className="relative h-full w-full overflow-hidden bg-background text-foreground">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 h-10 w-10 surface rounded-full flex items-center justify-center text-primary"
+        className="focus-ring surface fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full text-primary md:hidden"
         aria-label={isSidebarOpen ? "Đóng danh sách" : "Mở danh sách"}
         type="button"
       >
-        {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        {isSidebarOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
       </button>
 
-      <div className="h-full w-full flex relative">
+      <div className="relative flex h-full w-full">
         <div
           className={cn(
-            "absolute inset-y-0 left-0 z-40 w-full max-w-[320px] bg-background border-r border-border/50",
-            "transition-transform duration-220 ease-out md:static md:translate-x-0 md:max-w-[340px]",
-            "flex-shrink-0",
-            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            "absolute inset-y-0 left-0 z-40 w-full max-w-[320px] border-r border-border bg-background",
+            "flex-shrink-0 transition-transform duration-200 ease-out md:static md:max-w-[340px] md:translate-x-0",
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
           {sidebar}
         </div>
 
         {isSidebarOpen ? (
-          <button
-            onClick={handleOverlayClick}
-            className="md:hidden fixed inset-0 z-30 bg-foreground/25 backdrop-blur-sm"
-            aria-label="Đóng danh sách"
-            type="button"
-          />
+          <button onClick={handleOverlayClick} className="fixed inset-0 z-30 bg-foreground/20 md:hidden" aria-label="Đóng danh sách" type="button" />
         ) : null}
 
-        <div className="relative flex-1 h-full overflow-hidden">{children}</div>
+        <div className="relative h-full min-w-0 flex-1 overflow-hidden">{children}</div>
       </div>
     </section>
   );

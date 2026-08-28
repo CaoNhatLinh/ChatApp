@@ -1,0 +1,182 @@
+asyncapi: 3.0.0
+info:
+  title: NovaChat Realtime Contract
+  version: 1.0.0
+  description: Authenticated STOMP-over-SockJS destinations exposed by the chat service.
+servers:
+  local:
+    host: localhost:8084
+    pathname: /ws
+    protocol: stomp
+    description: Local SockJS/STOMP endpoint
+channels:
+  conversationMessages:
+    address: /topic/conversation/{conversationId}
+    parameters: {conversationId: {description: Conversation UUID, location: $message.payload#/conversationId}}
+    messages: {message: {$ref: '#/components/messages/MessageEvent'}}
+  conversationTyping:
+    address: /topic/conversation/{conversationId}/typing
+    messages: {typing: {$ref: '#/components/messages/TypingEvent'}}
+  conversationReactions:
+    address: /topic/conversation/{conversationId}/reactions
+    messages: {reaction: {$ref: '#/components/messages/ReactionEvent'}}
+  conversationRead:
+    address: /topic/conversation/{conversationId}/read
+    messages: {read: {$ref: '#/components/messages/ReadEvent'}}
+  conversationPins:
+    address: /topic/conversation/{conversationId}/pins
+    messages: {pin: {$ref: '#/components/messages/PinEvent'}}
+  conversationAttachments:
+    address: /topic/conversation/{conversationId}/attachments
+    messages: {attachment: {$ref: '#/components/messages/AttachmentEvent'}}
+  conversationCalls:
+    address: /topic/conversation/{conversationId}/calls
+    parameters: {conversationId: {description: Conversation UUID, location: $message.payload#/conversationId}}
+    messages: {call: {$ref: '#/components/messages/CallEvent'}}
+  userNotifications:
+    address: /user/queue/notifications
+    messages: {notification: {$ref: '#/components/messages/NotificationEvent'}}
+  userNotificationRead:
+    address: /user/queue/notification-read
+    messages: {read: {$ref: '#/components/messages/NotificationReadEvent'}}
+  userNotificationDelete:
+    address: /user/queue/notification-delete
+    messages: {delete: {$ref: '#/components/messages/NotificationDeleteEvent'}}
+  userPresence:
+    address: /user/queue/presence
+    messages: {presence: {$ref: '#/components/messages/PresenceEvent'}}
+  userPresenceSync:
+    address: /user/queue/presence-sync
+    messages: {sync: {$ref: '#/components/messages/PresenceSync'}}
+  userPresenceBatch:
+    address: /user/queue/presence-batch
+    messages: {batch: {$ref: '#/components/messages/PresenceBatch'}}
+  appTyping:
+    address: /app/typing
+    messages: {typing: {$ref: '#/components/messages/TypingCommand'}}
+  appPresence:
+    address: /app/online-status
+    messages: {presence: {$ref: '#/components/messages/PresenceCommand'}}
+  appCallStart:
+    address: /app/call.start
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallJoin:
+    address: /app/call.join
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallLeave:
+    address: /app/call.leave
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallSignal:
+    address: /app/call.signal
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallEnd:
+    address: /app/call.end
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+operations:
+  receiveConversationMessage: {action: receive, channel: {$ref: '#/channels/conversationMessages'}, messages: [{$ref: '#/channels/conversationMessages/messages/message'}]}
+  receiveTyping: {action: receive, channel: {$ref: '#/channels/conversationTyping'}, messages: [{$ref: '#/channels/conversationTyping/messages/typing'}]}
+  receiveCall: {action: receive, channel: {$ref: '#/channels/conversationCalls'}, messages: [{$ref: '#/channels/conversationCalls/messages/call'}]}
+  receiveNotification: {action: receive, channel: {$ref: '#/channels/userNotifications'}, messages: [{$ref: '#/channels/userNotifications/messages/notification'}]}
+  receiveNotificationRead: {action: receive, channel: {$ref: '#/channels/userNotificationRead'}, messages: [{$ref: '#/channels/userNotificationRead/messages/read'}]}
+  receiveNotificationDelete: {action: receive, channel: {$ref: '#/channels/userNotificationDelete'}, messages: [{$ref: '#/channels/userNotificationDelete/messages/delete'}]}
+  sendTyping: {action: send, channel: {$ref: '#/channels/appTyping'}, messages: [{$ref: '#/channels/appTyping/messages/typing'}]}
+  sendPresence: {action: send, channel: {$ref: '#/channels/appPresence'}, messages: [{$ref: '#/channels/appPresence/messages/presence'}]}
+  sendCallStart: {action: send, channel: {$ref: '#/channels/appCallStart'}, messages: [{$ref: '#/channels/appCallStart/messages/call'}]}
+  sendCallJoin: {action: send, channel: {$ref: '#/channels/appCallJoin'}, messages: [{$ref: '#/channels/appCallJoin/messages/call'}]}
+  sendCallLeave: {action: send, channel: {$ref: '#/channels/appCallLeave'}, messages: [{$ref: '#/channels/appCallLeave/messages/call'}]}
+  sendCallSignal: {action: send, channel: {$ref: '#/channels/appCallSignal'}, messages: [{$ref: '#/channels/appCallSignal/messages/call'}]}
+  sendCallEnd: {action: send, channel: {$ref: '#/channels/appCallEnd'}, messages: [{$ref: '#/channels/appCallEnd/messages/call'}]}
+components:
+  messages:
+    MessageEvent:
+      payload: {$ref: '#/components/schemas/MessageEvent'}
+    TypingEvent:
+      payload:
+        type: object
+        required: [conversationId, user, isTyping]
+        properties:
+          conversationId: {type: string, format: uuid}
+          user:
+            type: object
+            required: [userId, username, displayName]
+            properties:
+              userId: {type: string, format: uuid}
+              username: {type: string}
+              displayName: {type: string}
+              avatarUrl: {type: string, format: uri, nullable: true}
+          isTyping: {type: boolean}
+    TypingCommand:
+      payload: {type: object, required: [conversationId, isTyping], properties: {conversationId: {type: string}, isTyping: {type: boolean}}}
+    ReactionEvent:
+      payload: {type: object, required: [messageId, emoji, userId, action], properties: {messageId: {type: string}, messageBucket: {type: string}, emoji: {type: string}, userId: {type: string}, action: {type: string, enum: [ADD, REMOVE]}}}
+    ReadEvent:
+      payload: {type: object, required: [messageId, readerId, readAt], properties: {messageId: {type: string}, messageBucket: {type: string}, readerId: {type: string}, readAt: {type: string, format: date-time}}}
+    PinEvent:
+      payload: {type: object, required: [messageId, pinnedBy, action], properties: {messageId: {type: string}, messageBucket: {type: string}, pinnedBy: {type: string}, action: {type: string, enum: [PIN, UNPIN]}}}
+    AttachmentEvent:
+      payload: {type: object, required: [messageId, attachment, addedBy], properties: {messageId: {type: string}, messageBucket: {type: string}, attachment: {type: object}, addedBy: {type: string}}}
+    NotificationEvent:
+      payload: {type: object, required: [notificationId, userId, type, title, body, isRead, createdAt], properties: {notificationId: {type: string}, userId: {type: string}, type: {type: string}, title: {type: string}, body: {type: string}, isRead: {type: boolean}, createdAt: {type: string, format: date-time}, metadata: {type: object}}}
+    NotificationReadEvent:
+      payload:
+        oneOf:
+          - type: object
+            required: [action]
+            properties: {action: {const: MARK_ALL_READ}}
+          - type: object
+            required: [action, notificationId]
+            properties: {action: {const: MARK_READ}, notificationId: {type: string, format: uuid}}
+          - type: object
+            required: [action, notificationIds]
+            properties: {action: {const: MARK_READ}, notificationIds: {type: array, minItems: 1, maxItems: 200, items: {type: string, format: uuid}}}
+    NotificationDeleteEvent:
+      payload:
+        oneOf:
+          - type: object
+            required: [action]
+            properties: {action: {const: DELETE_ALL}}
+          - type: object
+            required: [action, notificationId]
+            properties: {action: {const: DELETE}, notificationId: {type: string, format: uuid}}
+    PresenceEvent:
+      payload: {type: object, required: [userId, online, status, timestamp], properties: {userId: {type: string}, online: {type: boolean}, status: {type: string}, timestamp: {type: string, format: date-time}, lastSeen: {type: string}, device: {type: string}}}
+    PresenceSync:
+      payload: {type: object, required: [type], properties: {type: {type: string}, status: {type: string}, requestId: {type: string}, traceId: {type: string}, errorType: {type: string}, message: {type: string}}}
+    PresenceBatch:
+      payload: {type: object, additionalProperties: {$ref: '#/components/schemas/PresenceEvent'}}
+    PresenceCommand:
+      payload: {type: object, properties: {status: {type: string}, requestId: {type: string}, traceId: {type: string}}}
+    CallCommand:
+      payload: {type: object, required: [conversationId, callId, targetUserId], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid, description: Direct-call peer and event recipient}, signal: {type: object, description: Native WebRTC SDP or ICE envelope}}}
+    CallEvent:
+      payload: {type: object, required: [conversationId, callId, actorId, action, targetUserId, occurredAt], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, actorId: {type: string, format: uuid}, action: {type: string, enum: [START, JOIN, LEAVE, SIGNAL, END]}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid}, signal: {type: object}, occurredAt: {type: string, format: date-time}}}
+  schemas:
+    MessageEvent:
+      type: object
+      required: [eventType, conversationId, messageId, messageBucket, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt]
+      properties:
+        eventType: {type: string, enum: [MESSAGE_SEND, MESSAGE_EDIT, MESSAGE_DELETE]}
+        conversationId: {type: string}
+        messageId: {type: string}
+        messageBucket: {type: string}
+        senderId: {type: string}
+        messageType: {type: string}
+        content: {type: string}
+        contentFormat: {type: string}
+        clientMessageId: {type: string, format: uuid, nullable: true}
+        replyToMessageId: {type: string, format: uuid, nullable: true}
+        replyToSenderId: {type: string, format: uuid, nullable: true}
+        stickerId: {type: string, format: uuid, nullable: true}
+        pollId: {type: string, format: uuid, nullable: true}
+        systemEventId: {type: string, format: uuid, nullable: true}
+        forwardedFromConversationId: {type: string, format: uuid, nullable: true}
+        forwardedFromMessageBucket: {type: string, nullable: true}
+        forwardedFromMessageId: {type: string, format: uuid, nullable: true}
+        isDeleted: {type: boolean}
+        deletedBy: {type: string, format: uuid, nullable: true}
+        deletedAt: {type: string, format: date-time, nullable: true}
+        editedAt: {type: string, format: date-time, nullable: true}
+        hasAttachments: {type: boolean}
+        hasMentions: {type: boolean}
+        isPinned: {type: boolean}
+        createdAt: {type: string, format: date-time}

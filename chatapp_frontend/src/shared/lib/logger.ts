@@ -1,3 +1,5 @@
+import { runtimeEnv } from '../config/runtimeEnv';
+
 export const LogLevel = {
     NONE: 0,
     ERROR: 1,
@@ -12,7 +14,7 @@ class Logger {
     private level: LogLevel;
 
     constructor() {
-        this.level = import.meta.env.DEV ? LogLevel.DEBUG : LogLevel.WARN;
+        this.level = runtimeEnv.isDevelopment ? LogLevel.DEBUG : LogLevel.WARN;
     }
 
     setLevel(level: LogLevel) {

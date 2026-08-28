@@ -3,24 +3,18 @@ import type {
     Conversation,
     ConversationMember,
     Message,
-    MessageReadReceipt,
+    Attachment,
     MessageRevision,
     CreateConversationRequest,
-    SendMessageRequest,
-    User
+    SendMessageRequest
 } from '../types/messenger.types';
-
-interface ApiResponse<T> {
-    status: number;
-    message: string;
-    data: T;
-}
 
 export interface PaginatedResponse<T> {
     content: T[];
     hasNext: boolean;
     number: number;
     size: number;
+    nextCursor?: string;
 }
 
 export interface MessageSearchFilters {
@@ -35,48 +29,64 @@ export interface MessageSearchFilters {
     replyToMessageId?: string;
     page?: number;
     size?: number;
+    pageCursor?: string;
 }
 
 export interface MessageSearchResult {
     messageId: string;
     conversationId: string;
+    messageBucket?: string;
+    senderId?: string;
     senderDisplayName?: string;
     senderUsername?: string;
     content: string;
+}
+
+interface CanonicalSearchPage {
+    content: MessageSearchResult[];
+    nextCursor?: string;
+    hasNext: boolean;
 }
 
 /**
  * DTO interface definitions for payloads from Java backend.
  */
 export interface BackendMessage {
-    messageId: string;
     conversationId: string;
-    sender: User;
+    messageBucket: string;
+    messageId: string;
+    clientMessageId?: string;
+    senderId: string;
     content: string;
-    messageType?: Message['type'];
-    type?: Message['type'];
-    attachments?: Message['attachments'];
-    reactions?: Message['reactions'];
-    poll?: Message['poll'];
-    replyTo?: {
-        messageId: string;
-        content: string;
-        sender: User;
-    };
-    mentionedUsers?: string[];
-    forwarded?: boolean;
-    isForwarded?: boolean; // Fallback
-    deleted?: boolean;
-    isDeleted?: boolean;  // Fallback
+    messageType: Message['type'];
+    contentFormat: string;
+    replyToMessageId?: string;
+    replyToSenderId?: string;
+    stickerId?: string;
+    pollId?: string;
+    systemEventId?: string;
+    forwardedFromConversationId?: string;
+    forwardedFromMessageBucket?: string;
+    forwardedFromMessageId?: string;
+    isDeleted: boolean;
+    deletedBy?: string;
+    deletedAt?: string;
+    editedAt?: string;
+    hasAttachments: boolean;
+    hasMentions: boolean;
+    isPinned: boolean;
     createdAt: string;
-    updatedAt: string;
-    status?: Message['status'];
-    senderBlockedByViewer?: boolean;
-    readReceipts?: MessageReadReceipt[];
-    isPinned?: boolean;
+}
+
+export interface CanonicalMessageEvent extends BackendMessage {
+    eventType: 'MESSAGE_SEND' | 'MESSAGE_EDIT' | 'MESSAGE_DELETE';
 }
 
 interface UploadedFileDto {
+    assetId?: string;
+    attachmentId?: string;
+    storageProvider?: string;
+    storageKey?: string;
     url: string;
     fileName: string;
     fileSize: number;
@@ -94,155 +104,184 @@ interface UploadResponse {
     uploadedFiles?: UploadedFileDto[];
 }
 
-const isApiResponse = <T>(payload: T | ApiResponse<T>): payload is ApiResponse<T> => {
-    return payload !== null && typeof payload === 'object' && 'data' in payload;
-};
+interface CanonicalConversation {
+    conversationId: string;
+    conversationType: string;
+    name: string;
+    description?: string;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    isDeleted: boolean;
+    lastActivityAt: string;
+    memberCount: number;
+}
 
-const unwrapData = <T>(payload: T | ApiResponse<T>): T => {
-    if (isApiResponse(payload)) {
-        return payload.data;
+const toAttachment = (uploaded: UploadedFileDto): Attachment => {
+    if (!uploaded.assetId || !uploaded.attachmentId || !uploaded.storageProvider || !uploaded.storageKey
+        || !uploaded.fileName || !uploaded.url || !uploaded.contentType || !uploaded.resourceType) {
+        throw new Error('Canonical media response is missing required attachment metadata');
     }
-    return payload;
+    return {
+        assetId: uploaded.assetId,
+        attachmentId: uploaded.attachmentId,
+        storageProvider: uploaded.storageProvider,
+        storageKey: uploaded.storageKey,
+        fileName: uploaded.fileName,
+        url: uploaded.url,
+        fileSize: uploaded.fileSize,
+        contentType: uploaded.contentType,
+        mimeType: uploaded.contentType,
+        resourceType: uploaded.resourceType,
+        attachmentType: uploaded.resourceType,
+        publicId: uploaded.publicId,
+        thumbnailUrl: uploaded.thumbnailUrl,
+        mediumUrl: uploaded.thumbnailUrl,
+        format: uploaded.format,
+    };
 };
 
-type ConversationPayload = PaginatedDto<Conversation> | Conversation[];
+interface CanonicalConversationListItem {
+    conversation: CanonicalConversation;
+    pinned: boolean;
+    unreadCount: number;
+    joinedAt: string;
+    notificationOverride: string;
+    lastMessage: {
+        messageId: string;
+        senderId: string;
+        senderDisplayName: string;
+        contentPreview: string;
+        messageType: Message['type'];
+        createdAt: string;
+        deleted: boolean;
+        hasAttachments: boolean;
+    };
+}
 
-const normalizeConversation = (conversation: Conversation): Conversation => ({
-    ...conversation,
-    unreadCount: typeof (conversation as Conversation & { unreadCount?: number }).unreadCount === 'number'
-        ? (conversation as Conversation & { unreadCount?: number }).unreadCount ?? 0
-        : 0
+export interface ConversationRole {
+    conversationId: string;
+    rolePosition: number;
+    roleId: string;
+    roleCode: string;
+    displayName: string;
+    colorHex?: string;
+    permissions: string[];
+    isDefault: boolean;
+    isSystem: boolean;
+    createdBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface ConversationChatPolicyRequest {
+    chatMode: 'OPEN' | 'READ_ONLY' | 'MANAGERS_ONLY';
+    slowModeSeconds: number;
+}
+
+export interface MemberChatPolicyRequest {
+    mutedUntil?: string | null;
+    messageIntervalSeconds?: number | null;
+    reason?: string;
+}
+
+const mapConversationType = (type: string): Conversation['type'] => {
+    const normalized = type.toLowerCase();
+    if (normalized === 'dm' || normalized === 'group' || normalized === 'channel') {
+        return normalized;
+    }
+    throw new Error(`Unsupported canonical conversation type: ${type}`);
+};
+
+const mapConversation = (conversation: CanonicalConversation): Conversation => ({
+    conversationId: conversation.conversationId,
+    name: conversation.name,
+    type: mapConversationType(conversation.conversationType),
+    description: conversation.description,
+    createdBy: conversation.createdBy,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+    memberCount: conversation.memberCount,
+    isDeleted: conversation.isDeleted,
+    isPinned: false,
+    lastActivityAt: conversation.lastActivityAt,
+    unreadCount: 0,
 });
 
-const getPaginationData = <T>(payload: unknown): PaginatedResponse<T> => {
-    if (!payload || typeof payload !== 'object') {
-        return { content: [], hasNext: false, number: 0, size: 0 };
-    }
-
-    const source = payload as {
-        content?: unknown;
-        hasNext?: unknown;
-        number?: unknown;
-        page?: unknown;
-        size?: unknown;
-        totalElements?: unknown;
-        totalPages?: unknown;
-        last?: unknown;
-    };
-
-    const contentSource = Array.isArray(source.content) ? source.content : [];
-    const content = contentSource.filter((item): item is T => item !== null && item !== undefined);
-    const hasNextRaw = source.hasNext;
-    const number = typeof source.number === 'number' ? source.number : 0;
-    const size = typeof source.size === 'number' ? source.size : content.length;
-    const pageValue = typeof source.page === 'number' ? source.page : number;
-    const totalPages = typeof source.totalPages === 'number' ? source.totalPages : undefined;
-    const totalElements = typeof source.totalElements === 'number' ? source.totalElements : undefined;
-    const hasNextExplicit = typeof hasNextRaw === 'boolean' ? hasNextRaw : undefined;
-    const last = typeof source.last === 'boolean' ? source.last : undefined;
-
-    const hasNext =
-        typeof hasNextExplicit === 'boolean'
-            ? hasNextExplicit
-            : typeof last === 'boolean'
-                ? !last
-                : typeof totalPages === 'number'
-                    ? pageValue < totalPages - 1
-                    : typeof totalElements === 'number' && size > 0
-                        ? (pageValue + 1) * size < totalElements
-                        : false;
-
-    return {
-        content,
-        hasNext,
-        number: number,
-        size
-    };
-};
+const mapConversationListItem = (item: CanonicalConversationListItem): Conversation => ({
+    ...mapConversation(item.conversation),
+    isPinned: item.pinned,
+    unreadCount: item.unreadCount,
+    lastMessage: item.lastMessage ? {
+        messageId: item.lastMessage.messageId,
+        senderId: item.lastMessage.senderId,
+        senderName: item.lastMessage.senderDisplayName,
+        content: item.lastMessage.deleted ? 'Message deleted' : item.lastMessage.contentPreview,
+        type: item.lastMessage.messageType,
+        createdAt: item.lastMessage.createdAt,
+    } : undefined,
+});
 
 export type UploadResult = SendMessageRequest['attachments'];
 
-interface PaginatedDto<T> {
-    content: T[];
-    hasNext?: boolean;
-    last?: boolean;
-    number: number;
-    size: number;
+interface CanonicalMessagePage {
+    content: BackendMessage[];
+    nextCursor?: string;
+    hasNext: boolean;
 }
 
 /**
- * Chuy?n d?i d? li?u t? Backend sang d?nh d?ng Message c?a Frontend m?t cách an toàn.
+ * Maps the canonical message contract to the UI model without fabricating
+ * profiles, delivery state, attachments, reactions, or reply previews.
  */
-export const mapToMessage = (dto: Partial<BackendMessage>): Message => {
-    const createdAt = dto.createdAt ?? new Date().toISOString();
-
+export const mapToMessage = (dto: BackendMessage): Message => {
     return {
-        messageId: dto.messageId ?? '',
-        conversationId: dto.conversationId ?? '',
-        sender: dto.sender ?? { userId: '', userName: '', displayName: 'Unknown' },
-        content: dto.content ?? '',
-        type: dto.messageType || dto.type || 'TEXT',
-        attachments: dto.attachments ?? [],
-        reactions: dto.reactions ?? [],
-        poll: dto.poll,
-        isForwarded: !!(dto.forwarded ?? dto.isForwarded),
-        isDeleted: !!(dto.deleted ?? dto.isDeleted),
-        createdAt,
-        updatedAt: dto.updatedAt ?? createdAt,
-        status: dto.status ?? 'sent',
-        senderBlockedByViewer: dto.senderBlockedByViewer ?? false,
-        readReceipts: dto.readReceipts ?? [],
-        // Map Mentions (UUIDs) sang c?u trúc Tag c?a Frontend
-        mentions: dto.mentionedUsers?.map(uid => ({
-            userId: uid,
-            displayName: uid,
-            type: 'user'
-        })),
-        // Map ReplyTo
-        replyTo: dto.replyTo ? {
-            messageId: dto.replyTo.messageId,
-            content: dto.replyTo.content,
-            senderName: dto.replyTo.sender?.displayName || 'Unknown'
-        } : undefined,
-        isPinned: dto.isPinned ?? false
+        messageId: dto.messageId,
+        clientMessageId: dto.clientMessageId,
+        messageBucket: dto.messageBucket,
+        conversationId: dto.conversationId,
+        sender: { userId: dto.senderId },
+        content: dto.content,
+        type: dto.messageType,
+        attachments: dto.hasAttachments ? undefined : [],
+        reactions: undefined,
+        isForwarded: Boolean(dto.forwardedFromConversationId),
+        isDeleted: dto.isDeleted,
+        createdAt: dto.createdAt,
+        updatedAt: dto.editedAt ?? dto.createdAt,
+        replyTo: undefined,
+        isPinned: dto.isPinned,
     };
 };
 
 /* --- Conversation API --- */
 
 export const getConversations = async (page = 0, size = 30): Promise<PaginatedResponse<Conversation>> => {
-    const response = await apiClient.get<ConversationPayload | ApiResponse<ConversationPayload>>('/conversations/my', {
-        params: { page, size }
+    const response = await apiClient.get<CanonicalConversationListItem[]>('/conversations', {
+        params: { limit: Math.min(100, Math.max(size, (page + 1) * size)) }
     });
-
-    const payload = unwrapData<ConversationPayload>(response.data);
-
-    if (Array.isArray(payload)) {
-        return {
-            content: payload.map((conversation: Conversation) => normalizeConversation(conversation)),
-            hasNext: false,
-            number: 0,
-            size: payload.length
-        };
-    }
-
-    const data = payload;
     return {
-        content: (data.content ?? []).map((conversation: Conversation) => normalizeConversation(conversation)),
-        hasNext: data.hasNext !== undefined ? data.hasNext : !data.last,
-        number: data.number ?? page,
-        size: data.size ?? size
+        content: response.data.map(mapConversationListItem),
+        hasNext: false,
+        number: page,
+        size: response.data.length,
     };
 };
 
 export const getConversationById = async (id: string): Promise<Conversation> => {
-    const response = await apiClient.get<Conversation>(`/conversations/${id}`);
-    return response.data;
+    const response = await apiClient.get<CanonicalConversation>(`/conversations/${id}`);
+    return mapConversation(response.data);
 };
 
 export const createConversation = async (data: CreateConversationRequest): Promise<Conversation> => {
-    const response = await apiClient.post<Conversation>('/conversations/create', data);
-    return response.data;
+    const response = await apiClient.post<CanonicalConversation>('/conversations', {
+        conversationType: data.type.toUpperCase(),
+        name: data.name,
+        description: data.description,
+        firstMember: data.type === 'dm' ? data.memberIds[0] : undefined,
+        memberIds: data.memberIds,
+    });
+    return mapConversation(response.data);
 };
 
 /* --- Message API --- */
@@ -251,56 +290,157 @@ export const getMessages = async (
     conversationId: string,
     params: { page?: number; size?: number; before?: string } = { page: 0, size: 50 }
 ): Promise<PaginatedResponse<Message>> => {
-    const response = await apiClient.get<PaginatedDto<BackendMessage>>(`/messages/${conversationId}`, { params });
+    const response = await apiClient.get<CanonicalMessagePage>(`/conversations/${conversationId}/messages`, {
+        params: { limit: params.size ?? 50, cursor: params.before }
+    });
     const data = response.data;
 
     return {
-        content: (data.content ?? []).map(mapToMessage),
-        hasNext: data.hasNext !== undefined ? data.hasNext : !data.last,
-        number: data.number ?? (params.page ?? 0),
-        size: data.size ?? (params.size ?? 50)
+        content: data.content.map(mapToMessage),
+        hasNext: data.hasNext,
+        number: params.page ?? 0,
+        size: data.content.length,
+        nextCursor: data.nextCursor,
     };
 };
 
 export const sendMessageHttp = async (data: SendMessageRequest): Promise<Message> => {
-    const response = await apiClient.post<BackendMessage>('/messages', data);
+    const attachments = data.attachments?.map((attachment) => {
+        if (!attachment.attachmentId || !attachment.storageProvider || !attachment.storageKey || !attachment.fileName) {
+            throw new Error('Canonical message attachments require attachmentId, storageProvider, storageKey, and fileName');
+        }
+        return {
+            attachmentId: attachment.attachmentId,
+            assetId: attachment.assetId,
+            storageProvider: attachment.storageProvider,
+            storageKey: attachment.storageKey,
+            fileName: attachment.fileName,
+            mimeType: attachment.mimeType ?? attachment.contentType,
+            byteSize: attachment.fileSize,
+            thumbnailUrl: attachment.thumbnailUrl,
+            isSpoiler: false
+        };
+    });
+    const response = await apiClient.post<BackendMessage>(`/conversations/${data.conversationId}/messages`, {
+        clientMessageId: data.clientMessageId,
+        messageType: data.type,
+        content: data.content,
+        contentFormat: 'PLAIN',
+        replyToMessageId: data.replyToId,
+        mentionedUserIds: data.mentions,
+        attachments
+    });
     return mapToMessage(response.data);
 };
 
-export const editMessage = async (conversationId: string, messageId: string, content: string): Promise<Message> => {
-    const response = await apiClient.put<BackendMessage>(`/messages/${conversationId}/${messageId}`, { content });
+export const editMessage = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+    content: string
+): Promise<Message> => {
+    const response = await apiClient.put<BackendMessage>(
+        `/conversations/${conversationId}/messages/${messageId}`,
+        { content },
+        { params: { bucket: messageBucket } }
+    );
     return mapToMessage(response.data);
 };
 
-export const deleteMessage = async (conversationId: string, messageId: string): Promise<Message> => {
-    const response = await apiClient.delete<BackendMessage>(`/messages/${conversationId}/${messageId}`);
+export const deleteMessage = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string
+): Promise<Message> => {
+    const response = await apiClient.delete<BackendMessage>(
+        `/conversations/${conversationId}/messages/${messageId}`,
+        { params: { bucket: messageBucket } }
+    );
     return mapToMessage(response.data);
 };
 
-export const reactToMessage = async (messageId: string, emoji: string): Promise<void> => {
-    await apiClient.post(`/messages/${messageId}/react`, { emoji });
+export const reactToMessage = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+    emoji: string,
+): Promise<void> => {
+    await apiClient.post(
+        `/conversations/${conversationId}/messages/${messageId}/reactions`,
+        { emoji },
+        { params: { bucket: messageBucket } },
+    );
 };
 
-export const markMessageAsRead = async (conversationId: string, messageId: string): Promise<void> => {
-    await apiClient.post(`/messages/${conversationId}/${messageId}/read`);
+export const removeMessageReaction = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+    emoji: string,
+): Promise<void> => {
+    await apiClient.delete(
+        `/conversations/${conversationId}/messages/${messageId}/reactions`,
+        { params: { bucket: messageBucket, emoji } },
+    );
 };
 
-export const getMessageRevisions = async (conversationId: string, messageId: string): Promise<MessageRevision[]> => {
-    const response = await apiClient.get<MessageRevision[]>(`/messages/${conversationId}/${messageId}/revisions`);
+export const markMessageAsRead = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+): Promise<void> => {
+    await apiClient.post(
+        `/conversations/${conversationId}/messages/${messageId}/read`,
+        undefined,
+        { params: { bucket: messageBucket } },
+    );
+};
+
+export const getMessageRevisions = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+): Promise<MessageRevision[]> => {
+    const response = await apiClient.get<MessageRevision[]>(
+        `/conversations/${conversationId}/messages/${messageId}/revisions`,
+        { params: { bucket: messageBucket } },
+    );
     return response.data;
 };
 
-export const togglePinMessage = async (conversationId: string, messageId: string): Promise<void> => {
-    await apiClient.post(`/messages/${conversationId}/${messageId}/pin`);
+export const togglePinMessage = async (conversationId: string, messageBucket: string, messageId: string): Promise<void> => {
+    await apiClient.post(
+        `/conversations/${conversationId}/messages/${messageId}/pin`,
+        undefined,
+        { params: { bucket: messageBucket } }
+    );
 };
 
-export const markMessagesAsRead = async (conversationId: string, messageIds: string[]): Promise<void> => {
-    if (!conversationId || messageIds.length === 0) {
+export const unpinMessage = async (conversationId: string, messageBucket: string, messageId: string): Promise<void> => {
+    await apiClient.delete(
+        `/conversations/${conversationId}/messages/${messageId}/pin`,
+        { params: { bucket: messageBucket } },
+    );
+};
+
+export const markMessagesAsRead = async (
+    conversationId: string,
+    messages: Array<Pick<Message, 'messageId' | 'messageBucket' | 'createdAt'>>,
+): Promise<void> => {
+    if (!conversationId || messages.length === 0) {
         return;
     }
-    const uniqueMessageIds = [...new Set(messageIds)];
-    const promises = uniqueMessageIds.map((messageId) => markMessageAsRead(conversationId, messageId));
-    await Promise.allSettled(promises);
+    const uniqueMessages = [...new Map(
+        messages
+            .filter((message): message is Pick<Message, 'messageId' | 'createdAt'> & { messageBucket: string } => Boolean(message.messageBucket))
+            .map((message) => [message.messageId, message]),
+    ).values()];
+    const latestMessage = uniqueMessages.reduce<typeof uniqueMessages[number] | undefined>((latest, message) => (
+        !latest || new Date(message.createdAt).getTime() > new Date(latest.createdAt).getTime() ? message : latest
+    ), undefined);
+    if (latestMessage) {
+        await markMessageAsRead(conversationId, latestMessage.messageBucket, latestMessage.messageId);
+    }
 };
 
 export const getConversationUnreadCount = async (conversationId: string): Promise<number> => {
@@ -317,30 +457,31 @@ export const searchMessages = async (
     options?: { signal?: AbortSignal }
 ): Promise<PaginatedResponse<MessageSearchResult>> => {
     const request = {
-        page: filters.page ?? 0,
-        size: filters.size ?? 20,
+        limit: filters.size ?? 20,
+        pageCursor: filters.pageCursor,
         conversationId: filters.conversationId,
-        recipientUserId: filters.recipientUserId,
-        content: filters.content,
+        q: filters.content,
         senderId: filters.senderId,
-        type: filters.type,
-        from: filters.from,
-        to: filters.to,
-        mentionedUserId: filters.mentionedUserId,
-        replyToMessageId: filters.replyToMessageId
+        messageType: filters.type,
+        fromAt: filters.from,
+        toAt: filters.to,
+        mentionUserId: filters.mentionedUserId,
+        replyToSenderId: filters.recipientUserId
     };
 
-    const response = await apiClient.get('/search/messages', {
-        params: request,
-        signal: options?.signal
-    });
-    const responseData = unwrapData(response.data);
-    return getPaginationData<MessageSearchResult>(responseData);
+    const response = await apiClient.post<CanonicalSearchPage>('/search/messages', request, { signal: options?.signal });
+    return {
+        content: response.data.content,
+        hasNext: response.data.hasNext,
+        number: 0,
+        size: response.data.content.length,
+        nextCursor: response.data.nextCursor,
+    };
 };
 
 export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['attachments']> => {
     if (files.length === 0) {
-        return [];
+        throw new Error('At least one file is required');
     }
 
     if (files.length === 1) {
@@ -350,19 +491,10 @@ export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['at
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         const uploaded = response.data.file;
-        return uploaded ? [{
-            fileName: uploaded.fileName,
-            url: uploaded.url,
-            fileSize: uploaded.fileSize,
-            contentType: uploaded.contentType,
-            mimeType: uploaded.contentType,
-            resourceType: uploaded.resourceType,
-            attachmentType: uploaded.resourceType,
-            publicId: uploaded.publicId,
-            thumbnailUrl: uploaded.thumbnailUrl,
-            mediumUrl: uploaded.mediumUrl,
-            format: uploaded.format,
-        }] : [];
+        if (!response.data.success || !uploaded) {
+            throw new Error('Canonical media upload did not return a file');
+        }
+        return [toAttachment(uploaded)];
     }
 
     const formData = new FormData();
@@ -370,27 +502,18 @@ export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['at
     const response = await apiClient.post<UploadResponse>('/files/upload/multiple', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return (response.data.uploadedFiles ?? []).map(uploaded => ({
-        fileName: uploaded.fileName,
-        url: uploaded.url,
-        fileSize: uploaded.fileSize,
-        contentType: uploaded.contentType,
-        mimeType: uploaded.contentType,
-        resourceType: uploaded.resourceType,
-        attachmentType: uploaded.resourceType,
-        publicId: uploaded.publicId,
-        thumbnailUrl: uploaded.thumbnailUrl,
-        mediumUrl: uploaded.mediumUrl,
-        format: uploaded.format,
-    }));
+    if (!response.data.success || !response.data.uploadedFiles || response.data.uploadedFiles.length !== files.length) {
+        throw new Error('Canonical media upload did not return all files');
+    }
+    return response.data.uploadedFiles.map(toAttachment);
 };
 
 export const pinConversation = async (conversationId: string): Promise<void> => {
-    await apiClient.put(`/conversations/${conversationId}/pin`);
+    await apiClient.post(`/conversations/${conversationId}/pin`);
 };
 
 export const unpinConversation = async (conversationId: string): Promise<void> => {
-    await apiClient.put(`/conversations/${conversationId}/unpin`);
+    await apiClient.delete(`/conversations/${conversationId}/pin`);
 };
 
 // --- Additional Conversation helpers ---
@@ -400,9 +523,54 @@ export const getConversationMembers = async (conversationId: string): Promise<Co
     return response.data;
 };
 
-export const findDmConversation = async (userId1: string, userId2: string): Promise<Conversation> => {
-    const response = await apiClient.get<Conversation>(`/conversations/dm?userId1=${userId1}&userId2=${userId2}`);
+export const findDmConversation = async (_currentUserId: string, otherUserId: string): Promise<Conversation> => {
+    const response = await apiClient.get<CanonicalConversation>(`/conversations/dm/${otherUserId}`);
+    return mapConversation(response.data);
+};
+
+export const addConversationMember = async (
+    conversationId: string,
+    userId: string,
+    roleIds: string[] = [],
+    reason?: string,
+): Promise<void> => {
+    await apiClient.post(`/conversations/${conversationId}/members`, { userId, roleIds, reason });
+};
+
+export const removeConversationMember = async (conversationId: string, userId: string): Promise<void> => {
+    await apiClient.delete(`/conversations/${conversationId}/members/${userId}`);
+};
+
+export const leaveConversation = async (conversationId: string): Promise<void> => {
+    await apiClient.post(`/conversations/${conversationId}/leave`);
+};
+
+export const listConversationRoles = async (conversationId: string): Promise<ConversationRole[]> => {
+    const response = await apiClient.get<ConversationRole[]>(`/conversations/${conversationId}/roles`);
     return response.data;
+};
+
+export const assignConversationRoles = async (
+    conversationId: string,
+    userId: string,
+    roleIds: string[],
+): Promise<void> => {
+    await apiClient.post(`/conversations/${conversationId}/members/${userId}/roles`, { roleIds });
+};
+
+export const updateConversationChatPolicy = async (
+    conversationId: string,
+    request: ConversationChatPolicyRequest,
+): Promise<void> => {
+    await apiClient.put(`/conversations/${conversationId}/chat-policy`, request);
+};
+
+export const updateMemberChatPolicy = async (
+    conversationId: string,
+    userId: string,
+    request: MemberChatPolicyRequest,
+): Promise<void> => {
+    await apiClient.put(`/conversations/${conversationId}/members/${userId}/chat-policy`, request);
 };
 
 

@@ -38,6 +38,19 @@ export interface NotificationStats {
   lastUpdated: string;
 }
 
+export interface NotificationSettings {
+  userId?: string;
+  globalLevel: string;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+  desktopEnabled: boolean;
+  soundEnabled: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  timezone?: string | null;
+  updatedAt?: string;
+}
+
 export const getNotificationConversationId = (notification: NotificationRecord): string | undefined => {
   const value = notification.metadata?.conversationId;
   return typeof value === 'string' ? value : undefined;
@@ -73,7 +86,7 @@ export const getUnreadNotifications = async (): Promise<NotificationRecord[]> =>
  */
 export const getUnreadCount = async (): Promise<number> => {
   const response = await api.get<{ count: number }>('/notifications/unread/count');
-  return Number(response.data.count ?? 0);
+  return response.data.count;
 };
 
 /**
@@ -92,7 +105,10 @@ export const markAllAsRead = async (): Promise<void> => {
 
 export const bulkMarkAsRead = async (notificationIds: string[]): Promise<void> => {
   if (notificationIds.length === 0) {
-    return;
+    throw new Error('notificationIds must contain at least one notification');
+  }
+  if (notificationIds.length > 200) {
+    throw new Error('notificationIds must not exceed 200 notifications');
   }
   await api.put('/notifications/bulk-read', notificationIds);
 };
@@ -137,4 +153,15 @@ export const getNotificationsByType = async (
 export const getLatestNotification = async (): Promise<NotificationRecord | null> => {
   const response = await api.get<NotificationRecord | null>('/notifications/latest');
   return response.data;
+};
+
+export const getNotificationSettings = async (): Promise<NotificationSettings> => {
+  const response = await api.get<NotificationSettings>('/notifications/settings');
+  return response.data;
+};
+
+export const updateNotificationSettings = async (
+  settings: Omit<NotificationSettings, 'userId' | 'updatedAt'>,
+): Promise<void> => {
+  await api.put('/notifications/settings', settings);
 };

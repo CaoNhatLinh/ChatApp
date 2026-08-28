@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Search, X, Loader2, Users, Check, Hash, LayoutGrid, ArrowRight, Camera } from 'lucide-react';
+import { Search, X, Loader2, Users, Check, Hash, LayoutGrid, ArrowRight } from 'lucide-react';
 import { createConversation } from '../../api/messenger.api';
 import type { User, ConversationType } from '../../types/messenger.types';
 import { useMessenger } from '../../model/useMessenger';
@@ -26,7 +26,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 
-    const { searchResults, isSearching, setSearchResults } = useUserSearch(searchTerm);
+    const { searchResults, isSearching, searchError, setSearchResults } = useUserSearch(searchTerm);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const [isCreating, setIsCreating] = useState(false);
 
@@ -40,6 +41,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             setRoomType('group');
             setSearchTerm('');
             setSelectedUsers([]);
+            setErrorMessage(null);
             setSearchResults([]);
         }
     }, [isOpen, setSearchResults]);
@@ -59,6 +61,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
         if (!roomName.trim()) return;
 
         setIsCreating(true);
+        setErrorMessage(null);
         try {
             const newRoom = await createConversation({
                 type: roomType,
@@ -72,6 +75,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             onClose();
         } catch (error) {
             console.error("Failed to create room", error);
+            setErrorMessage("Không thể tạo phòng. Kiểm tra dữ liệu và thử lại.");
         } finally {
             setIsCreating(false);
         }
@@ -105,7 +109,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                             <Users size={24} />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black uppercase tracking-tight text-gradient">{MESSENGER_COPY.createRoomModal.title}</h2>
+                            <h2 className="text-2xl font-semibold tracking-tight text-primary">{MESSENGER_COPY.createRoomModal.title}</h2>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={cn(
                                     "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
@@ -130,6 +134,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                    {errorMessage ? (
+                        <p role="alert" className="mb-5 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                            {errorMessage}
+                        </p>
+                    ) : null}
                     {step === 'settings' ? (
                         <motion.div
                             className="space-y-8"
@@ -137,16 +146,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                             animate={UI_MOTION_CONFIG.animateState}
                             variants={UI_MOTION_VARIANTS.slideInFromRight}
                         >
-                            {/* Avatar Placeholder */}
-                            <div className="flex flex-col items-center">
-                                <div className="relative group cursor-pointer">
-                                    <div className="w-28 h-28 rounded-3xl bg-primary/5 border-4 border-dashed border-primary/20 flex flex-col items-center justify-center text-primary/40 hover:border-primary/50 hover:bg-primary/10 transition-all neo-shadow group-hover:scale-105">
-                                        <Camera size={32} className="mb-2" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-center px-4 leading-tight">{MESSENGER_COPY.createRoomModal.roomAvatarHint}</span>
-                                    </div>
-                                </div>
-                            </div>
-
                             {/* Inputs */}
                             <div className="space-y-6">
                                 <div className="space-y-2">
@@ -156,7 +155,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                         placeholder={MESSENGER_COPY.createRoomModal.roomNamePlaceholder}
                                         value={roomName}
                                         onChange={(e) => setRoomName(e.target.value)}
-                                        className="w-full bg-background/50 border-2 border-border/50 rounded-2xl px-6 py-4 focus:border-primary focus:ring-0 transition-all font-bold outline-none"
+                                        className="w-full bg-background/50 border-2 border-border/50 rounded-2xl px-6 py-4 focus:border-primary focus:ring-0 transition-[color,background-color,border-color,box-shadow,transform,opacity] font-bold outline-none"
                                         autoFocus
                                     />
                                 </div>
@@ -168,7 +167,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
                                         rows={3}
-                                        className="w-full bg-background/50 border-2 border-border/50 rounded-2xl px-6 py-4 focus:border-primary focus:ring-0 transition-all font-bold outline-none resize-none"
+                                        className="w-full bg-background/50 border-2 border-border/50 rounded-2xl px-6 py-4 focus:border-primary focus:ring-0 transition-[color,background-color,border-color,box-shadow,transform,opacity] font-bold outline-none resize-none"
                                     />
                                 </div>
 
@@ -178,7 +177,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                         <button
                                             onClick={() => setRoomType('group')}
                                             className={cn(
-                                                "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
+                                                "flex items-center gap-4 p-4 rounded-2xl border-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] text-left",
                                                 roomType === 'group' ? "border-primary bg-primary/10" : "border-border/30 bg-background/40 hover:border-primary/50"
                                             )}
                                         >
@@ -193,7 +192,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                         <button
                                             onClick={() => setRoomType('channel')}
                                             className={cn(
-                                                "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left",
+                                                "flex items-center gap-4 p-4 rounded-2xl border-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] text-left",
                                                 roomType === 'channel' ? "border-primary bg-primary/10" : "border-border/30 bg-background/40 hover:border-primary/50"
                                             )}
                                         >
@@ -246,13 +245,17 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                     placeholder={MESSENGER_COPY.createRoomModal.searchPlaceholder}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full bg-background/50 border-2 border-border/50 rounded-2xl py-4 pl-14 pr-12 focus:border-primary focus:ring-0 transition-all font-bold outline-none"
+                                    className="w-full bg-background/50 border-2 border-border/50 rounded-2xl py-4 pl-14 pr-12 focus:border-primary focus:ring-0 transition-[color,background-color,border-color,box-shadow,transform,opacity] font-bold outline-none"
                                 />
                                 {isSearching && <Loader2 className="absolute right-5 top-1/2 -translate-y-1/2 animate-spin text-primary" size={20} />}
                             </div>
 
                             {/* Results */}
                             <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                                {searchError ? <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{searchError}</p> : null}
+                                {!searchError && !isSearching && searchTerm.trim().length >= 2 && searchResults.length === 0 ? (
+                                    <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp.</p>
+                                ) : null}
                                 {searchResults.map(user => {
                                     const isSelected = selectedUsers.some(u => u.userId === user.userId);
                                     return (
@@ -260,7 +263,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                             key={user.userId}
                                             onClick={() => handleToggleUser(user)}
                                             className={cn(
-                                                "w-full flex items-center gap-4 p-3 rounded-2xl transition-all border-2",
+                                                "w-full flex items-center gap-4 p-3 rounded-2xl transition-[color,background-color,border-color,box-shadow,transform,opacity] border-2",
                                                 isSelected ? "bg-primary/10 border-primary" : "hover:bg-background/80 border-transparent"
                                             )}
                                         >
@@ -303,7 +306,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                     {step === 'members' && (
                         <button
                             onClick={() => setStep('settings')}
-                            className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest bg-muted text-muted-foreground hover:bg-muted/80 transition-all"
+                            className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest bg-muted text-muted-foreground hover:bg-muted/80 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                         >
                             {MESSENGER_COPY.createRoomModal.backButton}
                         </button>
@@ -313,7 +316,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                         <button
                             onClick={() => setStep('members')}
                             disabled={!roomName.trim()}
-                            className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2 group"
+                            className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2 group"
                         >
                             <span>{MESSENGER_COPY.createRoomModal.nextButton}</span>
                             <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -322,7 +325,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                         <button
                             onClick={() => void handleCreateRoom()}
                             disabled={isCreating}
-                            className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2"
+                            className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2"
                         >
                             {isCreating ? (
                                 <>
@@ -344,3 +347,4 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
     return createPortal(modalContent, document.body);
 };
+

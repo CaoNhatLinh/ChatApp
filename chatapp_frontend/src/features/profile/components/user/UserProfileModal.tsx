@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Crown, Loader2, MessageCircle, Shield, ShieldOff, User, UserMinus, UserPlus, X } from "lucide-react";
+import { Calendar, Crown, Flag, Loader2, MessageCircle, Shield, ShieldOff, User, UserMinus, UserPlus, X } from "lucide-react";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { usePresence } from "@/features/presence/model/presence.store";
 import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
@@ -8,11 +8,13 @@ import { StatusDot } from "@/features/presence/ui/StatusSelector";
 import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/Avatar";
 import { friendApi } from "@/features/relationships/api/friends.api";
-import type { UserProfileModal as UserProfile } from "@/entities/conversation/model/room.types";
+import type { UserProfileModal as UserProfile } from "@/shared/types/room.types";
 import type { UserDTO } from "@/entities/user/model/user.types";
 import { format } from "date-fns";
 import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
+import { ReportUserModal } from "./ReportUserModal";
+import { localizeText } from '@/shared/i18n';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface UserProfileModalProps {
   onRemoveFriend?: () => void;
   onBlock?: () => void;
   onUnblock?: () => void;
+  onReport?: () => void;
   userProfile?: UserProfile;
   isLoading?: boolean;
 }
@@ -36,6 +39,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onRemoveFriend,
   onBlock,
   onUnblock,
+  onReport,
   userProfile,
   isLoading = false,
 }) => {
@@ -49,6 +53,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isFriend, setIsFriend] = useState(false);
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
   const [loadingRelationship, setLoadingRelationship] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   const isCurrentUser = currentUser?.userId === userId;
 
@@ -70,7 +75,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         }
       } catch (error) {
         console.error("[UserProfileModal] Failed to fetch relationship:", error);
-        notifyError("Không thể tải dữ liệu hồ sơ liên quan.");
+        notifyError(localizeText("Không thể tải dữ liệu hồ sơ liên quan."));
       } finally {
         if (isMounted) setLoadingRelationship(false);
       }
@@ -82,19 +87,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     };
   }, [getIsFriend, currentUser?.userId, fetchMutualFriends, isCurrentUser, isOpen, userId]);
 
+  useEffect(() => {
+    if (!isOpen) setIsReportOpen(false);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleBlock = useCallback(async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn chặn người dùng này?")) return;
+    if (!window.confirm(localizeText("Bạn có chắc chắn muốn chặn người dùng này?"))) return;
 
     try {
       if (!currentUser?.userId) return;
       await blockFriend(userId);
       setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
       setIsFriend(false);
-      notifySuccess("Đã chặn người dùng này.");
+      notifySuccess(localizeText("Đã chặn người dùng này."));
       onBlock?.();
     } catch (error) {
       console.error("[UserProfileModal] Failed to block:", error);
-      notifyError("Không thể chặn người dùng.");
+      notifyError(localizeText("Không thể chặn người dùng."));
     }
   }, [blockFriend, blockStatus?.isBlockedBy, currentUser?.userId, onBlock, userId]);
 
@@ -103,11 +121,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       if (!currentUser?.userId) return;
       await unblockFriend(userId);
       setBlockStatus({ hasBlocked: false, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-      notifySuccess("Đã bỏ chặn người dùng này.");
+      notifySuccess(localizeText("Đã bỏ chặn người dùng này."));
       onUnblock?.();
     } catch (error) {
       console.error("[UserProfileModal] Failed to unblock:", error);
-      notifyError("Không thể bỏ chặn người dùng.");
+      notifyError(localizeText("Không thể bỏ chặn người dùng."));
     }
   }, [blockStatus?.isBlockedBy, currentUser?.userId, onUnblock, unblockFriend, userId]);
 
@@ -129,6 +147,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       />
 
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-profile-title"
         className="relative w-full max-w-[95vw] sm:max-w-md bg-card/60 glass rounded-[2rem] sm:rounded-[2.5rem] neo-shadow border border-border/50 overflow-hidden flex flex-col"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
@@ -137,8 +158,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div className="h-28 sm:h-32 bg-gradient-to-br from-primary/30 to-purple-500/30 relative">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-background/50 hover:bg-background rounded-full transition-all text-muted-foreground hover:text-primary z-10"
+            className="absolute top-4 right-4 p-2 bg-background/50 hover:bg-background rounded-full transition-[color,background-color,border-color,box-shadow,transform,opacity] text-muted-foreground hover:text-primary z-10"
             type="button"
+            aria-label={localizeText("Đóng hồ sơ")}
           >
             <X size={20} />
           </button>
@@ -158,7 +180,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 userProfile?.avatarUrl ? (
                   <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  (userProfile?.displayName || userProfile?.username || "?").charAt(0)
+                  userProfile?.displayName.charAt(0)
                 )
               )}
             </div>
@@ -173,11 +195,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </motion.div>
 
           <motion.div className="space-y-1 mb-6" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight">
-              {isLoading ? "Đang tải..." : (userProfile?.displayName || userProfile?.username)}
+            <h2 id="user-profile-title" className="text-xl sm:text-2xl font-black uppercase tracking-tight">
+              {isLoading ? localizeText("Đang tải...") : userProfile?.displayName}
             </h2>
             <div className="flex items-center justify-center gap-2">
-              <span className="text-xs font-bold text-primary uppercase tracking-widest">@{userProfile?.username || "..."}</span>
+              <span className="text-xs font-bold text-primary uppercase tracking-widest">@{userProfile?.username}</span>
               {userProfile?.role === "admin" ? (
                 <div className="flex items-center gap-1 bg-yellow-400/10 text-yellow-500 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter">
                   <Crown size={10} /> Admin
@@ -185,47 +207,47 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               ) : null}
             </div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
-              {isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
+              {isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
             </p>
           </motion.div>
 
           {hasBlocked && (
             <motion.div className="mb-3 flex items-center justify-center gap-2 px-3 py-1.5 bg-destructive/10 text-destructive rounded-xl text-xs font-bold" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-              <Shield size={12} /> Bạn đã chặn người dùng này
+              <Shield size={12} /> {localizeText("Bạn đã chặn người dùng này")}
             </motion.div>
           )}
           {isBlockedBy && !hasBlocked && (
             <motion.div className="mb-3 flex items-center justify-center gap-2 px-3 py-1.5 bg-muted text-muted-foreground rounded-xl text-xs font-bold" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-              Người dùng này đã chặn bạn
+            {localizeText("Người dùng này đã chặn bạn")}
             </motion.div>
           )}
 
           <motion.div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mb-7" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.panelReveal}>
             <div className="p-3 rounded-2xl bg-background/30 border border-border/30 flex flex-col items-center gap-1">
               <Calendar size={14} className="text-primary/60" />
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Tham gia</span>
+              <span className="text-[9px] font-bold uppercase text-muted-foreground">{localizeText("Tham gia")}</span>
               <span className="text-xs font-black">
-                {userProfile?.joinedAt ? format(new Date(userProfile.joinedAt), "MM/yyyy") : "..."}
+                {userProfile?.joinedAt ? format(new Date(userProfile.joinedAt), "MM/yyyy") : null}
               </span>
             </div>
             <div className="p-3 rounded-2xl bg-background/30 border border-border/30 flex flex-col items-center gap-1">
               <User size={14} className="text-primary/60" />
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">Bạn chung</span>
-              <span className="text-xs font-black">{userProfile?.mutualFriends || 0}</span>
+              <span className="text-[9px] font-bold uppercase text-muted-foreground">{localizeText("Bạn chung")}</span>
+              <span className="text-xs font-black">{mutualFriends?.userDetails.length ?? null}</span>
             </div>
           </motion.div>
 
           {!loadingMutual && !isCurrentUser && (mutualFriends?.userDetails?.length ?? 0) > 0 ? (
             <motion.div className="w-full mb-8 text-left" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.panelReveal}>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
-                Bạn chung ({mutualFriends?.userDetails.length})
+                {localizeText("Bạn chung")} ({mutualFriends?.userDetails.length})
               </h3>
               <div className="flex -space-x-2 overflow-hidden px-1">
                 {mutualFriends?.userDetails.slice(0, 5).map((friend: UserDTO) => (
-                  <Avatar key={friend.userId} className="h-8 w-8 border-2 border-background neo-shadow-sm" title={friend.displayName}>
-                    <AvatarImage src={friend.avatarUrl || undefined} />
+                <Avatar key={friend.userId} className="h-8 w-8 border-2 border-background neo-shadow-sm" title={friend.displayName}>
+                    <AvatarImage src={friend.avatarUrl} />
                     <AvatarFallback className="text-[10px]">
-                      {friend.displayName ? friend.displayName[0] : friend.userName?.[0]}
+                      {friend.displayName.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
                 ))}
@@ -246,10 +268,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     onClick={onSendMessage}
                     disabled={hasBlocked}
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-4 bg-primary text-primary-foreground rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-4 bg-primary text-primary-foreground rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:scale-105 active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <MessageCircle size={18} />
-                    Nhắn tin
+                    {localizeText("Nhắn tin")}
                   </button>
 
                   {!hasBlocked && (
@@ -258,8 +280,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <button
                           onClick={onAddFriend}
                           type="button"
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-primary/20 text-primary rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-primary/5 transition-all"
-                          title="Thêm bạn"
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-primary/20 text-primary rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-primary/5 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                          title={localizeText("Thêm bạn")}
                         >
                           <UserPlus size={18} />
                         </button>
@@ -267,8 +289,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         <button
                           onClick={onRemoveFriend}
                           type="button"
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-destructive/20 text-destructive rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-destructive/5 transition-all"
-                          title="Hủy kết bạn"
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-destructive/20 text-destructive rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-destructive/5 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                          title={localizeText("Hủy kết bạn")}
                         >
                           <UserMinus size={18} />
                         </button>
@@ -282,36 +304,56 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <button
                   onClick={handleUnblock}
                   type="button"
-                  className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:bg-primary/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:bg-primary/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                 >
-                  <ShieldOff size={14} /> Bỏ chặn người dùng này
+                  <ShieldOff size={14} /> {localizeText("Bỏ chặn người dùng này")}
                 </button>
               ) : (
                 <button
                   onClick={handleBlock}
                   type="button"
-                  className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                 >
-                  <Shield size={14} /> Chặn người dùng này
+                  <Shield size={14} /> {localizeText("Chặn người dùng này")}
                 </button>
               )}
+              <button
+                onClick={() => setIsReportOpen(true)}
+                type="button"
+                className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-amber-600 hover:bg-amber-500/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+              >
+                <Flag size={14} /> {localizeText("Báo cáo hồ sơ")}
+              </button>
             </motion.div>
           ) : null}
 
           {isCurrentUser && (
             <motion.p className="text-xs font-bold text-muted-foreground uppercase italic opacity-60" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-              Đây là hồ sơ của bạn
+              {localizeText("Đây là hồ sơ của bạn")}
             </motion.p>
           )}
 
           {loadingRelationship && (
             <motion.div className="flex items-center gap-2 text-muted-foreground" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
               <Loader2 size={16} className="animate-spin" />
-              <span className="text-xs font-bold">Đang tải dữ liệu mối quan hệ...</span>
+              <span className="text-xs font-bold">{localizeText("Đang tải dữ liệu mối quan hệ...")}</span>
             </motion.div>
           )}
         </motion.div>
       </motion.div>
+
+      {isReportOpen && userProfile ? (
+        <ReportUserModal
+          userId={userId}
+          displayName={userProfile.displayName}
+          onClose={() => setIsReportOpen(false)}
+          onSubmitted={() => {
+            setIsReportOpen(false);
+            notifySuccess(localizeText("Đã gửi báo cáo hồ sơ. Cảm ơn bạn đã giúp giữ NovaChat an toàn."));
+            onReport?.();
+          }}
+        />
+      ) : null}
     </div>
   );
 };

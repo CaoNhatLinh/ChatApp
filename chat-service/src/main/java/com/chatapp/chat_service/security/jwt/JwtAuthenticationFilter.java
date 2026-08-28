@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,11 +12,14 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.chatapp.chat_service.auth.service.UserDetailsServiceImpl;
 import com.chatapp.chat_service.security.core.AppUserPrincipal;
+import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
+import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * ✅ Single JWT Authentication Filter for HTTP Requests
@@ -28,18 +30,33 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
-    private final UserDetailsServiceImpl userDetailsService;
+    private final AppAuthorizationService appAuthorization;
+    private final CanonicalCqlStore users;
+
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, AppAuthorizationService appAuthorization) {
+        this(tokenProvider, appAuthorization, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JwtAuthenticationFilter(
+            JwtTokenProvider tokenProvider,
+            AppAuthorizationService appAuthorization,
+            CanonicalCqlStore users) {
+        this.tokenProvider = tokenProvider;
+        this.appAuthorization = appAuthorization;
+        this.users = users;
+    }
 
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/api/auth/login",
             "/api/auth/register",
+            "/api/auth/login",
+            "/api/auth/refresh",
+            "/api/public/",
             "/api/health",
-            "/actuator",
-            "/ws",
+            "/api/v1/public/",
             "/error"
     };
 
@@ -66,11 +83,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private void authenticateRequest(HttpServletRequest request, String token) {
         try {
-            String username = tokenProvider.extractUsername(token);
             UUID userId = tokenProvider.extractUserId(token);
-
-            AppUserPrincipal userPrincipal = (AppUserPrincipal)
-                    userDetailsService.loadUserByUsername(username);
+            String username = tokenProvider.extractUsername(token);
+            if (users != null) {
+                var currentUser = users.findUserById(userId);
+                if (currentUser == null || !"ACTIVE".equalsIgnoreCase(currentUser.accountStatus())) {
+                    log.warn("Rejected JWT for inactive or missing account {}", userId);
+                    return;
+                }
+            }
+            AppUserPrincipal userPrincipal = new AppUserPrincipal(
+                    userId,
+                    username,
+                    "",
+                    appAuthorization.authorities(userId)
+            );
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(

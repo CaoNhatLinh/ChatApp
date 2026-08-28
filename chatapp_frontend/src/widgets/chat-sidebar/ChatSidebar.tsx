@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useMessenger } from '@/features/messenger/model/useMessenger';
 import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
-import { realtimeService } from '@/shared/websocket/realtime-service';
 import { UserSettingsModal } from '@/features/settings/ui/UserSettingsModal';
 import {
-  getAllNotifications,
   getNotificationConversationId,
-  getUnreadCount,
-  markAllAsRead,
-  markNotificationAsRead,
   type NotificationRecord,
 } from '@/features/notifications/api/notifications.api';
+import { useNotificationStore } from '@/features/notifications/model/notification.store';
 import { SidebarConversationList } from './SidebarConversationList';
 import { SidebarFooter } from './SidebarFooter';
 import { SidebarHeader } from './SidebarHeader';
@@ -20,7 +17,6 @@ import { SidebarNotificationPanel } from './components/SidebarNotificationPanel'
 import { SidebarSearchBar } from './SidebarSearchBar';
 
 type SettingsTab = 'profile' | 'appearance';
-
 export const ChatSidebar = () => {
   const {
     conversations,
@@ -37,19 +33,34 @@ export const ChatSidebar = () => {
   } = useMessenger();
 
   const { user } = useAuthStore();
+  const {
+    notifications,
+    unreadCount: notificationUnreadCount,
+    initNotifications,
+    connectRealtime: connectNotificationRealtime,
+    disconnectRealtime: disconnectNotificationRealtime,
+    markOneAsRead,
+    markEverythingAsRead,
+  } = useNotificationStore(useShallow((state) => ({
+    notifications: state.notifications,
+    unreadCount: state.unreadCount,
+    initNotifications: state.initNotifications,
+    connectRealtime: state.connectRealtime,
+    disconnectRealtime: state.disconnectRealtime,
+    markOneAsRead: state.markOneAsRead,
+    markEverythingAsRead: state.markEverythingAsRead,
+  })));
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
-  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState<SettingsTab>('profile');
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const filteredConversations = useMemo(
     () =>
-      (conversations || []).filter((conversation) =>
+      conversations.filter((conversation) =>
         conversation.name.toLowerCase().includes(searchTerm.toLowerCase())
       ),
     [conversations, searchTerm],
@@ -112,95 +123,18 @@ export const ChatSidebar = () => {
 
   useEffect(() => {
     if (!user?.userId) return;
-    let cancelled = false;
-
-    const initializeNotifications = async () => {
-      try {
-        const [page, unreadCount] = await Promise.all([getAllNotifications(0, 50), getUnreadCount()]);
-        if (cancelled) return;
-        setNotifications(page.content);
-        setNotificationUnreadCount(unreadCount);
-      } catch (error) {
-        console.error('Failed to load notifications', error);
-      }
-    };
-
-    void initializeNotifications();
-
-    const unsubscribeNotification = realtimeService.subscribe(`/user/${user.userId}/queue/notifications`, (payload: NotificationRecord) => {
-      setNotifications((current) => {
-        const index = current.findIndex(notification => notification.notificationId === payload.notificationId);
-        if (index === -1) return [payload, ...current];
-        const copy = [...current];
-        copy[index] = payload;
-        return copy;
-      });
-
-      if (!payload.isRead) {
-        setNotificationUnreadCount((count) => count + 1);
-      }
-    });
-
-    const unsubscribeRead = realtimeService.subscribe(`/user/${user.userId}/queue/notification-read`, (payload: { notificationId?: string; notificationIds?: string[]; action?: string }) => {
-      if (payload.action === 'MARK_ALL_READ') {
-        setNotifications((current) => current.map(notification => ({ ...notification, isRead: true })));
-        setNotificationUnreadCount(0);
-        return;
-      }
-
-      const readIds = new Set<string>([
-        ...(typeof payload.notificationId === 'string' ? [payload.notificationId] : []),
-        ...(payload.notificationIds ?? []).filter((id): id is string => typeof id === 'string'),
-      ]);
-
-      if (readIds.size === 0) return;
-
-      setNotifications((current) =>
-        current.map((notification) =>
-          readIds.has(notification.notificationId) ? { ...notification, isRead: true } : notification,
-        ),
-      );
-
-      setNotificationUnreadCount((count) => Math.max(0, count - readIds.size));
-    });
-
-    const unsubscribeDelete = realtimeService.subscribe(`/user/${user.userId}/queue/notification-delete`, (payload: { notificationId?: string; action?: string }) => {
-      if (payload.action === 'DELETE_ALL') {
-        setNotifications([]);
-        setNotificationUnreadCount(0);
-        return;
-      }
-
-      if (!payload.notificationId) {
-        return;
-      }
-
-      setNotifications((current) => {
-        const target = current.find(notification => notification.notificationId === payload.notificationId);
-        if (target && !target.isRead) {
-          setNotificationUnreadCount((count) => Math.max(0, count - 1));
-        }
-
-        return current.filter(notification => notification.notificationId !== payload.notificationId);
-      });
-    });
+    void initNotifications();
+    connectNotificationRealtime(user.userId);
 
     return () => {
-      cancelled = true;
-      unsubscribeNotification();
-      unsubscribeRead();
-      unsubscribeDelete();
+      disconnectNotificationRealtime();
     };
-  }, [user?.userId]);
+  }, [connectNotificationRealtime, disconnectNotificationRealtime, initNotifications, user?.userId]);
 
   const handleNotificationClick = useCallback(
     async (notification: NotificationRecord) => {
       if (!notification.isRead) {
-        await markNotificationAsRead(notification.notificationId);
-        setNotifications((current) => current.map((item) => (
-          item.notificationId === notification.notificationId ? { ...item, isRead: true } : item
-        )));
-        setNotificationUnreadCount((count) => Math.max(0, count - 1));
+        await markOneAsRead(notification.notificationId);
       }
 
       const conversationId = getNotificationConversationId(notification);
@@ -213,19 +147,17 @@ export const ChatSidebar = () => {
         setActiveView('contacts');
       }
     },
-    [closeNotificationPanel, handleSelectConversation, setActiveView],
+    [closeNotificationPanel, handleSelectConversation, markOneAsRead, setActiveView],
   );
 
   const handleMarkAllNotificationsAsRead = useCallback(async () => {
-    await markAllAsRead();
-    setNotifications((current) => current.map(notification => ({ ...notification, isRead: true })));
-    setNotificationUnreadCount(0);
-  }, []);
+    await markEverythingAsRead();
+  }, [markEverythingAsRead]);
 
   return (
-    <aside className="h-full w-[300px] max-w-full flex-shrink-0 border-r border-border/60 bg-card/60 backdrop-blur-sm flex flex-col">
+    <aside className="h-full w-[320px] max-w-full flex-shrink-0 border-r border-border bg-background flex flex-col">
       <SidebarHeader
-        friendRequestCount={friendRequestCount ?? 0}
+        friendRequestCount={friendRequestCount}
         unreadNotification={notificationUnreadCount}
         isNotificationsOpen={isNotificationPanelOpen}
         onOpenContacts={handleOpenContacts}
@@ -259,7 +191,7 @@ export const ChatSidebar = () => {
         isOpen={isNotificationPanelOpen}
         notifications={notifications}
         onClose={closeNotificationPanel}
-        onMarkAsRead={markNotificationAsRead}
+        onMarkAsRead={markOneAsRead}
         onMarkAllAsRead={handleMarkAllNotificationsAsRead}
         onNotificationClick={handleNotificationClick}
       />

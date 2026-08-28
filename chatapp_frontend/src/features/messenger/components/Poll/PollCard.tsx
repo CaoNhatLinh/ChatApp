@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { motion } from 'framer-motion';
 import { Check, Clock, Lock, BarChart3, Users, XCircle } from 'lucide-react';
@@ -90,7 +90,10 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
         isVotingRef.current = true;
         setIsVoting(true);
         try {
-            const updatedPoll = await votePoll(localPoll.pollId, selectedOptions);
+            const selectedOptionIndexes = selectedOptions
+                .map(option => localPoll.options.findIndex(candidate => candidate.option === option))
+                .filter(index => index >= 0);
+            const updatedPoll = await votePoll(localPoll.pollId, selectedOptionIndexes);
 
             // Update central store FIRST — this is the authoritative source
             updatePollData(localPoll.conversationId, updatedPoll);
@@ -104,7 +107,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             isVotingRef.current = false;
             setIsVoting(false);
         }
-    }, [selectedOptions, localPoll.pollId, localPoll.conversationId, isClosed, updatePollData]);
+    }, [selectedOptions, localPoll.pollId, localPoll.conversationId, localPoll.options, isClosed, updatePollData]);
 
     const handleRemoveVote = useCallback(async () => {
         if (isVotingRef.current) return;
@@ -128,15 +131,16 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
     const handleClosePoll = useCallback(async () => {
         try {
-            await closePoll(localPoll.pollId);
-            setLocalPoll(prev => ({ ...prev, isClosed: true }));
+            const updatedPoll = await closePoll(localPoll.pollId);
+            updatePollData(localPoll.conversationId, updatedPoll);
+            setLocalPoll(updatedPoll);
         } catch (err) {
             console.error('[PollCard] Close poll failed:', err);
         }
-    }, [localPoll.pollId]);
+    }, [localPoll.pollId, localPoll.conversationId, updatePollData]);
 
     return (
-        <div className="w-full max-w-md bg-card/70 backdrop-blur-xl border border-border/40 rounded-xl overflow-hidden transition-all duration-300 hover:border-primary/20 neo-shadow group/poll">
+        <div className="w-full max-w-md bg-card/70 backdrop-blur-xl border border-border/40 rounded-xl overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300 hover:border-primary/20 neo-shadow group/poll">
             {/* Poll Header */}
             <div className="relative px-5 pt-5 pb-3 bg-gradient-to-b from-primary/5 to-transparent">
                 <div className="flex flex-col gap-1.5">
@@ -158,7 +162,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                 <div className="flex flex-wrap items-center gap-1 mt-3">
                     <div className={cn(
-                        "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase border transition-all",
+                        "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase border transition-[color,background-color,border-color,box-shadow,transform,opacity]",
                         localPoll.isMultipleChoice
                             ? "bg-blue-500/5 text-blue-500 border-blue-500/10"
                             : "bg-primary/5 text-primary border-primary/10"
@@ -199,7 +203,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             onClick={() => toggleOption(option.option)}
                             disabled={isClosed}
                             className={cn(
-                                "w-full relative overflow-hidden rounded-lg transition-all duration-200 text-left border",
+                                "w-full relative overflow-hidden rounded-lg transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 text-left border",
                                 isClosed ? "cursor-default" : "cursor-pointer active:scale-[0.99]",
                                 isSelected && !isClosed ? "border-primary/40 bg-primary/5" : "border-border/10 hover:border-primary/20 bg-background/20",
                                 isUserVoted && "ring-1 ring-inset ring-primary/20"
@@ -208,7 +212,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             {/* Simple progress bar */}
                             <div
                                 className={cn(
-                                    "absolute inset-y-0 left-0 transition-all duration-700 ease-out",
+                                    "absolute inset-y-0 left-0 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-700 ease-out",
                                     isWinning && showResults ? "bg-primary/15" : "bg-primary/5"
                                 )}
                                 style={{ width: `${showResults ? option.percentage : 0}%` }}
@@ -217,9 +221,9 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             <div className="relative flex items-center justify-between gap-3 px-3 py-2.5">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className={cn(
-                                        "w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 border transition-all duration-300",
+                                        "w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 border transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300",
                                         isSelected || isUserVoted
-                                            ? "bg-primary border-primary text-primary-foreground shadow-[0_0_10px_rgba(var(--primary),0.3)]"
+                                            ? "bg-primary border-primary text-primary-foreground shadow-sm"
                                             : "border-border/60 bg-background/60"
                                     )}>
                                         {(isSelected || isUserVoted) && <Check size={10} strokeWidth={4} />}
@@ -253,7 +257,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             {/* Voting mode and secondary labels */}
             <div className="px-5 pb-2 flex flex-wrap items-center gap-1.5 grayscale-[0.5] opacity-60">
                 <div className={cn(
-                    "px-1.5 py-0.5 rounded-[4px] text-[7px] font-bold uppercase border transition-all",
+                    "px-1.5 py-0.5 rounded-[4px] text-[7px] font-bold uppercase border transition-[color,background-color,border-color,box-shadow,transform,opacity]",
                     localPoll.isAnonymous
                         ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
                         : "bg-green-500/10 text-green-500 border-green-500/20"
@@ -296,7 +300,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                         <button
                             onClick={() => void handleVote()}
                             disabled={isVoting}
-                            className="px-3 py-1 text-[9px] font-black uppercase bg-primary text-primary-foreground rounded-md shadow-sm hover:shadow active:scale-95 transition-all disabled:opacity-40"
+                            className="px-3 py-1 text-[9px] font-black uppercase bg-primary text-primary-foreground rounded-md shadow-sm hover:shadow active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40"
                         >
                             {isVoting ? '...' : hasVoted ? 'ĐỔI' : 'GỬI'}
                         </button>
@@ -349,3 +353,4 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
         </div>
     );
 };
+

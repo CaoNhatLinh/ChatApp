@@ -3,8 +3,8 @@ import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 
 interface MessageInputDraftPanelProps {
-  replyingTo?: { content?: string } | null;
-  editingMessage?: { content?: string } | null;
+  replyingTo?: { content: string } | null;
+  editingMessage?: { content: string } | null;
   selectedFiles: File[];
   onCancelReply?: () => void;
   onCancelEdit?: () => void;
@@ -33,7 +33,7 @@ export const MessageInputDraftPanel = ({
                 {MESSENGER_COPY.messageInput.draftPanel.replyLabel}
               </p>
               <p className="line-clamp-2 text-xs font-semibold text-foreground/80">
-                {replyingTo.content || MESSENGER_COPY.messageInput.draftPanel.unknownReplyContent}
+                {replyingTo.content}
               </p>
             </div>
             <Button
@@ -57,7 +57,7 @@ export const MessageInputDraftPanel = ({
                 {MESSENGER_COPY.messageInput.draftPanel.editLabel}
               </p>
               <p className="line-clamp-2 text-xs font-semibold text-foreground/80">
-                {editingMessage.content || MESSENGER_COPY.messageInput.draftPanel.unknownEditContent}
+                {editingMessage.content}
               </p>
             </div>
             <Button
@@ -100,4 +100,3 @@ export const MessageInputDraftPanel = ({
 };
 
 export default MessageInputDraftPanel;
-

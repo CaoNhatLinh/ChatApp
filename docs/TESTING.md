@@ -1,0 +1,25 @@
+# Testing strategy
+
+Backend: Maven unit/service tests cover auth, refresh rotation, directory,
+friendship, conversations, message idempotency/cursor merge, policies, roles,
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, and infrastructure manifests (73 tests, 0
+failures, 0 errors). Frontend: `npm run type-check`,
+`npm run build` (Next), `npm run lint`
+(zero errors), and `npm run test:e2e:smoke` with `next start` running.
+
+The public/deep-link Playwright smoke currently passes (`/`, `/login`, `/about`,
+`/403`, `/search`, `/settings?tab=reports`, and `/admin` with unauthenticated redirect) with zero
+console errors or request failures. The global admin page is therefore covered
+for deep-link protection. A mock-authenticated Playwright check also loads the
+operator overview plus bounded admin panels and verifies `/admin` → `/app`
+navigation with zero console/request failures via `npm run test:e2e:admin`;
+it does not replace a real
+backend journey. An authenticated Cassandra-backed operator journey is still
+pending. Pending layers: Testcontainers/compose integration for
+Cassandra + Redis + Kafka + Elasticsearch, Playwright authenticated journeys
+with seeded users, STOMP reconnect/read/reaction assertions, accessibility tree
+checks, and performance trace budgets.
+
+All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
+integration with a mock-success path. The browser admin check stubs only the
+HTTP boundary inside the test process; no runtime code contains that stub.

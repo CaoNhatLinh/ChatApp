@@ -10,7 +10,7 @@ export const SectionHeader = ({ title, description, action }: SectionHeaderProps
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
-        <h2 className="text-lg font-black tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
         {description ? (
           <p className="mt-1 text-sm font-medium text-muted-foreground/85">{description}</p>
         ) : null}

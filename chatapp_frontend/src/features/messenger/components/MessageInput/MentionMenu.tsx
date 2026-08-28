@@ -1,9 +1,9 @@
-﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { motion } from 'framer-motion';
 import { Users, AtSign, Loader2 } from 'lucide-react';
 import type { ConversationMember } from '../../types/messenger.types';
-import { getConversationMembers } from '../../api/poll.api';
+import { getConversationMembers } from '../../api/messenger.api';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { usePresenceByUserIds } from '@/features/presence/model/presence.store';
 import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
@@ -18,6 +18,15 @@ interface MentionMenuProps {
     onClose: () => void;
     position?: { top: number; left: number };
 }
+
+interface AllMembersOption {
+    userId: 'all';
+    displayName: string;
+    username: string;
+    avatarUrl?: string;
+}
+
+type MentionItem = ConversationMember | AllMembersOption;
 
 export const MentionMenu: React.FC<MentionMenuProps> = ({
     conversationId,
@@ -52,9 +61,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                     lastConvId.current = conversationId;
                     setHasFetched(true);
                     // Exclude current user from the list
-                    const filtered = Array.isArray(data)
-                        ? data.filter(m => m.userId !== currentUser?.userId)
-                        : [];
+                    const filtered = data.filter(m => m.userId !== currentUser?.userId);
                     setMembers(filtered);
                 }
             } catch (err) {
@@ -77,20 +84,16 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
         const normalizedQuery = (query ?? '').toLowerCase().trim();
 
         // Always show @all at the top
-        const allOption: ConversationMember = {
+        const allOption: MentionItem = {
             userId: 'all',
-            conversationId,
-            role: 'member',
-            joinedAt: '',
             displayName: MESSENGER_COPY.mentionMenu.allMembersLabel,
             username: 'all',
-            isOnline: false
         };
 
         const matchedMembers = normalizedQuery
             ? members.filter(m =>
-                (m.displayName ?? '').toLowerCase().includes(normalizedQuery) ||
-                (m.username ?? '').toLowerCase().includes(normalizedQuery)
+                m.displayName.toLowerCase().includes(normalizedQuery) ||
+                m.username.toLowerCase().includes(normalizedQuery)
             )
             : members;
 
@@ -104,7 +107,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             ...(showAll ? [allOption] : []),
             ...matchedMembers.slice(0, 8) // Limit to prevent overflow
         ];
-    }, [members, query, conversationId]);
+    }, [members, query]);
 
     // Reset index when filtered items change
     useEffect(() => {
@@ -129,7 +132,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                 e.preventDefault();
                 if (filteredItems[selectedIndex]) {
                     const item = filteredItems[selectedIndex];
-                    onSelect(item.userId, item.displayName ?? item.username ?? 'User');
+                    onSelect(item.userId, item.displayName);
                 }
                 break;
             case 'Escape':
@@ -213,12 +216,12 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                             <button
                                 key={member.userId}
                                 className={cn(
-                                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 text-left",
+                                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 text-left",
                                     index === selectedIndex
                                         ? "bg-primary/15 text-foreground"
                                         : "hover:bg-primary/8 text-foreground/80"
                                 )}
-                                onClick={() => onSelect(member.userId, member.displayName ?? member.username ?? 'User')}
+                                onClick={() => onSelect(member.userId, member.displayName)}
                                 onMouseEnter={() => setSelectedIndex(index)}
                             >
                                 {/* Avatar */}
@@ -233,7 +236,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                                     ) : (
                                         member.avatarUrl
                                             ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover rounded-lg" />
-                                            : (member.displayName ?? 'U').charAt(0)
+                                            : member.displayName.charAt(0)
                                     )}
                                 </div>
 
@@ -243,7 +246,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                                         "text-sm font-bold truncate",
                                         isAll && "text-amber-500"
                                     )}>
-                                        {isAll ? '@all' : (member.displayName ?? member.username)}
+                                        {isAll ? '@all' : member.displayName}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground truncate">
                                         {isAll ? MESSENGER_COPY.mentionMenu.allMembersHint : `@${member.username}`}
@@ -262,3 +265,4 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
         </motion.div>
     );
 };
+

@@ -14,13 +14,12 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let cachedDeviceInfo: string | null = null;
 
 interface RawPresenceBatchEntry {
-    online?: boolean;
-    isOnline?: boolean;
-    status?: string;
-    lastSeen?: string | null;
-    device?: string;
-    lastActiveAgo?: string | null;
-    timestamp?: string;
+    online: boolean;
+    status: string;
+    lastSeen: string | null;
+    device: string | null;
+    lastActiveAgo: string | null;
+    timestamp: string;
 }
 
 export type PresenceSyncResult = {
@@ -33,10 +32,10 @@ function toStringArray(userIds: string[]): string[] {
 }
 
 function generateTraceId(): string {
-    if (typeof globalThis.crypto?.randomUUID === 'function') {
-        return globalThis.crypto.randomUUID();
+    if (typeof globalThis.crypto?.randomUUID !== 'function') {
+        throw new Error('Web Crypto randomUUID is required for presence correlation');
     }
-    return `presence-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return globalThis.crypto.randomUUID();
 }
 
 function normalizePresenceStatusValue(status: unknown): PresencePreferenceStatus | 'OFFLINE' | undefined {
@@ -50,8 +49,14 @@ function normalizePresenceStatusValue(status: unknown): PresencePreferenceStatus
         : undefined;
 }
 
-function toStringValue(value: unknown): string {
-    return typeof value === 'string' ? value : '';
+function toNullableString(value: unknown): string | null {
+    if (value === null || value === undefined) {
+        return null;
+    }
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new Error('Presence correlation fields must be non-empty strings or null');
+    }
+    return value;
 }
 
 function normalizePresenceBatchPayload(payload: unknown) {
@@ -60,18 +65,28 @@ function normalizePresenceBatchPayload(payload: unknown) {
     }
 
     return Object.entries(payload as Record<string, unknown>).map(([userId, raw]) => {
-        const eventRecord = typeof raw === 'object' && raw !== null ? raw as RawPresenceBatchEntry : {};
+        if (typeof raw !== 'object' || raw === null) {
+            throw new Error(`Presence batch entry ${userId} is invalid`);
+        }
+        const eventRecord = raw as RawPresenceBatchEntry;
 
         return normalizeOnlineStatusEvent({
             userId,
-            online: Boolean(eventRecord.online ?? eventRecord.isOnline),
-            status: normalizePresenceStatusValue(eventRecord.status),
-            timestamp: typeof eventRecord.timestamp === 'string' ? eventRecord.timestamp : new Date().toISOString(),
-            lastSeen: typeof eventRecord.lastSeen === 'string' ? eventRecord.lastSeen : null,
-            device: typeof eventRecord.device === 'string' ? eventRecord.device : undefined,
-            lastActiveAgo: typeof eventRecord.lastActiveAgo === 'string' ? eventRecord.lastActiveAgo : null,
+            online: eventRecord.online,
+            status: normalizePresenceStatusValue(eventRecord.status) ?? (() => { throw new Error(`Presence batch entry ${userId} has invalid status`); })(),
+            timestamp: eventRecord.timestamp,
+            lastSeen: eventRecord.lastSeen,
+            device: eventRecord.device,
+            lastActiveAgo: eventRecord.lastActiveAgo,
+            requestId: null,
+            traceId: null,
         });
-    }).filter((item): item is NonNullable<typeof item> => item !== null);
+    }).map((item) => {
+        if (!item) {
+            throw new Error('Presence batch contains malformed event');
+        }
+        return item;
+    });
 }
 
 function resolveDeviceInfo(): string {
@@ -79,7 +94,7 @@ function resolveDeviceInfo(): string {
     return cachedDeviceInfo;
   }
 
-  const ua = typeof navigator !== 'undefined' && navigator?.userAgent ? navigator.userAgent : '';
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const uaLower = ua.toLowerCase();
   const hasDesktopHint = /windows|macintosh|mac os x|linux|cros/i.test(ua);
   const hasMobileHint = /android|iphone|ipad|ipod|windows phone|mobile/i.test(uaLower);
@@ -97,7 +112,7 @@ function resolveDeviceInfo(): string {
               ? 'Windows'
               : /linux/i.test(uaLower)
                 ? 'Linux'
-                : 'Unknown OS';
+                : null;
 
   const browser =
     /edg\//i.test(uaLower)
@@ -109,10 +124,11 @@ function resolveDeviceInfo(): string {
           : /firefox/i.test(uaLower)
             ? 'Firefox'
             : /safari/i.test(uaLower)
-              ? 'Safari'
-              : 'Browser';
+        ? 'Safari'
+        : null;
 
-  cachedDeviceInfo = `${hasMobileHint ? 'Mobile' : hasDesktopHint ? 'Desktop' : 'Device'} • ${os} • ${browser}`;
+  const deviceClass = hasMobileHint ? 'Mobile' : hasDesktopHint ? 'Desktop' : null;
+  cachedDeviceInfo = deviceClass && os && browser ? `${deviceClass} • ${os} • ${browser}` : '';
   return cachedDeviceInfo;
 }
 
@@ -154,30 +170,33 @@ export const presenceWsService = {
 
   subscribeToPresenceSync(
     onStatusSync: (status: PresencePreferenceStatus, requestId: string | null, traceId: string | null) => void,
-    onRateLimit: (retryAfter: number, requestId: string | null, traceId: string | null) => void,
     onStatusSyncError: (errorType: string, message: string, requestId: string | null, traceId: string | null) => void
   ): void {
     subscribe(PRESENCE_SYNC_QUEUE, (payload) => {
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('Presence sync payload must be an object');
+      }
       const payloadRecord = payload as Record<string, unknown>;
-      const type = typeof payloadRecord.type === 'string' ? payloadRecord.type : '';
-      const requestId = toStringValue(payloadRecord.requestId);
-      const traceId = toStringValue(payloadRecord.traceId);
+      const type = payloadRecord.type;
+      if (typeof type !== 'string') {
+        throw new Error('Presence sync type is required');
+      }
+      const requestId = toNullableString(payloadRecord.requestId);
+      const traceId = toNullableString(payloadRecord.traceId);
 
-      if (type === 'STATUS_SYNC' && typeof (payload as Record<string, unknown>).status === 'string') {
-        onStatusSync((payloadRecord.status as PresencePreferenceStatus), requestId || null, traceId || null);
+      if (type === 'STATUS_SYNC') {
+        const status = normalizePresenceStatusValue(payloadRecord.status);
+        if (!status || status === 'OFFLINE') {
+          throw new Error('Presence status sync contains an invalid status');
+        }
+        onStatusSync(status, requestId, traceId);
       }
       if (type === 'STATUS_SYNC_ERROR') {
-        const errorType = toStringValue(payloadRecord.errorType);
-        const message = toStringValue(payloadRecord.message);
-        onStatusSyncError(
-          errorType || 'UNKNOWN_ERROR',
-          message || 'Sync status failed',
-          requestId || null,
-          traceId || null
-        );
-      }
-      if (type === 'RATE_LIMIT_ERROR') {
-        onRateLimit(Number((payload as Record<string, unknown>).retryAfterSeconds) || 0, requestId || null, traceId || null);
+        if (typeof payloadRecord.errorType !== 'string' || !payloadRecord.errorType.trim()
+          || typeof payloadRecord.message !== 'string' || !payloadRecord.message.trim()) {
+          throw new Error('Presence status sync error is missing errorType or message');
+        }
+        onStatusSyncError(payloadRecord.errorType, payloadRecord.message, requestId, traceId);
       }
     });
   },
@@ -210,7 +229,7 @@ export const presenceWsService = {
       return;
     }
     send('/app/heartbeat', {
-      deviceInfo: resolveDeviceInfo(),
+      deviceInfo: resolveDeviceInfo() || null,
       requestId: generateTraceId(),
       traceId: generateTraceId(),
     });

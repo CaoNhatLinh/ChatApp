@@ -2,33 +2,15 @@ import apiClient from '@/shared/api/apiClient';
 import type { UserDTO } from '@/entities/user/model/user.types';
 import type { FriendshipStatus } from '../model/friend.types';
 
-export interface PaginatedResponse<T> {
-    content: T[];
-    hasNext: boolean;
-    number: number;
-    size: number;
-}
-
-export interface SpringPage<T> {
-    content: T[];
-    hasNext?: boolean;
-    last?: boolean;
-    number?: number;
-    size?: number;
-    totalElements?: number;
-    totalPages?: number;
-}
-
-export interface FriendDTO {
-    friendId: string;
-    username: string; // Backend uses 'username' for FriendDTO
+interface CanonicalFriendUserSummary {
+    userId: string;
+    username: string;
     displayName: string;
-    avatarUrl: string;
-    friendsSince: string;
-    isOnline: boolean;
+    avatarUrl?: string;
+    accountStatus: string;
 }
 
-export interface FriendRequestsResponse {
+export interface FriendshipStatusResponse {
     userId: string;
     status: FriendshipStatus;
     userDetails: UserDTO[];
@@ -39,76 +21,61 @@ export interface BlockStatusResponse {
     isBlockedBy: boolean;
 }
 
+const toUserDto = (summary: CanonicalFriendUserSummary): UserDTO => ({
+    userId: summary.userId,
+    userName: summary.username,
+    displayName: summary.displayName,
+    avatarUrl: summary.avatarUrl,
+    status: summary.accountStatus,
+});
 
-const mapToPaginatedResponse = <T>(
-    data: SpringPage<T> | T[] | T | null,
-    page: number,
-    size: number
-): PaginatedResponse<T> => {
-    if (!data) {
-        return { content: [], hasNext: false, number: page, size };
-    }
+const toFriendshipStatus = (response: {
+    userId: string;
+    status: FriendshipStatus;
+    userDetails: CanonicalFriendUserSummary[];
+}): FriendshipStatusResponse => ({
+    userId: response.userId,
+    status: response.status,
+    userDetails: response.userDetails.map(toUserDto),
+});
 
-    if (Array.isArray(data)) {
-        return {
-            content: data,
-            hasNext: false,
-            number: page,
-            size: data.length
-        };
-    }
-
-    // Check if it's a Spring Page/Slice format
-    if ('content' in (data as object) && Array.isArray((data as SpringPage<T>).content)) {
-        const paged = data as SpringPage<T>;
-        return {
-            content: paged.content,
-            hasNext: paged.hasNext !== undefined ? paged.hasNext : !(paged.last ?? true),
-            number: paged.number ?? page,
-            size: paged.size ?? size
-        };
-    }
-
-    // Must be a single item
-    return {
-        content: [(data as T)],
-        hasNext: false,
-        number: page,
-        size: 1
-    };
+export const getFriends = async (limit = 30): Promise<FriendshipStatusResponse> => {
+    const response = await apiClient.get<{
+        userId: string;
+        status: FriendshipStatus;
+        userDetails: CanonicalFriendUserSummary[];
+    }>('/friends', { params: { limit } });
+    return toFriendshipStatus(response.data);
 };
 
-export const getFriends = async (page = 0, size = 30): Promise<PaginatedResponse<FriendDTO>> => {
-    const response = await apiClient.get<SpringPage<FriendDTO> | FriendDTO[]>('/friends/', {
-        params: { page, size }
-    });
-    return mapToPaginatedResponse(response.data, page, size);
+export const getReceivedRequests = async (limit = 30): Promise<FriendshipStatusResponse> => {
+    const response = await apiClient.get<{
+        userId: string;
+        status: FriendshipStatus;
+        userDetails: CanonicalFriendUserSummary[];
+    }>('/friends/requests/received', { params: { size: limit } });
+    return toFriendshipStatus(response.data);
 };
 
-export const getReceivedRequests = async (page = 0, size = 30): Promise<PaginatedResponse<FriendRequestsResponse>> => {
-    const response = await apiClient.get<SpringPage<FriendRequestsResponse> | FriendRequestsResponse>('/friends/requests/received', {
-        params: { page, size }
-    });
-    return mapToPaginatedResponse(response.data, page, size);
+export const getSentRequests = async (limit = 30): Promise<FriendshipStatusResponse> => {
+    const response = await apiClient.get<{
+        userId: string;
+        status: FriendshipStatus;
+        userDetails: CanonicalFriendUserSummary[];
+    }>('/friends/requests/sent', { params: { size: limit } });
+    return toFriendshipStatus(response.data);
 };
 
-export const getSentRequests = async (page = 0, size = 30): Promise<PaginatedResponse<FriendRequestsResponse>> => {
-    const response = await apiClient.get<SpringPage<FriendRequestsResponse> | FriendRequestsResponse[]>('/friends/requests/sent', {
-        params: { page, size }
-    });
-    return mapToPaginatedResponse(response.data, page, size);
+export const sendFriendRequest = async (recipientId: string): Promise<void> => {
+    await apiClient.post('/friends/request', { recipientId });
 };
 
-export const sendFriendRequest = async (receiverId: string): Promise<void> => {
-    await apiClient.post('/friends/request', { receiverId });
+export const acceptFriendRequest = async (friendId: string): Promise<void> => {
+    await apiClient.put('/friends/accept', { friendId });
 };
 
-export const acceptFriendRequest = async (senderId: string): Promise<void> => {
-    await apiClient.put('/friends/accept', { senderId });
-};
-
-export const rejectFriendRequest = async (senderId: string): Promise<void> => {
-    await apiClient.put('/friends/reject', { senderId });
+export const rejectFriendRequest = async (friendId: string): Promise<void> => {
+    await apiClient.put('/friends/reject', { friendId });
 };
 
 export const unfriend = async (friendId: string): Promise<void> => {
@@ -117,24 +84,26 @@ export const unfriend = async (friendId: string): Promise<void> => {
 
 export const getUsersByStatus = async (
     status: FriendshipStatus,
-    page = 0,
-    size = 30,
-): Promise<FriendRequestsResponse> => {
-    const response = await apiClient.get<FriendRequestsResponse>(`/friends/status/${status}`, {
-        params: { page, size },
+    limit = 30,
+): Promise<FriendshipStatusResponse> => {
+    const response = await apiClient.get<{
+        userId: string;
+        status: FriendshipStatus;
+        userDetails: CanonicalFriendUserSummary[];
+    }>(`/friends/status/${status}`, {
+        params: { size: limit },
     });
-    return response.data;
+    return toFriendshipStatus(response.data);
 };
 
 export const getMutualFriends = async (
     otherUserId: string,
-    page = 0,
-    size = 30,
-): Promise<PaginatedResponse<FriendDTO>> => {
-    const response = await apiClient.get<SpringPage<FriendDTO>>(`/friends/mutual/${otherUserId}`, {
-        params: { page, size },
+    limit = 30,
+): Promise<UserDTO[]> => {
+    const response = await apiClient.get<CanonicalFriendUserSummary[]>(`/friends/mutual/${otherUserId}`, {
+        params: { size: limit },
     });
-    return mapToPaginatedResponse(response.data, page, size);
+    return response.data.map(toUserDto);
 };
 
 export const blockFriend = async (friendId: string): Promise<void> => {
@@ -152,24 +121,21 @@ export const checkBlockStatus = async (otherUserId: string): Promise<BlockStatus
 
 export interface FriendApi {
     sendRequest: (friendId: string) => Promise<void>;
-    getReceivedRequests: (page?: number, size?: number) => Promise<FriendRequestsResponse>;
-    getUsersByStatus: (status: FriendshipStatus, page?: number, size?: number) => Promise<FriendRequestsResponse>;
+    getReceivedRequests: (limit?: number) => Promise<FriendshipStatusResponse>;
+    getUsersByStatus: (status: FriendshipStatus, limit?: number) => Promise<FriendshipStatusResponse>;
     acceptFriendRequest: (senderId: string) => Promise<void>;
     rejectFriendRequest: (senderId: string) => Promise<void>;
     blockFriend: (friendId: string) => Promise<void>;
     unblockFriend: (friendId: string) => Promise<void>;
     checkBlockStatus: (otherUserId: string) => Promise<BlockStatusResponse>;
-    getMutualFriends: (otherUserId: string, page?: number, size?: number) => Promise<PaginatedResponse<FriendDTO>>;
+    getMutualFriends: (otherUserId: string, limit?: number) => Promise<UserDTO[]>;
     unfriend: (friendId: string) => Promise<void>;
 }
 
 export const friendApi: FriendApi = {
     sendRequest: async (friendId: string) => sendFriendRequest(friendId),
-    getReceivedRequests: async (page = 0, size = 30) => {
-        const response = await getReceivedRequests(page, size);
-        return response.content[0] ?? { userId: '', status: 'PENDING', userDetails: [] };
-    },
-    getUsersByStatus: async (status: FriendshipStatus, page = 0, size = 30) => getUsersByStatus(status, page, size),
+    getReceivedRequests: async (limit = 30) => getReceivedRequests(limit),
+    getUsersByStatus: async (status: FriendshipStatus, limit = 30) => getUsersByStatus(status, limit),
     acceptFriendRequest: async (senderId: string) => acceptFriendRequest(senderId),
     rejectFriendRequest: async (senderId: string) => rejectFriendRequest(senderId),
     blockFriend,

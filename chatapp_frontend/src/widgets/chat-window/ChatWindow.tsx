@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
-import { useSearchParams } from "react-router-dom";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMessenger } from "@/features/messenger/model/useMessenger";
 import {
   EMPTY_MESSAGES,
@@ -10,6 +10,7 @@ import {
 import { usePresence } from "@/features/presence/model/presence.store";
 import { MessageHistory } from "./components/MessageHistory";
 import { MessageRevisionPanel } from "./components/MessageRevisionPanel";
+import { ReportMessageModal } from "@/features/messenger/components/chat/ReportMessageModal";
 import { ConversationInfo } from "@/features/messenger/components/chat/ConversationInfo";
 import { MessageInput } from "@/features/messenger/components/MessageInput/MessageInput";
 import { useRoomThemeState } from "@/features/settings/model/useRoomThemeState";
@@ -19,7 +20,7 @@ import type {
 } from "@/features/messenger/types/messenger.types";
 import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { useAuthStore } from "@/features/auth/model/auth.store";
-import type { UserProfileModal as UserProfile } from "@/entities/conversation/model/room.types";
+import type { UserProfileModal as UserProfile } from "@/shared/types/room.types";
 import type { UserDTO } from "@/entities/user/model/user.types";
 import { UserProfileModal } from "@/features/profile/components/user/UserProfileModal";
 import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
@@ -30,12 +31,11 @@ import { ChatWindowPlaceholder } from "./components/ChatWindowPlaceholder";
 import { ChatWindowToast } from "./components/ChatWindowToast";
 import { RoomThemePanel } from "./components/RoomThemePanel";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
+import { useWebRtcCall } from "@/features/calls/hooks/useWebRtcCall";
+import { CallSessionPanel } from "./components/CallSessionPanel";
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
-
-interface SafeReadReceipt {
-  readAt: string;
-}
+import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
 
 const WAIT_MESSAGE_LOAD_MS = 80;
 const MAX_MESSAGE_JUMP_ATTEMPTS = 20;
@@ -57,58 +57,34 @@ const formatPresenceDevice = (device?: string): string => {
 };
 
 const fetchUserProfile = async (userId: string): Promise<UserDTO> => {
-  const response = await apiClient.get<UserDTO>(`/users/profile/${userId}`);
-  return response.data;
+  const response = await apiClient.get<{
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+    accountStatus: string;
+  }>(`/users/${userId}`);
+  return {
+    userId: response.data.userId,
+    userName: response.data.username,
+    displayName: response.data.displayName,
+    avatarUrl: response.data.avatarUrl,
+    status: response.data.accountStatus,
+  };
 };
 
-const normalizeReadReceipt = (
-  message: Message,
-): SafeReadReceipt | undefined => {
-  const source = (message as Message & { readReceipts?: unknown[] }).readReceipts;
-  const readReceipts: SafeReadReceipt[] = Array.isArray(source)
-    ? source.flatMap((receipt): SafeReadReceipt[] => {
-        if (
-          receipt &&
-          typeof receipt === "object" &&
-          "readAt" in receipt &&
-          typeof (receipt as { readAt?: unknown }).readAt === "string"
-        ) {
-          return [{ readAt: (receipt as { readAt: string }).readAt }];
-        }
-        return [];
-      })
-    : [];
-
-  return [...readReceipts].sort(
+const latestReadReceipt = (message: Message): MessageReadReceipt | undefined => (
+  [...(message.readReceipts ?? [])].sort(
     (left, right) =>
       new Date(right.readAt).getTime() - new Date(left.readAt).getTime(),
-  )[0];
-};
+  )[0]
+);
 
-const normalizeMessageHistory = (history: unknown[]): SafeRevision[] => {
-  return history.flatMap((revision): SafeRevision[] => {
-    const rawRevision = revision as {
-      revisionNumber?: unknown;
-      editedAt?: unknown;
-      content?: unknown;
-    };
-
-    if (
-      typeof rawRevision.revisionNumber !== "number" ||
-      typeof rawRevision.editedAt !== "string"
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        revisionNumber: rawRevision.revisionNumber,
-        editedAt: rawRevision.editedAt,
-        content: typeof rawRevision.content === "string" ? rawRevision.content : "",
-      },
-    ];
-  });
-};
+const mapMessageHistory = (history: MessageRevision[]): SafeRevision[] => history.map(({ revisionNumber, editedAt, content }) => ({
+  revisionNumber,
+  editedAt,
+  content,
+}));
 
 export const ChatWindow = () => {
   const {
@@ -157,8 +133,11 @@ export const ChatWindow = () => {
     UserProfile | undefined
   >();
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState<Message | null>(null);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const messageIdFromQuery = searchParams.get("messageId");
 
   const activeConversation = useMemo(
@@ -180,10 +159,19 @@ export const ChatWindow = () => {
     [otherUserId],
   );
 
-  const { presence: otherPresence } = usePresence(otherUserId ?? "");
+  const { presence: otherPresence } = usePresence(otherUserId);
   const isOtherOnline = otherPresence?.isOnline ?? false;
   const otherStatus = otherPresence?.status ?? "OFFLINE";
   const roomThemeSettings = useRoomThemeState(activeConversationId);
+  const canCall = activeConversation?.type === "dm" && Boolean(otherUserId);
+  const callControls = useWebRtcCall({
+    conversationId: activeConversationId,
+    currentUserId: currentUser?.userId,
+    peerUserId: otherUserId,
+    peerDisplayName: activeConversation?.otherParticipant?.displayName ?? activeConversation?.name ?? "",
+    canCall,
+  });
+  const startCallControl = callControls.start;
 
   const messagesRef = useRef<HTMLDivElement>(null);
   const lastMessageId =
@@ -215,12 +203,9 @@ export const ChatWindow = () => {
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
-  const showFeaturePlaceholder = useCallback(
-    (featureName: string) => {
-      showToast(MESSENGER_COPY.chatWindow.messageAction.featureMissing(featureName));
-    },
-    [showToast],
-  );
+  const startCall = useCallback((callType: "VOICE" | "VIDEO") => {
+    void startCallControl(callType);
+  }, [startCallControl]);
 
   useEffect(() => {
     return () => {
@@ -255,7 +240,7 @@ export const ChatWindow = () => {
         const params = new URLSearchParams(searchParams);
         params.set("conversationId", targetConversationId);
         params.set("messageId", messageId);
-        setSearchParams(params, { replace: true });
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
         return;
       }
 
@@ -278,7 +263,7 @@ export const ChatWindow = () => {
           const params = new URLSearchParams(searchParams);
           params.set("conversationId", targetConversationId);
           params.set("messageId", messageId);
-          setSearchParams(params, { replace: true });
+          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
           return;
         }
 
@@ -295,7 +280,8 @@ export const ChatWindow = () => {
       loadMoreMessages,
       scrollToMessage,
       searchParams,
-      setSearchParams,
+      pathname,
+      router,
       showToast,
     ],
   );
@@ -331,7 +317,7 @@ export const ChatWindow = () => {
           setReplyingTo(message);
           return;
         case "copy":
-          await navigator.clipboard.writeText(message.content ?? "");
+          await navigator.clipboard.writeText(message.content);
           showToast(MESSENGER_COPY.chatWindow.messageAction.copySuccess);
           return;
         case "edit":
@@ -349,14 +335,17 @@ export const ChatWindow = () => {
           await pinMessageAction(message.messageId);
           showToast(MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
           return;
+        case "report":
+          setReportingMessage(message);
+          return;
         case "view-history": {
           const revisions = await loadMessageRevisionsAction(message.messageId);
-          setMessageHistory(normalizeMessageHistory(revisions));
+          setMessageHistory(mapMessageHistory(revisions));
           setIsHistoryOpen(true);
           return;
         }
         case "view-seen": {
-          const latestSeen = normalizeReadReceipt(message);
+          const latestSeen = latestReadReceipt(message);
           if (latestSeen) {
             showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(new Date(latestSeen.readAt).toLocaleString("vi-VN")));
           }
@@ -370,7 +359,7 @@ export const ChatWindow = () => {
           }
           return;
         default:
-          showFeaturePlaceholder(MESSENGER_COPY.chatWindow.messageAction.todoMessage);
+          throw new Error(`Unsupported message action: ${action}`);
       }
     },
     [
@@ -378,7 +367,6 @@ export const ChatWindow = () => {
       jumpToMessage,
       loadMessageRevisionsAction,
       pinMessageAction,
-      showFeaturePlaceholder,
       showToast,
     ],
   );
@@ -415,7 +403,7 @@ export const ChatWindow = () => {
       animate={UI_MOTION_CONFIG.animateState}
       variants={UI_MOTION_VARIANTS.fadeIn}
     >
-      <div className="flex-1 flex flex-col h-full transition-all duration-300">
+      <div className="flex-1 flex flex-col h-full transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300">
         <ConversationHeader
           conversation={activeConversation}
           isInfoOpen={isInfoOpen}
@@ -423,9 +411,11 @@ export const ChatWindow = () => {
           otherStatusLabel={statusLabel}
           canGoBack
           onBack={() => setSidebarOpen(true)}
-          onSearch={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.search)}
-          onVideoCall={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.video)}
-          onVoiceCall={() => showFeaturePlaceholder(MESSENGER_COPY.chatWindow.featureHint.voice)}
+          onSearch={() => router.push(`/search?conversationId=${activeConversationId}`)}
+          onVideoCall={() => startCall("VIDEO")}
+          onVoiceCall={() => startCall("VOICE")}
+          canCall={canCall}
+          callDisabledReason="Gọi trực tiếp hiện chỉ hỗ trợ cuộc trò chuyện 1–1."
           onOpenRoomTheme={() => setIsRoomThemeOpen((current) => !current)}
           onToggleInfo={() => setIsInfoOpen((current) => !current)}
         />
@@ -435,8 +425,8 @@ export const ChatWindow = () => {
             conversationId={activeConversationId}
             conversationName={
               activeConversation.type === "dm"
-                ? activeConversation.otherParticipant?.displayName || activeConversation.name || MESSENGER_COPY.chatWindow.roomTheme.defaultRoomName
-                : activeConversation.name || MESSENGER_COPY.chatWindow.roomTheme.defaultGroupName
+                ? activeConversation.otherParticipant?.displayName ?? activeConversation.name
+                : activeConversation.name
             }
             defaultRoomThemeId={roomThemeSettings.settings.defaultRoomThemeId}
             defaultBubbleStyleId={roomThemeSettings.settings.messageBubbleStyle}
@@ -471,6 +461,8 @@ export const ChatWindow = () => {
           />
         ) : null}
 
+        <CallSessionPanel controls={callControls} />
+
         <MessageHistory
           activeConversationId={activeConversationId}
           messages={messages}
@@ -496,7 +488,12 @@ export const ChatWindow = () => {
               useMessengerStore
                 .getState()
                 .removeMessage(activeConversationId, messageId);
-              void sendMessage(messageToRetry.content, messageToRetry.type);
+              void sendMessage(messageToRetry.content, messageToRetry.type, {
+                clientMessageId:
+                  messageToRetry.clientMessageId ?? crypto.randomUUID(),
+                attachments: messageToRetry.attachments,
+                replyToId: messageToRetry.replyTo?.messageId,
+              });
             }
           }}
         />
@@ -507,28 +504,35 @@ export const ChatWindow = () => {
             editingMessage={editingMessage}
             onCancelReply={() => setReplyingTo(null)}
             onCancelEdit={() => setEditingMessage(null)}
+            onStartCall={startCall}
+            canStartCall={canCall}
           />
         </div>
       </div>
 
-      <UserProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        userId={selectedUserId || ""}
-        userProfile={selectedUserProfile}
-        isLoading={isProfileLoading}
-        onSendMessage={() => {
-          if (selectedUserId) {
+      {selectedUserId ? <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          userId={selectedUserId}
+          userProfile={selectedUserProfile}
+          isLoading={isProfileLoading}
+          onSendMessage={() => {
             closeProfileModal();
-          }
-        }}
-        onBlock={() => {
-          void fetchBlockedUsers();
-          setIsProfileModalOpen(false);
-        }}
-        onUnblock={() => {
-          void fetchBlockedUsers();
-        }}
+          }}
+          onBlock={() => {
+            void fetchBlockedUsers();
+            setIsProfileModalOpen(false);
+          }}
+          onUnblock={() => {
+            void fetchBlockedUsers();
+          }}
+          onReport={() => setIsProfileModalOpen(false)}
+        /> : null}
+
+      <ReportMessageModal
+        message={reportingMessage}
+        onClose={() => setReportingMessage(null)}
+        onSubmitted={() => showToast("Đã gửi báo cáo. Cảm ơn bạn đã giúp giữ NovaChat an toàn.")}
       />
 
       <div
@@ -554,3 +558,4 @@ export const ChatWindow = () => {
 };
 
 export default ChatWindow;
+

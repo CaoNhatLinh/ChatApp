@@ -1,4 +1,4 @@
-import { reactToMessage } from '@/features/messenger/api/messenger.api';
+import { reactToMessage, removeMessageReaction } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/cn';
 
@@ -9,6 +9,8 @@ interface ReactionDisplayProps {
     reactedByCurrentUser: boolean;
   }>;
   messageId: string;
+  conversationId: string;
+  messageBucket: string;
   onToggle?: () => void;
 }
 
@@ -24,15 +26,21 @@ const EMOJI_MAP: Record<string, string> = {
 export const ReactionDisplay = ({
   reactions,
   messageId,
+  conversationId,
+  messageBucket,
   onToggle,
 }: ReactionDisplayProps) => {
   if (reactions.length === 0) {
     return null;
   }
 
-  const handleToggle = async (emojiKey: string) => {
+  const handleToggle = async (emojiKey: string, reactedByCurrentUser: boolean) => {
     try {
-      await reactToMessage(messageId, emojiKey);
+      if (reactedByCurrentUser) {
+        await removeMessageReaction(conversationId, messageBucket, messageId, emojiKey);
+      } else {
+        await reactToMessage(conversationId, messageBucket, messageId, emojiKey);
+      }
       onToggle?.();
     } catch (error) {
       logger.error('[ReactionDisplay] Toggle failed:', error instanceof Error ? error.message : String(error));
@@ -48,7 +56,7 @@ export const ReactionDisplay = ({
           <button
             type="button"
             key={emoji}
-            onClick={() => void handleToggle(emoji)}
+            onClick={() => void handleToggle(emoji, reactedByCurrentUser)}
             className={cn(
               'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
               reactedByCurrentUser
