@@ -9,7 +9,7 @@ import { Button } from "@/shared/ui/Button";
 import { cn } from "@/shared/lib/cn";
 import { usePresence } from "@/features/presence/model/presence.store";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
-import { friendRequestErrors } from "@/shared/lib/errorHandler";
+import { logger } from "@/shared/lib/logger";
 import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import { localizeText } from "@/shared/i18n";
 import type { UserDTO } from "@/entities/user/model/user.types";
@@ -52,7 +52,7 @@ export const FriendItem = ({
       await onAddFriend(friend);
       notifySuccess(localizeText(`Đã gửi lời mời kết bạn tới ${friend.displayName}`));
     } catch (error) {
-      friendRequestErrors.send(error);
+      logger.error('[FriendItem] Failed to send friend request', error);
       notifyError(localizeText(`Không thể gửi lời mời tới ${friend.displayName}`));
     } finally {
       setIsLoading(false);
@@ -74,7 +74,7 @@ export const FriendItem = ({
         void selectConversation(conv.conversationId);
         notifySuccess(localizeText(`Đã mở cuộc trò chuyện với ${friendTarget.displayName}`));
       } catch (error) {
-        friendRequestErrors.send(error);
+        logger.error('[FriendItem] Failed to open conversation', error);
         notifyError(localizeText(`Không thể mở cuộc trò chuyện với ${friendTarget.displayName}`));
       }
     }
@@ -89,7 +89,7 @@ export const FriendItem = ({
       await onAcceptFriend(friend.userId);
       notifySuccess(localizeText(`Đã chấp nhận lời mời của ${friend.displayName}`));
     } catch (error) {
-      friendRequestErrors.accept(error);
+      logger.error('[FriendItem] Failed to accept friend request', error);
       notifyError(localizeText(`Không thể chấp nhận lời mời của ${friend.displayName}`));
     } finally {
       setIsLoading(false);
@@ -105,7 +105,7 @@ export const FriendItem = ({
       await onRejectFriend(friend.userId);
       notifySuccess(localizeText(`Đã từ chối lời mời của ${friend.displayName}`));
     } catch (error) {
-      friendRequestErrors.reject(error);
+      logger.error('[FriendItem] Failed to reject friend request', error);
       notifyError(localizeText(`Không thể từ chối lời mời của ${friend.displayName}`));
     } finally {
       setIsLoading(false);
