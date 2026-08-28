@@ -237,7 +237,7 @@ export const SearchPage = () => {
         }
 
         const mapped: SearchData[] = result.content.map((message): SearchData => ({
-          title: `Tin nhắn từ ${message.senderDisplayName || message.senderUsername || "Người dùng"} trong cuộc trò chuyện`,
+          title: localizeText(`Tin nhắn từ ${message.senderDisplayName || message.senderUsername || "Người dùng"} trong cuộc trò chuyện`),
           path: `/app?conversationId=${message.conversationId}&messageId=${message.messageId}`,
           description: message.content,
           category: "chat",
@@ -250,7 +250,7 @@ export const SearchPage = () => {
         }
         console.error("[SearchPage] Failed to search messages:", error);
         setMessageSearchResults([]);
-        setSearchError("Không tìm thấy tin nhắn phù hợp. Vui lòng thử lại.");
+        setSearchError(localizeText("Không tìm thấy tin nhắn phù hợp. Vui lòng thử lại."));
       } finally {
         if (requestId === requestIdRef.current) {
           setIsSearching(false);

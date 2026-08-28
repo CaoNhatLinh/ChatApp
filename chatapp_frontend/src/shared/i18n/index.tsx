@@ -51,6 +51,7 @@ export const localizeText = (value: string): string => {
     [/^(\d+) phút trước$/, (match) => `${match[1]} min ago`],
     [/^(\d+) giờ trước$/, (match) => `${match[1]} hr ago`],
     [/^(\d+) ngày trước$/, (match) => `${match[1]} d ago`],
+    [/^Tin nhắn từ (.+) trong cuộc trò chuyện$/, (match) => `Message from ${match[1]} in conversation`],
   ];
   const dynamic = dynamicPatterns.find(([pattern]) => pattern.test(value));
   if (dynamic) return dynamic[1](value.match(dynamic[0]) as RegExpMatchArray);

@@ -7,7 +7,7 @@ import { type ReactNode } from "react";
 import { UI_COPY } from "@/shared/constants/ui-copy";
 import { BrandMark } from "@/shared/ui/Brand";
 import { LanguageToggle } from "@/shared/ui/LanguageToggle";
-import { useAppLocale } from "@/shared/i18n";
+import { localizeText, useAppLocale } from "@/shared/i18n";
 
 interface AppShellHeaderProps {
   title?: string;
@@ -32,7 +32,7 @@ export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeade
           <BrandMark />
           <span className="hidden sm:inline">{title}</span>
         </Link>
-        <nav aria-label="Điều hướng ứng dụng" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <nav aria-label={localizeText("Điều hướng ứng dụng")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {appShellNavItems.map((item) => {
             const Icon = item.icon;
             return (

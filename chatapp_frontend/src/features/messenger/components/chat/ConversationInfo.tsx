@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/Button';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { InviteManager } from './InviteManager';
+import { localizeText } from '@/shared/i18n';
 
 interface ConversationInfoProps {
     isOpen: boolean;
@@ -100,7 +101,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                 <div className="space-y-6">
                     {activeConv.type !== 'dm' && (
                         <div>
-                            <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">Lời mời & yêu cầu tham gia</h4>
+                            <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">{localizeText('Lời mời & yêu cầu tham gia')}</h4>
                             <InviteManager conversationId={activeConv.conversationId} />
                         </div>
                     )}

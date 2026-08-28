@@ -11,6 +11,7 @@ import {
 import { Button } from '@/shared/ui/Button';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
 import type { CallControls } from '@/features/calls/types';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 interface CallSessionPanelProps {
   controls: CallControls;
@@ -62,6 +63,7 @@ const CallStream = ({
 };
 
 export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
+  useAppLocale();
   const { session } = controls;
   if (!session) return null;
 
@@ -74,24 +76,24 @@ export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-primary">
-            {isVideo ? 'Video call' : 'Voice call'} · {stateLabel[session.state]}
+            {localizeText(isVideo ? 'Video call' : 'Voice call')} · {localizeText(stateLabel[session.state])}
           </p>
           <p className="mt-1 truncate text-sm font-semibold text-foreground">
             {isIncoming ? `${session.peerDisplayName} đang gọi cho bạn` : session.peerDisplayName}
           </p>
           {session.errorMessage ? (
-            <p className="mt-1 text-xs text-destructive">{session.errorMessage}</p>
+            <p className="mt-1 text-xs text-destructive">{localizeText(session.errorMessage)}</p>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
-              {isIncoming ? 'Chấp nhận để mở kết nối trực tiếp.' : 'Kết nối trực tiếp giữa hai thiết bị.'}
+              {localizeText(isIncoming ? 'Chấp nhận để mở kết nối trực tiếp.' : 'Kết nối trực tiếp giữa hai thiết bị.')}
             </p>
           )}
         </div>
 
         {isVideo && !isError ? (
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <CallStream stream={controls.remoteStream} label="Video của người đối thoại" />
-            <CallStream stream={controls.localStream} label="Video của bạn" muted />
+            <CallStream stream={controls.remoteStream} label={localizeText('Video của người đối thoại')} />
+            <CallStream stream={controls.localStream} label={localizeText('Video của bạn')} muted />
           </div>
         ) : null}
 
@@ -100,15 +102,15 @@ export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
             <>
               <Button type="button" size="sm" onClick={() => void controls.accept()}>
                 <Phone size={16} />
-                Nhận cuộc gọi
+                {localizeText('Nhận cuộc gọi')}
               </Button>
-              <Button type="button" size="icon" variant="outline" onClick={controls.decline} aria-label="Từ chối cuộc gọi" title="Từ chối cuộc gọi">
+              <Button type="button" size="icon" variant="outline" onClick={controls.decline} aria-label={localizeText('Từ chối cuộc gọi')} title={localizeText('Từ chối cuộc gọi')}>
                 <X size={16} />
               </Button>
             </>
           ) : isError ? (
             <Button type="button" size="sm" variant="outline" onClick={controls.hangUp}>
-              Đóng
+              {localizeText('Đóng')}
             </Button>
           ) : (
             <>
@@ -117,8 +119,8 @@ export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
                 size="icon"
                 variant={controls.isMuted ? 'default' : 'outline'}
                 onClick={controls.toggleMute}
-                aria-label={controls.isMuted ? 'Bật microphone' : 'Tắt microphone'}
-                title={controls.isMuted ? 'Bật microphone' : 'Tắt microphone'}
+                aria-label={localizeText(controls.isMuted ? 'Bật microphone' : 'Tắt microphone')}
+                title={localizeText(controls.isMuted ? 'Bật microphone' : 'Tắt microphone')}
               >
                 {controls.isMuted ? <MicOff size={16} /> : <Mic size={16} />}
               </Button>
@@ -128,13 +130,13 @@ export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
                   size="icon"
                   variant={controls.isCameraEnabled ? 'outline' : 'default'}
                   onClick={controls.toggleCamera}
-                  aria-label={controls.isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
-                  title={controls.isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
+                  aria-label={localizeText(controls.isCameraEnabled ? 'Tắt camera' : 'Bật camera')}
+                  title={localizeText(controls.isCameraEnabled ? 'Tắt camera' : 'Bật camera')}
                 >
                   {controls.isCameraEnabled ? <Video size={16} /> : <VideoOff size={16} />}
                 </Button>
               ) : null}
-              <Button type="button" size="icon" variant="destructive" onClick={controls.hangUp} aria-label="Kết thúc cuộc gọi" title="Kết thúc cuộc gọi">
+              <Button type="button" size="icon" variant="destructive" onClick={controls.hangUp} aria-label={localizeText('Kết thúc cuộc gọi')} title={localizeText('Kết thúc cuộc gọi')}>
                 <PhoneOff size={16} />
               </Button>
             </>

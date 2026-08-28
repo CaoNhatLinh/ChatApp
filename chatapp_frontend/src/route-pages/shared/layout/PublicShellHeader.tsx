@@ -6,7 +6,7 @@ import { type ReactNode } from "react";
 import { UI_COPY } from "@/shared/constants/ui-copy";
 import { BrandMark } from "@/shared/ui/Brand";
 import { LanguageToggle } from "@/shared/ui/LanguageToggle";
-import { useAppLocale } from "@/shared/i18n";
+import { localizeText, useAppLocale } from "@/shared/i18n";
 
 interface PublicShellHeaderProps {
   title?: string;
@@ -51,7 +51,7 @@ const PublicShellHeader = ({
             <BrandMark />
             <span>{title}</span>
           </Link>
-          <nav aria-label="Điều hướng công khai" className="hidden items-center gap-1 md:flex">
+          <nav aria-label={localizeText("Điều hướng công khai")} className="hidden items-center gap-1 md:flex">
             {primaryNavItems.map((item) => (
               <Link
                 key={item.to}

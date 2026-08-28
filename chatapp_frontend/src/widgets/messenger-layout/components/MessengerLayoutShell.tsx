@@ -1,6 +1,7 @@
 import { Menu, X } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useCallback } from "react";
+import { localizeText } from "@/shared/i18n";
 
 interface MessengerLayoutShellProps {
   isSidebarOpen: boolean;
@@ -22,7 +23,7 @@ export const MessengerLayoutShell = ({
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="focus-ring surface fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full text-primary md:hidden"
-        aria-label={isSidebarOpen ? "Đóng danh sách" : "Mở danh sách"}
+        aria-label={isSidebarOpen ? localizeText("Đóng danh sách") : localizeText("Mở danh sách")}
         type="button"
       >
         {isSidebarOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
@@ -40,7 +41,7 @@ export const MessengerLayoutShell = ({
         </div>
 
         {isSidebarOpen ? (
-          <button onClick={handleOverlayClick} className="fixed inset-0 z-30 bg-foreground/20 md:hidden" aria-label="Đóng danh sách" type="button" />
+          <button onClick={handleOverlayClick} className="fixed inset-0 z-30 bg-foreground/20 md:hidden" aria-label={localizeText("Đóng danh sách")} type="button" />
         ) : null}
 
         <div className="relative h-full min-w-0 flex-1 overflow-hidden">{children}</div>

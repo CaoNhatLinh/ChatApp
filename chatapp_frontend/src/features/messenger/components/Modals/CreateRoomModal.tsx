@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/cn';
 import { useUserSearch } from '@/shared/hooks/useUserSearch';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText } from '@/shared/i18n';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -254,7 +255,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                             <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
                                 {searchError ? <p role="alert" className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{searchError}</p> : null}
                                 {!searchError && !isSearching && searchTerm.trim().length >= 2 && searchResults.length === 0 ? (
-                                    <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">Không tìm thấy người dùng phù hợp.</p>
+                                    <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText('Không tìm thấy người dùng phù hợp.')}</p>
                                 ) : null}
                                 {searchResults.map(user => {
                                     const isSelected = selectedUsers.some(u => u.userId === user.userId);

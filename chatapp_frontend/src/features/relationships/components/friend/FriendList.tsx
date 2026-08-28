@@ -4,6 +4,7 @@ import { FriendItem } from './FriendItem';
 import { useFetchFriends, useFriendStore } from '@/features/relationships/model/friend.store';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
+import { localizeText } from '@/shared/i18n';
 
 export const FriendList = () => {
   const { friends } = useFriendStore();
@@ -24,7 +25,7 @@ export const FriendList = () => {
   return (
     <div>
       {friends?.userDetails.length === 0 && (
-        <div className="text-gray-500">Bạn chưa có bạn bè nào.</div>
+        <div className="text-gray-500">{localizeText('Bạn chưa có bạn bè nào.')}</div>
       )}
 
       {friends?.userDetails.map(friend => (

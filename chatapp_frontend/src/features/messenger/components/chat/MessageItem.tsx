@@ -21,6 +21,7 @@ import {
 } from '@/shared/ui/DropdownMenu';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText } from '@/shared/i18n';
 
 interface MessageItemProps {
     message: Message;
@@ -280,7 +281,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                             className="gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-500/10 text-amber-700 transition-colors text-xs font-bold cursor-pointer"
                                         >
                                             <Flag size={14} />
-                                            <span>Báo cáo</span>
+                                            <span>{localizeText('Báo cáo')}</span>
                                         </DropdownMenuItem>
                                     )}
                                     {isOwn && (
