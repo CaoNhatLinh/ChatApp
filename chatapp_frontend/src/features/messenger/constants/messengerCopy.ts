@@ -218,9 +218,8 @@ const rawMessengerCopy = {
     messageFilter: {
       emptyMessage: "Không có kết quả phù hợp.",
       senderIdPlaceholder: "UUID người gửi",
-      replyToMessagePlaceholder: "UUID tin nhắn reply",
       mentionedUserPlaceholder: "UUID người được nhắc",
-      recipientUserPlaceholder: "UUID người nhận",
+      replyToSenderIdPlaceholder: "UUID người gửi trong tin nhắn reply",
       typeLabel: "Loại",
       messageTypeOptions: ["Tất cả", "TEXT", "IMAGE", "FILE", "AUDIO", "VIDEO", "STICKER", "POLL", "SYSTEM"],
       fromLabel: "Từ ngày",

@@ -16,9 +16,8 @@ export const SEARCH_COPY = {
   noFilterMessage: UI_COPY.friends.filters.noSearchHint,
   messageFilter: {
     senderIdPlaceholder: MESSENGER_COPY.search.messageFilter.senderIdPlaceholder,
-    replyToMessagePlaceholder: MESSENGER_COPY.search.messageFilter.replyToMessagePlaceholder,
     mentionedUserPlaceholder: MESSENGER_COPY.search.messageFilter.mentionedUserPlaceholder,
-    recipientUserPlaceholder: MESSENGER_COPY.search.messageFilter.recipientUserPlaceholder,
+    replyToSenderIdPlaceholder: MESSENGER_COPY.search.messageFilter.replyToSenderIdPlaceholder,
     typeLabel: MESSENGER_COPY.search.messageFilter.typeLabel,
     messageTypeOptions: MESSENGER_COPY.search.messageFilter.messageTypeOptions,
     fromLabel: MESSENGER_COPY.search.messageFilter.fromLabel,

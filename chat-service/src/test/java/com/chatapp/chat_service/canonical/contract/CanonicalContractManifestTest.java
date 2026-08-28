@@ -27,6 +27,8 @@ class CanonicalContractManifestTest {
                 .contains("apiClient.post(`/conversations/${conversationId}/pin`)")
                 .contains("apiClient.delete(`/conversations/${conversationId}/pin`)")
                 .contains("`/conversations/dm/${otherUserId}`")
+                .contains("replyToSenderId: filters.replyToSenderId")
+                .doesNotContain("recipientUserId")
                 .doesNotContain("/conversations/create")
                 .doesNotContain("/conversations/my")
                 .doesNotContain("/unpin`)");

@@ -19,14 +19,13 @@ export interface PaginatedResponse<T> {
 
 export interface MessageSearchFilters {
     conversationId?: string;
-    recipientUserId?: string;
+    replyToSenderId?: string;
     content?: string;
     senderId?: string;
     type?: string;
     from?: string;
     to?: string;
     mentionedUserId?: string;
-    replyToMessageId?: string;
     page?: number;
     size?: number;
     pageCursor?: string;
@@ -466,7 +465,7 @@ export const searchMessages = async (
         fromAt: filters.from,
         toAt: filters.to,
         mentionUserId: filters.mentionedUserId,
-        replyToSenderId: filters.recipientUserId
+        replyToSenderId: filters.replyToSenderId
     };
 
     const response = await apiClient.post<CanonicalSearchPage>('/search/messages', request, { signal: options?.signal });

@@ -63,12 +63,11 @@ export const SearchPage = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [messageSearchResults, setMessageSearchResults] = useState<SearchData[]>([]);
   const [senderId, setSenderId] = useState("");
-  const [recipientUserId, setRecipientUserId] = useState("");
+  const [replyToSenderId, setReplyToSenderId] = useState("");
   const [messageType, setMessageType] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [mentionedUserId, setMentionedUserId] = useState("");
-  const [replyToMessageId, setReplyToMessageId] = useState("");
   const searchParams = useSearchParams();
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -80,12 +79,11 @@ export const SearchPage = () => {
   const hasMessageFilter = Boolean(
     query.trim() ||
       senderId.trim() ||
-      recipientUserId.trim() ||
+      replyToSenderId.trim() ||
       messageType ||
       fromDate.trim() ||
       toDate.trim() ||
-      mentionedUserId.trim() ||
-      replyToMessageId.trim()
+      mentionedUserId.trim()
   );
 
   const isMessageScopeEnabled = scope === "chat" || scope === "all";
@@ -144,15 +142,15 @@ export const SearchPage = () => {
     }
 
     const trimmedSenderId = senderId.trim();
-    const trimmedRecipientId = recipientUserId.trim();
+    const trimmedReplyToSenderId = replyToSenderId.trim();
     if (trimmedSenderId && !isValidUuid(trimmedSenderId)) {
       setValidationError(localizeText("UUID người gửi không hợp lệ."));
       setIsSearching(false);
       return;
     }
 
-    if (trimmedRecipientId && !isValidUuid(trimmedRecipientId)) {
-      setValidationError(localizeText("UUID người nhận không hợp lệ."));
+    if (trimmedReplyToSenderId && !isValidUuid(trimmedReplyToSenderId)) {
+      setValidationError(localizeText("UUID người gửi trong tin nhắn reply không hợp lệ."));
       setIsSearching(false);
       return;
     }
@@ -160,13 +158,6 @@ export const SearchPage = () => {
     const trimmedMentionedId = mentionedUserId.trim();
     if (trimmedMentionedId && !isValidUuid(trimmedMentionedId)) {
       setValidationError(localizeText("UUID người nhắc đến không hợp lệ."));
-      setIsSearching(false);
-      return;
-    }
-
-    const trimmedReplyId = replyToMessageId.trim();
-    if (trimmedReplyId && !isValidUuid(trimmedReplyId)) {
-      setValidationError(localizeText("UUID tin nhắn reply không hợp lệ."));
       setIsSearching(false);
       return;
     }
@@ -193,8 +184,8 @@ export const SearchPage = () => {
     if (trimmedSenderId) {
       filter.senderId = trimmedSenderId;
     }
-    if (trimmedRecipientId) {
-      filter.recipientUserId = trimmedRecipientId;
+    if (trimmedReplyToSenderId) {
+      filter.replyToSenderId = trimmedReplyToSenderId;
     }
 
     const normalizedMessageType = messageType === "Tất cả" ? "" : messageType.trim();
@@ -212,10 +203,6 @@ export const SearchPage = () => {
 
     if (trimmedMentionedId) {
       filter.mentionedUserId = trimmedMentionedId;
-    }
-
-    if (trimmedReplyId) {
-      filter.replyToMessageId = trimmedReplyId;
     }
 
     if (hasConversationId && hasValidConversationId) {
@@ -268,13 +255,12 @@ export const SearchPage = () => {
     fromDate,
     hasConversationId,
     hasMessageFilter,
-    recipientUserId,
+    replyToSenderId,
     isMessageScopeEnabled,
     messageType,
     mentionedUserId,
     query,
     hasValidConversationId,
-    replyToMessageId,
     scope,
     senderId,
     toDate
@@ -295,12 +281,11 @@ export const SearchPage = () => {
   const clearMessageFilters = () => {
     setQuery("");
     setSenderId("");
-    setRecipientUserId("");
+    setReplyToSenderId("");
     setMessageType("");
     setFromDate("");
     setToDate("");
     setMentionedUserId("");
-    setReplyToMessageId("");
     setSearchError(null);
     setValidationError(null);
     setMessageSearchResults([]);
@@ -342,7 +327,7 @@ export const SearchPage = () => {
           {isMessageScopeEnabled && (
             <div className="space-y-3 rounded-lg border border-border/50 bg-background p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                Bộ lọc tin nhắn
+                {localizeText("Bộ lọc tin nhắn")}
               </p>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1.5 text-xs">
@@ -355,11 +340,11 @@ export const SearchPage = () => {
                   />
                 </label>
                 <label className="space-y-1.5 text-xs">
-                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.recipientUserPlaceholder}</span>
+                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.replyToSenderIdPlaceholder}</span>
                   <input
-                    value={recipientUserId}
-                    onChange={(event) => setRecipientUserId(event.target.value)}
-                    placeholder={SEARCH_COPY.messageFilter.recipientUserPlaceholder}
+                    value={replyToSenderId}
+                    onChange={(event) => setReplyToSenderId(event.target.value)}
+                    placeholder={SEARCH_COPY.messageFilter.replyToSenderIdPlaceholder}
                     className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </label>
@@ -392,15 +377,6 @@ export const SearchPage = () => {
                     type="datetime-local"
                     value={toDate}
                     onChange={(event) => setToDate(event.target.value)}
-                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  />
-                </label>
-                <label className="space-y-1.5 text-xs">
-                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.replyToMessagePlaceholder}</span>
-                  <input
-                    value={replyToMessageId}
-                    onChange={(event) => setReplyToMessageId(event.target.value)}
-                    placeholder={SEARCH_COPY.messageFilter.replyToMessagePlaceholder}
                     className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </label>
@@ -463,7 +439,7 @@ export const SearchPage = () => {
 
               {scope === "chat" && hasConversationId && messageSearchResults.length === 0 && hasMessageFilter ? (
                 <li className="rounded-lg border border-dashed border-border/50 bg-background p-3 text-xs text-muted-foreground">
-                  Không tìm thấy tin nhắn phù hợp.
+                  {localizeText("Không tìm thấy tin nhắn phù hợp.")}
                 </li>
               ) : null}
 

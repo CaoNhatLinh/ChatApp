@@ -15,6 +15,11 @@ signalling uses `/app/call.*` commands and
 for the native 1–1 WebRTC flow. The chat service does not provide a media
 provider or TURN service.
 
+Message search is bounded to a member's conversation and accepts only the
+canonical `MessageSearchRequest` fields. There is no recipient-user filter
+because messages are conversation-scoped; reply filtering uses
+`replyToSenderId`.
+
 The global admin UI uses the same frontend/backend projects: `GET /admin/overview`
 is the server-authoritative capability gate. Whole-app room operations use the
 bounded monthly `/admin/conversations` directory and its policy/archive routes;

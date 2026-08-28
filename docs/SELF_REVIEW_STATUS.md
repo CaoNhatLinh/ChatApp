@@ -107,6 +107,11 @@ timeline. The frontend admin panel uses this contract without fabricating
 message or revision data. JDK 20 Maven tests now cover 75 tests; live
 Cassandra-backed persistence remains externally blocked.
 
+The search audit also removed two UI filters that had no canonical backend
+field: recipient-user and reply-message-id. Reply search now exposes only the
+supported `replyToSenderId` field, and the client contract test guards against
+reintroducing the old mapping.
+
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | Bilingual UI coverage | Partial | `src/shared/i18n`, root `app/layout.tsx`, feature/admin/error source scan, Playwright VI→EN and 404 check | Authenticated live data, provider delivery copy and some protocol/status values are intentionally not translated | Keep canonical enums/user content unchanged; add every new UI string to the map |
