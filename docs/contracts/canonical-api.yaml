@@ -83,6 +83,7 @@ http:
   admin:
     - GET /admin/overview
     - GET /admin/audit
+    - GET /admin/messages/{conversationId}/{messageId}
     - GET /admin/analytics
     - GET /admin/reports
     - PUT /admin/reports/{reportId}

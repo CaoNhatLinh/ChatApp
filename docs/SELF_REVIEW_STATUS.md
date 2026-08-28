@@ -99,6 +99,14 @@ uses the root bilingual provider and the canonical `localizeText`/copy maps;
 the app mark is used for product surfaces and is separate from the supplied
 personal-brand logo.
 
+The same follow-up increment added a bounded global message inspection route
+(`GET /api/admin/messages/{conversationId}/{messageId}`). It requires
+`AUDIT_READ`, the exact Cassandra bucket and a reason, returns the canonical
+message plus revision history, and records the access in the immutable audit
+timeline. The frontend admin panel uses this contract without fabricating
+message or revision data. JDK 20 Maven tests now cover 75 tests; live
+Cassandra-backed persistence remains externally blocked.
+
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | Bilingual UI coverage | Partial | `src/shared/i18n`, root `app/layout.tsx`, feature/admin/error source scan, Playwright VI→EN and 404 check | Authenticated live data, provider delivery copy and some protocol/status values are intentionally not translated | Keep canonical enums/user content unchanged; add every new UI string to the map |

@@ -19,10 +19,14 @@ The global admin UI uses the same frontend/backend projects: `GET /admin/overvie
 is the server-authoritative capability gate. Whole-app room operations use the
 bounded monthly `/admin/conversations` directory and its policy/archive routes;
 operator investigations use `/admin/audit` for a bounded monthly timeline;
+message investigations use `/admin/messages/{conversationId}/{messageId}` with
+the exact message bucket and a required reason; each inspection is appended to
+the immutable audit timeline;
 app-role changes use `/admin/users/{userId}/app-roles`. Moderation reports,
 user status and bounded session/device controls use the corresponding
 `/admin/users/{userId}/status|sessions|devices` routes. Moderation reports,
 sanctions, analytics and bounded export are separated by capability: report
 submission/queue/resolution, APP/CONVERSATION sanctions and bounded daily
-analytics are implemented, while long-range analytics/SLO dashboards and
-bounded export remain planned. Conversation roles are room-local.
+analytics and message investigation are implemented, while long-range
+analytics/SLO dashboards and bounded export remain planned. Conversation roles
+are room-local.

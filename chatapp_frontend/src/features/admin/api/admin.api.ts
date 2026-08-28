@@ -96,6 +96,33 @@ export interface AdminAuditEvent {
   createdAt: string;
 }
 
+export interface AdminMessageInspection {
+  message: {
+    conversationId: string;
+    messageBucket: string;
+    messageId: string;
+    senderId: string;
+    messageType: string;
+    content?: string | null;
+    contentFormat?: string | null;
+    isDeleted?: boolean | null;
+    deletedBy?: string | null;
+    deletedAt?: string | null;
+    editedAt?: string | null;
+    hasAttachments?: boolean | null;
+    hasMentions?: boolean | null;
+    isPinned?: boolean | null;
+    createdAt: string;
+  };
+  revisions: Array<{
+    revisionNumber: number;
+    content?: string | null;
+    action: string;
+    editedBy?: string | null;
+    editedAt: string;
+  }>;
+}
+
 export interface AdminReport {
   reportId: string;
   createdAtKey: string;
@@ -272,6 +299,19 @@ export const listAdminAuditEvents = async (month?: string, limit = 50): Promise<
   const response = await apiClient.get<AdminAuditEvent[]>('/admin/audit', {
     params: { month, limit },
   });
+  return response.data;
+};
+
+export const inspectAdminMessage = async (
+  conversationId: string,
+  messageId: string,
+  bucket: string,
+  reason: string,
+): Promise<AdminMessageInspection> => {
+  const response = await apiClient.get<AdminMessageInspection>(
+    `/admin/messages/${conversationId}/${messageId}`,
+    { params: { bucket, reason: reason.trim() } },
+  );
   return response.data;
 };
 

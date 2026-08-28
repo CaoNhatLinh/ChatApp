@@ -56,6 +56,7 @@ class CanonicalContractManifestTest {
                 .contains("/admin/overview")
                 .contains("/admin/audit")
                 .contains("/admin/analytics")
+                .contains("/admin/messages/{conversationId}/{messageId}")
                 .contains("/reports")
                 .contains("/reports/mine")
                 .contains("/admin/reports/{reportId}")

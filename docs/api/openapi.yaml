@@ -496,6 +496,18 @@ paths:
       parameters: [{$ref: '#/components/parameters/ReportId'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResolveReport'}}}}
       responses: {'200': {description: Updated report}}
+  /admin/messages/{conversationId}/{messageId}:
+    get:
+      tags: [Admin]
+      summary: Inspect one message and its revision history
+      description: Requires AUDIT_READ and a non-empty investigation reason. The read is recorded in the immutable audit timeline; the message bucket is mandatory so the request remains bounded.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/MessageId'}
+        - {$ref: '#/components/parameters/Bucket'}
+        - {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}
+      responses:
+        '200': {description: Message with bounded revision history, content: {application/json: {schema: {$ref: '#/components/schemas/AdminMessageInspection'}}}}
   /admin/sanctions:
     post:
       tags: [Admin]
@@ -617,6 +629,8 @@ components:
     UserSearchPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/User'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}
     AdminOverview: {type: object, required: [actorId, roles, permissions, availableRoleCodes], properties: {actorId: {type: string, format: uuid}, roles: {type: array, items: {type: string}}, permissions: {type: array, items: {type: string}}, availableRoleCodes: {type: array, items: {type: string}}}}
     AdminAuditEvent: {type: object, required: [eventMonth, eventId, action, resourceType, resourceId, outcome, createdAt], properties: {eventMonth: {type: string}, eventId: {type: string, format: uuid}, action: {type: string}, resourceType: {type: string}, resourceId: {type: string}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, targetUserId: {type: string, format: uuid, nullable: true}, outcome: {type: string}, reasonCode: {type: string, nullable: true}, beforeState: {type: object, additionalProperties: {type: string}}, afterState: {type: object, additionalProperties: {type: string}}, requestId: {type: string, format: uuid, nullable: true}, createdAt: {type: string, format: date-time}}}
+    AdminMessageInspection: {type: object, required: [message, revisions], properties: {message: {$ref: '#/components/schemas/Message'}, revisions: {type: array, items: {$ref: '#/components/schemas/MessageRevision'}}}}
+    MessageRevision: {type: object, required: [revisionNumber, action, editedAt], properties: {revisionNumber: {type: integer}, content: {type: string, nullable: true}, action: {type: string, enum: [EDIT, DELETE, RESTORE]}, editedBy: {type: string, format: uuid, nullable: true}, editedAt: {type: string, format: date-time}}}
     CreateReport: {type: object, required: [targetType, reasonCode], properties: {targetType: {type: string, enum: [USER, MESSAGE, CONVERSATION]}, targetUserId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, reasonCode: {type: string, maxLength: 80}, description: {type: string, maxLength: 2000}}}
     ResolveReport: {type: object, required: [currentStatus, reportDay, createdAtKey, nextStatus, reason], properties: {currentStatus: {type: string}, reportDay: {type: string, format: date}, createdAtKey: {type: string, format: uuid}, nextStatus: {type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED]}, assignedTo: {type: string, format: uuid}, resolutionCode: {type: string}, reason: {type: string, maxLength: 500}}}
     SanctionRequest: {type: object, required: [userId, scope, sanctionType, reasonText], properties: {userId: {type: string, format: uuid}, scope: {type: string, enum: [APP, CONVERSATION]}, conversationId: {type: string, format: uuid}, sanctionType: {type: string, enum: [BAN, MUTE, SUSPEND, WARNING]}, startsAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time}, reasonCode: {type: string}, reasonText: {type: string, maxLength: 500}}}

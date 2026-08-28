@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Archive, ArrowLeft, BarChart3, Building2, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, Building2, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
@@ -18,6 +18,7 @@ import {
   type AdminSession,
   type AdminDevice,
   type AdminAnalyticsPoint,
+  type AdminMessageInspection,
   getAdminHealth,
   getAdminConversation,
   getAdminOverview,
@@ -41,6 +42,7 @@ import {
   revokeAdminDevice,
   listAdminAnalytics,
   updateAdminConversationPolicy,
+  inspectAdminMessage,
 } from "@/features/admin/api/admin.api";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { localizeText, useAppLocale } from "@/shared/i18n";
@@ -96,6 +98,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const [auditMonth, setAuditMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [auditEvents, setAuditEvents] = useState<AdminAuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [messageConversationId, setMessageConversationId] = useState("");
+  const [messageBucket, setMessageBucket] = useState("");
+  const [messageId, setMessageId] = useState("");
+  const [messageReason, setMessageReason] = useState("");
+  const [messageInspection, setMessageInspection] = useState<AdminMessageInspection | null>(null);
+  const [messageLoading, setMessageLoading] = useState(false);
   const [analyticsFrom, setAnalyticsFrom] = useState(() => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
   const [analyticsTo, setAnalyticsTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [analyticsType, setAnalyticsType] = useState("ALL");
@@ -408,6 +416,30 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
     }
   };
 
+  const handleMessageInspection = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!messageConversationId.trim() || !messageBucket.trim() || !messageId.trim() || !messageReason.trim()) {
+      setFeedback("Cần đủ conversation ID, bucket, message ID và lý do điều tra.");
+      return;
+    }
+    setMessageLoading(true);
+    setMessageInspection(null);
+    setFeedback(null);
+    try {
+      setMessageInspection(await inspectAdminMessage(
+        messageConversationId.trim(),
+        messageId.trim(),
+        messageBucket.trim(),
+        messageReason,
+      ));
+      setFeedback("Đã ghi nhận lượt xem message vào audit timeline.");
+    } catch {
+      setFeedback("Không thể đọc message. Kiểm tra UUID, bucket, quyền AUDIT_READ và reason.");
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
   const handleReportResolution = async (report: AdminReport, nextStatus: AdminReport['status']) => {
     if (!moderationReason.trim()) {
       setFeedback("Cần ghi lý do cho quyết định moderation.");
@@ -574,6 +606,20 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
         <SurfacePanel title={localizeText("Audit timeline toàn ứng dụng")}>
           {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Role hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho operator được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{event.action}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{event.outcome}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · actor ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
+        </SurfacePanel>
+
+        <SurfacePanel title={localizeText("Điều tra message") }>
+          {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Role hiện tại chưa có AUDIT_READ. Nội dung message chỉ hiển thị cho operator được cấp quyền điều tra.")}</p> : <>
+            <p className="text-sm leading-6 text-muted-foreground">{localizeText("Đọc một message cụ thể bằng conversation ID, bucket và message ID. Mỗi lượt xem phải có lý do và được ghi vào audit; không scan toàn bộ lịch sử.")}</p>
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={handleMessageInspection}>
+              <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Conversation ID")}</label><Input className="mt-1" value={messageConversationId} onChange={(event) => setMessageConversationId(event.target.value)} placeholder="UUID" /></div>
+              <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Message ID")}</label><Input className="mt-1" value={messageId} onChange={(event) => setMessageId(event.target.value)} placeholder="UUID" /></div>
+              <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Message bucket")}</label><Input className="mt-1" value={messageBucket} onChange={(event) => setMessageBucket(event.target.value)} placeholder="YYYY-MM-DD-HH:NN" /></div>
+              <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Lý do điều tra (bắt buộc)")}</label><Input className="mt-1" value={messageReason} onChange={(event) => setMessageReason(event.target.value)} placeholder={localizeText("Ví dụ: xử lý report message")}/></div>
+              <div className="md:col-span-2"><Button type="submit" loading={messageLoading} disabled={!messageConversationId.trim() || !messageBucket.trim() || !messageId.trim() || !messageReason.trim()}><Eye size={16} />{localizeText("Đọc message")}</Button></div>
+            </form>
+            {messageInspection ? <div className="mt-5 rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><History size={16} className="text-primary" /><span className="text-sm font-semibold">{messageInspection.message.messageType}</span><Badge variant={messageInspection.message.isDeleted ? "destructive" : "outline"}>{messageInspection.message.isDeleted ? localizeText("Đã xoá (tombstone)") : localizeText("Đang hiển thị")}</Badge>{messageInspection.message.isPinned ? <Badge variant="secondary">{localizeText("Đã ghim")}</Badge> : null}</div><p className="mt-2 break-all text-xs text-muted-foreground">{messageInspection.message.messageId} · {messageInspection.message.messageBucket}</p></div><span className="text-xs text-muted-foreground">{formatDate(messageInspection.message.createdAt)}</span></div><div className="mt-4 rounded-lg border border-border/60 bg-background px-3 py-3 text-sm leading-6 whitespace-pre-wrap break-words">{messageInspection.message.content || localizeText("Message không có nội dung text.")}</div><dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2"><div><dt className="text-muted-foreground">{localizeText("Sender")}</dt><dd className="mt-1 break-all font-semibold">{messageInspection.message.senderId}</dd></div><div><dt className="text-muted-foreground">{localizeText("Edited")}</dt><dd className="mt-1 font-semibold">{formatDate(messageInspection.message.editedAt)}</dd></div><div><dt className="text-muted-foreground">{localizeText("Deleted by")}</dt><dd className="mt-1 break-all font-semibold">{messageInspection.message.deletedBy ?? localizeText("Không có")}</dd></div><div><dt className="text-muted-foreground">{localizeText("Deleted at")}</dt><dd className="mt-1 font-semibold">{formatDate(messageInspection.message.deletedAt)}</dd></div></dl><div className="mt-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Revision history")}</p>{messageInspection.revisions.length ? <div className="mt-2 space-y-2">{messageInspection.revisions.map((revision) => <div key={`${revision.revisionNumber}-${revision.editedAt}`} className="rounded-lg border border-border/60 px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2"><Badge variant="outline">#{revision.revisionNumber} · {revision.action}</Badge><span className="text-xs text-muted-foreground">{formatDate(revision.editedAt)}</span></div><p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5">{revision.content || localizeText("Không có nội dung text.")}</p><p className="mt-1 break-all text-[11px] text-muted-foreground">{revision.editedBy ?? localizeText("Không xác định")}</p></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">{localizeText("Message chưa có revision.")}</p>}</div></div> : null}
+          </>}
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Analytics vận hành")}>

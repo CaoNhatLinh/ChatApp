@@ -31,6 +31,8 @@ The backend base path is `/api`; every endpoint below is relative to that base.
 - **Reports:** `/reports`, `/reports/mine`
 - **Global administration:** `/admin/overview`, `/admin/audit`,
   `/admin/analytics`, `/admin/conversations/**`, `/admin/reports/**`,
+  `/admin/messages/{conversationId}/{messageId}` (requires the exact bucket and
+  a reason; records the inspection in audit),
   `/admin/sanctions`, `/admin/users/{userId}/sanctions/**`,
   `/admin/users/{userId}/app-roles/**`, `/admin/users/{userId}/sessions/**`,
   `/admin/users/{userId}/devices/**`, `/admin/users/{userId}/status`
