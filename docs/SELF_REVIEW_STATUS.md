@@ -858,3 +858,23 @@ Correction in this increment:
 
 - Added a regression contract assertion for the pending-outbox projection and
   synchronized current test-count documentation to the verified 96-test run.
+
+# Follow-up self-review (2026-08-29, canonical message-search filters increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| API contract | Pass for the implemented filter path | `MessageSearchFilters` and `searchMessages` map attachment and pin predicates to the backend `MessageSearchRequest`; message-type options keep stable API enum values even when their labels are translated; the page requires a valid conversation UUID because the service authorizes one conversation at a time | Live Elasticsearch query and authorization proof remain pending | Do not send unsupported global message-search requests or invent a client fallback |
+| Filter completeness | Pass for the current backend matrix | `/search` now exposes sender, reply sender, mention, message type, date range, attachment presence, and pin status | Room search and index rebuild workflow remain unimplemented | Keep the UI limited to fields represented by the canonical backend contract |
+| State and recovery | Pass | Missing conversation context is shown as a disabled-search state; invalid UUID/date input remains localized and stale requests are invalidated before every branch | Authenticated browser coverage with real conversation data remains blocked | Preserve local navigation results while preventing unauthorized message requests |
+| Bilingual and accessibility coverage | Pass | New labels/options are in the localized copy registry; native labeled selects use keyboard-reachable controls and `test:e2e:search` verifies EN labels/options; locale smoke covers the new keys | Full authenticated screen-reader walkthrough remains pending | Translate product copy only; keep enum/API values stable |
+| Traceability | Pass | `SearchPage.tsx`, messenger API/copy registries, `resources.ts`, feature/function/UI inventories and this entry are synchronized | Live provider/index evidence remains partial | Keep the conversation requirement explicit in UI and documentation |
+
+Correction in this increment:
+
+- Added attachment-presence and pin-status controls to the canonical message
+  search UI and request mapper, while making the backend's required conversation
+  authorization boundary explicit for every message-search scope. Normalized
+  message-type options to stable value/label pairs so locale changes cannot
+  alter the request enum.
+- Added `search-filter-smoke.mjs` to keep those payload, locale, and missing-
+  conversation guarantees executable in the browser gate.

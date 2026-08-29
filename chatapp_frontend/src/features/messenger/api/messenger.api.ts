@@ -29,6 +29,8 @@ export interface MessageSearchFilters {
     from?: string;
     to?: string;
     mentionedUserId?: string;
+    hasAttachment?: boolean;
+    isPinned?: boolean;
     page?: number;
     size?: number;
     pageCursor?: string;
@@ -513,7 +515,9 @@ export const searchMessages = async (
         fromAt: filters.from,
         toAt: filters.to,
         mentionUserId: filters.mentionedUserId,
-        replyToSenderId: filters.replyToSenderId
+        replyToSenderId: filters.replyToSenderId,
+        hasAttachment: filters.hasAttachment,
+        isPinned: filters.isPinned,
     };
 
     const response = await apiClient.post<CanonicalSearchPage>('/search/messages', request, { signal: options?.signal });

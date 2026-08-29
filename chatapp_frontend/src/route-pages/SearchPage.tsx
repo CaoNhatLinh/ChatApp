@@ -22,6 +22,7 @@ interface SearchData {
 }
 
 type SearchScope = "all" | SearchData["category"];
+type TriStateFilter = "all" | "true" | "false";
 
 const SEARCH_PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -58,7 +59,7 @@ export const SearchPage = () => {
     ...target,
     category: target.category,
   })), []);
-  const messageTypeOptions: ReadonlyArray<string> = SEARCH_COPY.messageFilter.messageTypeOptions;
+  const messageTypeOptions = SEARCH_COPY.messageFilter.messageTypeOptions;
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<SearchScope>("all");
   const [isSearching, setIsSearching] = useState(false);
@@ -70,6 +71,8 @@ export const SearchPage = () => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [mentionedUserId, setMentionedUserId] = useState("");
+  const [attachmentFilter, setAttachmentFilter] = useState<TriStateFilter>("all");
+  const [pinnedFilter, setPinnedFilter] = useState<TriStateFilter>("all");
   const searchParams = useSearchParams();
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -85,14 +88,17 @@ export const SearchPage = () => {
       messageType ||
       fromDate.trim() ||
       toDate.trim() ||
-      mentionedUserId.trim()
+      mentionedUserId.trim() ||
+      attachmentFilter !== "all" ||
+      pinnedFilter !== "all"
   );
 
   const isMessageScopeEnabled = scope === "chat" || scope === "all";
   const canSearchMessages =
     isMessageScopeEnabled &&
     hasMessageFilter &&
-    (scope === "all" || (hasConversationId && hasValidConversationId));
+    hasConversationId &&
+    hasValidConversationId;
 
   const localResults = useMemo(() => {
     return searchTargets.filter((entry) => {
@@ -117,6 +123,11 @@ export const SearchPage = () => {
     if (!canSearchMessages) {
       setMessageSearchResults([]);
       setIsSearching(false);
+      if (isMessageScopeEnabled && hasMessageFilter && hasConversationId && !hasValidConversationId) {
+        setValidationError(localizeText("UUID cuộc trò chuyện không hợp lệ."));
+      } else if (!isMessageScopeEnabled || !hasMessageFilter || !hasConversationId) {
+        setValidationError(null);
+      }
 
       if (!hasMessageFilter && scope !== "chat") {
         setSearchError(null);
@@ -193,9 +204,8 @@ export const SearchPage = () => {
       filter.replyToSenderId = trimmedReplyToSenderId;
     }
 
-    const normalizedMessageType = messageType === "Tất cả" ? "" : messageType.trim();
-    if (normalizedMessageType) {
-      filter.type = normalizedMessageType;
+    if (messageType.trim()) {
+      filter.type = messageType;
     }
 
     if (fromDate.trim()) {
@@ -208,6 +218,14 @@ export const SearchPage = () => {
 
     if (trimmedMentionedId) {
       filter.mentionedUserId = trimmedMentionedId;
+    }
+
+    if (attachmentFilter !== "all") {
+      filter.hasAttachment = attachmentFilter === "true";
+    }
+
+    if (pinnedFilter !== "all") {
+      filter.isPinned = pinnedFilter === "true";
     }
 
     if (hasConversationId && hasValidConversationId) {
@@ -253,6 +271,7 @@ export const SearchPage = () => {
       controller.abort();
     };
   }, [
+    attachmentFilter,
     canSearchMessages,
     conversationId,
     fromDate,
@@ -262,6 +281,7 @@ export const SearchPage = () => {
     isMessageScopeEnabled,
     messageType,
     mentionedUserId,
+    pinnedFilter,
     query,
     hasValidConversationId,
     scope,
@@ -289,6 +309,8 @@ export const SearchPage = () => {
     setFromDate("");
     setToDate("");
     setMentionedUserId("");
+    setAttachmentFilter("all");
+    setPinnedFilter("all");
     setSearchError(null);
     setValidationError(null);
     setMessageSearchResults([]);
@@ -359,8 +381,36 @@ export const SearchPage = () => {
                     className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {messageTypeOptions.map((option) => (
-                      <option value={option === "Tất cả" ? "" : option} key={option}>
-                        {option}
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-xs">
+                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.attachmentLabel}</span>
+                  <select
+                    value={attachmentFilter}
+                    onChange={(event) => setAttachmentFilter(event.target.value as TriStateFilter)}
+                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    {SEARCH_COPY.messageFilter.attachmentOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1.5 text-xs">
+                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.pinnedLabel}</span>
+                  <select
+                    value={pinnedFilter}
+                    onChange={(event) => setPinnedFilter(event.target.value as TriStateFilter)}
+                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    {SEARCH_COPY.messageFilter.pinnedOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
@@ -403,7 +453,7 @@ export const SearchPage = () => {
                 </button>
               </div>
 
-              {scope === "chat" && !hasConversationId ? (
+              {isMessageScopeEnabled && hasMessageFilter && !hasConversationId ? (
                 <p className="text-xs text-destructive">{SEARCH_COPY.messageFilter.disabledHint}</p>
               ) : null}
             </div>
@@ -446,7 +496,7 @@ export const SearchPage = () => {
                 </li>
               ) : null}
 
-              {(!hasConversationId && scope === "chat" && hasMessageFilter) ? (
+              {(!hasConversationId && isMessageScopeEnabled && hasMessageFilter) ? (
                 <li className="rounded-lg border border-dashed border-border/50 bg-background p-3 text-xs text-muted-foreground">
                   {SEARCH_COPY.messageFilter.disabledHint}
                 </li>

@@ -22,12 +22,12 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 | Frontend production build | Working with risk | Next.js App Router production build exits 0; authenticated bundle/runtime profiling remains pending. |
 | Backend compile/test | Working at unit level | With Java 20 (`JAVA_HOME=C:\\Program Files\\Java\\jdk-20`), `mvnw test` reports 96 tests, 0 failures, 0 errors. The host default Java 17 cannot run the Java 20 test classes; clean-stack integration is still pending. |
 | Docker Compose validation | Blocked | Docker executable is not installed or not in `PATH`. |
-| Browser E2E | Partial | `scripts/browser-smoke.mjs`, `locale-smoke.mjs`, `admin-route-smoke.mjs`, and `notification-settings-smoke.mjs` pass their bounded journeys; authenticated multi-account E2E is still pending. |
+| Browser E2E | Partial | `scripts/browser-smoke.mjs`, `locale-smoke.mjs`, `admin-route-smoke.mjs`, `notification-settings-smoke.mjs`, and `search-filter-smoke.mjs` pass their bounded journeys; authenticated multi-account E2E is still pending. |
 | Backend automated evidence | Partial | Unit/contract tests pass; no clean-stack Cassandra/Kafka/Redis/Elasticsearch integration suite is available on this host. |
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-715 static Vietnamese copy keys are checked and currently have no missing
+719 static Vietnamese copy keys are checked and currently have no missing
 English translation key, including every static `localizeText(...)` call under
 `src/`. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.
@@ -65,7 +65,7 @@ coverage remains pending.
 | Realtime | JWT STOMP, authorized subscriptions, message/reaction/read/pin events, reconnect/resync, cross-instance fan-out | Implemented but not fully verified | Authenticated STOMP commands, message/reaction/read/pin/call publishers, notification/presence queues and frontend subscriptions are wired; authorization/two-instance tests remain. |
 | Rate limits/chat policy | Distributed rate limit, timed mute/slow mode, EVERYONE/ADMINS_ONLY/LOCKED | Implemented but not fully verified | Canonical policy/member override requests are wired; Redis atomic enforcement, expiry, retryAfter and cross-instance tests remain. |
 | Outbox/Kafka | Cassandra outbox claim/publish/retry/DLQ/replay and idempotent consumers | Partial | Publisher now reads a dedicated pending Cassandra projection and atomically removes it after Kafka acknowledgement; consumer pipelines, DLQ/replay, integration tests and operational metrics are incomplete. |
-| Search | Authorized room/message search, full filter matrix, projections, rebuild/reindex | Partial | Message search controller/projector exist. Room search, all filters, membership leakage tests and rebuild workflow are missing. |
+| Search | Authorized room/message search, full filter matrix, projections, rebuild/reindex | Partial | The frontend now exposes the canonical message filter matrix (sender, reply sender, mention, type, date range, attachment, pin) and maps it to the authorized message-search contract. Room search, membership leakage tests, and rebuild workflow are missing; live Elasticsearch proof remains pending. |
 | Polls | Create/get/vote/change/remove/close/deadline/anonymous policy and realtime UI | Partial | REST and UI clients/components exist; policy/concurrency/realtime/audit E2E evidence is missing. |
 | Moderation | Room ban, timed mute, app sanction, reports, language moderation, appeal/review | Partial | Room bans, timed sanctions, message/profile report submission, caller report history, queue/resolution and operator review UI exist; language moderation and appeals remain. |
 | Invites/QR | Preview/create/list/consume/decline/revoke, approval requests, expiry/usage states, QR | Partial | Backend and frontend surfaces exist; concurrency/state/security/browser tests are missing. |

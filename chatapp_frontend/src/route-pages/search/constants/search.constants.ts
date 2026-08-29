@@ -1,7 +1,8 @@
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { UI_COPY } from "@/shared/constants/ui-copy";
+import { localizedCopy } from "@/shared/i18n";
 
-export const SEARCH_COPY = {
+const rawSearchCopy = {
   pageTitle: UI_COPY.search.pageTitle,
   pageDescription: UI_COPY.search.pageDescription,
   queryLabel: UI_COPY.search.queryLabel,
@@ -20,9 +21,15 @@ export const SEARCH_COPY = {
     replyToSenderIdPlaceholder: MESSENGER_COPY.search.messageFilter.replyToSenderIdPlaceholder,
     typeLabel: MESSENGER_COPY.search.messageFilter.typeLabel,
     messageTypeOptions: MESSENGER_COPY.search.messageFilter.messageTypeOptions,
+    attachmentLabel: MESSENGER_COPY.search.messageFilter.attachmentLabel,
+    attachmentOptions: MESSENGER_COPY.search.messageFilter.attachmentOptions,
+    pinnedLabel: MESSENGER_COPY.search.messageFilter.pinnedLabel,
+    pinnedOptions: MESSENGER_COPY.search.messageFilter.pinnedOptions,
     fromLabel: MESSENGER_COPY.search.messageFilter.fromLabel,
     toLabel: MESSENGER_COPY.search.messageFilter.toLabel,
     clearLabel: MESSENGER_COPY.search.messageFilter.clearLabel,
     disabledHint: MESSENGER_COPY.search.messageFilter.disabledHint,
   },
 } as const;
+
+export const SEARCH_COPY = localizedCopy(rawSearchCopy);
