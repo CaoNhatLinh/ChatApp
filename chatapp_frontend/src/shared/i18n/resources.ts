@@ -32,6 +32,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Không thể kết nối đến máy chủ. Kiểm tra kết nối và thử lại.': 'Unable to reach the server. Check your connection and try again.',
   'Không thể tải lời mời kết bạn.': 'Unable to load friend requests.',
   'Không thể tải người dùng.': 'Unable to load users.',
+  'Đã lưu trữ room.': 'Room archived.',
   'Không thể tải danh sách bạn bè.': 'Unable to load the friends list.',
   'Không thể tải lời mời đã gửi.': 'Unable to load sent requests.',
   'Không thể tải bạn chung.': 'Unable to load mutual friends.',
