@@ -172,6 +172,12 @@ interface CanonicalConversationListItem {
     };
 }
 
+export interface ConversationPage {
+    content: Conversation[];
+    nextCursor: string | null;
+    hasNext: boolean;
+}
+
 export interface ConversationRole {
     conversationId: string;
     rolePosition: number;
@@ -362,11 +368,22 @@ export const mapToMessage = (dto: BackendMessage): Message => {
 
 /* --- Conversation API --- */
 
-export const getConversations = async (limit = 30): Promise<Conversation[]> => {
-    const response = await apiClient.get<CanonicalConversationListItem[]>('/conversations', {
-        params: { limit: Math.min(100, Math.max(10, limit)) }
+export const getConversations = async (limit = 30, cursor?: string | null): Promise<ConversationPage> => {
+    const response = await apiClient.get<{
+        content: CanonicalConversationListItem[];
+        nextCursor: string | null;
+        hasNext: boolean;
+    }>('/conversations', {
+        params: {
+            limit: Math.min(100, Math.max(10, limit)),
+            ...(cursor ? { cursor } : {}),
+        },
     });
-    return response.data.map(mapConversationListItem);
+    return {
+        content: response.data.content.map(mapConversationListItem),
+        nextCursor: response.data.nextCursor,
+        hasNext: response.data.hasNext,
+    };
 };
 
 export const getConversationById = async (id: string): Promise<Conversation> => {
@@ -563,8 +580,8 @@ export const getConversationUnreadCount = async (conversationId: string): Promis
     if (!conversationId) {
         return 0;
     }
-    const conversations = await getConversations(200);
-    const matched = conversations.find((conversation) => conversation.conversationId === conversationId);
+    const page = await getConversations(100);
+    const matched = page.content.find((conversation) => conversation.conversationId === conversationId);
     return matched?.unreadCount ?? 0;
 };
 

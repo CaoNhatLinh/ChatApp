@@ -115,6 +115,12 @@ public final class CanonicalApiContracts {
             LastMessageSummary lastMessage) {
     }
 
+    public record ConversationPage(
+            List<ConversationListItem> content,
+            String nextCursor,
+            boolean hasNext) {
+    }
+
     public record CommunitySummary(
             UUID conversationId,
             String name,

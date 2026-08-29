@@ -167,7 +167,7 @@ components:
     PresenceCommand:
       payload: {type: object, properties: {status: {type: string}, requestId: {type: string}, traceId: {type: string}}}
     PresenceSubscriptionCommand:
-      payload: {type: object, required: [userIds], properties: {userIds: {type: array, minItems: 1, maxItems: 200, uniqueItems: true, items: {type: string, format: uuid}}, requestId: {type: string}, traceId: {type: string}}}
+      payload: {type: object, required: [userIds], properties: {userIds: {type: array, minItems: 1, maxItems: 200, uniqueItems: true, items: {type: string, format: uuid}}, conversationId: {type: string, format: uuid, nullable: true, description: "Conversation scope. Null means an accepted-friend scope."}, requestId: {type: string}, traceId: {type: string}}}
     HeartbeatCommand:
       payload: {type: object, properties: {deviceInfo: {type: string, nullable: true, maxLength: 120}, requestId: {type: string}, traceId: {type: string}}}
     PresenceLogoutCommand:

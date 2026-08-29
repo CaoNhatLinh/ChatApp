@@ -57,6 +57,8 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
         lastActivityAt: '2026-08-29T00:00:00Z',
         memberCount: 1,
         defaultNotificationLevel: 'ALL',
+        chatMode: 'OPEN',
+        slowModeSeconds: 0,
       }),
     });
     return;
@@ -66,7 +68,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     return;
   }
   if (pathname.endsWith('/conversations')) {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], nextCursor: null, hasNext: false }) });
     return;
   }
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], userDetails: [], hasNext: false }) });

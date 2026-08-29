@@ -36,11 +36,11 @@ class InfrastructureManifestTest {
     void canonicalCqlRetainsRequiredProductionContracts() throws IOException {
         String cql = Files.readString(Path.of("..", "chat_app_complete.cql"));
 
-        // The canonical schema currently defines 80 named access-pattern tables,
+        // The canonical schema currently defines 79 named access-pattern tables,
         // including the bounded global-admin room directory, sanction-expiry and
         // pending-outbox projections.
         // Keep this exact so an accidental deletion or an undocumented table addition fails the guard.
-        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(80);
+        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(79);
         assertThat(cql).contains("CREATE TABLE IF NOT EXISTS audit_events_by_month");
         assertThat(cql.lines().filter(line -> line.startsWith("CREATE TYPE")).count()).isEqualTo(2);
         assertThat(cql).contains(

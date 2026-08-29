@@ -24,6 +24,8 @@ interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
+  /** Undefined hides presence when the current relationship has no visibility scope. */
+  presenceConversationId?: string | null;
   onSendMessage: () => void;
   onBlock?: () => void;
   onUnblock?: () => void;
@@ -36,6 +38,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   isOpen,
   onClose,
   userId,
+  presenceConversationId = null,
   onSendMessage,
   onBlock,
   onUnblock,
@@ -45,7 +48,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const { user: currentUser } = useAuthStore();
   const { presence } = usePresence(userId);
-  useTrackPresence(isOpen ? [userId] : []);
+  const canViewPresence = presenceConversationId !== undefined;
+  useTrackPresence(canViewPresence && isOpen ? [userId] : [], presenceConversationId ?? null);
   const isOnline = presence?.isOnline ?? false;
   const status = presence?.status ?? "OFFLINE";
   const { blockFriend, unblockFriend, mutualFriends, fetchMutualFriends, loadingMutual } = useFriendStore();
@@ -194,7 +198,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 )
               )}
             </div>
-            {!isLoading ? (
+            {!isLoading && canViewPresence ? (
               <StatusDot
                 status={status}
                 isOnline={isOnline}
@@ -216,9 +220,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               ) : null}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
-              {isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
-            </p>
+            {canViewPresence ? (
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
+                {isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
+              </p>
+            ) : null}
           </motion.div>
 
           {hasBlocked && (

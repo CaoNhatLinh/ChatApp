@@ -12,6 +12,9 @@ interface SidebarConversationListProps {
   onSelectConversation: (conversationId: string) => void;
   onPinConversation: (conversationId: string) => void;
   onUnpinConversation: (conversationId: string) => void;
+  hasNext: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => Promise<void>;
 }
 
 export const SidebarConversationList = ({
@@ -22,6 +25,9 @@ export const SidebarConversationList = ({
   onSelectConversation,
   onPinConversation,
   onUnpinConversation,
+  hasNext,
+  loadingMore,
+  onLoadMore,
 }: SidebarConversationListProps) => {
   if (conversations.length === 0) {
     return (
@@ -52,10 +58,19 @@ export const SidebarConversationList = ({
         ))}
       </div>
 
-      {loading ? (
+      {loading || loadingMore ? (
         <div className="py-4 text-center">
           <div className="inline-flex h-6 w-6 items-center justify-center rounded-full border-2 border-primary/30 border-t-primary animate-spin text-primary" />
         </div>
+      ) : null}
+      {hasNext && !loadingMore ? (
+        <button
+          type="button"
+          onClick={() => void onLoadMore()}
+          className="mt-2 w-full rounded-lg px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        >
+          {MESSENGER_COPY.sidebar.loadMore}
+        </button>
       ) : null}
     </div>
   );

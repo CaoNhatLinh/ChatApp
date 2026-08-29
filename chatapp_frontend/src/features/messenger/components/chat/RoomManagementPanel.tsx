@@ -55,8 +55,8 @@ interface RoomManagementPanelProps {
     conversation: Conversation;
 }
 
-function RoomMemberPresence({ userId }: { userId: string }) {
-    const presenceRef = useTrackPresenceInViewport<HTMLSpanElement>([userId]);
+function RoomMemberPresence({ userId, conversationId }: { userId: string; conversationId: string }) {
+    const presenceRef = useTrackPresenceInViewport<HTMLSpanElement>([userId], conversationId);
     const { presence } = usePresence(userId);
     return (
         <span ref={presenceRef} className="inline-flex shrink-0">
@@ -383,7 +383,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                                         ))}
                                     </span>
                                 </span>
-                                <RoomMemberPresence userId={member.userId} />
+                                <RoomMemberPresence userId={member.userId} conversationId={conversation.conversationId} />
                                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                             </summary>
                             {!isOwner && (can('ROLE_ASSIGN') || can('MEMBER_KICK') || can('MEMBER_MUTE') || access.owner) ? (

@@ -40,7 +40,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     return;
   }
   if (pathname.endsWith('/conversations')) {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], nextCursor: null, hasNext: false }) });
     return;
   }
   if (pathname.includes('/friends')) {

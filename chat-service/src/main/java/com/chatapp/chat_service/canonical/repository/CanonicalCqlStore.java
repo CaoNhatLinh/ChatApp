@@ -110,6 +110,8 @@ public class CanonicalCqlStore {
     private final PreparedStatement advanceConversationRoleRevision;
     private final PreparedStatement updateConversationProjectionNotification;
     private final PreparedStatement listConversationsByUser;
+    private final PreparedStatement listConversationsByUserAfter;
+    private final PreparedStatement listUnpinnedConversationsByUser;
     private final PreparedStatement deleteConversationProjection;
     private final PreparedStatement pinConversationSlot;
     private final PreparedStatement unpinConversationSlot;
@@ -496,6 +498,16 @@ public class CanonicalCqlStore {
         this.listConversationsByUser = session.prepare("""
                 SELECT * FROM conversations_by_user
                 WHERE user_id = ? AND is_pinned IN (true, false) LIMIT ?
+                """);
+        this.listConversationsByUserAfter = session.prepare("""
+                SELECT * FROM conversations_by_user
+                WHERE user_id = ? AND is_pinned = ?
+                  AND (last_activity_at, conversation_id) < (?, ?)
+                LIMIT ?
+                """);
+        this.listUnpinnedConversationsByUser = session.prepare("""
+                SELECT * FROM conversations_by_user
+                WHERE user_id = ? AND is_pinned = false LIMIT ?
                 """);
         this.deleteConversationProjection = session.prepare("""
                 DELETE FROM conversations_by_user
@@ -1628,8 +1640,19 @@ public class CanonicalCqlStore {
         ));
     }
 
-    public List<ConversationProjectionRow> listConversationProjectionByUser(UUID userId, int limit) {
-        var rows = session.execute(listConversationsByUser.bind(userId, limit)).all();
+    public List<ConversationProjectionRow> listConversationProjectionByUser(
+            UUID userId, ConversationProjectionCursor cursor, int limit) {
+        List<Row> rows;
+        if (cursor == null) {
+            rows = session.execute(listConversationsByUser.bind(userId, limit)).all();
+        } else {
+            rows = new ArrayList<>(session.execute(listConversationsByUserAfter.bind(
+                    userId, cursor.pinned(), cursor.lastActivityAt(), cursor.conversationId(), limit)).all());
+            if (cursor.pinned() && rows.size() < limit) {
+                rows.addAll(session.execute(listUnpinnedConversationsByUser.bind(
+                        userId, limit - rows.size())).all());
+            }
+        }
         return rows.stream()
                 .map(this::mapConversationProjection)
                 .filter(row -> row.conversation() != null)
@@ -1653,7 +1676,8 @@ public class CanonicalCqlStore {
                 row.getInt("unread_count"),
                 row.getInstant("joined_at"),
                 row.getString("notification_override"),
-                lastMessage);
+                lastMessage,
+                row.getInstant("last_activity_at"));
     }
 
     public void updateConversationProjectionRoles(UUID userId, UUID conversationId, Set<UUID> roleIds) {
@@ -3126,7 +3150,14 @@ public class CanonicalCqlStore {
             int unreadCount,
             Instant joinedAt,
             String notificationOverride,
-            LastMessageProjection lastMessage) {
+            LastMessageProjection lastMessage,
+            Instant lastActivityAt) {
+    }
+
+    public record ConversationProjectionCursor(
+            boolean pinned,
+            Instant lastActivityAt,
+            UUID conversationId) {
     }
 
     public record LastMessageProjection(

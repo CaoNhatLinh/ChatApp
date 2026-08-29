@@ -64,6 +64,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Không thể ghim cuộc trò chuyện.': 'Unable to pin the conversation.',
   'Không thể bỏ ghim cuộc trò chuyện.': 'Unable to unpin the conversation.',
   'Không thể tải thành viên phòng. Vui lòng thử lại.': 'Unable to load room members. Try again.',
+  'Không thể tải thêm cuộc trò chuyện.': 'Unable to load more conversations.',
+  'Tải thêm cuộc trò chuyện': 'Load more conversations',
   'Không thể tải thông báo. Vui lòng thử lại.': 'Unable to load notifications. Try again.',
   'Đang tải thông báo...': 'Loading notifications…',
   'Không thể tải thêm thông báo. Vui lòng thử lại.': 'Unable to load more notifications. Try again.',

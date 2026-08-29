@@ -62,6 +62,7 @@ interface UseMessengerResult {
     initMessenger: () => Promise<void>;
     selectConversation: (conversationId: string | null) => Promise<void>;
     loadMoreMessages: (conversationId: string) => Promise<void>;
+    loadMoreConversations: () => Promise<void>;
     sendMessage: (content: string, type?: MessageType, options?: Partial<SendMessageRequest>) => Promise<void>;
     editMessage: (messageId: string, content: string) => Promise<Message | null>;
     deleteMessage: (messageId: string) => Promise<Message | null>;
@@ -73,6 +74,7 @@ interface UseMessengerResult {
     error: string | null;
     isSidebarOpen: boolean;
     conversations: Conversation[];
+    conversationsPagination: { hasNext: boolean; nextCursor: string | null; loading: boolean };
     activeView: ConversationSlice['activeView'];
     activeConversationId: string | null;
     messagesPagination: MessageSlice['messagesPagination'];
@@ -90,6 +92,8 @@ export const useMessenger = (): UseMessengerResult => {
     const {
         setActiveView,
         setConversations,
+        appendConversations,
+        setConversationsLoading,
         addMessage,
         setMessages,
         setActiveConversation,
@@ -109,6 +113,8 @@ export const useMessenger = (): UseMessengerResult => {
     } = useMessengerStore(useShallow(state => ({
         setActiveView: state.setActiveView,
         setConversations: state.setConversations,
+        appendConversations: state.appendConversations,
+        setConversationsLoading: state.setConversationsLoading,
         addMessage: state.addMessage,
         setMessages: state.setMessages,
         setActiveConversation: state.setActiveConversation,
@@ -134,6 +140,7 @@ export const useMessenger = (): UseMessengerResult => {
         error,
         isSidebarOpen,
         conversations,
+        conversationsPagination,
         messagesPagination,
         prependMessages,
         typingUsers,
@@ -145,6 +152,7 @@ export const useMessenger = (): UseMessengerResult => {
         error: state.error,
         isSidebarOpen: state.isSidebarOpen,
         conversations: state.conversations,
+        conversationsPagination: state.conversationsPagination,
         messagesPagination: state.messagesPagination,
         prependMessages: state.prependMessages,
         friendRequestCount: state.friendRequestCount,
@@ -160,6 +168,7 @@ export const useMessenger = (): UseMessengerResult => {
 
     const refreshConversationSeqRef = useRef<Map<string, number>>(new Map());
     const loadMoreInFlightRef = useRef<Set<string>>(new Set());
+    const loadMoreConversationsInFlightRef = useRef(false);
     const conversationLoadRequestRef = useRef(0);
 
     const refreshConversationSummary = useCallback(async (conversationId: string) => {
@@ -219,7 +228,10 @@ export const useMessenger = (): UseMessengerResult => {
                     user?.userId ? getReceivedRequests(100) : Promise.resolve<FriendshipStatusResponse | null>(null)
                 ]);
 
-                setConversations(convResponse);
+                setConversations(convResponse.content, {
+                    hasNext: convResponse.hasNext,
+                    nextCursor: convResponse.nextCursor,
+                });
 
                 if (requestResponse) {
                     setFriendRequestCount(requestResponse.userDetails.length);
@@ -405,7 +417,7 @@ export const useMessenger = (): UseMessengerResult => {
         user?.userId,
     ]);
 
-        const loadMoreMessages = useCallback(async (conversationId: string) => {
+    const loadMoreMessages = useCallback(async (conversationId: string) => {
         if (loadMoreInFlightRef.current.has(conversationId)) {
             return;
         }
@@ -431,6 +443,28 @@ export const useMessenger = (): UseMessengerResult => {
             loadMoreInFlightRef.current.delete(conversationId);
         }
     }, [prependMessages]);
+
+    const loadMoreConversations = useCallback(async () => {
+        if (loadMoreConversationsInFlightRef.current) return;
+        const pagination = useMessengerStore.getState().conversationsPagination;
+        if (!pagination.hasNext || pagination.loading || !pagination.nextCursor) return;
+
+        loadMoreConversationsInFlightRef.current = true;
+        setConversationsLoading(true);
+        try {
+            const page = await getConversations(CONVERSATION_PAGE_SIZE, pagination.nextCursor);
+            appendConversations(page.content, {
+                hasNext: page.hasNext,
+                nextCursor: page.nextCursor,
+            });
+        } catch (err: unknown) {
+            setConversationsLoading(false);
+            logger.error('[useMessenger] Error loading more conversations', err instanceof Error ? err.message : String(err));
+            notifyError(getUserFacingErrorMessage(err, localizeText('Không thể tải thêm cuộc trò chuyện.')));
+        } finally {
+            loadMoreConversationsInFlightRef.current = false;
+        }
+    }, [appendConversations, setConversationsLoading]);
 
     const sendMessage = useCallback(async (
         content: string,
@@ -552,6 +586,7 @@ export const useMessenger = (): UseMessengerResult => {
         initMessenger,
         selectConversation,
         loadMoreMessages,
+        loadMoreConversations,
         sendMessage,
         editMessage,
         deleteMessage,
@@ -563,6 +598,7 @@ export const useMessenger = (): UseMessengerResult => {
         error,
         isSidebarOpen,
         conversations,
+        conversationsPagination,
         activeView,
         activeConversationId,
         messagesPagination,

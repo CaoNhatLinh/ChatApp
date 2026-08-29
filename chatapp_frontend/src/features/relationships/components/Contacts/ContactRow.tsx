@@ -1,7 +1,6 @@
 import { memo, type FC, type ReactNode } from "react";
 import { usePresence } from "@/features/presence/model/presence.store";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
-import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { localizeText } from "@/shared/i18n";
 import { useTrackPresenceInViewport } from "@/features/presence/hooks/useTrackPresence";
 
@@ -13,14 +12,9 @@ interface ContactRowProps {
   onUserClick: (id: string) => void;
   actions: ReactNode;
   subtitle?: string;
+  /** Null means the accepted-friend scope; undefined means presence is not shown. */
+  presenceScope?: null;
 }
-
-const getStatusLabel = (status: "ONLINE" | "OFFLINE" | "DND"): string => {
-  if (status === "DND") return MESSENGER_COPY.presence.statusLabel.dnd;
-  if (status === "ONLINE") return MESSENGER_COPY.presence.statusLabel.online;
-  if (status === "OFFLINE") return MESSENGER_COPY.presence.statusLabel.offline;
-  throw new Error(`Unsupported contact presence status: ${status}`);
-};
 
 export const ContactRow: FC<ContactRowProps> = memo(({
   userId,
@@ -30,11 +24,15 @@ export const ContactRow: FC<ContactRowProps> = memo(({
   onUserClick,
   actions,
   subtitle,
+  presenceScope,
 }) => {
   const { presence } = usePresence(userId);
   const isOnline = presence?.isOnline ?? false;
   const status = presence?.status ?? "OFFLINE";
-  const presenceRef = useTrackPresenceInViewport<HTMLDivElement>([userId]);
+  const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
+    presenceScope === undefined ? [] : [userId],
+    presenceScope ?? null,
+  );
 
   return (
     <div ref={presenceRef} className="group flex items-center justify-between rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
@@ -47,12 +45,14 @@ export const ContactRow: FC<ContactRowProps> = memo(({
           <div className="h-12 w-12 overflow-hidden rounded-[var(--radius-md)] bg-primary/10 border border-primary/20 flex items-center justify-center font-semibold text-primary text-lg">
             {avatarUrl ? <img src={avatarUrl} alt={localizeText("Ảnh đại diện")} className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
           </div>
-          <StatusDot
-            status={status}
-            isOnline={isOnline}
-            size="md"
-            className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
-          />
+          {presenceScope !== undefined ? (
+            <StatusDot
+              status={status}
+              isOnline={isOnline}
+              size="md"
+              className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
+            />
+          ) : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -61,14 +61,7 @@ export const ContactRow: FC<ContactRowProps> = memo(({
             <p className="text-xs font-medium text-muted-foreground">@{userName}</p>
             {subtitle ? (
                 <span className="max-w-full truncate text-xs font-medium text-primary">{subtitle}</span>
-            ) : (
-              <>
-                <StatusDot status={status} isOnline={isOnline} size="sm" className="w-1.5 h-1.5" />
-                <span className="truncate text-xs text-muted-foreground">
-                {getStatusLabel(status)}
-                </span>
-              </>
-            )}
+            ) : null}
           </div>
         </div>
       </button>

@@ -44,25 +44,39 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
     const [retryToken, setRetryToken] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [hasFetched, setHasFetched] = useState(false);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [hasNextPage, setHasNextPage] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const currentUser = useAuthStore(state => state.user);
     const lastConvId = useRef<string>('');
+    const activeConversationRef = useRef<string>('');
+    const requestVersionRef = useRef(0);
+    const isMenuOpen = query !== null;
 
     // Fetch members when menu opens (with caching per conversationId)
     useEffect(() => {
-        if (query === null) return;
+        if (!isMenuOpen) return;
+        activeConversationRef.current = conversationId;
         // Don't re-fetch if we already have data for this conversation
-        if (hasFetched && lastConvId.current === conversationId && members.length > 0) return;
+        if (hasFetched && lastConvId.current === conversationId) return;
+        if (lastConvId.current && lastConvId.current !== conversationId) {
+            setMembers([]);
+            setNextCursor(null);
+            setHasNextPage(false);
+        }
+        requestVersionRef.current += 1;
 
         let cancelled = false;
         const fetchMembers = async () => {
             setLoading(true);
             setLoadError(null);
             try {
-                const page = await getConversationMembers(conversationId, undefined, 500);
+                const page = await getConversationMembers(conversationId, undefined, 100);
                 if (!cancelled) {
                     lastConvId.current = conversationId;
                     setHasFetched(true);
+                    setNextCursor(page.nextCursor);
+                    setHasNextPage(page.hasNext);
                     // Exclude current user from the list
                     const filtered = page.content.filter((member) => member.userId !== currentUser?.userId);
                     setMembers(filtered);
@@ -70,6 +84,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             } catch (err: unknown) {
                 logger.error('[MentionMenu] Failed to load members', err instanceof Error ? err.message : String(err));
                 if (!cancelled) {
+                    lastConvId.current = conversationId;
                     setHasFetched(true);
                     setMembers([]);
                     setLoadError(getUserFacingErrorMessage(err, localizeText('Không thể tải thành viên phòng. Vui lòng thử lại.')));
@@ -81,7 +96,32 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
 
         void fetchMembers();
         return () => { cancelled = true; };
-    }, [conversationId, query, currentUser?.userId, hasFetched, members.length, retryToken]);
+    }, [conversationId, currentUser?.userId, hasFetched, isMenuOpen, retryToken]);
+
+    const loadNextMemberPage = useCallback(async () => {
+        if (loading || !hasNextPage || !nextCursor) return;
+        const requestVersion = requestVersionRef.current;
+        setLoading(true);
+        try {
+            const page = await getConversationMembers(conversationId, nextCursor, 100);
+            if (requestVersionRef.current !== requestVersion
+                || activeConversationRef.current !== conversationId
+                || lastConvId.current !== conversationId) return;
+            setMembers((current) => {
+                const known = new Set(current.map((member) => member.userId));
+                return [
+                    ...current,
+                    ...page.content.filter((member) => member.userId !== currentUser?.userId && !known.has(member.userId)),
+                ];
+            });
+            setNextCursor(page.nextCursor);
+            setHasNextPage(page.hasNext);
+        } catch (err: unknown) {
+            logger.warn('[MentionMenu] Failed to load more members', err instanceof Error ? err.message : String(err));
+        } finally {
+            if (requestVersionRef.current === requestVersion) setLoading(false);
+        }
+    }, [conversationId, currentUser?.userId, hasNextPage, loading, nextCursor]);
 
     // Filter members by query
     const filteredItems = useMemo(() => {
@@ -119,7 +159,21 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
         [filteredItems],
     );
     const presences = usePresenceByUserIds(visibleMemberIds);
-    useTrackPresence(query === null ? [] : visibleMemberIds);
+    useTrackPresence(query === null ? [] : visibleMemberIds, conversationId);
+
+    // Search progressively: fetch another bounded page only when the current
+    // result set cannot fill the compact menu. Never preload the whole room.
+    const normalizedQuery = (query ?? '').toLowerCase().trim();
+    const matchedMemberCount = normalizedQuery
+        ? members.filter((member) =>
+            member.displayName.toLowerCase().includes(normalizedQuery) ||
+            member.username.toLowerCase().includes(normalizedQuery),
+        ).length
+        : members.length;
+    useEffect(() => {
+        if (query === null || !normalizedQuery || loading || !hasNextPage || matchedMemberCount >= 8) return;
+        void loadNextMemberPage();
+    }, [hasNextPage, loadNextMemberPage, loading, matchedMemberCount, normalizedQuery, query]);
 
     // Reset index when filtered items change
     useEffect(() => {
@@ -214,7 +268,10 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                     <p className="text-xs font-medium text-destructive">{loadError}</p>
                     <button
                         type="button"
-                        onClick={() => setRetryToken((current) => current + 1)}
+                        onClick={() => {
+                            setHasFetched(false);
+                            setRetryToken((current) => current + 1);
+                        }}
                         className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                         {localizeText('Thử lại')}

@@ -66,19 +66,30 @@ const updateConversationFromMessage = (
 export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) => ({
     activeView: 'chat',
     conversations: [],
+    conversationsPagination: { hasNext: false, nextCursor: null, loading: false },
     activeConversationId: null,
     isInitialized: false,
     friendRequestCount: 0,
 
     setActiveView: (view) => set({ activeView: view }, false, 'setActiveView'),
 
-    setConversations: (conversations) => {
+    setConversations: (conversations, pagination) => {
         const merged = mergeConversations([], conversations);
         set({
             conversations: merged,
+            conversationsPagination: { ...pagination, loading: false },
             isInitialized: true,
         }, false, 'setConversations');
     },
+
+    appendConversations: (conversations, pagination) => set((state) => ({
+        conversations: mergeConversations(state.conversations, conversations),
+        conversationsPagination: { ...pagination, loading: false },
+    }), false, 'appendConversations'),
+
+    setConversationsLoading: (loading) => set((state) => ({
+        conversationsPagination: { ...state.conversationsPagination, loading },
+    }), false, 'setConversationsLoading'),
 
     setActiveConversation: (id) => set({ activeConversationId: id, activeView: 'chat' }, false, 'setActiveConversation'),
 
@@ -175,6 +186,7 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
     resetState: () => set(() => ({
         activeView: 'chat',
         conversations: [],
+        conversationsPagination: { hasNext: false, nextCursor: null, loading: false },
         activeConversationId: null,
         friendRequestCount: 0,
         isInitialized: false,

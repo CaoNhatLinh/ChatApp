@@ -96,6 +96,7 @@ const rawMessengerCopy = {
     emptyTitleDefault: "Chưa có cuộc trò chuyện",
     emptyHintWithFilter: "Thử lại với từ khóa khác hoặc kiểm tra bộ lọc ở phía trên.",
     emptyHintDefault: "Tạo phòng mới hoặc tìm bạn để bắt đầu trò chuyện.",
+    loadMore: "Tải thêm cuộc trò chuyện",
     footer: {
       contactsAriaLabel: "Danh sách bạn bè",
       settingsAriaLabel: "Mở cài đặt",

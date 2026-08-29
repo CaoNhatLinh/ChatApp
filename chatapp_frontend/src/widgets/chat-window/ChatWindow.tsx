@@ -179,7 +179,7 @@ export const ChatWindow = () => {
   const lastMessageId =
     messages.length > 0 ? messages[messages.length - 1].messageId : null;
 
-  useTrackPresence(trackIds);
+  useTrackPresence(trackIds, activeConversationId);
 
   useEffect(() => {
     if (currentUser?.userId) {
@@ -531,6 +531,7 @@ export const ChatWindow = () => {
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
           userId={selectedUserId}
+          presenceConversationId={activeConversationId}
           userProfile={selectedUserProfile}
           isLoading={isProfileLoading}
           onSendMessage={() => {

@@ -1,6 +1,9 @@
 package com.chatapp.chat_service.realtime;
 
 import com.chatapp.chat_service.common.exception.BadRequestException;
+import com.chatapp.chat_service.common.exception.ForbiddenException;
+import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.social.FriendshipRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +38,8 @@ public class PresenceService {
     private final StringRedisTemplate redis;
     private final SimpMessagingTemplate messaging;
     private final SecurityContextHelper securityContext;
+    private final CanonicalCqlStore canonicalStore;
+    private final FriendshipRepository friendships;
     private final ObjectMapper objectMapper;
     private final Duration ttl;
     private final String presenceChannel;
@@ -47,12 +52,16 @@ public class PresenceService {
             SimpMessagingTemplate messaging,
             ObjectMapper objectMapper,
             SecurityContextHelper securityContext,
+            CanonicalCqlStore canonicalStore,
+            FriendshipRepository friendships,
             @Value("${app.redis.presence-ttl:70s}") Duration ttl,
             @Value("${app.redis.presence-channel:chat:realtime:presence}") String presenceChannel) {
         this.redis = redis;
         this.messaging = messaging;
         this.objectMapper = objectMapper;
         this.securityContext = securityContext;
+        this.canonicalStore = canonicalStore;
+        this.friendships = friendships;
         if (ttl.isZero() || ttl.isNegative()) {
             throw new IllegalArgumentException("presence TTL must be positive");
         }
@@ -66,6 +75,7 @@ public class PresenceService {
     public void subscribe(UUID actorId, String sessionId, PresenceSubscription command) {
         List<UUID> userIds = normalizeUserIds(command);
         String requiredSessionId = requireText(sessionId, "presence sessionId");
+        authorizeTargets(actorId, command, userIds);
         Set<UUID> sessionTargets = targetsBySession.computeIfAbsent(
                 requiredSessionId,
                 ignored -> ConcurrentHashMap.newKeySet());
@@ -116,8 +126,10 @@ public class PresenceService {
     }
 
     public void sendBatch(UUID actorId, PresenceSubscription command) {
+        List<UUID> userIds = normalizeUserIds(command);
+        authorizeTargets(actorId, command, userIds);
         Map<String, PresenceSnapshot> snapshots = new LinkedHashMap<>();
-        for (UUID userId : normalizeUserIds(command)) {
+        for (UUID userId : userIds) {
             snapshots.put(userId.toString(), toPublicSnapshot(load(userId)));
         }
         messaging.convertAndSendToUser(actorId.toString(), "/queue/presence-batch", snapshots);
@@ -331,6 +343,38 @@ public class PresenceService {
         return List.copyOf(command.userIds());
     }
 
+    /**
+     * Presence is intentionally scoped. A client may observe members of a
+     * conversation it belongs to, or accepted friends when no conversation
+     * scope is supplied. Arbitrary UUID probing is never allowed.
+     */
+    private void authorizeTargets(UUID actorId, PresenceSubscription command, List<UUID> userIds) {
+        if (actorId == null) {
+            throw new ForbiddenException("authenticated presence actor is required");
+        }
+        if (command.conversationId() != null) {
+            if (canonicalStore.findConversationMember(command.conversationId(), actorId) == null) {
+                throw new ForbiddenException("presence conversation scope is not accessible");
+            }
+            for (UUID userId : userIds) {
+                if (canonicalStore.findConversationMember(command.conversationId(), userId) == null) {
+                    throw new ForbiddenException("presence target is outside the conversation scope");
+                }
+            }
+            return;
+        }
+
+        for (UUID userId : userIds) {
+            if (actorId.equals(userId)) {
+                continue;
+            }
+            FriendshipRepository.ProjectionKeyRow relationship = friendships.findProjectionKey(actorId, userId);
+            if (relationship == null || !"ACCEPTED".equals(relationship.relationshipStatus())) {
+                throw new ForbiddenException("presence target is not visible to this user");
+            }
+        }
+    }
+
     private String requireText(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException(field + " is missing");
@@ -344,7 +388,11 @@ public class PresenceService {
                 online ? "just now" : "offline");
     }
 
-    public record PresenceSubscription(List<UUID> userIds, String requestId, String traceId) {
+    public record PresenceSubscription(
+            List<UUID> userIds,
+            UUID conversationId,
+            String requestId,
+            String traceId) {
     }
 
     public record HeartbeatCommand(String deviceInfo, String requestId, String traceId) {

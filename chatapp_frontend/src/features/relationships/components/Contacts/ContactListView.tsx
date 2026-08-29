@@ -250,6 +250,7 @@ export const ContactListView = () => {
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
           userId={selectedUserId}
+          presenceConversationId={friends.some((friend) => friend.userId === selectedUserId) ? null : undefined}
           userProfile={userProfile}
           isLoading={isProfileLoading}
           onSendMessage={async () => {

@@ -9,13 +9,16 @@ import type { StateCreator } from 'zustand';
 export interface ConversationSlice {
     activeView: 'chat' | 'contacts';
     conversations: Conversation[];
+    conversationsPagination: { hasNext: boolean; nextCursor: string | null; loading: boolean };
     activeConversationId: string | null;
     isInitialized: boolean;
     friendRequestCount: number;
     resetState: () => void;
 
     setActiveView: (view: 'chat' | 'contacts') => void;
-    setConversations: (conversations: Conversation[]) => void;
+    setConversations: (conversations: Conversation[], pagination: { hasNext: boolean; nextCursor: string | null }) => void;
+    appendConversations: (conversations: Conversation[], pagination: { hasNext: boolean; nextCursor: string | null }) => void;
+    setConversationsLoading: (loading: boolean) => void;
     setActiveConversation: (id: string | null) => void;
     hoistConversation: (conversation: Conversation) => void;
     setFriendRequestCount: (count: number) => void;

@@ -26,6 +26,8 @@ export const ChatSidebar = () => {
     loading,
     pinConversation,
     unpinConversation,
+    loadMoreConversations,
+    conversationsPagination,
     friendRequestCount,
   } = useMessenger();
 
@@ -153,6 +155,9 @@ export const ChatSidebar = () => {
           onSelectConversation={handleSelectConversation}
           onPinConversation={pinConversation}
           onUnpinConversation={unpinConversation}
+          hasNext={conversationsPagination.hasNext && searchTerm.trim().length === 0}
+          loadingMore={conversationsPagination.loading}
+          onLoadMore={loadMoreConversations}
         />
       </div>
 

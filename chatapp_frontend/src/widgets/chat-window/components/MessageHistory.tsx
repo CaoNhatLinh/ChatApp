@@ -85,6 +85,7 @@ export const MessageHistory = ({
             key={msg.messageId}
             dataMessageId={msg.messageId}
             message={msg}
+            presenceConversationId={activeConversationId}
             showAvatar={showAvatar}
             isBlocked={isBlocked}
             isHighlighted={isHighlighted}

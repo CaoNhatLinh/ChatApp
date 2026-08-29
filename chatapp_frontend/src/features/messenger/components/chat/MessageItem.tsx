@@ -34,6 +34,7 @@ interface MessageItemProps {
     onAction?: (action: string, message: Message) => void;
     onUserClick?: (userId: string) => void;
     onRetry?: (messageId: string) => void;
+    presenceConversationId?: string | null;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = ({
@@ -45,7 +46,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     dataMessageId,
     onAction,
     onUserClick,
-    onRetry
+    onRetry,
+    presenceConversationId,
 }) => {
     const attachments = message.attachments;
     const { user } = useAuthStore();
@@ -53,6 +55,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const isOwn = message.sender.userId === user?.userId;
     const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
         isOwn ? [] : [message.sender.userId],
+        presenceConversationId ?? null,
     );
     const isPoll = message.type === 'POLL' && message.poll;
     const { presence } = usePresence(message.sender.userId);

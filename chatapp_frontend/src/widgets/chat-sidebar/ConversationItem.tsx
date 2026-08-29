@@ -78,6 +78,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const otherStatus = otherPresence?.status ?? 'OFFLINE';
   const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
     isDM && otherUser?.userId ? [otherUser.userId] : [],
+    isDM ? conversation.conversationId : null,
   );
   const blockedUserIds = useFriendStore((state) => state.blockedUserIds);
   const isLastMsgBlocked = lastMsg?.senderId ? blockedUserIds.has(lastMsg.senderId) : false;

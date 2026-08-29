@@ -1072,21 +1072,20 @@ Correction in this increment:
 - Added the missing `limit` parameter references for room-member and global
   admin room-detail reads in the canonical OpenAPI document.
 
-# Follow-up self-review (2026-08-29, conversation list pagination cleanup)
+# Follow-up self-review (2026-08-29, conversation list cursor pagination)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
-| Runtime truthfulness | Pass | Backend `GET /conversations` returns a bounded array; frontend no longer fabricates `hasNext/page` metadata or invokes an unreachable load-more callback | Cursor pagination for very large room sets remains a specified but unimplemented capability | Show the bounded list that the API actually returns |
-| Dead-code discipline | Pass | Removed `loadMoreConversations`, conversation pagination state, IntersectionObserver sentinel, and unused `_loadedConversationIds` state; message cursor pagination remains intact | No compatibility wrapper is kept for the deleted fake path | Delete state and UI affordances that cannot be backed by the current contract |
+| Runtime truthfulness | Pass | Backend `GET /conversations` returns an opaque-cursor `ConversationPage`; frontend consumes `content/nextCursor/hasNext` and exposes a bounded load-more action | Live Cassandra paging behavior remains pending | Keep cursor state server-owned and never synthesize offsets |
+| Dead-code discipline | Pass | Conversation pagination now uses the canonical cursor contract and a single sidebar load-more action; no offset or fake page state is retained | No compatibility wrapper is kept for the old array response | Keep one authoritative cursor path |
 | Failure safety | Pass | Initial room load still uses the existing HTTP error boundary and loading state; no empty-list fallback was introduced | Live Cassandra projection and large-room performance proof remain pending | Keep provider failures visible rather than presenting a false second page |
 | Regression safety | Pass | Next production build, type-check, lint, public/deep-link smoke, Contacts locale smoke, and responsive UI smoke pass after cleanup | Authenticated multi-account room loading remains blocked by infrastructure | Preserve build/browser gates for the canonical shell |
-| Traceability | Pass | `messenger.api.ts`, `useMessenger`, conversation slice/types, Sidebar components, function audit, and this entry now state bounded room listing plus the explicit cursor gap | Implementing cursor pagination requires a separately specified response cursor and Cassandra paging-state boundary | Record the missing feature instead of retaining fake pagination |
+| Traceability | Pass | `messenger.api.ts`, `useMessenger`, conversation slice/types, Sidebar components, OpenAPI, and this entry are synchronized with `ConversationPage` | Live Cassandra cursor ordering and large-room browser proof remain pending | Keep the cursor opaque and reject malformed values |
 
 Correction in this increment:
 
-- Removed the non-functional conversation load-more path end to end. The
-  sidebar now consumes the bounded canonical room list directly, while message
-  history keeps its real cursor pagination contract.
+- Replaced the bounded array-only conversation response with a canonical opaque
+  cursor page and wired the sidebar load-more action to that contract.
 
 # Follow-up self-review (2026-08-29, message-search cursor contract increment)
 
@@ -1320,3 +1319,12 @@ Correction in this increment:
 | Subscription scale | Pass at client boundary | `useTrackPresenceInViewport` observes rows with a bounded margin; sidebar/history/contacts/room members no longer subscribe every loaded row; server caps 200 targets per session | Virtualized directory load test remains pending | Presence cost follows the visible window, while cursor pages own member loading |
 | Reconnect/expiry | Pass in unit boundary | Redis Pub/Sub listener, disconnect cleanup, bounded batch resync, expiry sweep, and `PresenceServiceTest` fan-out/expiry cases | Authenticated STOMP reconnect against Redis is externally blocked | Do not claim live presence until the clean dependency stack is available |
 | UI density and accessibility | Pass for changed surfaces | Room member rows expose a status dot without a second explanatory line; labels remain supplied by `StatusDot`; frontend validate passes | Full screen-reader and long-directory browser audit remains pending | Use progressive disclosure: status detail stays in existing profile/tooltip surfaces |
+
+# Follow-up self-review (2026-08-29, scoped presence and progressive mention lookup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Presence privacy | Pass at service boundary | `PresenceSubscription` carries an optional conversation scope; `PresenceService` authorizes both watcher and targets against canonical membership or accepted-friend projection before subscribe/batch | Revocation events between a successful subscription and the next UI unwatch still depend on the normal session lifecycle | Reject arbitrary UUID probing; do not add an unscoped public presence endpoint |
+| Directory network cost | Pass for mention interaction | `MentionMenu` requests 100-member pages and fetches another page only when a query cannot fill the eight-item compact result | A dedicated server-side prefix index is still a future optimization for very large rooms | Keep page size bounded and reveal only the compact result set |
+| UI information density | Pass for changed presence surfaces | Rows show a dot/short status; device and last-active details remain in existing profile/tooltip surfaces | Full admin and long-directory density audit remains pending | Prefer progressive disclosure over repeated explanatory copy |
+| Regression safety | Pass for available gates | Java suite 146 tests/0 failures; frontend type-check/lint pass after scoped protocol changes | Live Redis/STOMP multi-node proof remains external | Keep live-stack gaps explicitly documented |

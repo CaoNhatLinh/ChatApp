@@ -15,6 +15,12 @@ signalling uses `/app/call.*` commands and
 for the native 1–1 WebRTC flow. The chat service does not provide a media
 provider or TURN service.
 
+`GET /conversations` returns `content`, `nextCursor`, and `hasNext`; the
+sidebar requests the next cursor only when the user asks for more rooms.
+Presence subscribe/batch commands carry a conversation scope. A non-null
+scope requires watcher and target membership in that conversation; a null
+scope is restricted to the watcher or an accepted friend.
+
 Authenticated browsers register one canonical `WEB` device with `POST /devices`
 and refresh its `lastSeenAt` using `POST /devices/{deviceId}/heartbeat`. A revoked
 device is not reactivated by heartbeat; registration is an explicit upsert.

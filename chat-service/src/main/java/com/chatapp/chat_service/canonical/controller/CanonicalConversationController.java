@@ -55,8 +55,10 @@ public class CanonicalConversationController {
     }
 
     @GetMapping
-    public List<CanonicalApiContracts.ConversationListItem> list(@RequestParam(defaultValue = "50") int limit) {
-        return backend.listMyConversations(actorId(), limit);
+    public CanonicalApiContracts.ConversationPage list(
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) String cursor) {
+        return backend.listMyConversations(actorId(), cursor, limit);
     }
 
     @GetMapping("/{conversationId}")

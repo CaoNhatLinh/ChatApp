@@ -11,6 +11,8 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.CloseStatus;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
+import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.social.FriendshipRepository;
 
 import java.time.Duration;
 import java.util.List;
@@ -23,6 +25,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.chatapp.chat_service.common.exception.ForbiddenException;
 
 class PresenceServiceTest {
     private StringRedisTemplate redis;
@@ -30,6 +34,8 @@ class PresenceServiceTest {
     private ZSetOperations<String, String> sessions;
     private SimpMessagingTemplate messaging;
     private SecurityContextHelper securityContext;
+    private CanonicalCqlStore canonicalStore;
+    private FriendshipRepository friendships;
     private PresenceService service;
     private UUID actor;
     private UUID target;
@@ -43,7 +49,12 @@ class PresenceServiceTest {
         when(redis.opsForZSet()).thenReturn(sessions);
         messaging = mock(SimpMessagingTemplate.class);
         securityContext = mock(SecurityContextHelper.class);
+        canonicalStore = mock(CanonicalCqlStore.class);
+        friendships = mock(FriendshipRepository.class);
+        when(friendships.findProjectionKey(any(), any())).thenReturn(
+                new FriendshipRepository.ProjectionKeyRow("ACCEPTED", UUID.randomUUID()));
         service = new PresenceService(redis, messaging, new ObjectMapper(), securityContext,
+                canonicalStore, friendships,
                 Duration.ofSeconds(70), "presence-events");
         actor = UUID.randomUUID();
         target = UUID.randomUUID();
@@ -97,8 +108,35 @@ class PresenceServiceTest {
         verify(messaging).convertAndSendToUser(eq(actor.toString()), eq("/queue/presence"), any());
     }
 
+    @Test
+    void rejectsPresenceProbeOutsideAcceptedFriendOrConversationScope() {
+        when(friendships.findProjectionKey(actor, target)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.subscribe(actor, "session-a", subscription(target)))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessage("presence target is not visible to this user");
+    }
+
+    @Test
+    void allowsPresenceForMembersOfTheDeclaredConversationScope() {
+        UUID conversationId = UUID.randomUUID();
+        when(canonicalStore.findConversationMember(conversationId, actor)).thenReturn(
+                new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember(
+                        conversationId, actor, java.util.Set.of(), java.time.Instant.now(), null, null, null,
+                        "INHERIT", null, null));
+        when(canonicalStore.findConversationMember(conversationId, target)).thenReturn(
+                new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember(
+                        conversationId, target, java.util.Set.of(), java.time.Instant.now(), null, null, null,
+                        "INHERIT", null, null));
+
+        service.subscribe(actor, "session-a", new PresenceService.PresenceSubscription(
+                List.of(target), conversationId, "request", "trace"));
+
+        verify(messaging).convertAndSendToUser(eq(actor.toString()), eq("/queue/presence"), any());
+    }
+
     private PresenceService.PresenceSubscription subscription(UUID userId) {
-        return new PresenceService.PresenceSubscription(List.of(userId), "request", "trace");
+        return new PresenceService.PresenceSubscription(List.of(userId), null, "request", "trace");
     }
 
     private String snapshotJson(boolean online) {

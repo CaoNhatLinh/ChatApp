@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence session fan-out/expiry, and infrastructure manifests (144 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence scope/fan-out/expiry, conversation cursor pagination, and infrastructure manifests (146 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -78,6 +78,11 @@ The Contacts view, conversation sidebar, message history, and mention menu track
 only rows inside a small viewport margin through the same presence subscription
 path; live STOMP snapshots, Redis fan-out, and two-device expiry remain an
 integration concern.
+
+The conversation sidebar consumes cursor-paginated `ConversationPage` data and
+requests the next page only through its explicit load-more action. Mention
+lookup starts with a 100-member page and requests additional pages only when a
+typed query still has fewer than eight matches.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static

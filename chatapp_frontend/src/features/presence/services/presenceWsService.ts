@@ -10,6 +10,7 @@ import { logger } from '@/shared/lib/logger';
 const PRESENCE_QUEUE = '/user/queue/presence';
 const PRESENCE_SYNC_QUEUE = '/user/queue/presence-sync';
 const PRESENCE_BATCH_QUEUE = '/user/queue/presence-batch';
+const MAX_PRESENCE_TARGETS_PER_COMMAND = 200;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let cachedDeviceInfo: string | null = null;
 
@@ -29,6 +30,12 @@ export type PresenceSyncResult = {
 
 function toStringArray(userIds: string[]): string[] {
   return [...new Set(userIds.filter(Boolean))];
+}
+
+function forEachChunk(userIds: string[], callback: (chunk: string[]) => void): void {
+  for (let index = 0; index < userIds.length; index += MAX_PRESENCE_TARGETS_PER_COMMAND) {
+    callback(userIds.slice(index, index + MAX_PRESENCE_TARGETS_PER_COMMAND));
+  }
 }
 
 function generateTraceId(): string {
@@ -132,29 +139,31 @@ function resolveDeviceInfo(): string {
   return cachedDeviceInfo;
 }
 
-function subscribeToUserPresence(userIds: string[]): void {
+function subscribeToUserPresence(userIds: string[], conversationId: string | null): void {
   const uniqueUserIds = toStringArray(userIds);
-  if (uniqueUserIds.length > 0) {
+  forEachChunk(uniqueUserIds, (chunk) => {
     send('/app/presence.subscribe', {
-      userIds: uniqueUserIds,
+      userIds: chunk,
+      conversationId,
       requestId: generateTraceId(),
       traceId: generateTraceId(),
     });
-  }
+  });
 }
 
 export const presenceWsService = {
   subscribeToUserPresence,
 
-  unsubscribeFromUserPresence(userIds: string[]): void {
+  unsubscribeFromUserPresence(userIds: string[], conversationId: string | null): void {
     const uniqueUserIds = toStringArray(userIds);
-    if (uniqueUserIds.length > 0) {
+    forEachChunk(uniqueUserIds, (chunk) => {
       send('/app/presence.unsubscribe', {
-        userIds: uniqueUserIds,
+        userIds: chunk,
+        conversationId,
         requestId: generateTraceId(),
         traceId: generateTraceId(),
       });
-    }
+    });
   },
 
   subscribeToPresenceEvents(): void {
@@ -213,15 +222,16 @@ export const presenceWsService = {
     });
   },
 
-  sendPresenceBatch(userIds: string[]): void {
+  sendPresenceBatch(userIds: string[], conversationId: string | null): void {
     const uniqueUserIds = toStringArray(userIds);
-    if (uniqueUserIds.length > 0) {
+    forEachChunk(uniqueUserIds, (chunk) => {
       send('/app/presence.batch', {
-        userIds: uniqueUserIds,
+        userIds: chunk,
+        conversationId,
         requestId: generateTraceId(),
         traceId: generateTraceId(),
       });
-    }
+    });
   },
 
   sendHeartbeat(): void {

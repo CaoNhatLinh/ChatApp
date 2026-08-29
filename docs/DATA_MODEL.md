@@ -93,3 +93,9 @@ the local watcher registry is keyed by WebSocket session and cleaned on
 disconnect. The browser resynchronizes only its bounded viewport/relationship
 window after reconnect. Projection repair is a worker/replay concern, never a
 reason to expose an unbounded scan to a request.
+
+Presence subscriptions carry an explicit scope. A conversation scope is valid
+only when both watcher and target are members of that conversation; a null
+conversation scope is valid only for the watcher itself or an accepted friend.
+The service rejects arbitrary UUID probing before registering a watcher or
+returning a batch snapshot.

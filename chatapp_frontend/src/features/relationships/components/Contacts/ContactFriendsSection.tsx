@@ -71,6 +71,7 @@ export const ContactFriendsSection = ({
               userName={friend.userName}
               avatarUrl={friend.avatarUrl}
               onUserClick={onUserClick}
+              presenceScope={null}
               actions={
                 <div className="flex gap-2 sm:opacity-100">
                   <button

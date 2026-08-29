@@ -607,8 +607,16 @@ public class CanonicalBackendService {
         return new CanonicalApiContracts.ConversationMemberPage(content, nextCursor, hasNext);
     }
 
-    public List<CanonicalApiContracts.ConversationListItem> listMyConversations(UUID actorId, int limit) {
-        return store.listConversationProjectionByUser(actorId, Math.max(10, Math.min(100, limit))).stream()
+    public CanonicalApiContracts.ConversationPage listMyConversations(UUID actorId, String cursor, int requestedLimit) {
+        int limit = Math.max(10, Math.min(100, requestedLimit));
+        CanonicalCqlStore.ConversationProjectionCursor decoded = decodeConversationCursor(cursor);
+        List<CanonicalCqlStore.ConversationProjectionRow> rows = store.listConversationProjectionByUser(
+                actorId, decoded, limit + 1);
+        boolean hasNext = rows.size() > limit;
+        List<CanonicalCqlStore.ConversationProjectionRow> pageRows = hasNext
+                ? rows.subList(0, limit)
+                : rows;
+        List<CanonicalApiContracts.ConversationListItem> content = pageRows.stream()
                 .map(row -> new CanonicalApiContracts.ConversationListItem(
                         row.conversation(),
                         row.pinned(),
@@ -625,6 +633,35 @@ public class CanonicalBackendService {
                                 row.lastMessage().deleted(),
                                 row.lastMessage().hasAttachments())))
                 .toList();
+        String nextCursor = hasNext
+                ? encodeConversationCursor(pageRows.get(pageRows.size() - 1))
+                : null;
+        return new CanonicalApiContracts.ConversationPage(content, nextCursor, hasNext);
+    }
+
+    private String encodeConversationCursor(CanonicalCqlStore.ConversationProjectionRow row) {
+        String value = (row.pinned() ? "1" : "0") + "|"
+                + row.lastActivityAt() + "|" + row.conversation().conversationId();
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private CanonicalCqlStore.ConversationProjectionCursor decodeConversationCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            String value = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            String[] parts = value.split("\\|", -1);
+            if (parts.length != 3 || (!"0".equals(parts[0]) && !"1".equals(parts[0]))) {
+                throw new IllegalArgumentException("invalid conversation cursor");
+            }
+            Instant lastActivityAt = Instant.parse(parts[1]);
+            UUID conversationId = UUID.fromString(parts[2]);
+            return new CanonicalCqlStore.ConversationProjectionCursor("1".equals(parts[0]), lastActivityAt, conversationId);
+        } catch (RuntimeException exception) {
+            throw new BadRequestException("invalid conversation cursor");
+        }
     }
 
     public void addMember(UUID actorId, UUID conversationId, CanonicalApiContracts.ConversationMemberRequest req) {

@@ -107,7 +107,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith('/devices')) return json({ deviceId: 'device-room-management' });
   if (path.endsWith('/preferences/chat')) return json({ defaultThemeId: 'aurora', defaultBubbleStyleId: 'tiktok', rooms: [] });
   if (path.endsWith('/conversations') && method === 'GET') {
-    return json([{ conversation, pinned: false, unreadCount: 0, joinedAt: now, notificationOverride: 'INHERIT', lastMessage: null }]);
+    return json({ content: [{ conversation, pinned: false, unreadCount: 0, joinedAt: now, notificationOverride: 'INHERIT', lastMessage: null }], nextCursor: null, hasNext: false });
   }
   if (path.endsWith(`/conversations/${conversationId}/notification-policy`)) {
     return json({ defaultNotificationLevel: 'ALL', notificationOverride: 'INHERIT' });
