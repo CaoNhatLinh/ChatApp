@@ -5,7 +5,7 @@ const rawMessengerCopy = {
     statusLabel: {
       dnd: "Không làm phiền",
       online: "Đang hoạt động",
-      offline: "Ngoài tuyến",
+      offline: "Ngoại tuyến",
       onlineSuffix: "đang hoạt động",
       offlineSuffix: "ngoại tuyến",
     },

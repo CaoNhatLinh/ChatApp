@@ -1000,3 +1000,17 @@ Correction in this increment:
 
 - Added bounded retry and DLT recovery for Kafka listener failures, with the
   original partition preserved for operator replay once that workflow is built.
+
+# Follow-up self-review (2026-08-29, presence copy normalization increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Vietnamese copy accuracy | Pass | Presence status labels now use the single canonical `Ngoại tuyến` phrase across messenger copy, ContactRow, and StatusDot | Broader copy review still depends on the static registry gate | Prefer one exact Vietnamese phrase rather than preserving typo aliases |
+| Translation hygiene | Pass | Removed the unused `Ngoài tuyến` English entry; `test:i18n:copy` reports 764 checked keys with no missing translations | Historical self-review counts intentionally remain unchanged | Do not retain translation keys solely for deleted or corrected literals |
+| Regression safety | Pass | `test:i18n:copy`, `test:errors:copy`, and `npm run validate` pass after normalization | Browser locale smoke after the new build remains the release check | Keep enum/API values unchanged while correcting presentation copy |
+| Traceability | Pass | `messengerCopy.ts`, `resources.ts`, locale gate, function audit and this entry are synchronized | None for this copy correction | Keep the copy count tied to the current source tree |
+
+Correction in this increment:
+
+- Replaced the typo-only `Ngoài tuyến` key with the canonical `Ngoại tuyến`
+  wording and removed its now-unreferenced translation entry.

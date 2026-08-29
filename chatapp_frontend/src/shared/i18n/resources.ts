@@ -335,7 +335,6 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Ngôn ngữ': 'Language',
   'Tiếng Việt': 'Vietnamese',
   'English': 'English',
-  'Ngoài tuyến': 'Offline',
   'ngoại tuyến': 'offline',
   'Chưa có tin nhắn': 'No messages yet',
   'Tin nhắn mới': 'New message',
