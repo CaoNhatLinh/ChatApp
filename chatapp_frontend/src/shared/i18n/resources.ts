@@ -239,6 +239,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Cuộc gọi gặp lỗi': 'Call error',
   'Chấp nhận để mở kết nối trực tiếp.': 'Accept to open a direct connection.',
   'Kết nối trực tiếp giữa hai thiết bị.': 'Direct connection between two devices.',
+  'Gọi trực tiếp chỉ hỗ trợ chat 1–1': 'Direct calls are available only in one-to-one chats',
   'Video của người đối thoại': 'Other person’s video',
   'Video của bạn': 'Your video',
   'Nhận cuộc gọi': 'Answer call',

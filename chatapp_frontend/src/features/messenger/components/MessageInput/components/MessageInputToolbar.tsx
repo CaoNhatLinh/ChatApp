@@ -1,6 +1,7 @@
 import { BarChart3, Image, Mic, Paperclip, Send, Smile } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { localizeText } from '@/shared/i18n';
 
 interface MessageInputToolbarProps {
   onAttachFile: () => void;
@@ -82,7 +83,7 @@ export const MessageInputToolbar = ({
           variant="ghost"
           size="icon"
           className="text-muted-foreground hover:text-primary"
-          title={canShowVoice ? MESSENGER_COPY.messageInput.toolbar.callVoice : "Gọi trực tiếp chỉ hỗ trợ chat 1–1"}
+          title={canShowVoice ? MESSENGER_COPY.messageInput.toolbar.callVoice : localizeText("Gọi trực tiếp chỉ hỗ trợ chat 1–1")}
         >
           <Mic size={19} />
         </Button>

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { useAuthStore } from '@/features/auth/model/auth.store';
+import { localizeText } from '@/shared/i18n';
 
 /**
  * Mention format from backend: @[DisplayName|UUID]
@@ -105,7 +106,7 @@ export const MentionText: React.FC<MentionTextProps> = ({ content, className, is
                                         ? "bg-white/15 text-white/90 hover:bg-white/25"
                                         : "bg-primary/10 text-primary/80 hover:bg-primary/20"
                         )}
-                        title={segment.isAll ? 'Mọi người' : segment.displayName}
+                        title={segment.isAll ? localizeText('Mọi người') : segment.displayName}
                     >
                         {segment.value}
                     </span>
