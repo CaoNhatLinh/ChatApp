@@ -24,7 +24,8 @@ checks, and performance trace budgets.
 
 `npm run test:e2e:locale` verifies the persisted VI→EN switch, English landing
 copy, desktop navigation, the 390px mobile navigation menu, English `html[lang]`,
-and 404 recovery links. The expected document 404 response is recorded
+localized language/theme-control names and language-switch titles in both
+locales, and 404 recovery links. The expected document 404 response is recorded
 separately; unexpected console errors and request failures still fail the script.
 
 `npm run test:e2e:notifications` loads the authenticated notification-settings

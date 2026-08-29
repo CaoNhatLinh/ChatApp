@@ -15,6 +15,10 @@ page.on('requestfailed', (request) => {
 });
 
 await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+const vietnameseControls = {
+  languageTitle: await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).first().getAttribute('title'),
+  hasThemeToggle: (await page.getByRole('button', { name: 'Đổi giao diện' }).count()) > 0,
+};
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Say what matters. Keep what matters.' }).waitFor();
 
@@ -23,6 +27,8 @@ const home = {
   heading: await page.locator('h1').first().innerText(),
   storedLocale: await page.evaluate(() => window.localStorage.getItem('novachat_locale')),
   navigation: await page.locator('header a').allTextContents(),
+  languageTitle: await page.getByRole('button', { name: 'Switch to Vietnamese' }).first().getAttribute('title'),
+  hasThemeToggle: (await page.getByRole('button', { name: 'Change theme' }).count()) > 0,
 };
 
 await page.setViewportSize({ width: 390, height: 844 });
@@ -56,15 +62,19 @@ const register = {
 
 const expectedNotFoundDocumentError = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
 const unexpectedConsoleErrors = consoleErrors.filter((message) => !message.includes(expectedNotFoundDocumentError));
-const report = { baseUrl, home, notFound, login, register, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
+const report = { baseUrl, vietnameseControls, home, notFound, login, register, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
 if (
   unexpectedConsoleErrors.length ||
   requestFailures.length ||
+  vietnameseControls.languageTitle !== 'Tiếng Anh' ||
+  !vietnameseControls.hasThemeToggle ||
   home.lang !== 'en' ||
   home.storedLocale !== 'en' ||
+  home.languageTitle !== 'Vietnamese' ||
+  !home.hasThemeToggle ||
   !home.navigation.includes('Home') ||
   !home.navigation.includes('About') ||
   !home.navigation.includes('Help') ||

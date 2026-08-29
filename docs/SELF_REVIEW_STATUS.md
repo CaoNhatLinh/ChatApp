@@ -1165,3 +1165,19 @@ Correction in this increment:
 
 - Added explicit non-submit button semantics to active workspace actions and
   localized accessible names for icon-only message actions.
+
+# Follow-up self-review (2026-08-29, shared shell locale controls increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Translation architecture | Pass | `ThemeToggle` and `LanguageToggle` now use the reactive `useAppTranslation` hook and the canonical Vietnamese-key registry; the local two-language branch was removed | Authenticated shell copy still requires the broader browser walkthrough | Keep one translation source instead of duplicating English literals inside shared controls |
+| Accessible naming | Pass | The locale browser smoke asserts language-switch names and titles plus the theme-control name before and after VI→EN switching | Full screen-reader behavior for every authenticated menu remains pending | Treat icon-only shell controls as translated named controls in every locale |
+| Dead-code discipline | Pass | Repository search proved the old `English` resource key had no consumer after canonicalizing `Tiếng Anh`; the unused key was removed | No legacy copy alias is retained | Delete proven orphaned translations rather than preserving compatibility text |
+| Motion and interaction scope | Pass | Existing fast theme/menu interactions are unchanged; no decorative animation was added to frequently used controls | Broader motion audit remains pending | Preserve immediate control feedback and avoid motion that adds latency without meaning |
+| Regression safety | Pass for available gates | Type-check/lint, production build, i18n/error-copy gates, locale browser smoke, and the two-viewport UI-quality smoke pass with zero unexpected console/request failures | Authenticated multi-account browser and clean backend stack remain pending | Keep the increment bounded to verified shell behavior and retain the larger E2E gap |
+
+Correction in this increment:
+
+- Centralized language/theme control copy through the reactive i18n hook,
+  removed the orphaned English alias, and added browser assertions for the
+  translated accessible control contract.

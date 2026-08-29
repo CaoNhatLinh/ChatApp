@@ -7,14 +7,17 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/DropdownMenu';
 import { useTheme } from '@/app/providers/theme';
-import { useAppLocale } from '@/shared/i18n';
+import { useAppTranslation } from '@/shared/i18n';
 
 export function ThemeToggle() {
   const { themePreference, setThemePreference } = useTheme();
-  const { locale } = useAppLocale();
-  const copy = locale === 'vi'
-    ? { toggle: 'Đổi giao diện', light: 'Sáng', dark: 'Tối', system: 'Theo hệ thống' }
-    : { toggle: 'Change theme', light: 'Light', dark: 'Dark', system: 'System' };
+  const { t } = useAppTranslation();
+  const copy = {
+    toggle: t('Đổi giao diện'),
+    light: t('Sáng'),
+    dark: t('Tối'),
+    system: t('Theo hệ thống'),
+  };
 
   const renderTriggerIcon = () => {
     switch (themePreference) {
