@@ -38,6 +38,13 @@ The check covers messenger, relationships, report modals, calls, and presence;
 it rejects direct native exception/server response rendering while allowing
 operator-only diagnostic logs.
 
+The public/auth/recovery responsive and accessibility baseline is guarded by
+`chatapp_frontend/scripts/ui-quality-smoke.mjs`
+(`npm run test:e2e:ui-quality`) at 320px and 1440px. It currently passes with
+one visible `h1` per route, no horizontal overflow, named controls, labeled
+fields, valid links, and no console/request failures; authenticated workspace
+coverage remains pending.
+
 ## Complete function inventory
 
 | Domain | Functions that must work end-to-end | Current status | Main gaps / wrong behavior |

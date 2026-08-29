@@ -184,6 +184,22 @@ Corrections in this increment:
 - Prevented closing while a room request is in flight and routed create errors
   through status-aware bilingual copy.
 
+# Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Responsive layout | Pass for public/auth/recovery pages | `npm run test:e2e:ui-quality` at 320px and 1440px; no horizontal overflow | Authenticated workspace and admin responsive proof still need a seeded session | Keep the same check as a release gate for every canonical public route |
+| Semantic structure | Pass for audited pages | One visible `h1` per page; all visible links/buttons named; visible fields labeled | Full axe/screen-reader tree review remains pending | Treat violations as test failures, not visual-only warnings |
+| Runtime cleanliness | Pass for audited pages | UI quality smoke reports zero console errors/request failures | Clean-stack authenticated browser flow remains blocked | Keep browser smoke independent of runtime mocks |
+| Traceability | Pass | `TESTING.md`, `ACCESSIBILITY.md`, package script, route list | No gap in affected public routes | Record viewport and assertions with each future UI increment |
+
+Corrections in this increment:
+
+- Added a real-browser quality smoke for all public/auth/recovery routes at
+  mobile and desktop widths.
+- Verified no visible unnamed controls, unlabeled fields, horizontal overflow,
+  or duplicate/missing primary headings in the audited surface.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

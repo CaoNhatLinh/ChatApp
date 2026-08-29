@@ -17,7 +17,8 @@
     "test:e2e:notifications": "node scripts/notification-settings-smoke.mjs",
     "test:i18n:copy": "node scripts/locale-copy-smoke.mjs",
     "test:errors:copy": "node scripts/error-copy-smoke.mjs",
-    "test:e2e:network": "node scripts/network-status-smoke.mjs"
+    "test:e2e:network": "node scripts/network-status-smoke.mjs",
+    "test:e2e:ui-quality": "node scripts/ui-quality-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

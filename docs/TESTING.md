@@ -49,6 +49,11 @@ browser offline state, verifies the bilingual network-loss status banner, then
 restores connectivity and verifies the banner is removed. It fails on console
 errors or request failures.
 
+`npm run test:e2e:ui-quality` checks every public/auth/recovery page at 320px
+and 1440px: exactly one visible `h1`, no horizontal overflow, accessible names
+for visible links/buttons, labels for visible fields, valid link targets, and
+zero console/request failures.
+
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the
 HTTP boundary inside the test process; no runtime code contains that stub.

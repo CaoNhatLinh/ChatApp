@@ -16,3 +16,7 @@
   motion enabled.
 - Browser evidence must include console/request failure checks and an
   accessibility-tree review before release.
+- The bounded UI quality smoke covers the public/auth/recovery surface at 320px
+  and 1440px, including visible heading count, control names, field labels and
+  horizontal-overflow checks. Full screen-reader/axe coverage remains a
+  release gate.
