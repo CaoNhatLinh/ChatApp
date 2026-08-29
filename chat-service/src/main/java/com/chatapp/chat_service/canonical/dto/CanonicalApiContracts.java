@@ -84,23 +84,6 @@ public final class CanonicalApiContracts {
             Set<UUID> memberIds) {
     }
 
-    public record ConversationUpdateRequest(
-            String name,
-            String description,
-            String avatarUrl,
-            UUID avatarAssetId,
-            String categoryId,
-            Set<String> communityTags,
-            String languageCode,
-            Integer maxMembers,
-            Integer messageRetentionDays,
-            String chatMode,
-            Integer slowModeSeconds,
-            String visibility,
-            String joinPolicy,
-            String defaultNotificationLevel) {
-    }
-
     public record ConversationMemberRequest(UUID userId, Set<UUID> roleIds, String reason) {
     }
 
@@ -315,17 +298,6 @@ public final class CanonicalApiContracts {
             String accountStatus) {
     }
 
-    public record FriendshipView(
-            UUID userId,
-            String username,
-            String displayName,
-            String avatarUrl,
-            String relationshipStatus,
-            Instant requestedAt,
-            Instant acceptedAt,
-            Instant updatedAt) {
-    }
-
     public record FriendshipStatusResponse(
             String status,
             UUID userId,
@@ -365,6 +337,4 @@ public final class CanonicalApiContracts {
             @Size(max = 2048) String customBackgroundUrl) {
     }
 
-    public record CallRequest(UUID conversationId, String callType, String mediaRegion, Integer maxParticipants) {
-    }
 }
