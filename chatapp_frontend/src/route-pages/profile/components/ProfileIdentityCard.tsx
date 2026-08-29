@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
+import { localizeText } from "@/shared/i18n";
 
 interface ProfileIdentityCardProps {
   display: string;
@@ -25,7 +26,7 @@ export const ProfileIdentityCard = ({
           className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
         >
           <Settings size={16} />
-          Cài đặt
+          {localizeText("Cài đặt")}
         </Link>
       </div>
     </aside>

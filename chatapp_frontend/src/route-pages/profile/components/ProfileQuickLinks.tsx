@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MessageCircle, Search, Settings, Users } from "lucide-react";
 import { UI_COPY } from "@/shared/constants/ui-copy";
+import { localizeText } from "@/shared/i18n";
 
 const quickLinks = [
   {
@@ -29,9 +30,9 @@ export const ProfileQuickLinks = () => {
   return (
     <section className="product-surface p-6">
       <p className="page-kicker">
-        {UI_COPY.profile.quickLinksTitle}
+        {localizeText(UI_COPY.profile.quickLinksTitle)}
       </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {quickLinks.map((link) => {
           const Icon = link.icon;
           return (
@@ -42,7 +43,7 @@ export const ProfileQuickLinks = () => {
             >
               <span className="inline-flex items-center gap-2">
                 <Icon size={16} />
-                {link.label}
+                {localizeText(link.label)}
               </span>
             </Link>
           );

@@ -45,7 +45,7 @@ export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeade
                 )}
               >
                 <Icon size={16} aria-hidden="true" />
-                <span className="hidden md:inline">{item.label}</span>
+                <span className="hidden md:inline">{localizeText(item.label)}</span>
               </Link>
             );
           })}

@@ -39,9 +39,14 @@ required conversation context.
 
 `npm run test:e2e:contacts` loads the authenticated Contacts route with an
 explicit HTTP-boundary fixture, verifies the VI→EN tab and empty-state copy, and
+confirms the shared app-shell navigation stays translated in both locales, and
 confirms that an unavailable realtime transport does not block the REST-backed
 screen. Realtime transport failures are reported separately because the local
 integration stack is intentionally absent.
+
+`npm run test:e2e:profile` loads the authenticated profile route with an explicit
+HTTP-boundary fixture and verifies the profile quick-link title and all link
+labels after switching from Vietnamese to English.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static

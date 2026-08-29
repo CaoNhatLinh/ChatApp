@@ -893,3 +893,19 @@ Correction in this increment:
 - Made Contacts/Profile copy locale-reactive and moved Contacts tabs into the
   render path; changed initial Messenger startup so a missing realtime server
   cannot leave REST-backed screens in an infinite loading state.
+
+# Follow-up self-review (2026-08-29, shared shell and profile locale increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Bilingual navigation | Pass for authenticated shell | `AppShellHeader` localizes each nav label at render time; Contacts smoke asserts all five shell destinations in VI and EN | Full authenticated screen-reader walkthrough remains pending | Never capture locale-dependent navigation labels in module scope |
+| Bilingual profile actions | Pass for profile quick links | `ProfileQuickLinks`, `ProfileIdentityCard`, and `ProfileAccessNote` use canonical `localizeText` keys; `profile-locale-smoke.mjs` verifies title and four destinations in both locales | Live profile persistence remains pending with the integration stack | Keep link targets canonical and copy translation explicit |
+| Copy quality | Pass for affected copy | Replaced the misleading profile kicker with `Tùy chỉnh hồ sơ` / `Profile customization`; added exact resource keys; copy gate now checks 721 keys | Broader authenticated copy still needs a real-user walkthrough | Prefer concise labels that describe the action or setting accurately |
+| Failure recovery | Pass | Profile smoke reports zero console errors and request failures with bounded HTTP fixtures | Real auth/device persistence remains blocked | Test locale behavior independently from unavailable provider infrastructure |
+| Traceability | Pass | `AppShellHeader.tsx`, profile components, `resources.ts`, `contacts-locale-smoke.mjs`, `profile-locale-smoke.mjs`, package scripts and this entry are synchronized | Clean-stack browser proof remains external | Keep every new locale assertion executable in CI |
+
+Correction in this increment:
+
+- Removed the remaining locale-frozen shell/profile labels from rendered UI,
+  localized the profile access note, corrected its wording, and added browser
+  evidence for both shared navigation and profile quick links.

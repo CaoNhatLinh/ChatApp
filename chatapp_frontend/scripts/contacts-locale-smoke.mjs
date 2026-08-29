@@ -88,16 +88,20 @@ await page.addInitScript(() => {
 await page.goto(`${baseUrl}/friends`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Danh sách', exact: true }).waitFor();
 const viTabs = await page.locator('header button').allTextContents();
+const viShellNav = await page.locator('header a').allTextContents();
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Friends list', exact: true }).waitFor();
 const enTabs = await page.locator('header button').allTextContents();
+const enShellNav = await page.locator('header a').allTextContents();
 
 const report = {
   baseUrl,
   language: await page.locator('html').getAttribute('lang'),
   viTabs,
+  viShellNav,
   enTabs,
+  enShellNav,
   realtimeFailures,
   consoleErrors,
   requestFailures,
@@ -112,9 +116,19 @@ if (
   || !viTabs.includes('Bạn bè')
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')
+  || !viShellNav.includes('Chat')
+  || !viShellNav.includes('Bạn bè')
+  || !viShellNav.includes('Tìm kiếm')
+  || !viShellNav.includes('Hồ sơ')
+  || !viShellNav.includes('Cài đặt')
   || !enTabs.includes('Friends')
   || !enTabs.includes('Requests')
   || !enTabs.includes('Find people')
+  || !enShellNav.includes('Chat')
+  || !enShellNav.includes('Friends')
+  || !enShellNav.includes('Search')
+  || !enShellNav.includes('Profile')
+  || !enShellNav.includes('Settings')
 ) {
   process.exitCode = 1;
 }
