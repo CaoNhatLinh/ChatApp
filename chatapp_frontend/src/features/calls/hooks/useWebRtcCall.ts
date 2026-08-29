@@ -225,7 +225,7 @@ export const useWebRtcCall = ({
       if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
         const current = sessionRef.current;
         if (current?.callId === activeSession.callId && current.state !== 'error') {
-          failSession(current, 'Kết nối media đã thất bại. Hãy thử gọi lại.');
+          failSession(current, localizeText('Kết nối media đã thất bại. Hãy thử gọi lại.'));
         }
       }
     };
@@ -254,7 +254,7 @@ export const useWebRtcCall = ({
         peerDisplayName,
         direction: 'outgoing',
         state: 'error',
-        errorMessage: 'Kết nối thời gian thực chưa sẵn sàng.',
+        errorMessage: localizeText('Kết nối thời gian thực chưa sẵn sàng.'),
       };
       setCurrentSession(rejectedSession);
       return;
@@ -298,7 +298,7 @@ export const useWebRtcCall = ({
     const incoming = sessionRef.current;
     if (!incoming || incoming.direction !== 'incoming' || incoming.state !== 'incoming') return;
     if (!realtimeService.isConnected()) {
-      failSession(incoming, 'Kết nối thời gian thực chưa sẵn sàng.');
+      failSession(incoming, localizeText('Kết nối thời gian thực chưa sẵn sàng.'));
       return;
     }
     try {

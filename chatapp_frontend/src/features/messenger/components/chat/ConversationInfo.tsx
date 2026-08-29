@@ -24,6 +24,8 @@ import type {
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 const ROOM_NOTIFICATION_LEVELS: Array<{ value: ConversationNotificationLevel; label: string; hint: string }> = [
@@ -56,6 +58,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     // UI states for new features
     const [blockStatus, setBlockStatus] = React.useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
+    const [blockStatusLoading, setBlockStatusLoading] = React.useState(false);
     const [isBlockConfirmOpen, setIsBlockConfirmOpen] = React.useState(false);
     const [isBlockLoading, setIsBlockLoading] = React.useState(false);
     const [notificationPolicy, setNotificationPolicy] = React.useState<ConversationNotificationPolicyView | null>(null);
@@ -129,12 +132,33 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     // Fetch block status for DM conversations
     React.useEffect(() => {
-        if (isOpen && activeConv?.type === 'dm' && activeConv.otherParticipant?.userId) {
-            friendApi.checkBlockStatus(activeConv.otherParticipant.userId)
-                .then(setBlockStatus)
-                .catch(err => console.error('[ConversationInfo] Block check failed:', err));
+        const otherUserId = activeConv?.type === 'dm' ? activeConv.otherParticipant?.userId : undefined;
+        if (!isOpen || !otherUserId) {
+            setBlockStatus(null);
+            setBlockStatusLoading(false);
+            return undefined;
         }
-    }, [isOpen, activeConv?.conversationId, activeConv?.type, activeConv?.otherParticipant?.userId]);
+
+        let active = true;
+        setBlockStatus(null);
+        setBlockStatusLoading(true);
+        void friendApi.checkBlockStatus(otherUserId)
+            .then((status) => {
+                if (active) setBlockStatus(status);
+            })
+            .catch((error: unknown) => {
+                if (!active) return;
+                logger.error('[ConversationInfo] Block check failed:', error);
+                notifyError(getUserFacingErrorMessage(error, localizeText('Không thể kiểm tra trạng thái chặn.')));
+            })
+            .finally(() => {
+                if (active) setBlockStatusLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [activeConv?.conversationId, activeConv?.otherParticipant?.userId, activeConv?.type, isOpen]);
 
     const handleBlock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
@@ -155,9 +179,18 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     const handleUnblock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
-        await unblockFriend(activeConv.otherParticipant.userId);
-        setBlockStatus({ hasBlocked: false, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-        void fetchBlockedUsers();
+        setIsBlockLoading(true);
+        try {
+            await unblockFriend(activeConv.otherParticipant.userId);
+            setBlockStatus({ hasBlocked: false, isBlockedBy: blockStatus?.isBlockedBy ?? false });
+            void fetchBlockedUsers();
+            notifySuccess(localizeText('Đã bỏ chặn người dùng.'));
+        } catch (error) {
+            logger.error('[ConversationInfo] Unblock action failed:', error);
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể bỏ chặn người dùng.')));
+        } finally {
+            setIsBlockLoading(false);
+        }
     };
 
     if (!isOpen || !activeConv) return null;
@@ -283,8 +316,12 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                         </h4>
                         <div className="space-y-1">
                             {activeConv.type === 'dm' && activeConv.otherParticipant && (
-                                blockStatus?.hasBlocked ? (
+                                blockStatusLoading ? (
+                                    <p className="px-3 py-2 text-sm text-muted-foreground">{localizeText('Đang kiểm tra trạng thái chặn...')}</p>
+                                ) : blockStatus?.hasBlocked ? (
                                     <button
+                                        type="button"
+                                        disabled={isBlockLoading}
                                         onClick={() => void handleUnblock()}
                                         className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-primary/10 text-primary transition-[color,background-color,border-color,box-shadow,transform,opacity] group"
                                     >
@@ -295,6 +332,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                     </button>
                                 ) : (
                                     <button
+                                        type="button"
                                         onClick={() => setIsBlockConfirmOpen(true)}
                                         className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-destructive/10 text-destructive transition-[color,background-color,border-color,box-shadow,transform,opacity] group"
                                     >

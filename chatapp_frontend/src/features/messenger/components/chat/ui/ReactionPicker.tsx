@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { reactToMessage } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
 import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { notifyError } from '@/shared/lib/notification';
 
 const REACTIONS = [
   { emoji: '\u{1F44D}', key: 'like', label: 'Thích' },
@@ -54,6 +56,7 @@ const ReactionPicker = ({
       setIsOpen(false);
     } catch (error) {
       logger.error('[ReactionPicker] Failed to add reaction:', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật cảm xúc.')));
     } finally {
       setLoading(false);
     }

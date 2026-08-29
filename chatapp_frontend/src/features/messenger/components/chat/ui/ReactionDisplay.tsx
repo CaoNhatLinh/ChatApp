@@ -1,6 +1,9 @@
 import { reactToMessage, removeMessageReaction } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/cn';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { notifyError } from '@/shared/lib/notification';
+import { localizeText } from '@/shared/i18n';
 
 interface ReactionDisplayProps {
   reactions: Array<{
@@ -44,6 +47,7 @@ export const ReactionDisplay = ({
       onToggle?.();
     } catch (error) {
       logger.error('[ReactionDisplay] Toggle failed:', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật cảm xúc.')));
     }
   };
 

@@ -212,6 +212,22 @@ Corrections in this increment:
 - Added localized feedback for profile-load failures and report submission, and
   cleared stale profile data before opening a new profile.
 
+# Follow-up self-review (2026-08-29, reaction and block-state increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for reaction and DM block actions | Stable error mapping, visible reaction failure toast, guarded block-status/unblock promises | Clean-stack authenticated browser proof remains pending | Never leave an action as log-only when the user needs a result |
+| State integrity | Pass for block controls | Block status loading state clears stale state and prevents premature block/unblock actions | Multi-tab status reconciliation remains a realtime integration gap | Render only server-confirmed block controls |
+| Bilingual UI coverage | Pass | Call error messages, reaction/block copy and `test:i18n:copy` (693 keys) | Domain content remains untranslated by design | Keep all product feedback in the explicit VI→EN map |
+| Traceability | Pass | `ConversationInfo`, `ReactionPicker`, `ReactionDisplay`, `useWebRtcCall`, `resources.ts` | Full authenticated browser journey remains pending | Preserve visible failure feedback for future message actions |
+
+Corrections in this increment:
+
+- Added localized failure toasts for reaction add/remove operations.
+- Added loading/cleanup/error handling for DM block-status checks and unblock,
+  including a success notification and disabled controls while the request runs.
+- Localized realtime/media call failure messages before they reach the call panel.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
