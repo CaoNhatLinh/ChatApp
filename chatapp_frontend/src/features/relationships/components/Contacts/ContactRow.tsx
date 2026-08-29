@@ -1,6 +1,8 @@
 import { memo, type FC, type ReactNode } from "react";
 import { usePresence } from "@/features/presence/model/presence.store";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
+import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { localizeText } from "@/shared/i18n";
 
 interface ContactRowProps {
   userId: string;
@@ -12,12 +14,11 @@ interface ContactRowProps {
   subtitle?: string;
 }
 
-const statusText: Record<string, string> = {
-  DND: "Busy",
-  ONLINE: "Online",
-  OFFLINE: "Offline",
-  AWAY: "Away",
-  BUSY: "Busy",
+const getStatusLabel = (status: "ONLINE" | "OFFLINE" | "DND"): string => {
+  if (status === "DND") return MESSENGER_COPY.presence.statusLabel.dnd;
+  if (status === "ONLINE") return MESSENGER_COPY.presence.statusLabel.online;
+  if (status === "OFFLINE") return MESSENGER_COPY.presence.statusLabel.offline;
+  throw new Error(`Unsupported contact presence status: ${status}`);
 };
 
 export const ContactRow: FC<ContactRowProps> = memo(({
@@ -37,12 +38,12 @@ export const ContactRow: FC<ContactRowProps> = memo(({
     <div className="group flex items-center justify-between rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
       <button
         onClick={() => onUserClick(userId)}
-          className="group flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 sm:gap-4"
+        className="group flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 sm:gap-4"
         type="button"
       >
         <div className="relative">
           <div className="h-12 w-12 overflow-hidden rounded-[var(--radius-md)] bg-primary/10 border border-primary/20 flex items-center justify-center font-semibold text-primary text-lg">
-            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
+            {avatarUrl ? <img src={avatarUrl} alt={localizeText("Ảnh đại diện")} className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
           </div>
           <StatusDot
             status={status}
@@ -62,7 +63,7 @@ export const ContactRow: FC<ContactRowProps> = memo(({
               <>
                 <StatusDot status={status} isOnline={isOnline} size="sm" className="w-1.5 h-1.5" />
                 <span className="truncate text-xs text-muted-foreground">
-                  {statusText[status] ?? status}
+                {getStatusLabel(status)}
                 </span>
               </>
             )}

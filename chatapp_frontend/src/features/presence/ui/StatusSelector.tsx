@@ -44,6 +44,12 @@ const STATUS_OPTIONS: StatusOption[] = [
     },
 ];
 
+const getStatusOption = (status: StatusValue): StatusOption => {
+    const option = STATUS_OPTIONS.find((candidate) => candidate.value === status);
+    if (!option) throw new Error(`Unsupported own presence status: ${status}`);
+    return option;
+};
+
 interface StatusSelectorProps {
     className?: string;
     children?: React.ReactNode;
@@ -78,7 +84,7 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
         };
     }, []);
 
-    const currentOption = STATUS_OPTIONS.find((opt) => opt.value === myStatus) ?? STATUS_OPTIONS[0];
+    const currentOption = getStatusOption(myStatus);
 
     const handleStatusChange = (newStatus: StatusValue) => {
         if (newStatus === myStatus || isUpdatingMyStatus) return; // No change needed
