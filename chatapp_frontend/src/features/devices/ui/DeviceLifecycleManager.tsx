@@ -5,26 +5,30 @@ import { useAuthStore } from '@/features/auth/model/auth.store';
 import { heartbeatWebDevice, isDeviceId, registerWebDevice } from '@/features/devices/api/device.api';
 import { logger } from '@/shared/lib/logger';
 
-const DEVICE_ID_STORAGE_KEY = 'novachat_device_id';
+const DEVICE_ID_STORAGE_KEY_PREFIX = 'novachat_device_id';
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
-const getStoredDeviceId = (): string | null => {
-  const value = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+const getDeviceStorageKey = (userId: string) => `${DEVICE_ID_STORAGE_KEY_PREFIX}:${userId}`;
+
+const getStoredDeviceId = (userId: string): string | null => {
+  const value = window.localStorage.getItem(getDeviceStorageKey(userId));
   return value && isDeviceId(value) ? value : null;
 };
 
-const createStoredDeviceId = (): string => {
+const createStoredDeviceId = (userId: string): string => {
   const deviceId = crypto.randomUUID();
-  window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, deviceId);
+  window.localStorage.setItem(getDeviceStorageKey(userId), deviceId);
   return deviceId;
 };
 
 /** Registers a browser once, then heartbeats without reactivating an admin-revoked device. */
 export function DeviceLifecycleManager(): null {
-  const isAuthenticated = useAuthStore((state) => Boolean(state.user?.userId && state.token));
+  const authenticatedUserId = useAuthStore((state) => (
+    state.user?.userId && state.token ? state.user.userId : null
+  ));
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!authenticatedUserId) return;
 
     let active = true;
     let heartbeatHandle: number | null = null;
@@ -32,9 +36,9 @@ export function DeviceLifecycleManager(): null {
 
     const start = async () => {
       try {
-        deviceId = getStoredDeviceId();
+        deviceId = getStoredDeviceId(authenticatedUserId);
         if (!deviceId) {
-          deviceId = createStoredDeviceId();
+          deviceId = createStoredDeviceId(authenticatedUserId);
           await registerWebDevice({
             deviceId,
             platform: 'WEB',
@@ -61,7 +65,7 @@ export function DeviceLifecycleManager(): null {
       active = false;
       if (heartbeatHandle !== null) window.clearInterval(heartbeatHandle);
     };
-  }, [isAuthenticated]);
+  }, [authenticatedUserId]);
 
   return null;
 }

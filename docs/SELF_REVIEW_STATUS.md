@@ -780,3 +780,19 @@ Correction in this increment:
 - Added room-scoped request/mutation guards, explicit block-status recovery and
   stale-state clearing to conversation info, preventing incorrect room policy
   or block actions during navigation and failed reads.
+
+# Follow-up self-review (2026-08-29, device-identity isolation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Account isolation | Pass for browser device identity | `DeviceLifecycleManager` derives storage and lifecycle ownership from the authenticated `userId`, not a global browser key or boolean auth flag | Live multi-account device registration/revocation remains pending | An account cannot heartbeat a device ID persisted for another account |
+| Session lifecycle | Pass | Identity changes restart registration/heartbeat and cleanup the previous interval | Refresh-token/device linkage needs clean-stack evidence | Keep device lifecycle tied to the current authenticated principal |
+| Data exposure | Pass | Only validated UUID device IDs are read/written; no token or payload is persisted | Server-side device audit remains an operations gate | Use account-namespaced storage without a legacy-key fallback |
+| Failure recovery | Pass | Registration/heartbeat failures remain bounded diagnostics and do not fabricate device state | Provider/network retry matrix remains unverified | Do not mark a device active until the canonical API succeeds |
+| Traceability | Pass | `DeviceLifecycleManager.tsx`, `API_CONTRACTS.md`, `TRACEABILITY_MATRIX.md` and this entry; validate/build/browser gates pass | Authenticated device browser proof remains blocked | Preserve user-scoped storage when adding mobile clients |
+
+Correction in this increment:
+
+- Replaced the shared browser device key with an account-namespaced canonical
+  key and keyed the lifecycle effect by authenticated user identity, removing
+  cross-account heartbeat risk without retaining a legacy fallback.
