@@ -577,3 +577,20 @@ Correction in this increment:
 | Permission coverage | Pass | Banner is non-privileged and mounted inside existing route shells | Authenticated reconnect authorization remains pending | No permission decision is made in the client banner |
 | Failure and recovery | Pass for browser network state | Offline event shows warning; online event removes it; test covers both | Dependency outage/retry policy needs live stack | Avoided false claim that unsent messages are queued |
 | Test traceability | Pass for affected increment | `npm run test:e2e:network`, `npm run validate`, `npm run build` | Multi-account realtime recovery remains pending | Added deterministic regression coverage |
+
+# Follow-up self-review (2026-08-29, notification-pagination increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Feature completeness | Pass for inbox pagination UI | `loadMoreNotifications` consumes the canonical page contract; the sidebar exposes an explicit load-more/retry action when `hasNext` is true | Live Cassandra page ordering and provider delivery remain unverified | Do not limit the inbox to the first 50 records when the server advertises another page |
+| State integrity | Pass | Page state, deduplication by notification ID, and `loadingMore` lock prevent duplicate or overlapping append requests | Cross-device ordering after realtime inserts still needs integration evidence | Keep the server page result authoritative and preserve realtime records without duplicates |
+| Session isolation | Pass | Pagination captures the same generation guard as initialization; reset or a newer init invalidates stale page responses | Identity switching still needs live browser proof | Never append a previous session’s page into the current inbox |
+| Failure recovery | Pass | Pagination failures retain loaded notifications and expose localized retry copy instead of an empty/success state | Authenticated provider failure remains unverified | Keep page-load errors separate from initial inbox errors |
+| Bilingual and accessibility coverage | Pass | New loading, retry and action labels are registered in `resources.ts`; the control has explicit type, disabled and `aria-busy` states; locale smoke now checks 715 keys | Full screen-reader audit remains pending | Translate product copy while leaving notification title/body domain data unchanged |
+| Traceability | Pass | `notification.store.ts`, `NotificationList.tsx`, `SidebarNotificationPanel.tsx`, `ChatSidebar.tsx`, `FEATURE_INVENTORY.md` | Clean-stack authenticated browser evidence remains pending | Keep the API page contract, store state and UI action wired as one documented path |
+
+Correction in this increment:
+
+- Added guarded inbox pagination with request locking, generation isolation,
+  notification-ID deduplication, localized retry feedback and the global unread
+  count in the panel header.

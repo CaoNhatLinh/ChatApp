@@ -37,8 +37,12 @@ export const ChatSidebar = () => {
     notifications,
     loading: notificationsLoading,
     error: notificationsError,
+    hasNext: notificationsHasNext,
+    loadingMore: notificationsLoadingMore,
+    loadMoreError: notificationsLoadMoreError,
     unreadCount: notificationUnreadCount,
     initNotifications,
+    loadMoreNotifications,
     connectRealtime: connectNotificationRealtime,
     disconnectRealtime: disconnectNotificationRealtime,
     markOneAsRead,
@@ -47,8 +51,12 @@ export const ChatSidebar = () => {
     notifications: state.notifications,
     loading: state.loading,
     error: state.error,
+    hasNext: state.hasNext,
+    loadingMore: state.loadingMore,
+    loadMoreError: state.loadMoreError,
     unreadCount: state.unreadCount,
     initNotifications: state.initNotifications,
+    loadMoreNotifications: state.loadMoreNotifications,
     connectRealtime: state.connectRealtime,
     disconnectRealtime: state.disconnectRealtime,
     markOneAsRead: state.markOneAsRead,
@@ -190,9 +198,14 @@ export const ChatSidebar = () => {
       <SidebarNotificationPanel
         isOpen={isNotificationPanelOpen}
         notifications={notifications}
+        unreadCount={notificationUnreadCount}
         loading={notificationsLoading}
         error={notificationsError}
         onRetry={initNotifications}
+        hasNext={notificationsHasNext}
+        loadingMore={notificationsLoadingMore}
+        loadMoreError={notificationsLoadMoreError}
+        onLoadMore={loadMoreNotifications}
         onClose={closeNotificationPanel}
         onMarkAsRead={markOneAsRead}
         onMarkAllAsRead={handleMarkAllNotificationsAsRead}

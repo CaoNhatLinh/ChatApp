@@ -25,11 +25,15 @@ interface NotificationStore {
   notifications: NotificationRecord[];
   unreadCount: number;
   hasNext: boolean;
+  page: number;
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
+  loadMoreError: string | null;
   isPanelOpen: boolean;
   realtimeUserId: string | null;
   initNotifications: () => Promise<void>;
+  loadMoreNotifications: () => Promise<void>;
   connectRealtime: (userId: string) => void;
   disconnectRealtime: () => void;
   resetState: () => void;
@@ -144,14 +148,17 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   notifications: [],
   unreadCount: 0,
   hasNext: false,
+  page: 0,
   loading: false,
   error: null,
+  loadingMore: false,
+  loadMoreError: null,
   isPanelOpen: false,
   realtimeUserId: null,
 
   initNotifications: async () => {
     const generation = ++notificationInitGeneration;
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, loadingMore: false, loadMoreError: null, page: 0 });
     try {
       const [page, unreadCount] = await Promise.all([
         getAllNotifications(0, 50),
@@ -161,8 +168,11 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       set({
         notifications: page.content,
         hasNext: page.hasNext,
+        page: 0,
         unreadCount,
         loading: false,
+        loadingMore: false,
+        loadMoreError: null,
       });
     } catch (error: unknown) {
       if (generation !== notificationInitGeneration) return;
@@ -170,6 +180,42 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       set({
         loading: false,
         error: getUserFacingErrorMessage(error, localizeText('Không thể tải thông báo. Vui lòng thử lại.')),
+      });
+    }
+  },
+
+  loadMoreNotifications: async () => {
+    const state = get();
+    if (state.loading || state.loadingMore || !state.hasNext) return;
+
+    const generation = notificationInitGeneration;
+    const nextPage = state.page + 1;
+    set({ loadingMore: true, loadMoreError: null });
+
+    try {
+      const page = await getAllNotifications(nextPage, 50);
+      if (generation !== notificationInitGeneration) return;
+
+      set(current => {
+        const existingIds = new Set(current.notifications.map(notification => notification.notificationId));
+        const appended = page.content.filter(notification => !existingIds.has(notification.notificationId));
+        return {
+          notifications: [...current.notifications, ...appended],
+          hasNext: page.hasNext,
+          page: nextPage,
+          loadingMore: false,
+          loadMoreError: null,
+        };
+      });
+    } catch (error: unknown) {
+      if (generation !== notificationInitGeneration) return;
+      logger.warn('Notification pagination failed', error instanceof Error ? error.message : String(error));
+      set({
+        loadingMore: false,
+        loadMoreError: getUserFacingErrorMessage(
+          error,
+          localizeText('Không thể tải thêm thông báo. Vui lòng thử lại.'),
+        ),
       });
     }
   },
@@ -261,8 +307,11 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       notifications: [],
       unreadCount: 0,
       hasNext: false,
+      page: 0,
       loading: false,
+      loadingMore: false,
       error: null,
+      loadMoreError: null,
       isPanelOpen: false,
     });
   },

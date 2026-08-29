@@ -1,4 +1,4 @@
-import { Bell, Heart, MessageCircle, Reply, User, UserPlus, X } from "lucide-react";
+import { Bell, Heart, Loader2, MessageCircle, Reply, User, UserPlus, X } from "lucide-react";
 import { motion } from "framer-motion";
 import type { NotificationRecord, NotificationType } from "@/features/notifications/api/notifications.api";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
@@ -11,9 +11,14 @@ interface NotificationListProps {
   isOpen: boolean;
   onClose: () => void;
   notifications: NotificationRecord[];
+  unreadCount: number;
   loading: boolean;
   error: string | null;
   onRetry: () => void | Promise<void>;
+  hasNext: boolean;
+  loadingMore: boolean;
+  loadMoreError: string | null;
+  onLoadMore: () => void | Promise<void>;
   onMarkAsRead: (notificationId: string) => void | Promise<void>;
   onMarkAllAsRead: () => void | Promise<void>;
   onNotificationClick: (notification: NotificationRecord) => void | Promise<void>;
@@ -59,15 +64,18 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   isOpen,
   onClose,
   notifications,
+  unreadCount,
   loading,
   error,
   onRetry,
+  hasNext,
+  loadingMore,
+  loadMoreError,
+  onLoadMore,
   onMarkAsRead,
   onMarkAllAsRead,
   onNotificationClick,
 }) => {
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
   const reportActionError = (error: unknown, fallback: string) => {
     logger.error('[NotificationList] Action failed', error instanceof Error ? error.message : String(error));
     notifyError(getUserFacingErrorMessage(error, fallback));
@@ -189,6 +197,33 @@ export const NotificationList: React.FC<NotificationListProps> = ({
                 </div>
               </motion.button>
             ))}
+            {hasNext ? (
+              <div className="border-t border-border/40 p-3">
+                {loadMoreError ? (
+                  <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2" role="alert">
+                    <p className="text-xs text-destructive">{loadMoreError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void onLoadMore()}
+                      disabled={loadingMore}
+                      className="focus-ring shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {localizeText('Thử lại')}
+                    </button>
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => void onLoadMore()}
+                  disabled={loadingMore}
+                  aria-busy={loadingMore}
+                  className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-md border border-border/70 px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loadingMore ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : null}
+                  {localizeText(loadingMore ? 'Đang tải thêm thông báo...' : 'Tải thêm thông báo')}
+                </button>
+              </div>
+            ) : null}
           </motion.div>
         )}
       </div>

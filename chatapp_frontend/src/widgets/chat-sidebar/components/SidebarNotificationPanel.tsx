@@ -4,9 +4,14 @@ import type { NotificationRecord } from '@/features/notifications/api/notificati
 interface SidebarNotificationPanelProps {
   isOpen: boolean;
   notifications: NotificationRecord[];
+  unreadCount: number;
   loading: boolean;
   error: string | null;
   onRetry: () => void | Promise<void>;
+  hasNext: boolean;
+  loadingMore: boolean;
+  loadMoreError: string | null;
+  onLoadMore: () => void | Promise<void>;
   onClose: () => void;
   onMarkAsRead: (notificationId: string) => Promise<void> | void;
   onMarkAllAsRead: () => void | Promise<void>;
@@ -16,9 +21,14 @@ interface SidebarNotificationPanelProps {
 export const SidebarNotificationPanel = ({
   isOpen,
   notifications,
+  unreadCount,
   loading,
   error,
   onRetry,
+  hasNext,
+  loadingMore,
+  loadMoreError,
+  onLoadMore,
   onClose,
   onMarkAsRead,
   onMarkAllAsRead,
@@ -30,9 +40,14 @@ export const SidebarNotificationPanel = ({
         isOpen={isOpen}
         onClose={onClose}
         notifications={notifications}
+        unreadCount={unreadCount}
         loading={loading}
         error={error}
         onRetry={onRetry}
+        hasNext={hasNext}
+        loadingMore={loadingMore}
+        loadMoreError={loadMoreError}
+        onLoadMore={onLoadMore}
         onMarkAsRead={onMarkAsRead}
         onMarkAllAsRead={onMarkAllAsRead}
         onNotificationClick={onNotificationClick}
