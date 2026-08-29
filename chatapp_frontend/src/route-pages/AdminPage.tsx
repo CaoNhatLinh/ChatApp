@@ -84,6 +84,96 @@ const accountStatusLabel = (status: "ACTIVE" | "SUSPENDED" | "BANNED") => ({
   BANNED: localizeText("Bị cấm"),
 }[status]);
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  FRIEND_REQUEST_SEND: "Gửi lời mời kết bạn",
+  FRIEND_REQUEST_CANCEL: "Hủy lời mời kết bạn",
+  FRIEND_REQUEST_ACCEPT: "Chấp nhận lời mời kết bạn",
+  FRIEND_REQUEST_DECLINE: "Từ chối lời mời kết bạn",
+  FRIEND_BLOCK: "Chặn bạn bè",
+  FRIEND_UNBLOCK: "Bỏ chặn bạn bè",
+  FRIEND_REMOVE: "Xóa bạn bè",
+  USER_PROFILE_UPDATE: "Cập nhật hồ sơ",
+  USER_ACCOUNT_STATUS_UPDATE: "Cập nhật trạng thái tài khoản",
+  USER_SESSION_REVOKED: "Thu hồi phiên đăng nhập",
+  USER_DEVICE_REVOKED: "Thu hồi thiết bị",
+  APP_ROLE_GRANTED: "Cấp vai trò ứng dụng",
+  APP_ROLE_REVOKED: "Thu hồi vai trò ứng dụng",
+  ADMIN_MESSAGE_VIEW: "Xem tin nhắn điều tra",
+  ADMIN_CONVERSATION_CHAT_POLICY_UPDATE: "Cập nhật policy chat toàn cục",
+  ADMIN_CONVERSATION_ARCHIVE: "Lưu trữ room",
+  ADMIN_CONVERSATION_RESTORE: "Khôi phục room",
+  CONVERSATION_CREATE: "Tạo room",
+  MEMBER_ADD: "Thêm thành viên",
+  MEMBER_REMOVE: "Xóa thành viên",
+  MEMBER_LEFT: "Rời room",
+  CONVERSATION_PIN: "Ghim room",
+  CONVERSATION_UNPIN: "Bỏ ghim room",
+  CONVERSATION_CHAT_POLICY_UPDATE: "Cập nhật policy chat",
+  CONVERSATION_NOTIFICATION_POLICY_UPDATE: "Cập nhật policy thông báo room",
+  MEMBER_NOTIFICATION_POLICY_UPDATE: "Cập nhật policy thông báo thành viên",
+  MEMBER_CHAT_POLICY_UPDATE: "Cập nhật policy chat thành viên",
+  MESSAGE_SEND: "Gửi tin nhắn",
+  MESSAGE_EDIT: "Chỉnh sửa tin nhắn",
+  MESSAGE_DELETE: "Xóa tin nhắn",
+  MESSAGE_REACTION_ADD: "Thêm cảm xúc tin nhắn",
+  MESSAGE_REACTION_REMOVE: "Xóa cảm xúc tin nhắn",
+  MESSAGE_PIN: "Ghim tin nhắn",
+  MESSAGE_UNPIN: "Bỏ ghim tin nhắn",
+  POLL_CREATE: "Tạo bình chọn",
+  POLL_VOTE: "Bình chọn",
+  POLL_VOTE_CHANGE: "Đổi lựa chọn bình chọn",
+  POLL_VOTE_REMOVE: "Gỡ bình chọn",
+  POLL_CLOSE: "Đóng bình chọn",
+  INVITE_CREATE: "Tạo lời mời",
+  JOIN_REQUEST_CREATE: "Tạo yêu cầu tham gia",
+  JOIN_BY_INVITE: "Tham gia bằng lời mời",
+  INVITE_REVOKE: "Thu hồi lời mời",
+  INVITE_DECLINE: "Từ chối lời mời",
+  ROLE_CREATED: "Tạo vai trò room",
+  ROLE_DELETED: "Xóa vai trò room",
+  ROLES_ASSIGNED: "Gán vai trò room",
+  OWNERSHIP_TRANSFERRED: "Chuyển quyền sở hữu room",
+  REPORT_CREATED: "Tạo báo cáo",
+  REPORT_STATUS_UPDATE: "Cập nhật trạng thái báo cáo",
+  SANCTION_IMPOSED: "Áp dụng chế tài",
+  SANCTION_REVOKED: "Thu hồi chế tài",
+  SANCTION_EXPIRED: "Chế tài hết hạn",
+};
+
+const auditActionLabel = (action: string): string => {
+  const label = AUDIT_ACTION_LABELS[action];
+  if (!label) throw new Error(`Unsupported audit action: ${action}`);
+  return localizeText(label);
+};
+
+const auditOutcomeLabel = (outcome: string): string => {
+  const label = ({ SUCCESS: "Thành công", FAILED: "Thất bại" } as Record<string, string>)[outcome];
+  if (!label) throw new Error(`Unsupported audit outcome: ${outcome}`);
+  return localizeText(label);
+};
+
+const reportTargetLabel = (targetType: AdminReport["targetType"]): string => {
+  const label = ({
+    USER: "Người dùng",
+    MESSAGE: "Tin nhắn",
+    CONVERSATION: "Cuộc trò chuyện",
+  } as Record<string, string>)[targetType];
+  if (!label) throw new Error(`Unsupported report target type: ${targetType}`);
+  return localizeText(label);
+};
+
+const sanctionTypeLabel = (sanctionType: AdminSanction["sanctionType"]): string => ({
+  BAN: localizeText("Cấm"),
+  MUTE: localizeText("Tắt tiếng"),
+  SUSPEND: localizeText("Tạm ngưng"),
+  WARNING: localizeText("Cảnh cáo"),
+}[sanctionType]);
+
+const sanctionScopeLabel = (scope: AdminSanction["scope"]): string => ({
+  APP: localizeText("Ứng dụng"),
+  CONVERSATION: localizeText("Cuộc trò chuyện"),
+}[scope]);
+
 const ANALYTICS_EVENT_OPTIONS = [
   { value: "ALL", label: "Tất cả sự kiện" },
   { value: "ROOM_CREATED", label: "Tạo room" },
@@ -717,7 +807,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Audit timeline toàn ứng dụng")}>
-          {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><Button size="sm" variant="outline" onClick={() => void handleAuditExport()} loading={auditExporting}><Download size={15} />{localizeText("Xuất CSV audit")}</Button><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{event.action}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{event.outcome}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · ${localizeText("người thao tác")} ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
+              {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><Button size="sm" variant="outline" onClick={() => void handleAuditExport()} loading={auditExporting}><Download size={15} />{localizeText("Xuất CSV audit")}</Button><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{auditActionLabel(event.action)}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{auditOutcomeLabel(event.outcome)}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · ${localizeText("người thao tác")} ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Điều tra tin nhắn") }>
@@ -746,10 +836,10 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
               <p className="pb-2 text-xs text-muted-foreground">{localizeText("Hàng đợi được phân vùng theo ngày để giữ truy vấn bounded.")}</p>
             </div>
             <div className="mt-4 space-y-2" aria-live="polite">
-              {reportsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : reports.length ? reports.map((report) => <div key={report.reportId} className="rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{report.targetType}</Badge><Badge variant={report.status === "OPEN" ? "destructive" : "secondary"}>{reportStatusLabel(report.status)}</Badge><span className="text-xs text-muted-foreground">{report.reportId}</span></div><p className="mt-2 text-sm font-semibold">{report.reasonCode}</p>{report.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{report.description}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{localizeText("Người báo cáo")}: {report.reporterId}{report.targetUserId ? ` · ${localizeText("mục tiêu")}: ${report.targetUserId}` : ""}</p></div><div className="flex flex-wrap gap-2">{report.targetUserId ? <Button size="sm" variant="outline" onClick={() => { setSanctionTargetUserId(report.targetUserId as string); setSanctions([]); setFeedback("Đã chọn người dùng mục tiêu cho biểu mẫu chế tài."); }}>{localizeText("Chọn người dùng mục tiêu")}</Button> : null}{report.status === "OPEN" ? <Button size="sm" variant="outline" onClick={() => void handleReportResolution(report, "IN_REVIEW")} loading={moderationMutating}>{localizeText("Nhận xử lý")}</Button> : null}{report.status === "OPEN" || report.status === "IN_REVIEW" ? <><Button size="sm" onClick={() => void handleReportResolution(report, "RESOLVED")} loading={moderationMutating}>{localizeText("Giải quyết")}</Button><Button size="sm" variant="destructive" onClick={() => void handleReportResolution(report, "DISMISSED")} loading={moderationMutating}>{localizeText("Bỏ qua")}</Button></> : null}</div></div></div>) : <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Không có báo cáo nào khớp bộ lọc hiện tại.")}</p>}
+              {reportsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : reports.length ? reports.map((report) => <div key={report.reportId} className="rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{reportTargetLabel(report.targetType)}</Badge><Badge variant={report.status === "OPEN" ? "destructive" : "secondary"}>{reportStatusLabel(report.status)}</Badge><span className="text-xs text-muted-foreground">{report.reportId}</span></div><p className="mt-2 text-sm font-semibold">{report.reasonCode}</p>{report.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{report.description}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{localizeText("Người báo cáo")}: {report.reporterId}{report.targetUserId ? ` · ${localizeText("mục tiêu")}: ${report.targetUserId}` : ""}</p></div><div className="flex flex-wrap gap-2">{report.targetUserId ? <Button size="sm" variant="outline" onClick={() => { setSanctionTargetUserId(report.targetUserId as string); setSanctions([]); setFeedback("Đã chọn người dùng mục tiêu cho biểu mẫu chế tài."); }}>{localizeText("Chọn người dùng mục tiêu")}</Button> : null}{report.status === "OPEN" ? <Button size="sm" variant="outline" onClick={() => void handleReportResolution(report, "IN_REVIEW")} loading={moderationMutating}>{localizeText("Nhận xử lý")}</Button> : null}{report.status === "OPEN" || report.status === "IN_REVIEW" ? <><Button size="sm" onClick={() => void handleReportResolution(report, "RESOLVED")} loading={moderationMutating}>{localizeText("Giải quyết")}</Button><Button size="sm" variant="destructive" onClick={() => void handleReportResolution(report, "DISMISSED")} loading={moderationMutating}>{localizeText("Bỏ qua")}</Button></> : null}</div></div></div>) : <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Không có báo cáo nào khớp bộ lọc hiện tại.")}</p>}
             </div>
             <div className="mt-5 rounded-xl border border-border/60 bg-background/45 p-4"><p className="text-sm font-bold">{localizeText("Áp dụng chế tài người dùng")}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText("Chế tài APP BAN/SUSPEND cập nhật trạng thái tài khoản; chế tài CONVERSATION chỉ áp dụng trong room được chỉ định.")}</p><div className="mt-3 grid gap-3 md:grid-cols-2"><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("ID người dùng mục tiêu")}</label><Input className="mt-1" value={sanctionTargetUserId} onChange={(event) => setSanctionTargetUserId(event.target.value)} placeholder={localizeText("UUID của user")} /></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Phạm vi")}</label><select value={sanctionScope} onChange={(event) => setSanctionScope(event.target.value as AdminSanction['scope'])} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm"><option value="APP">{localizeText("Ứng dụng")}</option><option value="CONVERSATION">{localizeText("Cuộc trò chuyện")}</option></select></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Loại sanction")}</label><select value={sanctionType} onChange={(event) => setSanctionType(event.target.value as AdminSanction['sanctionType'])} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm"><option value="BAN">{localizeText("Cấm")}</option><option value="SUSPEND">{localizeText("Tạm ngưng")}</option><option value="MUTE">{localizeText("Tắt tiếng")}</option><option value="WARNING">{localizeText("Cảnh cáo")}</option></select></div>{sanctionScope === "CONVERSATION" ? <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("ID cuộc trò chuyện")}</label><Input className="mt-1" value={sanctionConversationId} onChange={(event) => setSanctionConversationId(event.target.value)} placeholder={localizeText("UUID của room")} /></div> : null}<div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Hết hạn (tuỳ chọn)")}</label><Input className="mt-1" type="datetime-local" value={sanctionExpiresAt} onChange={(event) => setSanctionExpiresAt(event.target.value)} /></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Mã lý do")}</label><Input className="mt-1" value={resolutionCode} onChange={(event) => setResolutionCode(event.target.value)} placeholder={localizeText("SPAM, ABUSE...")} /></div></div><label className="mt-3 block text-xs font-semibold text-muted-foreground">{localizeText("Lý do chi tiết (bắt buộc)")}</label><Input className="mt-1" value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} placeholder={localizeText("Ghi rõ căn cứ quyết định")} /><Button className="mt-4" onClick={() => void handleImposeSanction()} loading={moderationMutating}>{localizeText("Áp dụng chế tài")}</Button></div>
-            {sanctionsLoading ? <div className="mt-5 flex justify-center py-4"><LoadingSpinner /></div> : sanctionTargetUserId && sanctions.length ? <div className="mt-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Chế tài của người dùng mục tiêu đang chọn")}</p><div className="mt-3 space-y-2">{sanctions.map((sanction) => <div key={sanction.sanctionId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2"><div><Badge variant={sanction.status === "ACTIVE" ? "destructive" : "outline"}>{sanction.sanctionType} · {sanctionStatusLabel(sanction.status)}</Badge><p className="mt-1 text-xs text-muted-foreground">{sanction.scope} · {sanction.reasonText}</p></div>{sanction.status === "ACTIVE" ? <Button size="sm" variant="outline" onClick={() => void handleRevokeSanction(sanction)} loading={moderationMutating}>{localizeText("Thu hồi")}</Button> : null}</div>)}</div></div> : null}
+            {sanctionsLoading ? <div className="mt-5 flex justify-center py-4"><LoadingSpinner /></div> : sanctionTargetUserId && sanctions.length ? <div className="mt-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Chế tài của người dùng mục tiêu đang chọn")}</p><div className="mt-3 space-y-2">{sanctions.map((sanction) => <div key={sanction.sanctionId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2"><div><Badge variant={sanction.status === "ACTIVE" ? "destructive" : "outline"}>{sanctionTypeLabel(sanction.sanctionType)} · {sanctionStatusLabel(sanction.status)}</Badge><p className="mt-1 text-xs text-muted-foreground">{sanctionScopeLabel(sanction.scope)} · {sanction.reasonText}</p></div>{sanction.status === "ACTIVE" ? <Button size="sm" variant="outline" onClick={() => void handleRevokeSanction(sanction)} loading={moderationMutating}>{localizeText("Thu hồi")}</Button> : null}</div>)}</div></div> : null}
           </>}
         </SurfacePanel>
 

@@ -191,7 +191,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                         return (
                                             <a key={`${attachment.url}-${index}`} href={attachment.url} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl border border-border/30 bg-background/30 px-3 py-2 text-xs font-semibold">
                                                 <span className="truncate pr-3">{attachment.fileName}</span>
-                                                <span className="text-primary">Mở</span>
+                                                <span className="text-primary">{localizeText('Mở')}</span>
                                             </a>
                                         );
                                     })}
