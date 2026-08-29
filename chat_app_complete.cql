@@ -288,15 +288,6 @@ CREATE TABLE IF NOT EXISTS friendship_projection_key_by_pair_user (
   PRIMARY KEY ((user_id, other_user_id))
 );
 
-/* Cassandra fallback snapshot. Redis still owns online/typing TTL state. */
-CREATE TABLE IF NOT EXISTS user_presence_by_user (
-  user_id uuid PRIMARY KEY,
-  presence_status text,              /* ONLINE, AWAY, DND, INVISIBLE, OFFLINE */
-  last_seen_at timestamp,
-  updated_at timestamp,
-  active_device_count int
-);
-
 /* ======================= Conversation and membership ===================== */
 
 CREATE TABLE IF NOT EXISTS conversations_by_id (
