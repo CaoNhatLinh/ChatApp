@@ -971,3 +971,18 @@ Correction in this increment:
 - Wired the Contacts view to track only the users rendered in the active tab,
   so friend/request/search rows receive real presence updates instead of
   defaulting to an offline state when no room conversation is open.
+
+# Follow-up self-review (2026-08-29, unused relationship component cleanup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Runtime reachability | Pass | Repository-wide import search found no active reference to `components/friend/FriendList`, `FriendItem`, or their barrel; canonical Contacts routes use `ContactListView` and `ContactRow` | No compatibility renderer is retained for the removed duplicate | Keep one canonical Contacts implementation and do not restore legacy aliases |
+| Dead-code discipline | Pass | Removed exactly the three unreferenced duplicate files; no data, API, or runtime fallback was changed | Broader static dependency graph review remains part of release engineering | Delete only files proven unreferenced by the current source tree |
+| Regression safety | Pass | Frontend type-check/lint and `test:e2e:contacts` pass after removal; active presence tracking remains in `ContactListView` | Full clean-stack Contacts mutation journey remains pending | Treat the canonical Contacts route as the sole supported UI surface |
+| Traceability | Pass | `ContactListView.tsx`, Contacts smoke, function inventory and this entry describe the remaining path | Historical review notes mention the former duplicate as a prior gap | Preserve historical notes while recording the later cleanup explicitly |
+
+Correction in this increment:
+
+- Removed the unreferenced `FriendList`, `FriendItem`, and barrel files so the
+  shipped source tree no longer carries a duplicate relationship UI or legacy
+  compatibility surface.
