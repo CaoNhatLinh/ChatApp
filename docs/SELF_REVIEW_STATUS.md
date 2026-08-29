@@ -539,6 +539,19 @@ Correction in this increment:
 - Redacted arbitrary error-object logging across active browser flows while
   retaining the status-aware notifications already exposed to users.
 
+# Follow-up self-review (2026-08-29, boundary diagnostic increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass for error boundary/theme/policy diagnostics | Error boundary, theme bootstrap and room notification policy handlers now keep only bounded diagnostic text | Server-side telemetry redaction remains an operations task | Keep arbitrary exception objects out of browser logs |
+| User-facing behavior | Pass | Policy load/save continues to render retry/error copy; theme bootstrap remains non-blocking | Full authenticated policy matrix remains pending | Diagnostic hardening must not remove recovery UI |
+| Traceability | Pass | `app/error.tsx`, `ThemeProvider.tsx`, `ConversationInfo.tsx` and this entry | Legacy duplicate modules remain outside active scope | Apply the same boundary to future active handlers |
+
+Correction in this increment:
+
+- Replaced remaining raw boundary/policy/theme console logging in active runtime
+  paths with the shared logger and bounded error details.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

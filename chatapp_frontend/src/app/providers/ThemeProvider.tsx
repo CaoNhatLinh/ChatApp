@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode, FC } from 'react';
 import { ThemeContext, type ThemeContextType, type ThemePreference } from '@/app/providers/theme';
+import { logger } from '@/shared/lib/logger';
 
 const prefersDark = (): boolean =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -20,7 +21,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
       }
       return 'system';
     } catch (error) {
-      console.error("Lỗi khi khởi tạo theme preference:", error instanceof Error ? error.message : error);
+      logger.warn('[ThemeProvider] Failed to initialize theme preference', error instanceof Error ? error.message : String(error));
       return 'system';
     }
   });

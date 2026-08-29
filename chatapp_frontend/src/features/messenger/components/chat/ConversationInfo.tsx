@@ -85,7 +85,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
         } catch (error) {
             setNotificationPolicy(null);
             setNotificationPolicyError(true);
-            console.error('[ConversationInfo] Notification policy load failed:', error);
+            logger.error('[ConversationInfo] Notification policy load failed', error instanceof Error ? error.message : String(error));
         } finally {
             setNotificationPolicyLoading(false);
         }
@@ -120,9 +120,9 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             setNotificationPolicy(nextPolicy);
             updateConversationNotificationPolicy(activeConv.conversationId, nextPolicy);
             notifySuccess(localizeText('Đã cập nhật cài đặt thông báo của phòng.'));
-        } catch (error) {
-            console.error('[ConversationInfo] Notification policy save failed:', error);
-            notifyError(localizeText('Không thể cập nhật cài đặt thông báo của phòng.'));
+        } catch (error: unknown) {
+            logger.error('[ConversationInfo] Notification policy save failed', error instanceof Error ? error.message : String(error));
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật cài đặt thông báo của phòng.')));
             setRoomNotificationLevel(notificationPolicy.defaultNotificationLevel);
             setMemberNotificationOverride(notificationPolicy.notificationOverride);
         } finally {

@@ -2,11 +2,12 @@
 
 import { useEffect } from 'react';
 import { localizeText, useAppLocale } from '@/shared/i18n';
+import { logger } from '@/shared/lib/logger';
 
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useAppLocale();
   useEffect(() => {
-    console.error('[NextApp] route rendering failed', error);
+    logger.error('[NextApp] route rendering failed', error instanceof Error ? error.message : String(error));
   }, [error]);
 
   return (
