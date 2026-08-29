@@ -90,7 +90,11 @@ class ApiClient {
                 }
 
                 if (runtimeEnv.isDevelopment) {
-                    logger.error(`API Error ${String(status)}: ${axiosError.config?.url}`, JSON.stringify(axiosError.response?.data));
+                    logger.warn('API request rejected', {
+                        status,
+                        method: axiosError.config?.method?.toUpperCase(),
+                        url: axiosError.config?.url,
+                    });
                 }
 
                 return Promise.reject(axiosError);

@@ -374,6 +374,32 @@ Corrections in this increment:
 - Verified no visible unnamed controls, unlabeled fields, horizontal overflow,
   or duplicate/missing primary headings in the audited surface.
 
+# Follow-up self-review (2026-08-29, client transport-log increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass for API rejection logging | Development interceptor logs status/method/path only; response payload is no longer serialized to the browser console | Server-side structured audit/log redaction remains an operations task | Never emit response bodies from the client transport logger |
+| User-facing errors | Pass | Callers own localized status mapping through `getUserFacingErrorMessage` | Full endpoint-by-endpoint authenticated failure proof remains pending | Keep transport diagnostics separate from UI copy |
+| Traceability | Pass | `apiClient.ts`, error mapper and self-review entries | No clean-stack provider run on this host | Treat provider unavailability as blocked evidence, not a success |
+
+Correction in this increment:
+
+- Removed development-console serialization of arbitrary API response payloads;
+  only status, method and endpoint metadata remain in operator diagnostics.
+
+# Follow-up self-review (2026-08-29, Create Room user-search increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Async consistency | Pass for Create Room search | `useUserSearch` ignores late responses and cleanup-time errors; only current query may update state | Abort signal support depends on the canonical search API contract | Do not let stale requests overwrite a newer query |
+| Failure safety | Pass | Search failures map to stable localized copy and clear current results | Authenticated provider proof remains pending | Keep search errors visible without exposing transport data |
+| Traceability | Pass | `useUserSearch.ts`, Create Room modal and locale/error guards | Search ranking/index behavior remains a backend concern | Preserve active-request boundary |
+
+Correction in this increment:
+
+- Added an active lifecycle guard to Create Room user search so stale responses
+  and post-unmount errors cannot corrupt the modal state.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
