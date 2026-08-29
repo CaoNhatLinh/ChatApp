@@ -429,7 +429,7 @@ paths:
   /notifications/type/{type}:
     get:
       tags: [Notifications]
-      parameters: [{name: type, in: path, required: true, schema: {type: string}}, {$ref: '#/components/parameters/Limit'}]
+      parameters: [{name: type, in: path, required: true, schema: {type: string}}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Notifications filtered by type}}
   /notifications/latest:
     get:

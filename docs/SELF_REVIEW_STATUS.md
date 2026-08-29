@@ -1021,7 +1021,7 @@ Correction in this increment:
 | --- | --- | --- | --- | --- |
 | Contract truthfulness | Pass | Repository-wide search found `ConversationSearchRequest`, `ConversationUpdateRequest`, `FriendshipView`, and `CallRequest` only in their declarations; no controller, service, frontend client, OpenAPI path, or test consumed them | Authorized room/community discovery search, conversation updates, friendship views, and call initiation remain explicit gaps where no live endpoint exists | Do not publish request/view types for operations that do not exist |
 | Legacy/dead-code discipline | Pass | Removed the four unreferenced records without changing any live route, schema, adapter, or compatibility path | No legacy room-search, friendship-view, conversation-update, or call behavior is restored | Keep the canonical API surface limited to implemented operations |
-| Regression safety | Pass | Java 20 Maven suite remains green at 97 tests, 0 failures, 0 errors | Clean-stack route and search integration remain pending | Treat compilation and contract tests as the boundary for this cleanup |
+| Regression safety | Pass | Java 20 Maven suite remains green at 98 tests, 0 failures, 0 errors | Clean-stack route and search integration remain pending | Treat compilation and contract tests as the boundary for this cleanup |
 | Traceability | Pass | `CanonicalApiContracts.java`, room-search audit row, and this entry now agree that discovery search is not implemented | Implementation requires a separately specified authorized index/projection | Record the missing feature instead of leaving a misleading dead DTO |
 
 Correction in this increment:
@@ -1029,3 +1029,18 @@ Correction in this increment:
 - Removed the unused `ConversationSearchRequest`, `ConversationUpdateRequest`,
   `FriendshipView`, and `CallRequest` DTOs so the backend no longer advertises
   unimplemented operations or compatibility surfaces.
+
+# Follow-up self-review (2026-08-29, notification pagination contract increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | Notification list/type endpoints, frontend client, and OpenAPI now use the canonical `page` + `limit` query names | Other historical endpoints still require the broader parameter audit | Keep one documented query contract per endpoint; do not accept an undocumented alias |
+| Pagination correctness | Pass | `CanonicalNotificationController.byType` filters the bounded notification set, applies the requested page offset, returns only the requested limit, and computes `hasNext` from the filtered result | Cassandra pagination across more than the latest 12 monthly partitions remains an infrastructure/query limitation | Apply pagination after filtering so page 1 cannot repeat page 0 |
+| Regression safety | Pass | Java 20 Maven suite reports 98 tests, 0 failures, 0 errors; controller regression test proves type filtering precedes page slicing | Clean-stack notification persistence/provider delivery remains pending | Keep the controller test next to the canonical endpoint |
+| Traceability | Pass | `CanonicalNotificationController`, `notifications.api.ts`, OpenAPI, function audit, and this entry agree on the contract | Full authenticated browser pagination journey remains pending | Keep client argument names aligned with the wire contract |
+
+Correction in this increment:
+
+- Replaced the undocumented notification `size` query with canonical `limit`
+  in backend and frontend clients, documented `page` for type filtering, and
+  fixed the endpoint to honor requested pagination and `hasNext`.

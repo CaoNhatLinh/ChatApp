@@ -68,8 +68,8 @@ export const isConversationAttentionNotification = (notification: NotificationRe
 /**
  * 📋 Get all notifications for current user
  */
-export const getAllNotifications = async (page: number = 0, size: number = 50): Promise<NotificationPage> => {
-  const response = await api.get<NotificationPage>('/notifications', { params: { page, size } });
+export const getAllNotifications = async (page: number = 0, limit: number = 50): Promise<NotificationPage> => {
+  const response = await api.get<NotificationPage>('/notifications', { params: { page, limit } });
   return response.data;
 };
 
@@ -141,9 +141,9 @@ export const getNotificationStats = async (): Promise<NotificationStats> => {
 export const getNotificationsByType = async (
   type: NotificationType,
   page: number = 0,
-  size: number = 50
+  limit: number = 50
 ): Promise<NotificationPage> => {
-  const response = await api.get<NotificationPage>(`/notifications/type/${type}`, { params: { page, size } });
+  const response = await api.get<NotificationPage>(`/notifications/type/${type}`, { params: { page, limit } });
   return response.data;
 };
 

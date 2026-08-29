@@ -46,10 +46,11 @@ public class CanonicalNotificationController {
 
     @GetMapping
     public NotificationPage list(@RequestParam(defaultValue = "0") int page,
-                                 @RequestParam(defaultValue = "50") int size) {
-        List<CanonicalNotification> notifications = recentNotifications(Math.min(200, (Math.max(0, page) + 1) * bounded(size)));
-        int from = Math.min(notifications.size(), Math.max(0, page) * bounded(size));
-        List<CanonicalNotification> pageItems = notifications.subList(from, Math.min(notifications.size(), from + bounded(size)));
+                                 @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        int pageSize = bounded(limit);
+        List<CanonicalNotification> notifications = recentNotifications(Math.min(200, (Math.max(0, page) + 1) * pageSize));
+        int from = Math.min(notifications.size(), Math.max(0, page) * pageSize);
+        List<CanonicalNotification> pageItems = notifications.subList(from, Math.min(notifications.size(), from + pageSize));
         return new NotificationPage(pageItems.stream().map(this::toView).toList(), from + pageItems.size() < notifications.size(), !pageItems.isEmpty());
     }
 
@@ -136,13 +137,15 @@ public class CanonicalNotificationController {
     @GetMapping("/type/{type}")
     public NotificationPage byType(@PathVariable String type,
                                    @RequestParam(defaultValue = "0") int page,
-                                   @RequestParam(defaultValue = "50") int size) {
+                                   @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        int pageSize = bounded(limit);
         List<NotificationView> filtered = recentNotifications(200).stream()
                 .filter(notification -> notification.notificationType().equalsIgnoreCase(type))
-                .limit(bounded(size))
                 .map(this::toView)
                 .toList();
-        return new NotificationPage(filtered, false, !filtered.isEmpty());
+        int from = Math.min(filtered.size(), Math.max(0, page) * pageSize);
+        List<NotificationView> pageItems = filtered.subList(from, Math.min(filtered.size(), from + pageSize));
+        return new NotificationPage(pageItems, from + pageItems.size() < filtered.size(), !pageItems.isEmpty());
     }
 
     @GetMapping("/latest")
