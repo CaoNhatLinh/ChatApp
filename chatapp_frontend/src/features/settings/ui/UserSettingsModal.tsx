@@ -20,6 +20,8 @@ import { Button } from '@/shared/ui/Button';
 import { ReportHistoryPanel } from '@/features/moderation/components/ReportHistoryPanel';
 import { localizeText } from '@/shared/i18n';
 import { NotificationSettingsPanel } from '@/features/notifications/components/NotificationSettingsPanel';
+import { logger } from '@/shared/lib/logger';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -104,8 +106,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       updateUser(updatedUser);
       notifySuccess(UI_COPY.settings.saveProfileSuccess);
     } catch (error: unknown) {
-      console.error('Failed to update profile', error);
-      notifyError(UI_COPY.settings.saveProfileError);
+      logger.error('[UserSettingsModal] Failed to update profile', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, UI_COPY.settings.saveProfileError));
     } finally {
       setIsSaving(false);
     }
@@ -118,15 +120,15 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       try {
         presenceWsService.sendLogout();
       } catch (error: unknown) {
-        console.warn('Failed to send explicit logout', error);
+        logger.warn('[UserSettingsModal] Failed to send explicit logout', error instanceof Error ? error.message : String(error));
       }
 
       await logout();
       notifySuccess(UI_COPY.settings.logoutSuccess);
     } catch (error: unknown) {
-      console.error('Logout failed', error);
+      logger.error('[UserSettingsModal] Logout failed', error instanceof Error ? error.message : String(error));
       notifyWarning(UI_COPY.settings.logoutWarning);
-      notifyError(UI_COPY.settings.logoutError);
+      notifyError(getUserFacingErrorMessage(error, UI_COPY.settings.logoutError));
     } finally {
       disconnectWebSocket();
       logoutStore();

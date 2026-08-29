@@ -512,6 +512,20 @@ Correction in this increment:
 - Added user-visible failure feedback for loading older conversations/messages and
   sanitized the associated operator diagnostics.
 
+# Follow-up self-review (2026-08-29, account-settings error increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for profile save/logout | Account settings now use status-aware localized errors and keep local logout cleanup in the `finally` path | Authenticated refresh/session integration proof remains pending | Preserve local session cleanup even when server logout fails |
+| Data exposure | Pass | Console logging was replaced with logger calls containing only native error messages | Server-side structured redaction remains an operations task | Never render or serialize response payloads in settings diagnostics |
+| State integrity | Pass | Profile updates only update the store after the API resolves; logout always disconnects realtime and clears local auth | Cross-device session revocation remains infrastructure-dependent | Keep server mutation and local cleanup as separate outcomes |
+| Traceability | Pass | `UserSettingsModal.tsx`, auth APIs and this entry | Clean-stack authenticated browser proof remains blocked | Preserve explicit settings action ownership |
+
+Correction in this increment:
+
+- Hardened profile-save and logout failure paths with sanitized diagnostics and
+  status-aware user copy without changing the safe local logout fallback.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
