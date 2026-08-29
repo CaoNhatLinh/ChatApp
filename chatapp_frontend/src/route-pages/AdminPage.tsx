@@ -47,6 +47,8 @@ import {
 } from "@/features/admin/api/admin.api";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { localizeText, useAppLocale } from "@/shared/i18n";
+import { logger } from "@/shared/lib/logger";
+import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 
 const readStatus = (error: unknown): number | undefined => {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -54,6 +56,11 @@ const readStatus = (error: unknown): number | undefined => {
     return response?.status;
   }
   return undefined;
+};
+
+const getAdminErrorMessage = (error: unknown, fallback: string): string => {
+  logger.warn("Admin request failed", error instanceof Error ? error.message : String(error));
+  return getUserFacingErrorMessage(error, fallback);
 };
 
 const formatDate = (value: string | null | undefined) => {
@@ -272,6 +279,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const [userStatus, setUserStatus] = useState<'ACTIVE' | 'SUSPENDED' | 'BANNED'>('ACTIVE');
   const [confirmation, setConfirmation] = useState<AdminConfirmation | null>(null);
   const confirmationResolver = useRef<((accepted: boolean) => void) | null>(null);
+  const overviewRequestRef = useRef(0);
+  const userSelectionRequestRef = useRef(0);
+  const roomSelectionRequestRef = useRef(0);
   useAppLocale();
   const setFeedback = (message: string | null) => setFeedbackState(message === null ? null : localizeText(message));
 
@@ -287,25 +297,33 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   };
 
   const loadOverview = async (isRefresh = false) => {
+    const requestId = ++overviewRequestRef.current;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setErrorMessage(null);
     try {
       const overviewResult = await getAdminOverview();
+      if (requestId !== overviewRequestRef.current) return;
       setOverview(overviewResult);
       setRoleCode((current) => current || overviewResult.availableRoleCodes[0] || "");
       try {
-        setHealth(await getAdminHealth());
-      } catch {
-        setHealth(null);
+        const healthResult = await getAdminHealth();
+        if (requestId === overviewRequestRef.current) setHealth(healthResult);
+      } catch (error: unknown) {
+        if (requestId === overviewRequestRef.current) {
+          logger.warn("Admin health request failed", error instanceof Error ? error.message : String(error));
+        }
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (requestId !== overviewRequestRef.current) return;
       setOverview(null);
       setErrorStatus(readStatus(error));
-      setErrorMessage(localizeText("Không thể tải quyền quản trị. Kiểm tra tài khoản và phiên đăng nhập."));
+      setErrorMessage(getAdminErrorMessage(error, "Không thể tải quyền quản trị. Kiểm tra tài khoản và phiên đăng nhập."));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === overviewRequestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -315,20 +333,40 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   useEffect(() => {
     if (!overview?.permissions.includes("ROOM_READ")) return;
+    let active = true;
     setRoomsLoading(true);
     void listAdminConversations(roomMonth, 100)
-      .then(setRooms)
-      .catch(() => setFeedback("Không thể tải danh sách room của tháng này."))
-      .finally(() => setRoomsLoading(false));
+      .then((result) => {
+        if (active) setRooms(result);
+      })
+      .catch((error: unknown) => {
+        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải danh sách room của tháng này."));
+      })
+      .finally(() => {
+        if (active) setRoomsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [overview, roomMonth]);
 
   useEffect(() => {
     if (!overview?.permissions.includes("AUDIT_READ")) return;
+    let active = true;
     setAuditLoading(true);
     void listAdminAuditEvents(auditMonth, 50)
-      .then(setAuditEvents)
-      .catch(() => setFeedback("Không thể tải audit timeline của tháng này."))
-      .finally(() => setAuditLoading(false));
+      .then((result) => {
+        if (active) setAuditEvents(result);
+      })
+      .catch((error: unknown) => {
+        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải audit timeline của tháng này."));
+      })
+      .finally(() => {
+        if (active) setAuditLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [overview, auditMonth]);
 
   const handleAuditExport = async () => {
@@ -345,8 +383,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       link.remove();
       URL.revokeObjectURL(downloadUrl);
       setFeedback("Đã xuất audit CSV cho tháng đã chọn.");
-    } catch {
-      setFeedback("Không thể xuất audit CSV. Kiểm tra quyền AUDIT_READ và tháng đã chọn.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể xuất audit CSV. Kiểm tra quyền AUDIT_READ và tháng đã chọn."));
     } finally {
       setAuditExporting(false);
     }
@@ -354,20 +392,40 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   useEffect(() => {
     if (!overview?.permissions.includes("ANALYTICS_READ")) return;
+    let active = true;
     setAnalyticsLoading(true);
     void listAdminAnalytics({ from: analyticsFrom, to: analyticsTo, eventType: analyticsType, limit: 200 })
-      .then(setAnalyticsPoints)
-      .catch(() => setFeedback("Không thể tải analytics trong khoảng thời gian này."))
-      .finally(() => setAnalyticsLoading(false));
+      .then((result) => {
+        if (active) setAnalyticsPoints(result);
+      })
+      .catch((error: unknown) => {
+        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải analytics trong khoảng thời gian này."));
+      })
+      .finally(() => {
+        if (active) setAnalyticsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [overview, analyticsFrom, analyticsTo, analyticsType]);
 
   useEffect(() => {
     if (!overview?.permissions.includes("REPORT_MANAGE")) return;
+    let active = true;
     setReportsLoading(true);
     void listAdminReports(reportStatusFilter, reportDay, 50)
-      .then(setReports)
-      .catch(() => setFeedback("Không thể tải hàng đợi report của ngày này."))
-      .finally(() => setReportsLoading(false));
+      .then((result) => {
+        if (active) setReports(result);
+      })
+      .catch((error: unknown) => {
+        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải hàng đợi report của ngày này."));
+      })
+      .finally(() => {
+        if (active) setReportsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [overview, reportStatusFilter, reportDay]);
 
   const assignedRoleCodes = useMemo(
@@ -385,33 +443,49 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
     setFeedback(null);
     try {
       setUsers(await searchAdminUsers(normalized));
-    } catch {
-      setFeedback("Không thể tìm người dùng trong lúc này.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể tìm người dùng trong lúc này."));
     } finally {
       setSearching(false);
     }
   };
 
   const selectUser = async (candidate: UserDTO) => {
+    const requestId = ++userSelectionRequestRef.current;
     setSelectedUser(candidate);
     setSanctionTargetUserId(candidate.userId);
     setUserStatus(candidate.status === "BANNED" ? "BANNED" : candidate.status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE");
+    setSelectedRoles([]);
+    setSanctions([]);
+    setUserSessions([]);
+    setUserDevices([]);
     setRolesLoading(true);
     setFeedback(null);
     try {
-      setSelectedRoles(await getAdminUserRoles(candidate.userId));
-    } catch {
+      const roles = await getAdminUserRoles(candidate.userId);
+      if (requestId !== userSelectionRequestRef.current) return;
+      setSelectedRoles(roles);
+    } catch (error: unknown) {
+      if (requestId !== userSelectionRequestRef.current) return;
       setSelectedRoles([]);
-      setFeedback("Không thể đọc role của người dùng này.");
+      setFeedback(getAdminErrorMessage(error, "Không thể đọc role của người dùng này."));
     } finally {
-      setRolesLoading(false);
+      if (requestId === userSelectionRequestRef.current) setRolesLoading(false);
     }
     if (overview?.permissions.includes("REPORT_MANAGE")) {
       setSanctionsLoading(true);
       void listAdminSanctions(candidate.userId, 50)
-        .then(setSanctions)
-        .catch(() => setFeedback("Không thể đọc sanctions của người dùng này."))
-        .finally(() => setSanctionsLoading(false));
+        .then((result) => {
+          if (requestId === userSelectionRequestRef.current) setSanctions(result);
+        })
+        .catch((error: unknown) => {
+          if (requestId === userSelectionRequestRef.current) {
+            setFeedback(getAdminErrorMessage(error, "Không thể đọc sanctions của người dùng này."));
+          }
+        })
+        .finally(() => {
+          if (requestId === userSelectionRequestRef.current) setSanctionsLoading(false);
+        });
     }
     if (overview?.permissions.includes("USER_READ")) {
       setSecurityLoading(true);
@@ -419,10 +493,14 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         listAdminSessions(candidate.userId, 100),
         listAdminDevices(candidate.userId, 100),
       ]);
+      if (requestId !== userSelectionRequestRef.current) return;
       setUserSessions(sessionResult.status === "fulfilled" ? sessionResult.value : []);
       setUserDevices(deviceResult.status === "fulfilled" ? deviceResult.value : []);
       if (sessionResult.status === "rejected" || deviceResult.status === "rejected") {
-        setFeedback("Không thể đọc đầy đủ session/device của người dùng này.");
+        const firstError: unknown = sessionResult.status === "rejected"
+          ? sessionResult.reason as unknown
+          : deviceResult.status === "rejected" ? deviceResult.reason as unknown : undefined;
+        setFeedback(getAdminErrorMessage(firstError, "Không thể đọc đầy đủ session/device của người dùng này."));
       }
       setSecurityLoading(false);
     }
@@ -448,8 +526,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         : item));
       setReason("");
       setFeedback("Đã thu hồi session.");
-    } catch {
-      setFeedback("Không thể thu hồi session hoặc session đã không còn active.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi session hoặc session đã không còn active."));
     } finally {
       setMutating(false);
     }
@@ -476,8 +554,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         : item));
       setReason("");
       setFeedback("Đã vô hiệu hóa thiết bị và các session được liên kết.");
-    } catch {
-      setFeedback("Không thể thu hồi thiết bị hoặc thiết bị đã không còn active.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi thiết bị hoặc thiết bị đã không còn active."));
     } finally {
       setMutating(false);
     }
@@ -502,8 +580,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setReason("");
       setExpiresAt("");
       setFeedback(`Đã cấp role ${roleCode} cho ${selectedUser.userName}.`);
-    } catch {
-      setFeedback("Không thể cấp role. Backend sẽ từ chối nếu bạn thiếu quyền hoặc role đã tồn tại.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể cấp role. Backend sẽ từ chối nếu bạn thiếu quyền hoặc role đã tồn tại."));
     } finally {
       setMutating(false);
     }
@@ -523,8 +601,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       await revokeAdminRole(selectedUser.userId, role.roleCode, reason);
       setSelectedRoles(await getAdminUserRoles(selectedUser.userId));
       setFeedback(`Đã thu hồi role ${role.roleCode}.`);
-    } catch {
-      setFeedback("Không thể thu hồi role. Kiểm tra hierarchy và quyền quản trị.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi role. Kiểm tra hierarchy và quyền quản trị."));
     } finally {
       setMutating(false);
     }
@@ -549,23 +627,27 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setUsers((current) => current.map((candidate) => candidate.userId === selectedUser.userId ? { ...candidate, status: userStatus } : candidate));
       setReason("");
       setFeedback(`Đã cập nhật trạng thái tài khoản thành ${accountStatusLabel(userStatus)}.`);
-    } catch {
-      setFeedback("Không thể cập nhật trạng thái. Backend sẽ kiểm tra quyền USER_SUSPEND/USER_RESTORE.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật trạng thái. Backend sẽ kiểm tra quyền USER_SUSPEND/USER_RESTORE."));
     } finally {
       setMutating(false);
     }
   };
 
   const selectRoom = async (room: AdminConversationSummary) => {
+    const requestId = ++roomSelectionRequestRef.current;
     setRoomMutating(false);
     setFeedback(null);
     try {
       const detail = await getAdminConversation(room.conversationId);
+      if (requestId !== roomSelectionRequestRef.current) return;
       setSelectedRoom(detail);
       setRoomPolicy(detail.chatMode);
       setRoomSlowMode(detail.slowModeSeconds);
-    } catch {
-      setFeedback("Không thể đọc chi tiết room này.");
+    } catch (error: unknown) {
+      if (requestId === roomSelectionRequestRef.current) {
+        setFeedback(getAdminErrorMessage(error, "Không thể đọc chi tiết room này."));
+      }
     }
   };
 
@@ -581,8 +663,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setRooms((current) => current.map((room) => room.conversationId === updated.conversationId ? { ...room, ...updated } : room));
       setFeedback("Đã cập nhật policy room toàn cục.");
       setRoomReason("");
-    } catch {
-      setFeedback("Không thể cập nhật policy. Kiểm tra ROOM_MODERATE và reason.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật policy. Kiểm tra ROOM_MODERATE và reason."));
     } finally {
       setRoomMutating(false);
     }
@@ -609,8 +691,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setRooms((current) => current.map((room) => room.conversationId === updated.conversationId ? { ...room, ...updated } : room));
       setRoomReason("");
       setFeedback(selectedRoom.deleted ? "Đã khôi phục room." : "Đã lưu trữ room.");
-    } catch {
-      setFeedback("Không thể thay đổi trạng thái room.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể thay đổi trạng thái room."));
     } finally {
       setRoomMutating(false);
     }
@@ -633,8 +715,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         messageReason,
       ));
       setFeedback("Đã ghi nhận lượt xem message vào audit timeline.");
-    } catch {
-      setFeedback("Không thể đọc message. Kiểm tra UUID, bucket, quyền AUDIT_READ và reason.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể đọc message. Kiểm tra UUID, bucket, quyền AUDIT_READ và reason."));
     } finally {
       setMessageLoading(false);
     }
@@ -663,8 +745,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setModerationReason("");
       setResolutionCode("");
       setFeedback(`Đã cập nhật report thành ${reportStatusLabel(nextStatus)}.`);
-    } catch {
-      setFeedback("Không thể cập nhật report. Kiểm tra REPORT_MANAGE và trạng thái hiện tại.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật report. Kiểm tra REPORT_MANAGE và trạng thái hiện tại."));
     } finally {
       setModerationMutating(false);
     }
@@ -696,8 +778,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setResolutionCode("");
       setSanctionExpiresAt("");
       setFeedback("Đã áp dụng sanction và ghi audit.");
-    } catch {
-      setFeedback("Không thể áp dụng sanction. Kiểm tra user ID, quyền và thời hạn.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể áp dụng sanction. Kiểm tra user ID, quyền và thời hạn."));
     } finally {
       setModerationMutating(false);
     }
@@ -720,8 +802,8 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setSanctions((current) => current.map((item) => item.sanctionId === sanction.sanctionId ? { ...item, status: "REVOKED", revokedAt: new Date().toISOString() } : item));
       setModerationReason("");
       setFeedback("Đã thu hồi sanction.");
-    } catch {
-      setFeedback("Không thể thu hồi sanction hoặc sanction đã hết hiệu lực.");
+    } catch (error: unknown) {
+      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi sanction hoặc sanction đã hết hiệu lực."));
     } finally {
       setModerationMutating(false);
     }

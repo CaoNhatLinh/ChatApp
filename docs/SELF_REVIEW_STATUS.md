@@ -586,7 +586,7 @@ Correction in this increment:
 | State integrity | Pass | Page state, deduplication by notification ID, and `loadingMore` lock prevent duplicate or overlapping append requests | Cross-device ordering after realtime inserts still needs integration evidence | Keep the server page result authoritative and preserve realtime records without duplicates |
 | Session isolation | Pass | Pagination captures the same generation guard as initialization; reset or a newer init invalidates stale page responses | Identity switching still needs live browser proof | Never append a previous session’s page into the current inbox |
 | Failure recovery | Pass | Pagination failures retain loaded notifications and expose localized retry copy instead of an empty/success state | Authenticated provider failure remains unverified | Keep page-load errors separate from initial inbox errors |
-| Bilingual and accessibility coverage | Pass | New loading, retry and action labels are registered in `resources.ts`; the control has explicit type, disabled and `aria-busy` states; locale smoke now checks 715 keys | Full screen-reader audit remains pending | Translate product copy while leaving notification title/body domain data unchanged |
+| Bilingual and accessibility coverage | Pass | New loading, retry and action labels are registered in `resources.ts`; the control has explicit type, disabled and `aria-busy` states; locale smoke checks 714 static call keys and the pagination resource entries | Full screen-reader audit remains pending | Translate product copy while leaving notification title/body domain data unchanged |
 | Traceability | Pass | `notification.store.ts`, `NotificationList.tsx`, `SidebarNotificationPanel.tsx`, `ChatSidebar.tsx`, `FEATURE_INVENTORY.md` | Clean-stack authenticated browser evidence remains pending | Keep the API page contract, store state and UI action wired as one documented path |
 
 Correction in this increment:
@@ -594,3 +594,20 @@ Correction in this increment:
 - Added guarded inbox pagination with request locking, generation isolation,
   notification-ID deduplication, localized retry feedback and the global unread
   count in the panel header.
+
+# Follow-up self-review (2026-08-29, global-admin request-isolation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| State integrity | Pass for active admin panels | Room, audit, analytics and report effects ignore late responses after their filter changes; selected user/room detail requests use generation refs and clear prior detail before loading | Authenticated multi-operator concurrency remains unverified | The newest operator selection owns visible state |
+| Session and permission safety | Pass for request boundaries | Overview refreshes cannot overwrite a newer request; status-aware error mapping remains server/permission driven | Live permission matrix and session revocation proof remain pending | Do not infer access or keep stale privileged detail visible |
+| Failure recovery | Pass for active admin requests | Load and mutation failures use shared status-aware copy; existing loading/empty/error surfaces remain intact | Clean-stack backend outage/retry behavior remains pending | Preserve the last authoritative state until a newer request succeeds |
+| Data exposure | Pass | Admin diagnostics log only bounded native error text; response bodies and identifiers are not serialized into browser logs | Server-side structured log redaction remains an operations task | Keep investigation content in the authorized panel, not diagnostics |
+| Bilingual coverage | Pass | Existing feedback keys flow through `localizeText`; locale-copy smoke reports 714 static call keys with no missing translations | Full authenticated operator locale walkthrough remains pending | Translate operator feedback, not room/user/message domain data |
+| Traceability | Pass | `AdminPage.tsx`, `FEATURE_INVENTORY.md` and this entry; admin route smoke and production build pass | Live Cassandra/Redis/Kafka authorization proof remains blocked | Keep request lifecycle, permission gate and UI state connected |
+
+Correction in this increment:
+
+- Added cleanup and generation guards for global-admin overview, room, audit,
+  analytics, report, user, session/device and room-detail requests; replaced
+  log-only admin catches with bounded diagnostics and localized status-aware copy.
