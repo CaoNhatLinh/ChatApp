@@ -32,7 +32,7 @@
 - [X] 2.2 Last-message projection and automatic room ordering (unit/service evidence; live projection proof pending).
 - [X] 2.3 Personal room pins with slot-based max-3 contract.
 - [ ] 2.4 Custom conversation roles, colors, ordering and permission union (API/UI slice exists; role hierarchy integration pending).
-- [X] 2.5 Add/remove/assign/kick/leave lifecycle for the supported canonical operations; owner transfer/community join policy remain.
+- [X] 2.5 Add/remove/assign/kick/leave lifecycle for the supported canonical operations; community create policy is now explicit in UI/browser coverage, while owner transfer and live community join persistence remain.
 - [ ] Checkpoint 2: room flows + system message/room log/audit pass.
 
 ## Phase 3: Messaging, Media And Realtime

@@ -1,6 +1,6 @@
 ﻿import { useMemo } from 'react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
-import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+import { EMPTY_TYPING, useMessengerStore } from '@/features/messenger/model/messenger.store';
 import { cn } from '@/shared/lib/cn';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 
@@ -15,7 +15,7 @@ export const TypingIndicator = ({
   excludeUserIds,
   className,
 }: TypingIndicatorProps) => {
-  const typingEvents = useMessengerStore(state => state.typingUsers[conversationId] || []);
+  const typingEvents = useMessengerStore(state => state.typingUsers[conversationId] || EMPTY_TYPING);
   const { user } = useAuthStore();
 
   const otherTypingUsers = useMemo(

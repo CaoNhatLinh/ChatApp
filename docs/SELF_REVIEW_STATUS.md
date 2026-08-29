@@ -1229,3 +1229,19 @@ Correction in this increment:
 - Connected outgoing friend-request cancellation from the Contacts UI through
   the canonical DELETE contract to the existing service cleanup, with localized
   feedback, unit coverage and browser method/path/state regression evidence.
+
+# Follow-up self-review (2026-08-29, room visibility and stable empty-room increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | `CreateConversationRequest`, the API adapter and browser assertion carry explicit `visibility` and `joinPolicy`; community creation sends `CHANNEL`, `COMMUNITY`, `REQUEST_APPROVAL` | Live Cassandra persistence remains pending | Do not label a channel public while silently accepting backend private defaults |
+| UX and accessibility | Pass | Channel settings expose native named radio controls for private/community scope and direct/approval admission, with responsive two-column cards and bilingual hints | Community directory/discovery is not implemented in this increment | Reveal policy controls only for channels and approval controls only for communities |
+| Runtime stability | Pass | The browser opens the newly created empty room with zero console/request failures; `TypingIndicator` now reuses the store's stable empty snapshot | Live STOMP typing events remain pending | Zustand selectors must not allocate a new fallback value on every snapshot |
+| Localization | Pass | Copy registry validates 782 active Vietnamese keys with complete English mappings | Live screen-reader locale walkthrough remains pending | Keep concise policy labels and explain consequences in one-line hints |
+| Scope and dependencies | Pass | Existing conversation contract, design tokens, motion primitives and Playwright dependency are reused | Community search and owner transfer remain separate features | No compatibility alias, mock runtime fallback, or new package was introduced |
+
+Correction in this increment:
+
+- Added explicit private/community channel creation and join-policy controls,
+  verified the production request payload, and fixed the unstable empty typing
+  snapshot exposed when opening the new room.

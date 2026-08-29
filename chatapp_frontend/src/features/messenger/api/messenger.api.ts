@@ -326,6 +326,8 @@ export const createConversation = async (data: CreateConversationRequest): Promi
         conversationType: data.type.toUpperCase(),
         name: data.name,
         description: data.description,
+        visibility: data.visibility,
+        joinPolicy: data.joinPolicy,
         firstMember: data.type === 'dm' ? data.memberIds[0] : undefined,
         memberIds: data.memberIds,
     });

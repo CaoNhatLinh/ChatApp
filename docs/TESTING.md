@@ -51,6 +51,12 @@ transport does not block the REST-backed screen. Realtime transport failures
 are reported separately because the local integration stack is intentionally
 absent.
 
+`npm run test:e2e:room-create` loads the authenticated workspace, creates a
+community channel with approval-required membership, and asserts the canonical
+`CHANNEL` + `COMMUNITY` + `REQUEST_APPROVAL` request payload. It then opens the
+new empty room and fails on unstable store snapshots, console errors, or request
+failures.
+
 `npm run test:e2e:profile` loads the authenticated profile route with an explicit
 HTTP-boundary fixture and verifies the profile quick-link title and all link
 labels after switching from Vietnamese to English.

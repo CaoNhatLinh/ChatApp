@@ -139,6 +139,8 @@ export interface CreateConversationRequest {
     type: ConversationType;
     memberIds: string[];
     description?: string;
+    visibility?: 'PRIVATE_LINK' | 'COMMUNITY';
+    joinPolicy?: 'INVITE_ONLY' | 'DIRECT_JOIN' | 'REQUEST_APPROVAL';
 }
 
 /* --- Mention Types --- */

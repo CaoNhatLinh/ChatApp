@@ -26,6 +26,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const [roomName, setRoomName] = useState('');
     const [description, setDescription] = useState('');
     const [roomType, setRoomType] = useState<ConversationType>('group');
+    const [visibility, setVisibility] = useState<'PRIVATE_LINK' | 'COMMUNITY'>('PRIVATE_LINK');
+    const [joinPolicy, setJoinPolicy] = useState<'DIRECT_JOIN' | 'REQUEST_APPROVAL'>('DIRECT_JOIN');
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
@@ -46,6 +48,8 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             setRoomName('');
             setDescription('');
             setRoomType('group');
+            setVisibility('PRIVATE_LINK');
+            setJoinPolicy('DIRECT_JOIN');
             setSearchTerm('');
             setSelectedUsers([]);
             setErrorMessage(null);
@@ -104,7 +108,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                 type: roomType,
                 name: roomName,
                 description: description,
-                memberIds: selectedUsers.map(u => u.userId)
+                memberIds: selectedUsers.map(u => u.userId),
+                visibility: roomType === 'channel' ? visibility : 'PRIVATE_LINK',
+                joinPolicy: roomType === 'channel' && visibility === 'COMMUNITY' ? joinPolicy : 'INVITE_ONLY',
             });
 
             hoistConversation(newRoom);
@@ -229,7 +235,10 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                     <div className="grid grid-cols-2 gap-4">
                                         <button
                                             type="button"
-                                            onClick={() => setRoomType('group')}
+                                            onClick={() => {
+                                                setRoomType('group');
+                                                setVisibility('PRIVATE_LINK');
+                                            }}
                                             className={cn(
                                                 "flex items-center gap-4 p-4 rounded-2xl border-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] text-left",
                                                 roomType === 'group' ? "border-primary bg-primary/10" : "border-border/30 bg-background/40 hover:border-primary/50"
@@ -261,6 +270,75 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                         </button>
                                     </div>
                                 </fieldset>
+
+                                {roomType === 'channel' ? (
+                                    <motion.div
+                                        className="space-y-6 rounded-2xl border border-border/50 bg-background/35 p-5"
+                                        initial={UI_MOTION_CONFIG.initialState}
+                                        animate={UI_MOTION_CONFIG.animateState}
+                                        variants={UI_MOTION_VARIANTS.panelReveal}
+                                    >
+                                        <fieldset className="space-y-3">
+                                            <legend className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
+                                                {MESSENGER_COPY.createRoomModal.channelScopeLabel}
+                                            </legend>
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                {([
+                                                    ['PRIVATE_LINK', MESSENGER_COPY.createRoomModal.privateChannel, MESSENGER_COPY.createRoomModal.privateChannelHint],
+                                                    ['COMMUNITY', MESSENGER_COPY.createRoomModal.communityChannel, MESSENGER_COPY.createRoomModal.communityChannelHint],
+                                                ] as const).map(([value, label, hint]) => (
+                                                    <label key={value} className={cn(
+                                                        'cursor-pointer rounded-xl border p-4 transition-[color,background-color,border-color,box-shadow]',
+                                                        visibility === value ? 'border-primary bg-primary/10' : 'border-border/50 hover:border-primary/45',
+                                                    )}>
+                                                        <input
+                                                            type="radio"
+                                                            name="channel-visibility"
+                                                            value={value}
+                                                            checked={visibility === value}
+                                                            onChange={() => setVisibility(value)}
+                                                            aria-label={label}
+                                                            className="sr-only"
+                                                        />
+                                                        <span className="block text-sm font-bold">{label}</span>
+                                                        <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </fieldset>
+
+                                        {visibility === 'COMMUNITY' ? (
+                                            <fieldset className="space-y-3">
+                                                <legend className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
+                                                    {MESSENGER_COPY.createRoomModal.joinPolicyLabel}
+                                                </legend>
+                                                <div className="grid gap-3 sm:grid-cols-2">
+                                                    {([
+                                                        ['DIRECT_JOIN', MESSENGER_COPY.createRoomModal.directJoin, MESSENGER_COPY.createRoomModal.directJoinHint],
+                                                        ['REQUEST_APPROVAL', MESSENGER_COPY.createRoomModal.approvalRequired, MESSENGER_COPY.createRoomModal.approvalRequiredHint],
+                                                    ] as const).map(([value, label, hint]) => (
+                                                        <label key={value} className={cn(
+                                                            'cursor-pointer rounded-xl border p-4 transition-[color,background-color,border-color,box-shadow]',
+                                                            joinPolicy === value ? 'border-primary bg-primary/10' : 'border-border/50 hover:border-primary/45',
+                                                        )}>
+                                                            <input
+                                                                type="radio"
+                                                                name="community-join-policy"
+                                                                value={value}
+                                                                checked={joinPolicy === value}
+                                                                onChange={() => setJoinPolicy(value)}
+                                                                aria-label={label}
+                                                                className="sr-only"
+                                                            />
+                                                            <span className="block text-sm font-bold">{label}</span>
+                                                            <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </fieldset>
+                                        ) : null}
+                                    </motion.div>
+                                ) : null}
                             </div>
                         </motion.div>
                     ) : (

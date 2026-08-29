@@ -22,12 +22,12 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 | Frontend production build | Working with risk | Next.js App Router production build exits 0; authenticated bundle/runtime profiling remains pending. |
 | Backend compile/test | Working at unit level | With Java 20 (`JAVA_HOME=C:\\Program Files\\Java\\jdk-20`), `mvnw test` reports 100 tests, 0 failures, 0 errors. The host default Java 17 cannot run the Java 20 test classes; clean-stack integration is still pending. |
 | Docker Compose validation | Blocked | Docker executable is not installed or not in `PATH`. |
-| Browser E2E | Partial | `scripts/browser-smoke.mjs`, `locale-smoke.mjs`, `admin-route-smoke.mjs`, `notification-settings-smoke.mjs`, `contacts-locale-smoke.mjs`, `profile-locale-smoke.mjs`, `presence-status-smoke.mjs`, and `search-filter-smoke.mjs` pass their bounded journeys; authenticated multi-account E2E is still pending. |
+| Browser E2E | Partial | `scripts/browser-smoke.mjs`, `locale-smoke.mjs`, `admin-route-smoke.mjs`, `notification-settings-smoke.mjs`, `contacts-locale-smoke.mjs`, `room-create-smoke.mjs`, `profile-locale-smoke.mjs`, `presence-status-smoke.mjs`, and `search-filter-smoke.mjs` pass their bounded journeys; authenticated multi-account E2E is still pending. |
 | Backend automated evidence | Partial | Unit/contract tests pass; no clean-stack Cassandra/Kafka/Redis/Elasticsearch integration suite is available on this host. |
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-773 static Vietnamese copy keys are checked and currently have no missing
+782 static Vietnamese copy keys are checked and currently have no missing
 English translation key, including every static `localizeText(...)` call under
 `src/`. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.
@@ -54,7 +54,7 @@ coverage remains pending.
 | App RBAC/admin identity | Assign/remove app roles, permission evaluation, global user status, protected admin actions | Implemented but not fully verified | Server-gated `/admin` UI and app-role/status APIs are present; full permission matrix and integration tests remain. |
 | Friends and blocks | Search user, send/cancel/accept/reject request, list friends/requests/status, mutual friends, block/unblock | Implemented but not fully verified | Canonical friendship projections, user search, request/status/mutual/block routes and frontend adapters are present; pending outgoing requests can be cancelled through `DELETE /friends/requests/{recipientId}` and return to the invite state in browser coverage; inert profile actions remain removed because no per-user relationship contract backs them; live two-user journey remains. |
 | Presence | Online/custom status, heartbeat, multi-tab/device presence, subscribe/unsubscribe, reconnect snapshot | Implemented but not fully verified | Presence service/controller, heartbeat, batch sync, local/Redis TTL, workspace status selector, and bounded room/contact subscriptions are present; Redis reconnect/two-instance proof remains. |
-| Room creation/discovery | Idempotent DM, group, private channel, community channel, visibility/search/join policy | Implemented but not fully verified | Canonical DM/group create/list/member APIs and frontend adapters are present; community discovery and live join-policy proof remain. |
+| Room creation/discovery | Idempotent DM, group, private channel, community channel, visibility/search/join policy | Implemented but not fully verified | Create-room now sends explicit private/community visibility and invite/direct/approval join policy; browser coverage verifies the community approval payload and stable empty-room opening. Community directory discovery and live persistence remain. |
 | Room list/order/unread | Per-user bounded list, last-message preview, automatic reorder, unread watermark | Partial | Per-user projection/last-message DTO and canonical bounded list route are wired; cursor pagination is not implemented, so the frontend no longer exposes a fake load-more path; live projection proof remains. |
 | Room pins | Personal pin/unpin/reorder with atomic max 3 | Implemented but not fully verified | Slot-based POST/DELETE contract and frontend pin/unpin adapters are wired; concurrent max-3 integration proof remains. |
 | Room roles/membership | Custom roles/color/order/permission union, add/join/assign/remove/kick/leave/transfer owner | Implemented but not fully verified | Member search/add/remove/leave, role listing/assignment, kick and chat policy UI hooks are wired; hierarchy/system-message/audit proof remains. |
