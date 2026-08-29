@@ -111,10 +111,13 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
   const [settings, setSettings] = useState<RoomVisualSettingsState>(() =>
     getPersistedRoomVisualSettings(userId),
   );
+  const settingsRef = useRef(settings);
 
   useEffect(() => {
     hasUserInteractedRef.current = false;
-    setSettings(getPersistedRoomVisualSettings(userId));
+    const localSettings = getPersistedRoomVisualSettings(userId);
+    settingsRef.current = localSettings;
+    setSettings(localSettings);
     if (!userId) return;
 
     let active = true;
@@ -135,6 +138,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
           roomThemes: remoteRoomThemes,
         };
         persistRoomVisualSettings(getRoomVisualStorageKey(userId), next);
+        settingsRef.current = next;
         setSettings(next);
       })
       .catch((error: unknown) => {
@@ -160,7 +164,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     void saveConversationAppearancePreference(
       conversationIdToSync,
       themeId,
-      override.customBackgroundImage ?? null,
+      override?.customBackgroundImage ?? null,
     ).catch((error: unknown) => {
       logger.warn('[RoomTheme] Failed to save room preference', error instanceof Error ? error.message : String(error));
     });
@@ -187,114 +191,99 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     ? settings.roomThemes[conversationId]?.customBackgroundImage
     : undefined;
 
+  const commitSettings = useCallback((next: RoomVisualSettingsState) => {
+    settingsRef.current = next;
+    setSettings(next);
+    persistRoomVisualSettings(storageKey, next);
+  }, [storageKey]);
+
   const setDefaultRoomTheme = useCallback((themeId: RoomThemeId) => {
     hasUserInteractedRef.current = true;
-    setSettings((current) => {
-      const next: RoomVisualSettingsState = {
-        ...current,
-        defaultRoomThemeId: themeId,
-      };
-
-      persistRoomVisualSettings(storageKey, next);
-      syncDefaults(next);
-      return next;
-    });
-  }, [storageKey, syncDefaults]);
+    const next: RoomVisualSettingsState = {
+      ...settingsRef.current,
+      defaultRoomThemeId: themeId,
+    };
+    commitSettings(next);
+    syncDefaults(next);
+  }, [commitSettings, syncDefaults]);
 
   const setRoomBubbleStyle = useCallback((bubbleStyle: ChatBubbleStyleId) => {
     hasUserInteractedRef.current = true;
-    setSettings((current) => {
-      const next: RoomVisualSettingsState = {
-        ...current,
-        messageBubbleStyle: bubbleStyle,
-      };
-
-      persistRoomVisualSettings(storageKey, next);
-      syncDefaults(next);
-      return next;
-    });
-  }, [storageKey, syncDefaults]);
+    const next: RoomVisualSettingsState = {
+      ...settingsRef.current,
+      messageBubbleStyle: bubbleStyle,
+    };
+    commitSettings(next);
+    syncDefaults(next);
+  }, [commitSettings, syncDefaults]);
 
   const setConversationTheme = useCallback((conversationIdToSet: string, themeId: RoomThemeId) => {
     hasUserInteractedRef.current = true;
-    setSettings((current) => {
-      const next: RoomVisualSettingsState = {
-        ...current,
-        roomThemes: {
-          ...current.roomThemes,
-          [conversationIdToSet]: {
-            ...current.roomThemes[conversationIdToSet],
-            roomThemeId: themeId,
-          },
+    const current = settingsRef.current;
+    const next: RoomVisualSettingsState = {
+      ...current,
+      roomThemes: {
+        ...current.roomThemes,
+        [conversationIdToSet]: {
+          ...current.roomThemes[conversationIdToSet],
+          roomThemeId: themeId,
         },
-      };
-
-      persistRoomVisualSettings(storageKey, next);
-      syncConversation(conversationIdToSet, next);
-      return next;
-    });
-  }, [storageKey, syncConversation]);
+      },
+    };
+    commitSettings(next);
+    syncConversation(conversationIdToSet, next);
+  }, [commitSettings, syncConversation]);
 
   const setConversationBackground = useCallback((conversationIdToSet: string, backgroundUrl: string) => {
     hasUserInteractedRef.current = true;
     const normalizedBackgroundUrl = normalizeRoomBackgroundUrl(backgroundUrl);
-    setSettings((current) => {
-      const next: RoomVisualSettingsState = {
-        ...current,
-        roomThemes: {
-          ...current.roomThemes,
-          [conversationIdToSet]: {
-            ...current.roomThemes[conversationIdToSet],
-            customBackgroundImage: normalizedBackgroundUrl ?? undefined,
-          },
+    const current = settingsRef.current;
+    const next: RoomVisualSettingsState = {
+      ...current,
+      roomThemes: {
+        ...current.roomThemes,
+        [conversationIdToSet]: {
+          ...current.roomThemes[conversationIdToSet],
+          customBackgroundImage: normalizedBackgroundUrl ?? undefined,
         },
-      };
-
-      persistRoomVisualSettings(storageKey, next);
-      syncConversation(conversationIdToSet, next);
-      return next;
-    });
-  }, [storageKey, syncConversation]);
+      },
+    };
+    commitSettings(next);
+    syncConversation(conversationIdToSet, next);
+  }, [commitSettings, syncConversation]);
 
   const resetConversationTheme = useCallback((conversationIdToReset: string) => {
     hasUserInteractedRef.current = true;
-    setSettings((current) => {
-      const roomThemes = { ...current.roomThemes };
-      delete roomThemes[conversationIdToReset];
-      const next: RoomVisualSettingsState = { ...current, roomThemes };
-
-      persistRoomVisualSettings(storageKey, next);
-      resetSyncedConversation(conversationIdToReset);
-      return next;
-    });
-  }, [resetSyncedConversation, storageKey]);
+    const roomThemes = { ...settingsRef.current.roomThemes };
+    delete roomThemes[conversationIdToReset];
+    const next: RoomVisualSettingsState = { ...settingsRef.current, roomThemes };
+    commitSettings(next);
+    resetSyncedConversation(conversationIdToReset);
+  }, [commitSettings, resetSyncedConversation]);
 
   const clearConversationBackground = useCallback((conversationIdToClear: string) => {
     hasUserInteractedRef.current = true;
-    setSettings((current) => {
-      const previous = current.roomThemes[conversationIdToClear];
-      if (!previous?.customBackgroundImage) return current;
+    const current = settingsRef.current;
+    const previous = current.roomThemes[conversationIdToClear];
+    if (!previous?.customBackgroundImage) return;
 
-      const roomThemes = { ...current.roomThemes };
-      if (previous.roomThemeId) {
-        roomThemes[conversationIdToClear] = {
-          roomThemeId: previous.roomThemeId,
-          customBackgroundImage: undefined,
-        };
-      } else {
-        delete roomThemes[conversationIdToClear];
-      }
-      const next: RoomVisualSettingsState = { ...current, roomThemes };
-
-      persistRoomVisualSettings(storageKey, next);
-      if (previous.roomThemeId) {
-        syncConversation(conversationIdToClear, next);
-      } else {
-        resetSyncedConversation(conversationIdToClear);
-      }
-      return next;
-    });
-  }, [resetSyncedConversation, storageKey, syncConversation]);
+    const roomThemes = { ...current.roomThemes };
+    if (previous.roomThemeId) {
+      roomThemes[conversationIdToClear] = {
+        roomThemeId: previous.roomThemeId,
+        customBackgroundImage: undefined,
+      };
+    } else {
+      delete roomThemes[conversationIdToClear];
+    }
+    const next: RoomVisualSettingsState = { ...current, roomThemes };
+    commitSettings(next);
+    if (previous.roomThemeId) {
+      syncConversation(conversationIdToClear, next);
+    } else {
+      resetSyncedConversation(conversationIdToClear);
+    }
+  }, [commitSettings, resetSyncedConversation, syncConversation]);
 
   return {
     settings,
