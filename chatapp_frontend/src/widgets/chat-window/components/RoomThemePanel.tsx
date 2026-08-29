@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
+import { localizeText } from '@/shared/i18n';
 import { CHAT_BUBBLE_PRESETS, CHAT_THEME_COPY, CHAT_THEME_STATUS, ROOM_THEME_PRESETS } from '@/features/settings/constants/chat-theme.constants';
 import type {
   ChatBubbleStyleId,
@@ -25,8 +26,11 @@ interface RoomThemePanelProps {
   onClearConversationBackground: () => void;
 }
 
-const getLabel = (themeId: RoomThemeId) =>
-  ROOM_THEME_PRESETS.find((theme) => theme.id === themeId)?.name || themeId;
+const getLabel = (themeId: RoomThemeId) => {
+  const theme = ROOM_THEME_PRESETS.find((candidate) => candidate.id === themeId);
+  if (!theme) throw new Error(`Unknown room theme: ${themeId}`);
+  return localizeText(theme.name);
+};
 
 export const RoomThemePanel = ({
   conversationId,
@@ -97,8 +101,8 @@ export const RoomThemePanel = ({
                     : 'border-border/45 hover:bg-background/50'
                 }`}
               >
-                <p className="text-sm font-black">{theme.name}</p>
-                <p className="text-[11px] text-muted-foreground">{theme.description}</p>
+                <p className="text-sm font-black">{localizeText(theme.name)}</p>
+                <p className="text-[11px] text-muted-foreground">{localizeText(theme.description)}</p>
               </button>
             ))}
           </div>
@@ -125,8 +129,8 @@ export const RoomThemePanel = ({
                     : 'border-border/45 hover:bg-background/50'
                 }`}
               >
-                <p className="text-sm font-black">{bubble.name}</p>
-                <p className="text-[11px] text-muted-foreground">{bubble.description}</p>
+                <p className="text-sm font-black">{localizeText(bubble.name)}</p>
+                <p className="text-[11px] text-muted-foreground">{localizeText(bubble.description)}</p>
               </button>
             ))}
           </div>

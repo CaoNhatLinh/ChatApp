@@ -149,7 +149,7 @@ export const getRoomVisualComputed = (
 import { localizedCopy } from '@/shared/i18n';
 
 const rawChatThemeCopy = {
-  panelTitle: "Room Visual",
+  panelTitle: "Giao diện phòng chat",
   panelDescription: "Thiết lập giao diện phòng chat hiện tại.",
   resetConversation: "Đặt mặc định",
   activeRoomHint: (conversationName: string) => `Đang áp dụng cho: ${conversationName}`,
