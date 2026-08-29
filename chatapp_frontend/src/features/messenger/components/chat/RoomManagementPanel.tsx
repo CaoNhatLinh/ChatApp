@@ -32,6 +32,9 @@ import { RoomRoleForm, type RoomRoleFormValue } from './RoomRoleForm';
 import { RoomChatPolicyForm } from './RoomChatPolicyForm';
 import { RoomMemberPolicyForm, type RoomMemberPolicyValue } from './RoomMemberPolicyForm';
 import { RoomAuditTimeline } from './RoomAuditTimeline';
+import { usePresence } from '@/features/presence/model/presence.store';
+import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
+import { StatusDot } from '@/features/presence/ui/StatusSelector';
 
 const EMPTY_ROLE: RoomRoleFormValue = {
     displayName: '',
@@ -50,6 +53,20 @@ type PendingAction =
 
 interface RoomManagementPanelProps {
     conversation: Conversation;
+}
+
+function RoomMemberPresence({ userId }: { userId: string }) {
+    const presenceRef = useTrackPresenceInViewport<HTMLSpanElement>([userId]);
+    const { presence } = usePresence(userId);
+    return (
+        <span ref={presenceRef} className="inline-flex shrink-0">
+            <StatusDot
+                status={presence?.status ?? 'OFFLINE'}
+                isOnline={presence?.isOnline ?? false}
+                size="sm"
+            />
+        </span>
+    );
 }
 
 export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) {
@@ -366,6 +383,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                                         ))}
                                     </span>
                                 </span>
+                                <RoomMemberPresence userId={member.userId} />
                                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                             </summary>
                             {!isOwner && (can('ROLE_ASSIGN') || can('MEMBER_KICK') || can('MEMBER_MUTE') || access.owner) ? (

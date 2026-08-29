@@ -1311,3 +1311,12 @@ Correction in this increment:
 | Catalog invariants | Pass at CAS boundary | Role code is the clustering key; static count and insert/delete are conditional same-partition batches | Clean Cassandra contention pending | Concurrent creators cannot duplicate a code or exceed 50 custom roles |
 | Delete/assignment ordering | Pass at unit/manifest boundary | `DELETING` lifecycle plus membership `role_revision`; assignment and transfer CAS the revision | Live multi-client contention pending | No cross-table batch is represented as a transaction |
 | Legacy discipline | Pass | Migration recreates the role authority without inference or backfill | Intended roles must be recreated explicitly | Removed role schema has no compatibility read path |
+
+# Follow-up self-review (2026-08-29, distributed presence and viewport increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Presence scope | Pass at code/contract boundary | `PresenceService` aggregates expiring per-session heartbeats, hides `INVISIBLE` as public `OFFLINE`, and publishes only public snapshots | Live Redis multi-node and multi-device expiry remain pending | Keep Redis as the only ephemeral presence authority; removed the unused Cassandra fallback table |
+| Subscription scale | Pass at client boundary | `useTrackPresenceInViewport` observes rows with a bounded margin; sidebar/history/contacts/room members no longer subscribe every loaded row; server caps 200 targets per session | Virtualized directory load test remains pending | Presence cost follows the visible window, while cursor pages own member loading |
+| Reconnect/expiry | Pass in unit boundary | Redis Pub/Sub listener, disconnect cleanup, bounded batch resync, expiry sweep, and `PresenceServiceTest` fan-out/expiry cases | Authenticated STOMP reconnect against Redis is externally blocked | Do not claim live presence until the clean dependency stack is available |
+| UI density and accessibility | Pass for changed surfaces | Room member rows expose a status dot without a second explanatory line; labels remain supplied by `StatusDot`; frontend validate passes | Full screen-reader and long-directory browser audit remains pending | Use progressive disclosure: status detail stays in existing profile/tooltip surfaces |
