@@ -134,6 +134,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Tên hiển thị': 'Display name',
   'Biệt danh': 'Nickname',
   'Avatar URL': 'Avatar URL',
+  'URL ảnh đại diện': 'Avatar URL',
   'Nhập biệt danh': 'Enter a nickname',
   'Nhập link ảnh đại diện': 'Enter an avatar URL',
   'Dán link ảnh trực tiếp (https://...) rồi nhấn Enter hoặc lưu ngay.': 'Paste a direct image link (https://...), then press Enter or save.',

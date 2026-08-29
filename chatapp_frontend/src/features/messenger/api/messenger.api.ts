@@ -1,4 +1,5 @@
 ﻿import apiClient from '@/shared/api/apiClient';
+import { localizeText } from '@/shared/i18n';
 import type {
     Conversation,
     ConversationMember,
@@ -249,7 +250,7 @@ const mapConversationListItem = (item: CanonicalConversationListItem): Conversat
         messageId: item.lastMessage.messageId,
         senderId: item.lastMessage.senderId,
         senderName: item.lastMessage.senderDisplayName,
-        content: item.lastMessage.deleted ? 'Message deleted' : item.lastMessage.contentPreview,
+        content: item.lastMessage.deleted ? localizeText('Tin nhắn đã bị xóa') : item.lastMessage.contentPreview,
         type: item.lastMessage.messageType,
         createdAt: item.lastMessage.createdAt,
     } : undefined,

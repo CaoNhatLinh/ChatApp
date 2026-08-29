@@ -8,7 +8,7 @@ import { ShellFrame } from '@/route-pages/shared/layout/ShellFrame';
 import PublicShellHeader from '@/route-pages/shared/layout/PublicShellHeader';
 import { localizeText } from '@/shared/i18n';
 
-const statusCopy: Record<string, string> = {
+const statusCopy: Record<Exclude<InvitePreview['status'], 'ACTIVE'>, string> = {
     INVALID: 'Liên kết mời không hợp lệ.',
     INACTIVE: 'Liên kết mời không còn hoạt động.',
     REVOKED: 'Người quản lý đã thu hồi liên kết này.',
@@ -27,7 +27,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
     const [result, setResult] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const localizedStatusCopy = Object.fromEntries(Object.entries(statusCopy).map(([key, value]) => [key, localizeText(value)]));
+    const localizedStatusCopy = Object.fromEntries(Object.entries(statusCopy).map(([key, value]) => [key, localizeText(value)])) as Record<Exclude<InvitePreview['status'], 'ACTIVE'>, string>;
 
     useEffect(() => {
         let active = true;
@@ -75,6 +75,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
     }
 
     const unavailable = !preview || preview.status !== 'ACTIVE';
+    const unavailableStatus: Exclude<InvitePreview['status'], 'ACTIVE'> = preview && preview.status !== 'ACTIVE' ? preview.status : 'INVALID';
     const declined = result === 'DECLINED';
     const pending = result === 'PENDING';
 
@@ -89,7 +90,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                     </div>
                     <p className="page-kicker mb-2">{localizeText('Lời mời tham gia')}</p>
                     <h1 className="text-3xl font-bold tracking-[-0.03em]">
-                        {unavailable ? localizeText('Không thể sử dụng lời mời') : preview.conversationName || 'Conversation'}
+                        {unavailable ? localizeText('Không thể sử dụng lời mời') : preview.conversationName ?? localizeText('Phòng trò chuyện')}
                     </h1>
                     {!unavailable && (
                         <p className="mt-2 text-sm text-muted-foreground">
@@ -101,7 +102,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                 <div className="space-y-5 p-8">
                     {unavailable ? (
                             <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-                            {localizedStatusCopy[preview?.status ?? 'INVALID'] ?? localizedStatusCopy.INVALID}
+                            {localizedStatusCopy[unavailableStatus]}
                         </p>
                     ) : declined ? (
                         <div className="text-center">

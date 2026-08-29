@@ -104,7 +104,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
         <Input value={nickname} onChange={(event) => onNicknameChange(event.target.value)} placeholder={localizeText('Nhập biệt danh')} />
       </motion.div>
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-        <label className="text-sm font-semibold text-foreground">{localizeText('Avatar URL')}</label>
+        <label className="text-sm font-semibold text-foreground">{localizeText('URL ảnh đại diện')}</label>
         <Input
           ref={avatarUrlInputRef}
           value={avatarUrl}
