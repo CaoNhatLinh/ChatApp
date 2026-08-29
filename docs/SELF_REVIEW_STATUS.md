@@ -442,6 +442,20 @@ Correction in this increment:
 - Added a retryable, localized error state to the mention member menu so a
   failed member lookup is not presented as a valid empty result.
 
+# Follow-up self-review (2026-08-29, notification-inbox recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for notification inbox initialization | Store exposes loading/error state; panel renders a retry action instead of treating a failed load as an empty inbox | Provider delivery and authenticated inbox proof remain pending | Keep empty state reserved for a successful zero-result response |
+| State integrity | Pass | Initialization clears stale error before a new request and reset clears it; realtime updates remain independent | Cross-tab reconnect/resync still needs integration evidence | Do not discard existing notification records on a transient read failure |
+| Bilingual UI coverage | Pass | Loading/error/retry copy is registered; locale smoke (713 keys) | Server-generated title/body remain domain data | Translate product controls and failure copy only |
+| Traceability | Pass | Notification store, sidebar panel, list component and this entry | Clean-stack authenticated browser proof remains blocked | Preserve explicit loading/error/empty states |
+
+Correction in this increment:
+
+- Added explicit notification inbox loading and retryable error states across the
+  store and sidebar panel; failed initialization no longer appears as success.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

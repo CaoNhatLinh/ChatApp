@@ -4,6 +4,9 @@ import type { NotificationRecord } from '@/features/notifications/api/notificati
 interface SidebarNotificationPanelProps {
   isOpen: boolean;
   notifications: NotificationRecord[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void | Promise<void>;
   onClose: () => void;
   onMarkAsRead: (notificationId: string) => Promise<void> | void;
   onMarkAllAsRead: () => void | Promise<void>;
@@ -13,6 +16,9 @@ interface SidebarNotificationPanelProps {
 export const SidebarNotificationPanel = ({
   isOpen,
   notifications,
+  loading,
+  error,
+  onRetry,
   onClose,
   onMarkAsRead,
   onMarkAllAsRead,
@@ -24,6 +30,9 @@ export const SidebarNotificationPanel = ({
         isOpen={isOpen}
         onClose={onClose}
         notifications={notifications}
+        loading={loading}
+        error={error}
+        onRetry={onRetry}
         onMarkAsRead={onMarkAsRead}
         onMarkAllAsRead={onMarkAllAsRead}
         onNotificationClick={onNotificationClick}

@@ -13,6 +13,8 @@ import {
 } from '@/features/notifications/api/notifications.api';
 import { realtimeService } from '@/shared/websocket/realtime-service';
 import { logger } from '@/shared/lib/logger';
+import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 interface RealtimeHandle {
   isNotificationConnected: boolean;
@@ -24,6 +26,7 @@ interface NotificationStore {
   unreadCount: number;
   hasNext: boolean;
   loading: boolean;
+  error: string | null;
   isPanelOpen: boolean;
   realtimeUserId: string | null;
   initNotifications: () => Promise<void>;
@@ -141,11 +144,12 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   unreadCount: 0,
   hasNext: false,
   loading: false,
+  error: null,
   isPanelOpen: false,
   realtimeUserId: null,
 
   initNotifications: async () => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const [page, unreadCount] = await Promise.all([
         getAllNotifications(0, 50),
@@ -157,9 +161,12 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         unreadCount,
         loading: false,
       });
-    } catch (error) {
-      logger.warn('Notification initialization failed', error);
-      set({ loading: false });
+    } catch (error: unknown) {
+      logger.warn('Notification initialization failed', error instanceof Error ? error.message : String(error));
+      set({
+        loading: false,
+        error: getUserFacingErrorMessage(error, localizeText('Không thể tải thông báo. Vui lòng thử lại.')),
+      });
     }
   },
 
@@ -250,6 +257,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
       unreadCount: 0,
       hasNext: false,
       loading: false,
+      error: null,
       isPanelOpen: false,
     });
   },

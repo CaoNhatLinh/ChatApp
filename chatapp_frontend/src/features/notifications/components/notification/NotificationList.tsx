@@ -11,6 +11,9 @@ interface NotificationListProps {
   isOpen: boolean;
   onClose: () => void;
   notifications: NotificationRecord[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void | Promise<void>;
   onMarkAsRead: (notificationId: string) => void | Promise<void>;
   onMarkAllAsRead: () => void | Promise<void>;
   onNotificationClick: (notification: NotificationRecord) => void | Promise<void>;
@@ -56,6 +59,9 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   isOpen,
   onClose,
   notifications,
+  loading,
+  error,
+  onRetry,
   onMarkAsRead,
   onMarkAllAsRead,
   onNotificationClick,
@@ -127,7 +133,22 @@ export const NotificationList: React.FC<NotificationListProps> = ({
       </div>
 
       <div className="max-h-80 overflow-y-auto custom-scrollbar">
-        {notifications.length === 0 ? (
+        {loading ? (
+          <div className="flex min-h-[180px] items-center justify-center px-6 text-center" role="status" aria-live="polite">
+            <p className="text-sm text-muted-foreground">{localizeText('Đang tải thông báo...')}</p>
+          </div>
+        ) : error ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-6 text-center" role="alert">
+            <p className="text-sm text-destructive">{error}</p>
+            <button
+              type="button"
+              onClick={() => void onRetry()}
+              className="focus-ring rounded-md border border-border/70 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-accent"
+            >
+              {localizeText('Thử lại')}
+            </button>
+          </div>
+        ) : notifications.length === 0 ? (
           <motion.div
             className="flex min-h-[180px] flex-col items-center justify-center px-6 text-center"
             initial={UI_MOTION_CONFIG.initialState}

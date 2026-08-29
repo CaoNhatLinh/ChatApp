@@ -35,6 +35,8 @@ export const ChatSidebar = () => {
   const { user } = useAuthStore();
   const {
     notifications,
+    loading: notificationsLoading,
+    error: notificationsError,
     unreadCount: notificationUnreadCount,
     initNotifications,
     connectRealtime: connectNotificationRealtime,
@@ -43,6 +45,8 @@ export const ChatSidebar = () => {
     markEverythingAsRead,
   } = useNotificationStore(useShallow((state) => ({
     notifications: state.notifications,
+    loading: state.loading,
+    error: state.error,
     unreadCount: state.unreadCount,
     initNotifications: state.initNotifications,
     connectRealtime: state.connectRealtime,
@@ -186,6 +190,9 @@ export const ChatSidebar = () => {
       <SidebarNotificationPanel
         isOpen={isNotificationPanelOpen}
         notifications={notifications}
+        loading={notificationsLoading}
+        error={notificationsError}
+        onRetry={initNotifications}
         onClose={closeNotificationPanel}
         onMarkAsRead={markOneAsRead}
         onMarkAllAsRead={handleMarkAllNotificationsAsRead}
