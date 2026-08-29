@@ -50,6 +50,8 @@ class InfrastructureManifestTest {
                 "thumbnail_url text",
                 "owner_id uuid",
                 "message_interval_seconds int",
+                "member_count int static",
+                "max_members int static",
                 "CREATE TABLE IF NOT EXISTS media_assets_by_id",
                 "CREATE TABLE IF NOT EXISTS message_buckets_by_conversation",
                 "CREATE TABLE IF NOT EXISTS app_role_members_by_role",
@@ -67,6 +69,20 @@ class InfrastructureManifestTest {
                 "reason_code text",
                 "CREATE TABLE IF NOT EXISTS outbox_events_by_partition",
                 "CREATE TABLE IF NOT EXISTS outbox_pending_events_by_partition");
+    }
+
+    @Test
+    void membershipMutationsUseOnePartitionConditionalBatches() throws IOException {
+        String store = Files.readString(Path.of(
+                "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
+                "repository", "CanonicalCqlStore.java"));
+
+        assertThat(store)
+                .contains("IF NOT EXISTS")
+                .contains("IF member_count = ?")
+                .contains("IF EXISTS")
+                .contains("MembershipMutationResult.CAPACITY_REACHED")
+                .contains("BatchStatement.builder(BatchType.LOGGED)");
     }
 
     @Test

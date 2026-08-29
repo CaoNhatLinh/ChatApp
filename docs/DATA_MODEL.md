@@ -9,9 +9,17 @@ marker; raw tokens never enter Cassandra.
 
 Global operators use `admin_conversations_by_month`, a bounded monthly
 projection keyed by `(month, created_at, conversation_id)`. It is written when a
-canonical room is created and refreshed by global policy/archive mutations; a
+canonical room is created and refreshed by membership, global policy, and archive mutations; a
 clean deployment must run the documented backfill before claiming historical
 room coverage.
+
+Room capacity is authoritative in the static `member_count` and `max_members`
+columns of `conversation_members_by_conversation`. Add/remove commands use a
+single-partition conditional logged batch so the member row and count change
+together. `conversations_by_id` does not carry a second count, and a missing
+membership state is rejected instead of inferred. Existing keyspaces must apply
+`migrations/V_add_conversation_membership_state.cql`; see
+`docs/adr/0005-partition-local-membership-capacity.md`.
 
 Moderation reports use `reports_by_status_day` for bounded operator queues and
 `reports_by_reporter` for a caller's own history. The reporter projection keeps

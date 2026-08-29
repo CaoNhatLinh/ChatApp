@@ -322,8 +322,6 @@ CREATE TABLE IF NOT EXISTS conversations_by_id (
   category_id text,
   community_tags set<text>,
   language_code text,
-  max_members int,
-  member_count int,
   last_message frozen<message_summary>,
   last_activity_at timestamp
 );
@@ -338,6 +336,8 @@ CREATE TABLE IF NOT EXISTS dm_conversation_by_pair (
 /* Authoritative room membership; a member can carry multiple room-local roles. */
 CREATE TABLE IF NOT EXISTS conversation_members_by_conversation (
   conversation_id uuid,
+  member_count int static,
+  max_members int static,
   user_id uuid,
   role_ids set<uuid>,               /* bounded by service; permission is the union */
   joined_at timestamp,

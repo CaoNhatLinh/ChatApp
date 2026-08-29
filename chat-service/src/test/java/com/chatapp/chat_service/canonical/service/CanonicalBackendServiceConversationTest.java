@@ -5,6 +5,7 @@ import com.chatapp.chat_service.canonical.repository.CanonicalConversationReposi
 import com.chatapp.chat_service.canonical.admin.AdminConversationDirectoryRepository;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalInviteLink;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
@@ -26,6 +27,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentCaptor.forClass;
 
 @ExtendWith(MockitoExtension.class)
 class CanonicalBackendServiceConversationTest {
@@ -130,6 +135,184 @@ class CanonicalBackendServiceConversationTest {
                 .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class);
     }
 
+    @Test
+    void addMemberRejectsInactiveAccountsBeforeMutatingMembership() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID invitedUserId = UUID.randomUUID();
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findUserById(invitedUserId)).thenReturn(new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser(
+                invitedUserId, "disabled", "disabled", "disabled@example.com", "disabled@example.com",
+                "hash", "LOCAL", null, "Disabled", null, "DISABLED", Instant.now(), Instant.now(), null));
+
+        assertThatThrownBy(() -> service.addMember(
+                actorId,
+                conversationId,
+                new CanonicalApiContracts.ConversationMemberRequest(invitedUserId, Set.of(), "invite")))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.BadRequestException.class)
+                .hasMessageContaining("active");
+
+        verify(store, never()).tryAddConversationMember(any());
+    }
+
+    @Test
+    void repeatedAddMemberRepairsProjectionWithoutDuplicatingAudit() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID invitedUserId = UUID.randomUUID();
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findUserById(invitedUserId)).thenReturn(activeUser(invitedUserId));
+        when(store.tryAddConversationMember(any())).thenReturn(
+                CanonicalCqlStore.MembershipMutationResult.ALREADY_MEMBER);
+        CanonicalConversationMember existingMember = member(conversationId, invitedUserId);
+        when(store.findConversationMember(conversationId, invitedUserId)).thenReturn(existingMember);
+
+        service.addMember(
+                actorId,
+                conversationId,
+                new CanonicalApiContracts.ConversationMemberRequest(invitedUserId, Set.of(), "invite"));
+
+        verify(store).addConversationMembershipProjection(eq(invitedUserId), any(), eq(existingMember));
+        verify(adminConversationDirectory).index(any());
+        verify(eventRecorder, never()).record(
+                eq(actorId), eq(conversationId), eq("MEMBER_ADD"), eq("conversation"),
+                eq(conversationId.toString()), eq(invitedUserId), any(), any(), any());
+    }
+
+    @Test
+    void addMemberRejectsAFullConversationWithoutWritingProjection() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID invitedUserId = UUID.randomUUID();
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findUserById(invitedUserId)).thenReturn(activeUser(invitedUserId));
+        when(store.tryAddConversationMember(any())).thenReturn(
+                CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED);
+
+        assertThatThrownBy(() -> service.addMember(
+                actorId,
+                conversationId,
+                new CanonicalApiContracts.ConversationMemberRequest(invitedUserId, Set.of(), "invite")))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("capacity");
+
+        verify(store, never()).addConversationMembershipProjection(eq(invitedUserId), any(), any());
+    }
+
+    @Test
+    void addMemberWritesProjectionAndAuditOnlyAfterTheAtomicMembershipClaim() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID invitedUserId = UUID.randomUUID();
+        CanonicalConversation conversation = conversation(conversationId, actorId, "ALL");
+        when(store.findConversation(conversationId)).thenReturn(conversation);
+        when(store.findUserById(invitedUserId)).thenReturn(activeUser(invitedUserId));
+        when(store.tryAddConversationMember(any())).thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
+
+        service.addMember(
+                actorId,
+                conversationId,
+                new CanonicalApiContracts.ConversationMemberRequest(invitedUserId, Set.of(), "invite"));
+
+        var memberCaptor = forClass(CanonicalConversationMember.class);
+        verify(store).tryAddConversationMember(memberCaptor.capture());
+        verify(store).addConversationMembershipProjection(invitedUserId, conversation, memberCaptor.getValue());
+        verify(adminConversationDirectory).index(conversation);
+        verify(eventRecorder).record(
+                eq(actorId), eq(conversationId), eq("MEMBER_ADD"), eq("conversation"),
+                eq(conversationId.toString()), eq(invitedUserId), any(), any(), any());
+    }
+
+    @Test
+    void concurrentMemberRemovalDoesNotDuplicateTheAuditEvent() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID removedUserId = UUID.randomUUID();
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findConversationMember(conversationId, removedUserId)).thenReturn(member(conversationId, removedUserId));
+        when(store.tryRemoveConversationMember(conversationId, removedUserId))
+                .thenReturn(CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER);
+
+        service.removeMember(actorId, conversationId, removedUserId);
+
+        verify(adminConversationDirectory).index(any());
+        verify(eventRecorder, never()).record(
+                eq(actorId), eq(conversationId), eq("MEMBER_REMOVE"), eq("conversation"),
+                eq(conversationId.toString()), eq(removedUserId), any(), any(), any());
+    }
+
+    @Test
+    void directInviteDoesNotConsumeAUseWhenTheConversationIsAlreadyFull() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.requireMembershipState(invite.conversationId()))
+                .thenReturn(new CanonicalCqlStore.MembershipState(10, 10));
+
+        CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
+                actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
+
+        assertThat(response.status()).isEqualTo("CAPACITY_REACHED");
+        verify(store, never()).consumeInvite(any(), any());
+        verify(store, never()).tryAddConversationMember(any());
+    }
+
+    @Test
+    void repeatedDirectInviteRepairsMembershipProjectionsWithoutConsumingAnotherUse() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        CanonicalConversationMember existingMember = member(invite.conversationId(), actorId);
+        CanonicalConversation conversation = conversation(invite.conversationId(), UUID.randomUUID(), "ALL");
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.findConversationMember(invite.conversationId(), actorId)).thenReturn(existingMember);
+        when(store.findConversation(invite.conversationId())).thenReturn(conversation);
+
+        CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
+                actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
+
+        assertThat(response.status()).isEqualTo("ALREADY_MEMBER");
+        verify(store).addConversationMembershipProjection(actorId, conversation, existingMember);
+        verify(adminConversationDirectory).index(conversation);
+        verify(store, never()).consumeInvite(any(), any());
+    }
+
+    @Test
+    void directInviteReleasesItsUseWhenCapacityIsReachedDuringTheMembershipClaim() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.requireMembershipState(invite.conversationId()))
+                .thenReturn(new CanonicalCqlStore.MembershipState(9, 10));
+        when(store.consumeInvite(invite.linkToken(), actorId))
+                .thenReturn(CanonicalCqlStore.InviteConsumeResult.CONSUMED);
+        when(store.tryAddConversationMember(any()))
+                .thenReturn(CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED);
+
+        CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
+                actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
+
+        assertThat(response.status()).isEqualTo("CAPACITY_REACHED");
+        verify(store).releaseInviteUse(invite, actorId);
+    }
+
+    @Test
+    void concurrentAcceptedInviteNeverReleasesAnotherRequestUse() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.requireMembershipState(invite.conversationId()))
+                .thenReturn(new CanonicalCqlStore.MembershipState(1, 10));
+        when(store.consumeInvite(invite.linkToken(), actorId))
+                .thenReturn(CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED);
+
+        CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
+                actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
+
+        assertThat(response.status()).isEqualTo("RETRY_REQUIRED");
+        verify(store, never()).releaseInviteUse(any(), any());
+        verify(store, never()).tryAddConversationMember(any());
+    }
+
     private CanonicalConversationMember member(UUID conversationId, UUID userId) {
         return new CanonicalConversationMember(
                 conversationId, userId, Set.of(), Instant.now(), null, null, null, "INHERIT", null, null);
@@ -141,5 +324,19 @@ class CanonicalBackendServiceConversationTest {
                 conversationId, "GROUP", "PRIVATE", "INVITE_ONLY", "Room", "room", null, null, null,
                 ownerId, ownerId, now, now, false, null, "OPEN", 0, null, defaultNotificationLevel,
                 null, Set.of(), "vi", 10, 1, false, now);
+    }
+
+    private CanonicalInviteLink invite(UUID conversationId) {
+        Instant now = Instant.now();
+        return new CanonicalInviteLink(
+                UUID.randomUUID(), "invite-token", conversationId, UUID.randomUUID(), now,
+                "ROOM", "DIRECT_JOIN", "Invite", now.plusSeconds(3600), true,
+                10, 0, null, null);
+    }
+
+    private com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser activeUser(UUID userId) {
+        return new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser(
+                userId, "active", "active", "active@example.com", "active@example.com",
+                "hash", "LOCAL", null, "Active", null, "ACTIVE", Instant.now(), Instant.now(), null);
     }
 }

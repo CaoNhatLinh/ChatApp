@@ -20,6 +20,7 @@ public class AdminConversationDirectoryRepository {
     private final PreparedStatement upsert;
     private final PreparedStatement listByMonth;
     private final PreparedStatement loadConversation;
+    private final PreparedStatement loadMembershipState;
     private final PreparedStatement listMembers;
     private final PreparedStatement updatePolicy;
     private final PreparedStatement archive;
@@ -38,6 +39,10 @@ public class AdminConversationDirectoryRepository {
                 WHERE month = ? LIMIT ?
                 """);
         this.loadConversation = session.prepare("SELECT * FROM conversations_by_id WHERE conversation_id = ?");
+        this.loadMembershipState = session.prepare("""
+                SELECT member_count FROM conversation_members_by_conversation
+                WHERE conversation_id = ? LIMIT 1
+                """);
         this.listMembers = session.prepare("""
                 SELECT user_id, joined_at, muted_until, message_interval_seconds
                 FROM conversation_members_by_conversation WHERE conversation_id = ? LIMIT ?
@@ -76,10 +81,14 @@ public class AdminConversationDirectoryRepository {
     public AdminConversationSummary find(UUID conversationId) {
         Row row = session.execute(loadConversation.bind(conversationId)).one();
         if (row == null) throw new NotFoundException("conversation not found");
+        Row membership = session.execute(loadMembershipState.bind(conversationId)).one();
+        if (membership == null || membership.isNull("member_count")) {
+            throw new IllegalStateException("conversation membership state is missing");
+        }
         return new AdminConversationSummary(
                 row.getUuid("conversation_id"), row.getString("conversation_type"), row.getString("visibility"),
                 row.getString("join_policy"), row.getString("name"), row.getString("description"),
-                row.getUuid("owner_id"), row.getInt("member_count"), row.getString("chat_mode"),
+                row.getUuid("owner_id"), membership.getInt("member_count"), row.getString("chat_mode"),
                 row.getInt("slow_mode_seconds"), row.getBoolean("is_deleted"), row.getInstant("created_at"),
                 row.getInstant("updated_at"), List.of());
     }

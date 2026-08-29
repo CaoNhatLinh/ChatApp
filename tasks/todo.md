@@ -14,7 +14,7 @@
 ## Phase 0: Contract And Stack Recovery
 
 - [X] 0.1 Capability matrix + deletion guard.
-- [ ] 0.2 Final CQL access-pattern/partition/LWT audit (schema and migrations are present; Cassandra parser/clean apply still pending).
+- [ ] 0.2 Final CQL access-pattern/partition/LWT audit (membership capacity now has an ADR and one-partition conditional-batch implementation; Cassandra parser, clean apply and contention proof remain pending).
 - [X] 0.3 Restore Spring Redis/Kafka/Elasticsearch/WebSocket/Cloudinary dependencies and config.
 - [ ] 0.4 Complete Docker stack + reliable Cassandra schema-init (Docker is not installed/on PATH here).
 - [ ] Checkpoint 0: clean infrastructure and Spring context pass.
@@ -32,7 +32,7 @@
 - [X] 2.2 Last-message projection and automatic room ordering (unit/service evidence; live projection proof pending).
 - [X] 2.3 Personal room pins with slot-based max-3 contract.
 - [ ] 2.4 Custom conversation roles, colors, ordering and permission union (API/UI slice exists; role hierarchy integration pending).
-- [X] 2.5 Add/remove/assign/kick/leave lifecycle for the supported canonical operations; community create policy is now explicit in UI/browser coverage, while owner transfer and live community join persistence remain.
+- [X] 2.5 Add/remove/assign/kick/leave lifecycle for the supported canonical operations; membership count/capacity is atomic and retry repairs projections, while owner transfer, clean Cassandra contention and live community join persistence remain.
 - [ ] Checkpoint 2: room flows + system message/room log/audit pass.
 
 ## Phase 3: Messaging, Media And Realtime

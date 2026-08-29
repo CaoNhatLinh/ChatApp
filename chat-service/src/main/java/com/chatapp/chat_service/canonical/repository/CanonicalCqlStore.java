@@ -79,6 +79,10 @@ public class CanonicalCqlStore {
     private final PreparedStatement updateConversationLastMessage;
     private final PreparedStatement loadConversation;
     private final PreparedStatement saveConversationMember;
+    private final PreparedStatement insertConversationMemberIfAbsent;
+    private final PreparedStatement initializeConversationMembership;
+    private final PreparedStatement loadConversationMembership;
+    private final PreparedStatement updateConversationMemberCount;
     private final PreparedStatement deleteConversationMember;
     private final PreparedStatement loadConversationMember;
     private final PreparedStatement listConversationMembers;
@@ -313,8 +317,8 @@ public class CanonicalCqlStore {
                     conversation_id, conversation_type, visibility, join_policy, name, name_normalized,
                     description, avatar_url, avatar_asset_id, created_by, owner_id, created_at, updated_at, is_deleted,
                     deleted_at, chat_mode, slow_mode_seconds, message_retention_days, default_notification_level,
-                    category_id, community_tags, language_code, max_members, member_count, last_message, last_activity_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    category_id, community_tags, language_code, last_message, last_activity_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """);
         this.loadConversation = session.prepare("SELECT * FROM conversations_by_id WHERE conversation_id = ?");
         this.updateConversationOwner = session.prepare("""
@@ -339,9 +343,27 @@ public class CanonicalCqlStore {
                      message_interval_seconds, notification_override, last_read_message_id, last_read_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """);
+        this.insertConversationMemberIfAbsent = session.prepare("""
+                INSERT INTO conversation_members_by_conversation
+                    (conversation_id, user_id, role_ids, joined_at, invited_by, muted_until,
+                     message_interval_seconds, notification_override, last_read_message_id, last_read_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS
+                """);
+        this.initializeConversationMembership = session.prepare("""
+                UPDATE conversation_members_by_conversation
+                SET member_count = ?, max_members = ? WHERE conversation_id = ?
+                """);
+        this.loadConversationMembership = session.prepare("""
+                SELECT member_count, max_members FROM conversation_members_by_conversation
+                WHERE conversation_id = ? LIMIT 1
+                """);
+        this.updateConversationMemberCount = session.prepare("""
+                UPDATE conversation_members_by_conversation SET member_count = ?
+                WHERE conversation_id = ? IF member_count = ?
+                """);
         this.deleteConversationMember = session.prepare("""
                 DELETE FROM conversation_members_by_conversation
-                WHERE conversation_id = ? AND user_id = ?
+                WHERE conversation_id = ? AND user_id = ? IF EXISTS
                 """);
         this.loadConversationMember = session.prepare("""
                 SELECT * FROM conversation_members_by_conversation
@@ -1104,8 +1126,6 @@ public class CanonicalCqlStore {
                 conversation.categoryId(),
                 conversation.communityTags(),
                 conversation.languageCode(),
-                conversation.maxMembers(),
-                conversation.memberCount() == null ? 0 : conversation.memberCount(),
                 null,
                 conversation.lastActivityAt()
         ));
@@ -1113,7 +1133,10 @@ public class CanonicalCqlStore {
 
     public CanonicalConversation findConversation(UUID conversationId) {
         Row row = session.execute(loadConversation.bind(conversationId)).one();
-        return row == null ? null : mapConversation(row);
+        if (row == null) {
+            return null;
+        }
+        return mapConversation(row, requireMembershipState(conversationId));
     }
 
     public void updateConversationOwner(UUID conversationId, UUID ownerId, Instant updatedAt) {
@@ -1169,19 +1192,81 @@ public class CanonicalCqlStore {
         }
     }
 
-    public void upsertConversationMember(CanonicalConversationMember member) {
-        session.execute(saveConversationMember.bind(
-                member.conversationId(),
-                member.userId(),
-                member.roleIds(),
-                member.joinedAt(),
-                member.invitedBy(),
-                member.mutedUntil(),
-                member.messageIntervalSeconds(),
-                member.notificationOverride(),
-                member.lastReadMessageId(),
-                member.lastReadAt()
-        ));
+    public void createConversationMembership(
+            List<CanonicalConversationMember> members,
+            int maxMembers) {
+        if (members.isEmpty()) {
+            throw new IllegalArgumentException("a conversation requires at least one member");
+        }
+        UUID conversationId = members.get(0).conversationId();
+        if (members.stream().anyMatch(member -> !conversationId.equals(member.conversationId()))) {
+            throw new IllegalArgumentException("initial members must share one conversation partition");
+        }
+        if (maxMembers < members.size()) {
+            throw new IllegalArgumentException("initial members exceed maxMembers");
+        }
+        var batch = BatchStatement.builder(BatchType.LOGGED);
+        members.forEach(member -> batch.addStatement(saveConversationMember.bind(
+                member.conversationId(), member.userId(), member.roleIds(), member.joinedAt(),
+                member.invitedBy(), member.mutedUntil(), member.messageIntervalSeconds(),
+                member.notificationOverride(), member.lastReadMessageId(), member.lastReadAt())));
+        batch.addStatement(initializeConversationMembership.bind(members.size(), maxMembers, conversationId));
+        session.execute(batch.build());
+    }
+
+    public MembershipMutationResult tryAddConversationMember(CanonicalConversationMember member) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            MembershipState state = requireMembershipState(member.conversationId());
+            if (state.memberCount() >= state.maxMembers()) {
+                return MembershipMutationResult.CAPACITY_REACHED;
+            }
+            var batch = BatchStatement.builder(BatchType.LOGGED)
+                    .addStatement(insertConversationMemberIfAbsent.bind(
+                            member.conversationId(), member.userId(), member.roleIds(), member.joinedAt(),
+                            member.invitedBy(), member.mutedUntil(), member.messageIntervalSeconds(),
+                            member.notificationOverride(), member.lastReadMessageId(), member.lastReadAt()))
+                    .addStatement(updateConversationMemberCount.bind(
+                            state.memberCount() + 1, member.conversationId(), state.memberCount()))
+                    .build();
+            if (session.execute(batch).wasApplied()) {
+                return MembershipMutationResult.ADDED;
+            }
+            if (findConversationMember(member.conversationId(), member.userId()) != null) {
+                return MembershipMutationResult.ALREADY_MEMBER;
+            }
+        }
+        throw new IllegalStateException("conversation membership changed concurrently; retry");
+    }
+
+    public MembershipMutationResult tryRemoveConversationMember(UUID conversationId, UUID userId) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            MembershipState state = requireMembershipState(conversationId);
+            if (state.memberCount() <= 1) {
+                throw new IllegalStateException("conversation membership cannot fall below one owner");
+            }
+            var batch = BatchStatement.builder(BatchType.LOGGED)
+                    .addStatement(deleteConversationMember.bind(conversationId, userId))
+                    .addStatement(updateConversationMemberCount.bind(
+                            state.memberCount() - 1, conversationId, state.memberCount()))
+                    .build();
+            if (session.execute(batch).wasApplied()) {
+                deleteConversationMembershipProjection(userId, conversationId);
+                return MembershipMutationResult.REMOVED;
+            }
+            if (findConversationMember(conversationId, userId) == null) {
+                deleteConversationMembershipProjection(userId, conversationId);
+                return MembershipMutationResult.NOT_MEMBER;
+            }
+        }
+        throw new IllegalStateException("conversation membership changed concurrently; retry");
+    }
+
+    public MembershipState requireMembershipState(UUID conversationId) {
+        Row row = session.execute(loadConversationMembership.bind(conversationId)).one();
+        if (row == null || row.isNull("member_count") || row.isNull("max_members")) {
+            throw new IllegalStateException("conversation membership state is missing");
+        }
+        return new MembershipState(row.getInt("member_count"), row.getInt("max_members"));
     }
 
     public CanonicalConversationMember findConversationMember(UUID conversationId, UUID userId) {
@@ -1215,9 +1300,8 @@ public class CanonicalCqlStore {
         }
     }
 
-    public void removeConversationMember(UUID conversationId, UUID userId) {
+    private void deleteConversationMembershipProjection(UUID userId, UUID conversationId) {
         Row projection = findAnyConversationProjectionRow(userId, conversationId);
-        session.execute(deleteConversationMember.bind(conversationId, userId));
         if (projection != null) {
             session.execute(deleteConversationProjection.bind(
                     userId,
@@ -1225,6 +1309,17 @@ public class CanonicalCqlStore {
                     projection.getInstant("last_activity_at"),
                     conversationId));
         }
+    }
+
+    public enum MembershipMutationResult {
+        ADDED,
+        REMOVED,
+        ALREADY_MEMBER,
+        NOT_MEMBER,
+        CAPACITY_REACHED
+    }
+
+    public record MembershipState(int memberCount, int maxMembers) {
     }
 
     public void addConversationMembershipProjection(UUID userId, CanonicalConversation conversation, CanonicalConversationMember member) {
@@ -1935,31 +2030,33 @@ public class CanonicalCqlStore {
         return row == null ? null : mapInvite(row);
     }
 
-    public boolean consumeInvite(String token, UUID userId) {
+    public InviteConsumeResult consumeInvite(String token, UUID userId) {
         CanonicalInviteLink invite = findInviteByToken(token);
         if (invite == null) {
-            return false;
+            return InviteConsumeResult.RETRY_REQUIRED;
         }
         if (!Boolean.TRUE.equals(invite.isActive())) {
-            return false;
+            return InviteConsumeResult.RETRY_REQUIRED;
         }
         if (invite.expiresAt() != null && invite.expiresAt().isBefore(Instant.now())) {
             session.execute(deactivateInvite.bind(userId, Instant.now(), token));
-            return false;
+            return InviteConsumeResult.RETRY_REQUIRED;
         }
         Instant now = Instant.now();
         var joinClaim = session.execute(claimInviteJoin.bind(
                 invite.linkId(), userId, UUID.randomUUID(), "PENDING", now, now));
         if (!joinClaim.wasApplied()) {
             Row existingJoin = session.execute(loadInviteJoin.bind(invite.linkId(), userId)).one();
-            return existingJoin != null && "ACCEPTED".equals(existingJoin.getString("status"));
+            return existingJoin != null && "ACCEPTED".equals(existingJoin.getString("status"))
+                    ? InviteConsumeResult.ALREADY_ACCEPTED
+                    : InviteConsumeResult.RETRY_REQUIRED;
         }
         int current = invite.usedCount() == null ? 0 : invite.usedCount();
         Integer max = invite.maxUses();
         if (max != null && current >= max) {
             session.execute(deactivateInvite.bind(userId, Instant.now(), token));
             session.execute(updateInviteJoinStatus.bind("FAILED", Instant.now(), invite.linkId(), userId));
-            return false;
+            return InviteConsumeResult.RETRY_REQUIRED;
         }
         int next = current + 1;
         boolean stillActive = max == null || next < max;
@@ -1971,13 +2068,13 @@ public class CanonicalCqlStore {
         ));
         if (!lwt.wasApplied()) {
             session.execute(updateInviteJoinStatus.bind("FAILED", Instant.now(), invite.linkId(), userId));
-            return false;
+            return InviteConsumeResult.RETRY_REQUIRED;
         }
         session.execute(updateInviteProjectionUseCount.bind(
                 next, stillActive, invite.conversationId(), invite.linkId(), invite.linkId()));
         session.execute(recordInviteJoin.bind(invite.linkId(), userId, "ACCEPTED", null));
         session.execute(updateInviteJoinStatus.bind("ACCEPTED", Instant.now(), invite.linkId(), userId));
-        return true;
+        return InviteConsumeResult.CONSUMED;
     }
 
     public String requestInviteApproval(CanonicalInviteLink invite, UUID userId) {
@@ -2060,9 +2157,38 @@ public class CanonicalCqlStore {
         return true;
     }
 
+    public void releaseInviteUse(CanonicalInviteLink invite, UUID userId) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            CanonicalInviteLink current = findInviteByToken(invite.linkToken());
+            int usedCount = current == null || current.usedCount() == null ? 0 : current.usedCount();
+            if (current == null || usedCount == 0) {
+                session.execute(updateInviteJoinStatus.bind("FAILED", Instant.now(), invite.linkId(), userId));
+                return;
+            }
+            int nextCount = usedCount - 1;
+            boolean active = current.revokedAt() == null
+                    && (current.expiresAt() == null || current.expiresAt().isAfter(Instant.now()));
+            if (!session.execute(updateInviteUseCount.bind(
+                    nextCount, active, current.linkToken(), usedCount)).wasApplied()) {
+                continue;
+            }
+            session.execute(updateInviteProjectionUseCount.bind(
+                    nextCount, active, current.conversationId(), current.linkId(), current.linkId()));
+            session.execute(updateInviteJoinStatus.bind("FAILED", Instant.now(), invite.linkId(), userId));
+            return;
+        }
+        throw new IllegalStateException("invite usage changed concurrently; reconciliation required");
+    }
+
     public void markInviteJoinAccepted(CanonicalInviteLink invite, UUID userId) {
         session.execute(updateInviteJoinStatus.bind("ACCEPTED", Instant.now(), invite.linkId(), userId));
         recordInviteOutcome(invite, userId, "ACCEPTED");
+    }
+
+    public enum InviteConsumeResult {
+        CONSUMED,
+        ALREADY_ACCEPTED,
+        RETRY_REQUIRED
     }
 
     public void revokeInvite(CanonicalInviteLink invite, UUID actorId) {
@@ -2384,7 +2510,7 @@ public class CanonicalCqlStore {
         );
     }
 
-    private CanonicalConversation mapConversation(Row row) {
+    private CanonicalConversation mapConversation(Row row, MembershipState membership) {
         return new CanonicalConversation(
                 row.getUuid("conversation_id"),
                 row.getString("conversation_type"),
@@ -2408,8 +2534,8 @@ public class CanonicalCqlStore {
                 row.getString("category_id"),
                 row.getSet("community_tags", String.class),
                 row.getString("language_code"),
-                row.getInt("max_members"),
-                row.getInt("member_count"),
+                membership.maxMembers(),
+                membership.memberCount(),
                 row.getObject("last_message") != null,
                 row.getInstant("last_activity_at")
         );

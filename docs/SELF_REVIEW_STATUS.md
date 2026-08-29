@@ -1245,3 +1245,19 @@ Correction in this increment:
 - Added explicit private/community channel creation and join-policy controls,
   verified the production request payload, and fixed the unstable empty typing
   snapshot exposed when opening the new room.
+
+# Follow-up self-review (2026-08-29, atomic membership capacity increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Authoritative state | Pass at implementation boundary | `member_count` and `max_members` are static values in the membership partition; canonical room/admin detail reads require that state and the metadata table no longer stores a second copy | Migration has not been exercised against a clean Cassandra node on this host | Missing membership state is an integrity error; no legacy inference/backfill branch exists |
+| Concurrency and idempotency | Pass at unit/manifest level | Add/remove use same-partition conditional logged batches; duplicate add repairs projections without duplicate audit; direct invite tests cover full-room preflight, lost capacity race compensation and concurrent accepted claims | Real Cassandra LWT contention/load proof remains pending | Reserve LWT for the hard membership/capacity boundary and keep all conditions in one partition |
+| Projection consistency | Pass for retryable request path | Successful membership mutations refresh the per-user room projection and bounded admin directory; idempotent add/remove retries repair a partial projection write | An automatic outbox repair worker remains a broader projection-reconciliation task | A request retry is safe and does not invent or duplicate membership authority |
+| Contract and documentation | Pass | Fresh CQL, additive migration, OpenAPI initial-member bound, ADR 0005, data model, feature inventory, traceability and task audit agree | Clean migration rehearsal remains blocked by unavailable Cassandra/Docker | Initial creation is bounded at 200 invited members; larger population uses the normal conditional command |
+| Regression safety | Pass for available backend gates | Java 20 Maven suite reports 110 tests, 0 failures, 0 errors | Browser behavior is unchanged in this backend prerequisite increment | Continue to community discovery only after the existing membership invariant is correct |
+
+Correction in this increment:
+
+- Replaced stale room-level membership counts with partition-local atomic state,
+  added capacity and invite-race handling, made projection retries repairable,
+  and documented the hard consistency boundary without compatibility fallback.

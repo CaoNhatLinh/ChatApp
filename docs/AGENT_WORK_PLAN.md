@@ -36,7 +36,7 @@
    removed routes. Visual QA covered desktop landing/recovery and mobile public
    pages without horizontal overflow.
 
-Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 100 tests, 0 failures, 0 errors
+Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 110 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and

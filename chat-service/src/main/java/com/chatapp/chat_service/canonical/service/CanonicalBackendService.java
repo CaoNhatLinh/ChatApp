@@ -329,6 +329,9 @@ public class CanonicalBackendService {
         if (requestedMemberIds.size() + 1 > maxMembers) {
             throw new BadRequestException("initial members exceed maxMembers");
         }
+        if (requestedMemberIds.size() > 200) {
+            throw new BadRequestException("initial members must not exceed 200; add remaining members after creation");
+        }
         for (UUID memberId : requestedMemberIds) {
             CanonicalUser memberUser = store.findUserById(memberId);
             if (memberUser == null || !"ACTIVE".equalsIgnoreCase(memberUser.accountStatus())) {
@@ -381,7 +384,6 @@ public class CanonicalBackendService {
                 now
         );
         store.saveConversation(conversation);
-        adminConversationDirectory.index(conversation);
 
         Set<UUID> ownerRoleIds = Set.of();
         if (!"DM".equals(conversationType)) {
@@ -400,9 +402,8 @@ public class CanonicalBackendService {
                 null,
                 now
         );
-        store.upsertConversationMember(owner);
-        store.addConversationMembershipProjection(actorId, conversation, owner);
-
+        List<CanonicalConversationMember> initialMembers = new ArrayList<>();
+        initialMembers.add(owner);
         for (UUID memberId : requestedMemberIds) {
             CanonicalConversationMember peer = new CqlCanonicalRecords.CanonicalConversationMember(
                     conversationId,
@@ -416,9 +417,12 @@ public class CanonicalBackendService {
                     null,
                     now
             );
-            store.upsertConversationMember(peer);
-            store.addConversationMembershipProjection(memberId, conversation, peer);
+            initialMembers.add(peer);
         }
+        store.createConversationMembership(initialMembers, maxMembers);
+        initialMembers.forEach(member ->
+                store.addConversationMembershipProjection(member.userId(), conversation, member));
+        adminConversationDirectory.index(conversation);
 
         appendAudit(actorId, conversationId, "CONVERSATION_CREATE", "conversation", conversationId.toString(), null, null);
         return conversation;
@@ -505,9 +509,19 @@ public class CanonicalBackendService {
 
     public void addMember(UUID actorId, UUID conversationId, CanonicalApiContracts.ConversationMemberRequest req) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MEMBER_INVITE);
+        if (req == null || req.userId() == null) {
+            throw new BadRequestException("userId is required");
+        }
         CanonicalConversation conversation = getConversation(conversationId);
         if ("DM".equals(conversation.conversationType())) {
             throw new BadRequestException("direct messages cannot add extra members");
+        }
+        if (Boolean.TRUE.equals(conversation.isDeleted())) {
+            throw new ConflictException("archived conversations cannot add members");
+        }
+        CanonicalUser invitedUser = store.findUserById(req.userId());
+        if (invitedUser == null || !"ACTIVE".equalsIgnoreCase(invitedUser.accountStatus())) {
+            throw new BadRequestException("invited user must be an active account");
         }
         Set<UUID> roleIds = req.roleIds() == null || req.roleIds().isEmpty()
                 ? defaultRoleIds(conversationId)
@@ -524,8 +538,20 @@ public class CanonicalBackendService {
                 null,
                 Instant.now()
         );
-        store.upsertConversationMember(member);
-        store.addConversationMembershipProjection(req.userId(), conversation, member);
+        var result = store.tryAddConversationMember(member);
+        if (result == CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED) {
+            throw new ConflictException("conversation capacity has been reached");
+        }
+        CanonicalConversationMember currentMember = result == CanonicalCqlStore.MembershipMutationResult.ADDED
+                ? member
+                : store.findConversationMember(conversationId, req.userId());
+        if (currentMember == null) {
+            throw new IllegalStateException("conversation member is missing after membership claim");
+        }
+        repairMembershipProjections(currentMember);
+        if (result == CanonicalCqlStore.MembershipMutationResult.ALREADY_MEMBER) {
+            return;
+        }
         appendAudit(actorId, conversationId, "MEMBER_ADD", "conversation", conversationId.toString(), req.userId(), "reason=" + req.reason());
     }
 
@@ -538,7 +564,12 @@ public class CanonicalBackendService {
         if (store.findConversationMember(conversationId, removedUserId) == null) {
             throw new NotFoundException("conversation member not found");
         }
-        store.removeConversationMember(conversationId, removedUserId);
+        if (store.tryRemoveConversationMember(conversationId, removedUserId)
+                == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
+            adminConversationDirectory.index(getConversation(conversationId));
+            return;
+        }
+        adminConversationDirectory.index(getConversation(conversationId));
         appendAudit(actorId, conversationId, "MEMBER_REMOVE", "conversation", conversationId.toString(), removedUserId, "removed");
     }
 
@@ -548,7 +579,12 @@ public class CanonicalBackendService {
         if (actorId.equals(conversation.ownerId())) {
             throw new ConflictException("transfer ownership before leaving the conversation");
         }
-        store.removeConversationMember(conversationId, actorId);
+        if (store.tryRemoveConversationMember(conversationId, actorId)
+                == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
+            adminConversationDirectory.index(getConversation(conversationId));
+            return;
+        }
+        adminConversationDirectory.index(getConversation(conversationId));
         appendAudit(actorId, conversationId, "MEMBER_LEFT", "conversation", conversationId.toString(), actorId, null);
     }
 
@@ -1212,7 +1248,9 @@ public class CanonicalBackendService {
             store.recordInviteOutcome(invite, actorId, status);
             return new CanonicalApiContracts.InviteConsumeResponse(status, invite.conversationId());
         }
-        if (store.findConversationMember(invite.conversationId(), actorId) != null) {
+        CanonicalConversationMember existingMember = store.findConversationMember(invite.conversationId(), actorId);
+        if (existingMember != null) {
+            repairMembershipProjections(existingMember);
             store.recordInviteOutcome(invite, actorId, "ALREADY_MEMBER");
             return new CanonicalApiContracts.InviteConsumeResponse("ALREADY_MEMBER", invite.conversationId());
         }
@@ -1221,8 +1259,12 @@ public class CanonicalBackendService {
             appendAudit(actorId, invite.conversationId(), "JOIN_REQUEST_CREATE", "invite", invite.linkId().toString(), null, null);
             return new CanonicalApiContracts.InviteConsumeResponse(requestStatus, invite.conversationId());
         }
-        boolean used = store.consumeInvite(req.linkToken(), actorId);
-        if (!used) {
+        CanonicalCqlStore.MembershipState membership = store.requireMembershipState(invite.conversationId());
+        if (membership.memberCount() >= membership.maxMembers()) {
+            return new CanonicalApiContracts.InviteConsumeResponse("CAPACITY_REACHED", invite.conversationId());
+        }
+        CanonicalCqlStore.InviteConsumeResult inviteResult = store.consumeInvite(req.linkToken(), actorId);
+        if (inviteResult != CanonicalCqlStore.InviteConsumeResult.CONSUMED) {
             return new CanonicalApiContracts.InviteConsumeResponse("RETRY_REQUIRED", invite.conversationId());
         }
         CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
@@ -1237,11 +1279,21 @@ public class CanonicalBackendService {
                 null,
                 Instant.now()
         );
-        store.upsertConversationMember(member);
-        CanonicalConversation conv = store.findConversation(invite.conversationId());
-        if (conv != null) {
-            store.addConversationMembershipProjection(actorId, conv, member);
+        var membershipResult = store.tryAddConversationMember(member);
+        if (membershipResult == CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED) {
+            store.releaseInviteUse(invite, actorId);
+            return new CanonicalApiContracts.InviteConsumeResponse("CAPACITY_REACHED", invite.conversationId());
         }
+        if (membershipResult == CanonicalCqlStore.MembershipMutationResult.ALREADY_MEMBER) {
+            store.releaseInviteUse(invite, actorId);
+            CanonicalConversationMember currentMember = store.findConversationMember(invite.conversationId(), actorId);
+            if (currentMember == null) {
+                throw new IllegalStateException("conversation member is missing after membership claim");
+            }
+            repairMembershipProjections(currentMember);
+            return new CanonicalApiContracts.InviteConsumeResponse("ALREADY_MEMBER", invite.conversationId());
+        }
+        repairMembershipProjections(member);
         appendAudit(actorId, invite.conversationId(), "JOIN_BY_INVITE", "conversation", invite.conversationId().toString(), null, null);
         return new CanonicalApiContracts.InviteConsumeResponse("ACCEPTED", invite.conversationId());
     }
@@ -1297,7 +1349,14 @@ public class CanonicalBackendService {
                     conversationId, request.requestedAt(), requestId, "FAILED", actorId);
             throw new ConflictException("invite is no longer usable");
         }
-        if (store.findConversationMember(conversationId, userId) == null) {
+        CanonicalConversationMember existingMember = store.findConversationMember(conversationId, userId);
+        if (existingMember == null) {
+            CanonicalCqlStore.MembershipState membership = store.requireMembershipState(conversationId);
+            if (membership.memberCount() >= membership.maxMembers()) {
+                store.finishJoinRequestResolution(
+                        conversationId, request.requestedAt(), requestId, "FAILED", actorId);
+                throw new ConflictException("conversation capacity has been reached");
+            }
             if (!store.reserveInviteUse(invite)) {
                 store.finishJoinRequestResolution(
                         conversationId, request.requestedAt(), requestId, "FAILED", actorId);
@@ -1306,11 +1365,25 @@ public class CanonicalBackendService {
             CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
                     conversationId, userId, defaultConversationRoleIds(conversationId), Instant.now(), actorId,
                     null, null, "INHERIT", null, Instant.now());
-            store.upsertConversationMember(member);
-            CanonicalConversation conversation = store.findConversation(conversationId);
-            if (conversation != null) {
-                store.addConversationMembershipProjection(userId, conversation, member);
+            var membershipResult = store.tryAddConversationMember(member);
+            if (membershipResult == CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED) {
+                store.releaseInviteUse(invite, userId);
+                store.finishJoinRequestResolution(
+                        conversationId, request.requestedAt(), requestId, "FAILED", actorId);
+                throw new ConflictException("conversation capacity has been reached");
             }
+            if (membershipResult == CanonicalCqlStore.MembershipMutationResult.ALREADY_MEMBER) {
+                store.releaseInviteUse(invite, userId);
+            }
+            CanonicalConversationMember currentMember = membershipResult == CanonicalCqlStore.MembershipMutationResult.ADDED
+                    ? member
+                    : store.findConversationMember(conversationId, userId);
+            if (currentMember == null) {
+                throw new IllegalStateException("conversation member is missing after membership claim");
+            }
+            repairMembershipProjections(currentMember);
+        } else {
+            repairMembershipProjections(existingMember);
         }
         store.markInviteJoinAccepted(invite, userId);
         store.finishJoinRequestResolution(
@@ -1617,6 +1690,12 @@ public class CanonicalBackendService {
                 .filter(ConversationRole::isDefault)
                 .map(ConversationRole::roleId)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private void repairMembershipProjections(CanonicalConversationMember member) {
+        CanonicalConversation conversation = getConversation(member.conversationId());
+        store.addConversationMembershipProjection(member.userId(), conversation, member);
+        adminConversationDirectory.index(conversation);
     }
 
     private void requireMemberOfAnyConversation(UUID userId) {
