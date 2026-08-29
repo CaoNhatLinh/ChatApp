@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Crown, Flag, Loader2, MessageCircle, Shield, ShieldOff, User, UserMinus, UserPlus, X } from "lucide-react";
+import { Calendar, Crown, Flag, Loader2, MessageCircle, Shield, ShieldOff, User, X } from "lucide-react";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { usePresence } from "@/features/presence/model/presence.store";
 import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
@@ -24,9 +24,7 @@ interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
-  onSendMessage?: () => void;
-  onAddFriend?: () => void;
-  onRemoveFriend?: () => void;
+  onSendMessage: () => void;
   onBlock?: () => void;
   onUnblock?: () => void;
   onReport?: () => void;
@@ -39,8 +37,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   userId,
   onSendMessage,
-  onAddFriend,
-  onRemoveFriend,
   onBlock,
   onUnblock,
   onReport,
@@ -52,9 +48,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   useTrackPresence(isOpen ? [userId] : []);
   const isOnline = presence?.isOnline ?? false;
   const status = presence?.status ?? "OFFLINE";
-  const { blockFriend, unblockFriend, mutualFriends, fetchMutualFriends, getIsFriend, loadingMutual } = useFriendStore();
+  const { blockFriend, unblockFriend, mutualFriends, fetchMutualFriends, loadingMutual } = useFriendStore();
 
-  const [isFriend, setIsFriend] = useState(false);
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
   const [loadingRelationship, setLoadingRelationship] = useState(false);
   const [relationshipError, setRelationshipError] = useState<string | null>(null);
@@ -74,21 +69,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setLoadingRelationship(false);
       setRelationshipError(null);
       setBlockStatus(null);
-      setIsFriend(false);
       return;
     }
 
     setLoadingRelationship(true);
     setRelationshipError(null);
     setBlockStatus(null);
-    setIsFriend(false);
 
     const fetchRelationship = async () => {
       try {
         const relationship = await friendApi.checkBlockStatus(userId);
         if (requestId === relationshipRequestRef.current) {
           setBlockStatus(relationship);
-          setIsFriend(getIsFriend(userId));
         }
         if (requestId === relationshipRequestRef.current && currentUser?.userId) {
           await fetchMutualFriends(userId);
@@ -105,7 +97,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     };
 
     void fetchRelationship();
-  }, [getIsFriend, currentUser?.userId, fetchMutualFriends, isCurrentUser, isOpen, relationshipRetryToken, userId]);
+  }, [currentUser?.userId, fetchMutualFriends, isCurrentUser, isOpen, relationshipRetryToken, userId]);
 
   useEffect(() => {
     if (!isOpen) setIsReportOpen(false);
@@ -119,7 +111,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setIsBlockLoading(true);
       await blockFriend(userId);
       setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-      setIsFriend(false);
       setIsBlockConfirmOpen(false);
       notifySuccess(localizeText("Đã chặn người dùng này."));
       onBlock?.();
@@ -282,40 +273,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {!isCurrentUser && !isLoading && !loadingRelationship && !relationshipError && blockStatus ? (
             <motion.div className="w-full space-y-3" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
               {!isBlockedBy && (
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div>
                   <button
                     onClick={onSendMessage}
                     disabled={hasBlocked}
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 py-3 sm:py-4 bg-primary text-primary-foreground rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:scale-105 active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex w-full items-center justify-center gap-2 py-3 sm:py-4 bg-primary text-primary-foreground rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:scale-105 active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <MessageCircle size={18} />
                     {localizeText("Nhắn tin")}
                   </button>
-
-                  {!hasBlocked && (
-                    <>
-                      {!isFriend ? (
-                        <button
-                          onClick={onAddFriend}
-                          type="button"
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-primary/20 text-primary rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-primary/5 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
-                          title={localizeText("Thêm bạn")}
-                        >
-                          <UserPlus size={18} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={onRemoveFriend}
-                          type="button"
-                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 sm:py-4 bg-background border-2 border-destructive/20 text-destructive rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:bg-destructive/5 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
-                          title={localizeText("Hủy kết bạn")}
-                        >
-                          <UserMinus size={18} />
-                        </button>
-                      )}
-                    </>
-                  )}
                 </div>
               )}
 

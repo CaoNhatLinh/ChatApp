@@ -15,6 +15,18 @@ const emptyFriendship = {
   status: 'ACCEPTED',
   userDetails: [],
 };
+const friend = {
+  userId: '00000000-0000-0000-0000-000000000011',
+  username: 'minh',
+  displayName: 'Minh',
+  accountStatus: 'ACTIVE',
+  createdAt: '2026-01-10T00:00:00Z',
+};
+const acceptedFriendship = {
+  userId: operator.userId,
+  status: 'ACCEPTED',
+  userDetails: [friend],
+};
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -69,7 +81,23 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return;
   }
-  if (pathname.endsWith('/friends') || pathname.includes('/friends/')) {
+  if (pathname.endsWith(`/users/${friend.userId}`)) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(friend) });
+    return;
+  }
+  if (pathname.endsWith(`/friends/check-block/${friend.userId}`)) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hasBlocked: false, isBlockedBy: false }) });
+    return;
+  }
+  if (pathname.endsWith(`/friends/mutual/${friend.userId}`)) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    return;
+  }
+  if (pathname.endsWith('/friends') || pathname.endsWith('/friends/status/ACCEPTED')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(acceptedFriendship) });
+    return;
+  }
+  if (pathname.includes('/friends/')) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyFriendship) });
     return;
   }
@@ -96,6 +124,16 @@ await page.getByRole('heading', { name: 'Friends list', exact: true }).waitFor()
 const enTabs = await page.locator('header button').allTextContents();
 const enShellNav = await page.locator('header a').allTextContents();
 const enSelectedTab = await page.getByRole('button', { name: 'Friends', exact: true }).getAttribute('aria-pressed');
+await page.getByRole('button', { name: /Minh/ }).first().click();
+const profileDialog = page.getByRole('dialog', { name: 'Minh' });
+await profileDialog.waitFor();
+const profileActions = {
+  hasMessage: (await profileDialog.getByRole('button', { name: 'Message', exact: true }).count()) === 1,
+  hasBlock: (await profileDialog.getByRole('button', { name: 'Block this user', exact: true }).count()) === 1,
+  hasReport: (await profileDialog.getByRole('button', { name: 'Report profile', exact: true }).count()) === 1,
+  hasInertFriendAction: (await profileDialog.getByRole('button', { name: /Add friend|Remove friend/ }).count()) > 0,
+};
+await profileDialog.getByRole('button', { name: 'Close profile' }).click();
 await page.getByRole('button', { name: 'Requests', exact: true }).click();
 const enRequestsSelected = await page.getByRole('button', { name: 'Requests', exact: true }).getAttribute('aria-pressed');
 
@@ -109,6 +147,7 @@ const report = {
   enShellNav,
   enSelectedTab,
   enRequestsSelected,
+  profileActions,
   realtimeFailures,
   consoleErrors,
   requestFailures,
@@ -123,6 +162,10 @@ if (
   || viSelectedTab !== 'true'
   || enSelectedTab !== 'true'
   || enRequestsSelected !== 'true'
+  || !profileActions.hasMessage
+  || !profileActions.hasBlock
+  || !profileActions.hasReport
+  || profileActions.hasInertFriendAction
   || !viTabs.includes('Bạn bè')
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')

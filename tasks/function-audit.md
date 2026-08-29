@@ -27,7 +27,7 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-771 static Vietnamese copy keys are checked and currently have no missing
+770 static Vietnamese copy keys are checked and currently have no missing
 English translation key, including every static `localizeText(...)` call under
 `src/`. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.
@@ -52,7 +52,7 @@ coverage remains pending.
 | Public/auth shell | Home, about, help, privacy, terms, 404, login redirect, protected routes | Implemented but not fully verified | Native Next App Router entries, loading/error/not-found, public pages and protected redirect are built and smoke-tested; authenticated service journey remains pending. |
 | Identity and sessions | Register, login, logout, current user, refresh rotation, revoke sessions, devices, profile update/search | Partial | Register/login/me/logout and rotating refresh cookie paths exist; canonical device registration/heartbeat plus admin revocation are wired; authenticated Cassandra/browser journey and refresh-token/device integration evidence remain. |
 | App RBAC/admin identity | Assign/remove app roles, permission evaluation, global user status, protected admin actions | Implemented but not fully verified | Server-gated `/admin` UI and app-role/status APIs are present; full permission matrix and integration tests remain. |
-| Friends and blocks | Search user, send/cancel/accept/reject request, list friends/requests/status, mutual friends, block/unblock | Implemented but not fully verified | Canonical friendship projections, user search, request/status/mutual/block routes and frontend adapters are present; list endpoints now expose only the supported bounded `limit` query; live two-user journey remains. |
+| Friends and blocks | Search user, send/cancel/accept/reject request, list friends/requests/status, mutual friends, block/unblock | Implemented but not fully verified | Canonical friendship projections, user search, request/status/mutual/block routes and frontend adapters are present; list endpoints expose only the supported bounded `limit` query, and inert add/remove controls were removed from the profile modal because no per-user relationship contract backs them; live two-user journey remains. |
 | Presence | Online/custom status, heartbeat, multi-tab/device presence, subscribe/unsubscribe, reconnect snapshot | Implemented but not fully verified | Presence service/controller, heartbeat, batch sync, local/Redis TTL, workspace status selector, and bounded room/contact subscriptions are present; Redis reconnect/two-instance proof remains. |
 | Room creation/discovery | Idempotent DM, group, private channel, community channel, visibility/search/join policy | Implemented but not fully verified | Canonical DM/group create/list/member APIs and frontend adapters are present; community discovery and live join-policy proof remain. |
 | Room list/order/unread | Per-user bounded list, last-message preview, automatic reorder, unread watermark | Partial | Per-user projection/last-message DTO and canonical bounded list route are wired; cursor pagination is not implemented, so the frontend no longer exposes a fake load-more path; live projection proof remains. |

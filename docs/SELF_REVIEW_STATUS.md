@@ -1196,3 +1196,19 @@ Correction in this increment:
 - Exposed the selected state of the Contacts segmented control, named its
   icon-only row actions, and added browser regression assertions for VI/EN
   selection behavior.
+
+# Follow-up self-review (2026-08-29, profile relationship action cleanup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Runtime truthfulness | Pass | Repository-wide call-site review proved `UserProfileModal` never received `onAddFriend` or `onRemoveFriend`; both rendered controls were inert | A dedicated per-user relationship-status contract does not exist, so exact profile-level add/remove behavior remains unspecified | Remove controls that cannot execute rather than presenting fake actions |
+| State correctness | Pass | Removed the modal's `isFriend` state derived from a bounded store list, along with the unused props, callbacks and icons | Exact incoming/outgoing/accepted relationship state still requires a separately designed backend query | Do not infer one user's relationship from whether they appear in the current bounded page |
+| Preserved capability | Pass | Canonical add-friend and remove-friend actions remain in the Find people and Friends list surfaces; the profile dialog retains wired Message, Block/Unblock and Report actions | Live two-account mutation proof remains pending | Keep real feature entry points while deleting only the dead duplicate surface |
+| Bilingual and browser evidence | Pass | `test:e2e:contacts` opens a populated friend's dialog in English, confirms Message/Block/Report, rejects inert friend actions, and reports zero console/request failures; the copy gate now checks 770 active static keys | Full screen-reader and live-service profile journey remain pending | Let deleted UI copy leave the active-key count instead of preserving an unused alias |
+| Regression safety | Pass for available gates | Type-check/lint, production build, i18n/error-copy guards, and the mock-authenticated Contacts journey pass | Clean Cassandra/realtime integration remains unavailable locally | Treat the fixture as UI behavior evidence, not persistence evidence |
+
+Correction in this increment:
+
+- Removed dead add/remove-friend props, state and buttons from the user-profile
+  modal; retained the real friendship actions on their canonical Contacts
+  surfaces and added browser proof for the remaining profile actions.
