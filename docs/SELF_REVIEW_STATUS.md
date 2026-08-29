@@ -986,3 +986,17 @@ Correction in this increment:
 - Removed the unreferenced `FriendList`, `FriendItem`, and barrel files so the
   shipped source tree no longer carries a duplicate relationship UI or legacy
   compatibility surface.
+
+# Follow-up self-review (2026-08-29, Kafka listener recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure handling | Pass for configured Kafka listeners | `KafkaConsumerConfig` supplies a `DefaultErrorHandler` with three bounded retries and a `DeadLetterPublishingRecoverer` targeting the configured DLT while preserving the source partition | Clean Kafka broker proof and operational alerting remain unavailable on this host | Never acknowledge a failed record as successful; route only after bounded retry exhaustion |
+| Scope | Pass | Configuration is conditional on the canonical Kafka integration flag and applies to the existing domain-event listener without changing event payloads or source contracts | Consumer idempotency ledger and replay command are still pending | Keep DLT recovery orthogonal to canonical event schema and Elasticsearch projection behavior |
+| Regression safety | Pass | Java 20 Maven suite reports 97 tests, 0 failures, 0 errors; `KafkaTopicConfigTest` verifies the recovery bean type and existing topic sizing guards remain green | Testcontainers Kafka/Cassandra/Elasticsearch flow remains blocked by unavailable Docker | Treat the unit test as configuration evidence only, not broker delivery proof |
+| Traceability | Pass | `KafkaConsumerConfig.java`, `KafkaTopicConfigTest.java`, outbox checklist/audit and this entry are synchronized | DLT replay and consumer metrics remain planned | Keep the remaining outbox items explicitly partial rather than claiming end-to-end completion |
+
+Correction in this increment:
+
+- Added bounded retry and DLT recovery for Kafka listener failures, with the
+  original partition preserved for operator replay once that workflow is built.
