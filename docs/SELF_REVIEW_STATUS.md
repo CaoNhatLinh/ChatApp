@@ -498,6 +498,20 @@ Correction in this increment:
 - Removed the swallowed send-message rejection that caused a false success toast;
   retry and composer paths now receive and display the canonical failure.
 
+# Follow-up self-review (2026-08-29, pagination feedback increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure feedback | Pass for explicit pagination actions | Loading-more room/message failures now emit status-aware localized notifications and preserve the already loaded data | Cursor retry and authenticated pagination proof remain pending | Never make a failed load appear as a completed page turn |
+| Data integrity | Pass | Append/prepend only runs after the canonical request resolves; failed requests do not alter pagination buckets | Cross-device concurrent history updates remain an integration gap | Keep existing history authoritative until the next successful page |
+| Promise lifecycle | Pass | Both user-triggered pagination callbacks catch and observe failures | Infinite-scroll provider recovery still needs live-stack proof | Keep every explicit pagination action observable |
+| Traceability | Pass | `useMessenger.ts`, `MessageHistory.tsx` and this entry | Clean-stack authenticated browser proof remains blocked | Reuse shared error mapping for future pagination controls |
+
+Correction in this increment:
+
+- Added user-visible failure feedback for loading older conversations/messages and
+  sanitized the associated operator diagnostics.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

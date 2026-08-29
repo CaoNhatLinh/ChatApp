@@ -420,8 +420,9 @@ export const useMessenger = (): UseMessengerResult => {
             const nextPage = state.conversationsPage + 1;
             const response = await getConversations(nextPage, CONVERSATION_PAGE_SIZE);
             appendConversations(response.content, response.hasNext, response.number);
-        } catch (err) {
-            console.error('[useMessenger] Error loading more conversations:', err);
+        } catch (err: unknown) {
+            logger.error('[useMessenger] Error loading more conversations', err instanceof Error ? err.message : String(err));
+            notifyError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadConversationsFailed));
         } finally {
             loadMoreConversationsInFlightRef.current = false;
         }
@@ -446,8 +447,9 @@ export const useMessenger = (): UseMessengerResult => {
                 before: pagination.nextCursor,
             });
             prependMessages(conversationId, response.content, response.hasNext, response.number, response.nextCursor);
-        } catch (err) {
-            console.error('[useMessenger] Error loading more messages:', err);
+        } catch (err: unknown) {
+            logger.error('[useMessenger] Error loading more messages', err instanceof Error ? err.message : String(err));
+            notifyError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadMessagesFailed));
         } finally {
             loadMoreInFlightRef.current.delete(conversationId);
         }
