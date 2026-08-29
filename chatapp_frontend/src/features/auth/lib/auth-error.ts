@@ -24,14 +24,14 @@ const getPayload = (error: unknown): { status?: number; code: string; message: s
 /** Maps canonical API errors to stable, bilingual product copy. Never exposes raw server text. */
 export const getAuthErrorMessage = (error: unknown, operation: AuthOperation): string => {
   const { status, code, message } = getPayload(error);
+  if (message.includes('account is not active') || message.includes('user account is unavailable')) {
+    return localizeText('Tài khoản hiện không hoạt động. Vui lòng liên hệ hỗ trợ.');
+  }
+
   const isInvalidCredentials = operation === 'login'
     && (message.includes('invalid credentials') || (status === 403 && code === 'FORBIDDEN'));
   if (isInvalidCredentials) {
     return localizeText('Tên đăng nhập hoặc mật khẩu không đúng.');
-  }
-
-  if (message.includes('account is not active') || message.includes('user account is unavailable')) {
-    return localizeText('Tài khoản hiện không hoạt động. Vui lòng liên hệ hỗ trợ.');
   }
 
   if (operation === 'register' && (message.includes('username already exists') || message.includes('email already exists'))) {
