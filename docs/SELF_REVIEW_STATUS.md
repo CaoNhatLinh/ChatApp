@@ -1014,3 +1014,17 @@ Correction in this increment:
 
 - Replaced the typo-only `Ngoài tuyến` key with the canonical `Ngoại tuyến`
   wording and removed its now-unreferenced translation entry.
+
+# Follow-up self-review (2026-08-29, unused conversation-search contract cleanup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | Repository-wide search found `ConversationSearchRequest` only in its declaration; no controller, service, frontend client, OpenAPI path, or test consumed it | Authorized room/community discovery search remains an explicit missing capability | Do not publish a request type for an endpoint that does not exist |
+| Legacy/dead-code discipline | Pass | Removed the unreferenced record without changing any live route, schema, adapter, or compatibility path | No legacy room-search behavior is restored | Keep the canonical API surface limited to implemented operations |
+| Regression safety | Pass | Java 20 Maven suite remains green at 97 tests, 0 failures, 0 errors | Clean-stack route and search integration remain pending | Treat compilation and contract tests as the boundary for this cleanup |
+| Traceability | Pass | `CanonicalApiContracts.java`, room-search audit row, and this entry now agree that discovery search is not implemented | Implementation requires a separately specified authorized index/projection | Record the missing feature instead of leaving a misleading dead DTO |
+
+Correction in this increment:
+
+- Removed the unused `ConversationSearchRequest` DTO so the backend no longer
+  advertises an unimplemented room-search contract or compatibility surface.

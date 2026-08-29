@@ -84,17 +84,6 @@ public final class CanonicalApiContracts {
             Set<UUID> memberIds) {
     }
 
-    public record ConversationSearchRequest(
-            String q,
-            String sortBy,
-            Boolean mineOnly,
-            String visibility,
-            Integer limit,
-            String pageCursor,
-            String tag,
-            String type) {
-    }
-
     public record ConversationUpdateRequest(
             String name,
             String description,
