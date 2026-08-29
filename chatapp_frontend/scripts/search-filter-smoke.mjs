@@ -17,6 +17,7 @@ const page = await browser.newPage();
 const searchRequests = [];
 const consoleErrors = [];
 const requestFailures = [];
+let messageSearchCallCount = 0;
 
 page.on('console', (message) => {
   if (message.type() === 'error') consoleErrors.push(message.text());
@@ -52,11 +53,40 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     return;
   }
   if (pathname.endsWith('/search/messages')) {
+    messageSearchCallCount += 1;
     searchRequests.push(request.postDataJSON());
+    const firstPage = messageSearchCallCount === 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ content: [], hasNext: false }),
+      body: JSON.stringify({
+        content: firstPage
+          ? [{
+              messageId: '00000000-0000-0000-0000-000000000002',
+              conversationId,
+              messageBucket: '2026-08',
+              senderId: operator.userId,
+              messageType: 'TEXT',
+              content: 'first search result',
+              hasAttachments: false,
+              isPinned: false,
+              isDeleted: false,
+              createdAt: '2026-08-29T00:00:00Z',
+            }]
+          : [{
+              messageId: '00000000-0000-0000-0000-000000000003',
+              conversationId,
+              messageBucket: '2026-08',
+              senderId: operator.userId,
+              messageType: 'TEXT',
+              content: 'second search result',
+              hasAttachments: false,
+              isPinned: false,
+              isDeleted: false,
+              createdAt: '2026-08-28T00:00:00Z',
+            }],
+        ...(firstPage ? { nextCursor: 'cursor-1' } : {}),
+      }),
     });
     return;
   }
@@ -81,6 +111,12 @@ const typeResponse = page.waitForResponse((response) => response.url().endsWith(
 await selects.nth(0).selectOption('TEXT');
 await typeResponse;
 const typeRequest = searchRequests.at(-1);
+
+const loadMoreResponse = page.waitForResponse((response) => response.url().endsWith('/search/messages') && response.request().method() === 'POST');
+await page.getByRole('button', { name: 'Tải thêm kết quả', exact: true }).waitFor();
+await page.getByRole('button', { name: 'Tải thêm kết quả', exact: true }).click();
+await loadMoreResponse;
+const loadMoreRequest = searchRequests.at(-1);
 
 const attachmentResponse = page.waitForResponse((response) => response.url().endsWith('/search/messages') && response.request().method() === 'POST');
 await selects.nth(1).selectOption('true');
@@ -108,6 +144,7 @@ const report = {
   baseUrl,
   selectCount,
   typeRequest,
+  loadMoreRequest,
   attachmentRequest,
   pinnedRequest,
   englishOptions,
@@ -123,6 +160,7 @@ if (
   || requestFailures.length
   || typeRequest?.conversationId !== conversationId
   || typeRequest?.messageType !== 'TEXT'
+  || loadMoreRequest?.pageCursor !== 'cursor-1'
   || attachmentRequest?.hasAttachment !== true
   || pinnedRequest?.isPinned !== false
   || englishOptions[0] !== 'All'

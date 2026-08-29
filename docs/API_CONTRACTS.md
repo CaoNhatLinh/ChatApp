@@ -22,7 +22,9 @@ device is not reactivated by heartbeat; registration is an explicit upsert.
 Message search is bounded to a member's conversation and accepts only the
 canonical `MessageSearchRequest` fields. There is no recipient-user filter
 because messages are conversation-scoped; reply filtering uses
-`replyToSenderId`.
+`replyToSenderId`. Results are returned as `content` plus an opaque
+`nextCursor`; clients send that cursor unchanged for the next page and must
+not invent offset/page metadata for this endpoint.
 
 Notification precedence is explicit: a conversation default accepts `ALL`,
 `MENTIONS`, or `NONE`; each member may set `INHERIT`, `ALL`, `MENTIONS`, or

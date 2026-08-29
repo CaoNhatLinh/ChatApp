@@ -27,7 +27,7 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-764 static Vietnamese copy keys are checked and currently have no missing
+768 static Vietnamese copy keys are checked and currently have no missing
 English translation key, including every static `localizeText(...)` call under
 `src/`. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.
@@ -65,7 +65,7 @@ coverage remains pending.
 | Realtime | JWT STOMP, authorized subscriptions, message/reaction/read/pin events, reconnect/resync, cross-instance fan-out | Implemented but not fully verified | Authenticated STOMP commands, message/reaction/read/pin/call publishers, notification/presence queues and frontend subscriptions are wired; authorization/two-instance tests remain. |
 | Rate limits/chat policy | Distributed rate limit, timed mute/slow mode, EVERYONE/ADMINS_ONLY/LOCKED | Implemented but not fully verified | Canonical policy/member override requests are wired; Redis atomic enforcement, expiry, retryAfter and cross-instance tests remain. |
 | Outbox/Kafka | Cassandra outbox claim/publish/retry/DLQ/replay and idempotent consumers | Partial | Publisher now reads a dedicated pending Cassandra projection and atomically removes it after Kafka acknowledgement; listener failures retry three times then publish to the configured DLT, while consumer idempotency, replay, integration tests and operational metrics remain incomplete. |
-| Search | Authorized room/message search, full filter matrix, projections, rebuild/reindex | Partial | The frontend now exposes the canonical message filter matrix (sender, reply sender, mention, type, date range, attachment, pin) and maps it to the authorized message-search contract. Room search, membership leakage tests, and rebuild workflow are missing; live Elasticsearch proof remains pending. |
+| Search | Authorized room/message search, full filter matrix, projections, rebuild/reindex | Partial | The frontend exposes the canonical message filter matrix (sender, reply sender, mention, type, date range, attachment, pin), consumes the DTO response, and traverses real opaque cursors with an explicit load-more action. Room search, membership leakage tests, and rebuild workflow are missing; live Elasticsearch proof remains pending. |
 | Polls | Create/get/vote/change/remove/close/deadline/anonymous policy and realtime UI | Partial | REST and UI clients/components exist; policy/concurrency/realtime/audit E2E evidence is missing. |
 | Moderation | Room ban, timed mute, app sanction, reports, language moderation, appeal/review | Partial | Room bans, timed sanctions, message/profile report submission, caller report history, queue/resolution and operator review UI exist; language moderation and appeals remain. |
 | Invites/QR | Preview/create/list/consume/decline/revoke, approval requests, expiry/usage states, QR | Partial | Backend and frontend surfaces exist; concurrency/state/security/browser tests are missing. |

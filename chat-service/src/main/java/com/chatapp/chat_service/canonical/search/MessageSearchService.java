@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -90,7 +91,7 @@ public class MessageSearchService {
             String nextCursor = hits.size() < limit
                     ? null
                     : encodeCursor(hits.get(hits.size() - 1).getSortValues());
-            return new SearchPage(hits.stream().map(SearchHit::getContent).toList(), nextCursor);
+            return new SearchPage(hits.stream().map(SearchHit::getContent).map(SearchResult::from).toList(), nextCursor);
         } catch (BadRequestException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -120,6 +121,37 @@ public class MessageSearchService {
         }
     }
 
-    public record SearchPage(List<MessageSearchDocument> content, String nextCursor) {
+    public record SearchPage(List<SearchResult> content, String nextCursor) {
+    }
+
+    public record SearchResult(
+            String messageId,
+            String conversationId,
+            String messageBucket,
+            String senderId,
+            String replyToSenderId,
+            Set<String> mentionedUserIds,
+            String messageType,
+            String content,
+            boolean hasAttachments,
+            boolean isPinned,
+            boolean isDeleted,
+            Instant createdAt) {
+
+        private static SearchResult from(MessageSearchDocument document) {
+            return new SearchResult(
+                    document.getMessageId(),
+                    document.getConversationId(),
+                    document.getMessageBucket(),
+                    document.getSenderId(),
+                    document.getReplyToSenderId(),
+                    document.getMentionedUserIds(),
+                    document.getMessageType(),
+                    document.getContent(),
+                    document.isHasAttachments(),
+                    document.isPinned(),
+                    document.isDeleted(),
+                    document.getCreatedAt());
+        }
     }
 }

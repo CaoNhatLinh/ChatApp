@@ -261,6 +261,9 @@ const rawMessengerCopy = {
       fromLabel: "Từ ngày",
       toLabel: "Đến ngày",
       clearLabel: "Xóa bộ lọc",
+      loadMoreLabel: "Tải thêm kết quả",
+      loadingMoreLabel: "Đang tải thêm kết quả...",
+      loadMoreError: "Không thể tải thêm kết quả tìm kiếm. Vui lòng thử lại.",
       disabledHint:
         "Vui lòng mở một cuộc trò chuyện để dùng tìm kiếm nâng cao tin nhắn.",
     },

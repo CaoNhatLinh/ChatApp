@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
 import { SectionHeader } from "@/shared/ui/SectionHeader";
@@ -65,6 +65,8 @@ export const SearchPage = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [messageSearchResults, setMessageSearchResults] = useState<SearchData[]>([]);
+  const [messageNextCursor, setMessageNextCursor] = useState<string>();
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [senderId, setSenderId] = useState("");
   const [replyToSenderId, setReplyToSenderId] = useState("");
   const [messageType, setMessageType] = useState("");
@@ -80,6 +82,7 @@ export const SearchPage = () => {
   const hasConversationId = conversationId.length > 0;
   const hasValidConversationId = hasConversationId ? isValidUuid(conversationId) : false;
   const requestIdRef = useRef(0);
+  const activeMessageFilterRef = useRef<MessageSearchFilters | null>(null);
 
   const hasMessageFilter = Boolean(
     query.trim() ||
@@ -121,7 +124,10 @@ export const SearchPage = () => {
     requestIdRef.current = requestId;
 
     if (!canSearchMessages) {
+      activeMessageFilterRef.current = null;
       setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
+      setIsLoadingMore(false);
       setIsSearching(false);
       if (isMessageScopeEnabled && hasMessageFilter && hasConversationId && !hasValidConversationId) {
         setValidationError(localizeText("UUID cuộc trò chuyện không hợp lệ."));
@@ -140,18 +146,27 @@ export const SearchPage = () => {
     const normalizedTo = toIsoDate(toDate);
 
     if (fromDate && !normalizedFrom) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("Ngày không đúng định dạng."));
       setIsSearching(false);
       return;
     }
 
     if (toDate && !normalizedTo) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("Đến ngày không đúng định dạng."));
       setIsSearching(false);
       return;
     }
 
     if (normalizedFrom && normalizedTo && new Date(normalizedFrom).getTime() > new Date(normalizedTo).getTime()) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("Khoảng thời gian không hợp lệ: Ngày bắt đầu phải trước hoặc bằng đến ngày."));
       setIsSearching(false);
       return;
@@ -160,12 +175,18 @@ export const SearchPage = () => {
     const trimmedSenderId = senderId.trim();
     const trimmedReplyToSenderId = replyToSenderId.trim();
     if (trimmedSenderId && !isValidUuid(trimmedSenderId)) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("UUID người gửi không hợp lệ."));
       setIsSearching(false);
       return;
     }
 
     if (trimmedReplyToSenderId && !isValidUuid(trimmedReplyToSenderId)) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("UUID người gửi trong tin nhắn reply không hợp lệ."));
       setIsSearching(false);
       return;
@@ -173,14 +194,19 @@ export const SearchPage = () => {
 
     const trimmedMentionedId = mentionedUserId.trim();
     if (trimmedMentionedId && !isValidUuid(trimmedMentionedId)) {
+      activeMessageFilterRef.current = null;
+      setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setValidationError(localizeText("UUID người nhắc đến không hợp lệ."));
       setIsSearching(false);
       return;
     }
 
     if (scope === "chat" && hasConversationId && !hasValidConversationId) {
+      activeMessageFilterRef.current = null;
       setValidationError(localizeText("UUID cuộc trò chuyện không hợp lệ."));
       setMessageSearchResults([]);
+      setMessageNextCursor(undefined);
       setIsSearching(false);
       return;
     }
@@ -232,6 +258,10 @@ export const SearchPage = () => {
       filter.conversationId = conversationId;
     }
 
+    activeMessageFilterRef.current = filter;
+    setMessageNextCursor(undefined);
+    setIsLoadingMore(false);
+
     const controller = new AbortController();
 
     setIsSearching(true);
@@ -245,13 +275,14 @@ export const SearchPage = () => {
         }
 
         const mapped: SearchData[] = result.content.map((message): SearchData => ({
-          title: localizeText(`Tin nhắn từ ${message.senderDisplayName || message.senderUsername || "Người dùng"} trong cuộc trò chuyện`),
+          title: localizeText("Tin nhắn trong cuộc trò chuyện"),
           path: `/app?conversationId=${message.conversationId}&messageId=${message.messageId}`,
           description: message.content,
           category: "chat",
         }));
 
         setMessageSearchResults(mapped);
+        setMessageNextCursor(result.nextCursor);
       } catch (error) {
         if (requestId !== requestIdRef.current || isRequestCanceled(error)) {
           return;
@@ -289,6 +320,44 @@ export const SearchPage = () => {
     toDate
   ]);
 
+  const loadMoreMessageResults = useCallback(async () => {
+    const cursor = messageNextCursor;
+    const activeFilter = activeMessageFilterRef.current;
+    const requestId = requestIdRef.current;
+    if (!cursor || !activeFilter || isLoadingMore || !canSearchMessages) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setSearchError(null);
+    try {
+      const result = await searchMessages({ ...activeFilter, pageCursor: cursor });
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      const mapped: SearchData[] = result.content.map((message): SearchData => ({
+        title: localizeText("Tin nhắn trong cuộc trò chuyện"),
+        path: `/app?conversationId=${message.conversationId}&messageId=${message.messageId}`,
+        description: message.content,
+        category: "chat",
+      }));
+      setMessageSearchResults((current) => [...current, ...mapped]);
+      setMessageNextCursor(result.nextCursor);
+    } catch (error) {
+      if (requestId !== requestIdRef.current || isRequestCanceled(error)) {
+        return;
+      }
+      logger.error("[SearchPage] Failed to load more messages", error instanceof Error ? error.message : String(error));
+      setSearchError(SEARCH_COPY.messageFilter.loadMoreError);
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setIsLoadingMore(false);
+      }
+    }
+  }, [canSearchMessages, isLoadingMore, messageNextCursor]);
+
   const results = useMemo(() => {
     if (scope === "chat") {
       return conversationId ? messageSearchResults : [];
@@ -314,6 +383,8 @@ export const SearchPage = () => {
     setSearchError(null);
     setValidationError(null);
     setMessageSearchResults([]);
+    setMessageNextCursor(undefined);
+    activeMessageFilterRef.current = null;
   };
 
   return (
@@ -518,6 +589,19 @@ export const SearchPage = () => {
                   />
                 ))
               )}
+
+              {messageNextCursor && canSearchMessages && results.length > 0 ? (
+                <li className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreMessageResults()}
+                    disabled={isLoadingMore}
+                    className="focus-ring rounded-full border border-border/60 px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isLoadingMore ? SEARCH_COPY.messageFilter.loadingMoreLabel : SEARCH_COPY.messageFilter.loadMoreLabel}
+                  </button>
+                </li>
+              ) : null}
             </motion.ul>
           )}
         </SurfacePanel>

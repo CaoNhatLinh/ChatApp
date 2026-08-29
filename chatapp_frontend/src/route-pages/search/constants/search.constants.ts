@@ -28,6 +28,9 @@ const rawSearchCopy = {
     fromLabel: MESSENGER_COPY.search.messageFilter.fromLabel,
     toLabel: MESSENGER_COPY.search.messageFilter.toLabel,
     clearLabel: MESSENGER_COPY.search.messageFilter.clearLabel,
+    loadMoreLabel: MESSENGER_COPY.search.messageFilter.loadMoreLabel,
+    loadingMoreLabel: MESSENGER_COPY.search.messageFilter.loadingMoreLabel,
+    loadMoreError: MESSENGER_COPY.search.messageFilter.loadMoreError,
     disabledHint: MESSENGER_COPY.search.messageFilter.disabledHint,
   },
 } as const;

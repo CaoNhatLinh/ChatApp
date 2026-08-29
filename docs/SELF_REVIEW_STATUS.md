@@ -1087,3 +1087,19 @@ Correction in this increment:
 - Removed the non-functional conversation load-more path end to end. The
   sidebar now consumes the bounded canonical room list directly, while message
   history keeps its real cursor pagination contract.
+
+# Follow-up self-review (2026-08-29, message-search cursor contract increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | `MessageSearchService` now returns a dedicated `SearchResult` DTO and only `content` plus `nextCursor`; the frontend derives `hasNext` from the cursor instead of reading a non-existent response field | Live Elasticsearch serialization and index consistency remain pending | Keep transport documents out of the public HTTP contract and preserve opaque cursors |
+| Pagination correctness | Pass | `SearchPage` resets cursor state on every filter/validation transition and sends the current cursor unchanged for the explicit load-more action; the search smoke verifies the second request | Authenticated multi-page search with real index data remains blocked | Do not add offset/page controls to a cursor-only endpoint |
+| Bilingual and recovery coverage | Pass | Load-more/loading/error copy is registered in the shared Vietnamese/English map; failures preserve existing results and show a localized retryable error | Full screen-reader and provider-outage walkthrough remains pending | Keep user content verbatim while translating product feedback |
+| Regression safety | Pass | Java 20 Maven suite, frontend validation/build, i18n/error-copy gates, and search browser smoke pass with zero console/request failures | Clean-stack Elasticsearch and authenticated browser proof remain pending | Treat mock browser coverage as contract evidence, not provider proof |
+| Traceability | Pass | `MessageSearchService`, `messenger.api.ts`, `SearchPage.tsx`, OpenAPI, API contract notes, function audit, smoke script, and this entry are synchronized | Room discovery search and index rebuild workflow remain unimplemented | Record those capabilities as explicit gaps rather than exposing guessed controls |
+
+Correction in this increment:
+
+- Aligned search response typing and OpenAPI with the actual backend DTO,
+  removed the unused sender-name compatibility fields, and added cursor-based
+  result traversal with localized loading and error states.

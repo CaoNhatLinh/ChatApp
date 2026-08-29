@@ -41,15 +41,19 @@ export interface MessageSearchResult {
     conversationId: string;
     messageBucket?: string;
     senderId?: string;
-    senderDisplayName?: string;
-    senderUsername?: string;
+    replyToSenderId?: string;
+    mentionedUserIds?: string[];
+    messageType?: string;
+    hasAttachments?: boolean;
+    isPinned?: boolean;
+    isDeleted?: boolean;
+    createdAt?: string;
     content: string;
 }
 
 interface CanonicalSearchPage {
     content: MessageSearchResult[];
     nextCursor?: string;
-    hasNext: boolean;
 }
 
 /**
@@ -518,7 +522,7 @@ export const searchMessages = async (
     const response = await apiClient.post<CanonicalSearchPage>('/search/messages', request, { signal: options?.signal });
     return {
         content: response.data.content,
-        hasNext: response.data.hasNext,
+        hasNext: Boolean(response.data.nextCursor),
         number: 0,
         size: response.data.content.length,
         nextCursor: response.data.nextCursor,
