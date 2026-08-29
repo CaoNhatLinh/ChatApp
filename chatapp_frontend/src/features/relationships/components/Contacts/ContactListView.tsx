@@ -67,7 +67,6 @@ export const ContactListView = () => {
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
         joinedAt: profile.createdAt,
-        isOnline: profile.status === "ONLINE",
         lastSeen: profile.lastActive || undefined,
       });
     } catch (error) {

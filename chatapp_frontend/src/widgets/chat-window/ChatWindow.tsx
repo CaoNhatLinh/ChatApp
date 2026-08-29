@@ -47,7 +47,6 @@ const mapUserProfile = (profile: UserDTO): UserProfile => ({
   avatarUrl: profile.avatarUrl,
   joinedAt: profile.createdAt,
   lastSeen: profile.lastActive ?? undefined,
-  isOnline: profile.status === "ONLINE",
 });
 
 const formatPresenceDevice = (device?: string): string => {

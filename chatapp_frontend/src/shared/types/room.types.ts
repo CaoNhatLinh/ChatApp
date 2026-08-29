@@ -6,7 +6,6 @@ export interface UserProfileModal {
   bio?: string;
   joinedAt?: string;
   lastSeen?: string;
-  isOnline: boolean;
   role?: 'admin' | 'moderator' | 'member';
   mutualFriends?: number;
 }
