@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { useMessenger } from "@/features/messenger/model/useMessenger";
@@ -47,6 +48,8 @@ export const ContactListView = () => {
     loadingReceived,
     loadingSearch,
     loadingSent,
+    error,
+    retryCurrentTab,
   } = useFriendTabsState();
 
   const { user } = useAuthStore();
@@ -161,6 +164,21 @@ export const ContactListView = () => {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 lg:p-10">
+          {error ? (
+            <div className="mb-5 flex items-start justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
+              <div className="flex min-w-0 items-start gap-3">
+                <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void retryCurrentTab()}
+                className="focus-ring shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+              >
+                {localizeText("Thử lại")}
+              </button>
+            </div>
+          ) : null}
           {activeTab === "friends" ? (
             <ContactFriendsSection
               title={FRIEND_COPY.sectionTitle.friends}

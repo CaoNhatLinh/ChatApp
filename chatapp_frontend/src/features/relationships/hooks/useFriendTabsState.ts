@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFriendStore } from "../model/friend.store";
 import {
   useFetchFriends,
@@ -31,6 +31,7 @@ export const useFriendTabsState = () => {
   const loadingReceived = useLoadingReceived();
   const loadingSent = useLoadingSent();
   const loadingSearch = useLoadingSearch();
+  const error = useFriendStore((state) => state.error);
 
   const searchUsersAction = useFriendStore((state) => state.searchUsers);
 
@@ -71,6 +72,20 @@ export const useFriendTabsState = () => {
     return () => clearTimeout(timer);
   }, [globalSearchQuery, searchUsersAction]);
 
+  const retryCurrentTab = useCallback(async () => {
+    if (activeTab === "friends") {
+      await fetchFriendsAction();
+      return;
+    }
+    if (activeTab === "requests") {
+      await fetchReceivedRequestsAction();
+      return;
+    }
+    if (globalSearchQuery.trim().length >= 3) {
+      await searchUsersAction(globalSearchQuery);
+    }
+  }, [activeTab, fetchFriendsAction, fetchReceivedRequestsAction, globalSearchQuery, searchUsersAction]);
+
   return {
     activeTab,
     setActiveTab,
@@ -87,6 +102,8 @@ export const useFriendTabsState = () => {
     loadingReceived,
     loadingSearch,
     loadingSent,
+    error,
+    retryCurrentTab,
     isLoadingCurrentTab:
       activeTab === "friends"
         ? loadingFriends

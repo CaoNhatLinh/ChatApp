@@ -626,3 +626,18 @@ Correction in this increment:
 
 - Added localized, status-aware retry recovery to notification settings loading
   without introducing default or fallback settings data.
+
+# Follow-up self-review (2026-08-29, contacts-load-recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for Contacts loading | Store errors are now surfaced by `ContactListView` with a localized retry action for the active tab | Live multi-user relationship failures remain unverified | A failed friends/request/search read is not presented as a successful empty state |
+| State integrity | Pass | Retry delegates to the canonical store action; previously loaded data is not replaced by client fallback data | Cross-tab reconciliation still needs integration evidence | Keep server state authoritative |
+| Async lifecycle | Pass | Existing store abort/active guards remain; retry uses a fresh action and does not add parallel client caches | Full unmount/browser proof remains pending | Reuse the existing request boundary |
+| Bilingual and accessibility coverage | Pass | Store error mapping and retry label use shared localized copy; alert semantics and explicit button type are present | Full screen-reader audit remains pending | Keep recovery visible and keyboard reachable |
+| Traceability | Pass | `useFriendTabsState.ts`, `ContactListView.tsx`, `UI_SCREEN_INVENTORY.md` and this entry | Authenticated service persistence remains pending | Keep tab selection, store request and recovery UI connected |
+
+Correction in this increment:
+
+- Surfaced relationship read failures in the canonical Contacts page and added
+  an active-tab retry action, avoiding a false empty-list success state.

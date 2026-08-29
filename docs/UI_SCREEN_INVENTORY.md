@@ -6,7 +6,7 @@
 | Auth form | submit credentials | field error, server error, pending, success redirect |
 | Messenger shell | select/search/create conversation | empty list, loading, offline/reconnect banner, reconnect |
 | Chat window | send/edit/delete/react/read/pin/upload/poll | optimistic pending, retry, deleted, attachment failure |
-| Contacts | search, request, accept/reject/block, open profile, report profile | no results, duplicate request, forbidden, report validation/error/success |
+| Contacts | search, request, accept/reject/block, open profile, report profile | loading, load error with retry, no results, duplicate request, forbidden, report validation/error/success |
 | Settings/profile | theme/status/profile/notification preferences, report history | unsaved, validation, save error, report loading/empty/error/status |
 | Invite/join | preview, accept/decline | invalid, expired, limit reached, approval pending |
 | Create Room modal | room settings, group/channel selection, member search/selection, create action | validation, empty search, request error, submitting lock, Escape/Tab keyboard recovery |
