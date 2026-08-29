@@ -414,6 +414,20 @@ Correction in this increment:
 - Replaced silent pin/unpin catches with operator diagnostics plus user-facing,
   status-aware Vietnamese/English error notifications.
 
+# Follow-up self-review (2026-08-29, message-search error increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass | Message-search failures now use the shared logger and never serialize native/server error text into the UI | Full authenticated filter/provider matrix remains pending | Keep transport details in diagnostics only |
+| Cancellation | Pass | Existing request-id and abort checks still suppress stale/canceled responses | Backend search index/rebuild evidence remains partial | Preserve the current request boundary |
+| Bilingual UI coverage | Pass | Search failure copy is registered in `resources.ts`; locale smoke (710 keys) | Domain message content remains verbatim | Translate product copy, not user content |
+| Traceability | Pass | `SearchPage.tsx`, shared error mapper and this self-review entry | Clean-stack authenticated browser proof remains blocked | Reuse the same status-aware mapper for future search actions |
+
+Correction in this increment:
+
+- Replaced the raw `console.error` search path with sanitized operator logging
+  and status-aware localized failure copy.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

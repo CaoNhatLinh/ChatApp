@@ -11,6 +11,8 @@ import { searchMessages, type MessageSearchFilters } from "@/features/messenger/
 import { motion } from "framer-motion";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { localizeText } from "@/shared/i18n";
+import { logger } from "@/shared/lib/logger";
+import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 
 interface SearchData {
   title: string;
@@ -235,9 +237,9 @@ export const SearchPage = () => {
         if (requestId !== requestIdRef.current || isRequestCanceled(error)) {
           return;
         }
-        console.error("[SearchPage] Failed to search messages:", error);
+        logger.error("[SearchPage] Failed to search messages", error);
         setMessageSearchResults([]);
-        setSearchError(localizeText("Không tìm thấy tin nhắn phù hợp. Vui lòng thử lại."));
+        setSearchError(getUserFacingErrorMessage(error, localizeText("Không tìm thấy tin nhắn phù hợp. Vui lòng thử lại.")));
       } finally {
         if (requestId === requestIdRef.current) {
           setIsSearching(false);
