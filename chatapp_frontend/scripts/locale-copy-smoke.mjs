@@ -9,8 +9,16 @@ const copyFiles = [
   'src/features/messenger/constants/messengerCopy.ts',
   'src/features/settings/constants/chat-theme.constants.ts',
 ];
+const localizedErrorFiles = [
+  'src/shared/lib/user-facing-error.ts',
+  'src/features/calls/hooks/useWebRtcCall.ts',
+  'src/features/profile/components/user/ReportUserModal.tsx',
+  'src/features/messenger/components/chat/ReportMessageModal.tsx',
+  'src/app/providers/PresenceManager.tsx',
+];
 const resourceFile = path.join(frontendRoot, 'src/shared/i18n/resources.ts');
 const quotedVietnamese = /(?<![A-Za-z0-9])"([^"\r\n]*[À-ỹ][^"\r\n]*)"/g;
+const staticLocalizedText = /localizeText\(\s*(['"])([^'"\r\n]*[À-ỹ][^'"\r\n]*)\1\s*\)/g;
 const resourceText = fs.readFileSync(resourceFile, 'utf8');
 const copyKeys = new Set();
 
@@ -21,11 +29,18 @@ for (const relativeFile of copyFiles) {
   }
 }
 
+for (const relativeFile of localizedErrorFiles) {
+  const source = fs.readFileSync(path.join(frontendRoot, relativeFile), 'utf8');
+  for (const match of source.matchAll(staticLocalizedText)) {
+    copyKeys.add(match[2]);
+  }
+}
+
 const missing = [...copyKeys]
   .filter((key) => !resourceText.includes(`'${key}':`))
   .sort();
 
-const report = { checkedFiles: copyFiles, checkedKeys: copyKeys.size, missing };
+const report = { checkedFiles: [...copyFiles, ...localizedErrorFiles], checkedKeys: copyKeys.size, missing };
 console.log(JSON.stringify(report, null, 2));
 
 if (missing.length > 0) {

@@ -16,6 +16,7 @@
     "test:e2e:locale": "node scripts/locale-smoke.mjs",
     "test:e2e:notifications": "node scripts/notification-settings-smoke.mjs",
     "test:i18n:copy": "node scripts/locale-copy-smoke.mjs",
+    "test:errors:copy": "node scripts/error-copy-smoke.mjs",
     "test:e2e:network": "node scripts/network-status-smoke.mjs"
   },
   "dependencies": {

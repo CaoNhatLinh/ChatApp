@@ -34,9 +34,15 @@ errors.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries has an explicit English
-translation key. Dynamic messages remain covered by the canonical patterns in
-`src/shared/i18n/runtime.ts`; this check does not introduce runtime fallback
-behavior.
+translation key. It also checks static `localizeText(...)` copy in the audited
+error/report/call/presence surfaces. Dynamic messages remain covered by the
+canonical patterns in `src/shared/i18n/runtime.ts`; this check does not
+introduce runtime fallback behavior.
+
+`npm run test:errors:copy` guards the production error surfaces for messenger,
+relationships, reports, calls, and presence. It rejects direct rendering of
+native exception messages or server response messages; diagnostic logs remain
+operator-only.
 
 `npm run test:e2e:network` loads the public shell in a real browser, toggles the
 browser offline state, verifies the bilingual network-loss status banner, then

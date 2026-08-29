@@ -134,7 +134,7 @@ remain externally blocked.
 | --- | --- | --- | --- | --- |
 | Feature completeness | Partial | `UI_COPY`, `MESSENGER_COPY`, `CHAT_THEME_COPY`, and `resources.ts` source scan | Authenticated live content and provider-generated copy are outside this source registry | Added explicit EN keys for every static registry string; keep domain/status codes untranslated |
 | Flow completeness | Partial | `test:i18n:copy`, `test:e2e:locale`, `test:e2e:admin` | Authenticated two-account chat and live realtime flow remain blocked by missing stack | Preserve canonical runtime copy and verify public/operator locale journeys in browser |
-| Code-doc consistency | Pass | `docs/TESTING.md`, `docs/AGENT_WORK_PLAN.md`, `tasks/function-audit.md`, package script | No gap found in affected command references | Documented the 305-key source-contract check and current evidence |
+| Code-doc consistency | Pass | `docs/TESTING.md`, `docs/AGENT_WORK_PLAN.md`, `tasks/function-audit.md`, package script | No gap found in affected command references | Documented the 342-key source-contract check and current evidence |
 | Runtime consistency | Partial | Next build plus locale/admin smoke after latest build restart | Cassandra/Redis/Kafka/Elasticsearch unavailable locally | No runtime fallback added; external services remain explicitly blocked |
 | Permission coverage | Pass for affected UI | No permission code changed; admin strict labels remain server-gated | Full operator permission matrix still needs live integration | Keep labels presentation-only; server remains authority |
 | Failure and recovery | Partial | Copy check fails on missing key; browser smoke fails on console/request errors | Provider/reconnect recovery needs live dependencies | Use deterministic source check and retain explicit browser failure gates |
@@ -148,6 +148,23 @@ Corrections in this increment:
   localized suffix.
 - Added a repository-owned `test:i18n:copy` check so future copy registries
   cannot silently fall back to Vietnamese in English mode.
+
+# Follow-up self-review (2026-08-29, error-surface hardening increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for audited surfaces | `getUserFacingErrorMessage`, localized WebRTC errors, sanitized report/presence errors, `npm run test:errors:copy` | Other authenticated provider failures still need live-stack browser proof | Never render native exception or server response text; keep raw detail in operator logs only |
+| Bilingual UI coverage | Pass for new error copy | `resources.ts`, localized call/config messages, locale copy smoke (342 static keys) | Live server/provider-generated content remains domain data rather than UI copy | Add each new product message to the explicit VI→EN map |
+| Code-doc consistency | Pass | `TESTING.md`, package script, affected feature sources | None in this increment | Keep the guard scoped to user-facing error surfaces |
+| Runtime verification | Partial | `npm run validate`, `npm run build`, `npm run test:errors:copy` | Authenticated backend and media errors need clean-stack/browser proof | Preserve the deterministic failure path and do not add fallback success behavior |
+
+Corrections in this increment:
+
+- Replaced raw Axios/native exception rendering in messenger, friendship, user
+  report, message report, and WebRTC paths with status-aware product copy.
+- Sanitized presence status-sync toasts so server `errorType`/`message` never
+  leak protocol or implementation text into the UI.
+- Added `test:errors:copy` as a regression check for the audited error surfaces.
 
 # Follow-up self-review (2026-08-29, offline recovery increment)
 

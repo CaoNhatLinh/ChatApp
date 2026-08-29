@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { realtimeService } from '@/shared/websocket/realtime-service';
 import { runtimeEnv } from '@/shared/config/runtimeEnv';
 import type { CallEventPayload, CallSignal, CallControls, CallSession } from '../types';
+import { localizeText } from '@/shared/i18n';
 
 const CALL_DESTINATION = (conversationId: string) => `/topic/conversation/${conversationId}/calls`;
 
@@ -17,16 +18,16 @@ const parseIceServers = (): RTCIceServer[] => {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error('Cấu hình ICE server phải là JSON hợp lệ.');
+    throw new Error(localizeText('Cấu hình ICE server phải là JSON hợp lệ.'));
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error('Cấu hình ICE server phải là một mảng JSON.');
+    throw new Error(localizeText('Cấu hình ICE server phải là một mảng JSON.'));
   }
 
   return parsed.map((entry) => {
     if (!isRecord(entry)) {
-      throw new Error('Mỗi ICE server phải là một object.');
+      throw new Error(localizeText('Mỗi ICE server phải là một object.'));
     }
     const urls = entry.urls;
     if (
@@ -34,14 +35,14 @@ const parseIceServers = (): RTCIceServer[] => {
       (Array.isArray(urls) && (urls.length === 0 || !urls.every((url) => typeof url === 'string' && url.trim().length > 0))) ||
       (typeof urls !== 'string' && !Array.isArray(urls))
     ) {
-      throw new Error('ICE server phải có urls dạng chuỗi hoặc mảng chuỗi.');
+      throw new Error(localizeText('ICE server phải có urls dạng chuỗi hoặc mảng chuỗi.'));
     }
     const server: RTCIceServer = { urls };
     if (entry.username !== undefined && typeof entry.username !== 'string') {
-      throw new Error('ICE server username phải là chuỗi.');
+      throw new Error(localizeText('ICE server username phải là chuỗi.'));
     }
     if (entry.credential !== undefined && typeof entry.credential !== 'string') {
-      throw new Error('ICE server credential phải là chuỗi.');
+      throw new Error(localizeText('ICE server credential phải là chuỗi.'));
     }
     if (typeof entry.username === 'string') server.username = entry.username;
     if (typeof entry.credential === 'string') server.credential = entry.credential;
@@ -81,18 +82,18 @@ const isCallEvent = (value: unknown): value is CallEventPayload => {
 };
 
 const mediaErrorMessage = (error: unknown): string => {
-  if (error instanceof DOMException) {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
     if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
-      return 'Trình duyệt chưa cấp quyền camera hoặc microphone.';
+      return localizeText('Trình duyệt chưa cấp quyền camera hoặc microphone.');
     }
     if (error.name === 'NotFoundError') {
-      return 'Không tìm thấy camera hoặc microphone trên thiết bị.';
+      return localizeText('Không tìm thấy camera hoặc microphone trên thiết bị.');
     }
     if (error.name === 'NotReadableError') {
-      return 'Camera hoặc microphone đang được ứng dụng khác sử dụng.';
+      return localizeText('Camera hoặc microphone đang được ứng dụng khác sử dụng.');
     }
   }
-  return error instanceof Error ? error.message : 'Không thể khởi tạo cuộc gọi.';
+  return localizeText('Không thể khởi tạo cuộc gọi.');
 };
 
 interface UseWebRtcCallOptions {
@@ -189,7 +190,7 @@ export const useWebRtcCall = ({
 
   const createPeer = useCallback((activeSession: CallSession, stream: MediaStream) => {
     if (typeof RTCPeerConnection === 'undefined') {
-      throw new Error('Trình duyệt hiện tại không hỗ trợ kết nối media.');
+      throw new Error(localizeText('Trình duyệt hiện tại không hỗ trợ kết nối media.'));
     }
     const peer = new RTCPeerConnection({ iceServers: parseIceServers() });
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
@@ -234,7 +235,7 @@ export const useWebRtcCall = ({
 
   const requestMedia = useCallback(async (callType: 'VOICE' | 'VIDEO') => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Trình duyệt hiện tại không hỗ trợ camera hoặc microphone.');
+      throw new Error(localizeText('Trình duyệt hiện tại không hỗ trợ camera hoặc microphone.'));
     }
     return navigator.mediaDevices.getUserMedia({
       audio: true,

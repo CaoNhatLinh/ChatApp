@@ -35,6 +35,7 @@ import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
 import { useNotificationStore } from '@/features/notifications/model/notification.store';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 const MESSAGES_TTL_MS = 60_000;
 const CONVERSATION_PAGE_SIZE = 30;
@@ -291,7 +292,7 @@ export const useMessenger = (): UseMessengerResult => {
                     initMessengerSubscriptions.set(initKey, subscriptionUnsubs);
                 }
             } catch (err: unknown) {
-                const errorMessage = err instanceof Error ? err.message : MESSENGER_COPY.errors.loadConversationsFailed;
+                const errorMessage = getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadConversationsFailed);
                 clearInitSubscriptions(initKey);
                 setError(errorMessage);
                 logger.error('[useMessenger] Error initializing messenger:', err instanceof Error ? err.message : err);
@@ -389,7 +390,7 @@ export const useMessenger = (): UseMessengerResult => {
             setConversationUnreadCount(conversationId, unreadCount);
         } catch (err: unknown) {
             if (requestId !== conversationLoadRequestRef.current) return;
-            setError(err instanceof Error ? err.message : MESSENGER_COPY.errors.loadMessagesFailed);
+            setError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadMessagesFailed));
             logger.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : err);
         }
     }, [

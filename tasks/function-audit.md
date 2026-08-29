@@ -27,9 +27,16 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-305 static Vietnamese copy keys are checked and currently have no missing
-English translation key. This is a source-contract check, not evidence of live
+342 static Vietnamese copy keys are checked and currently have no missing
+English translation key, including audited static `localizeText(...)` error
+surfaces. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.
+
+User-facing failure copy is additionally guarded by
+`chatapp_frontend/scripts/error-copy-smoke.mjs` (`npm run test:errors:copy`).
+The check covers messenger, relationships, report modals, calls, and presence;
+it rejects direct native exception/server response rendering while allowing
+operator-only diagnostic logs.
 
 ## Complete function inventory
 

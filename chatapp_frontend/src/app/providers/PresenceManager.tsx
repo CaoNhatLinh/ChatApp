@@ -8,6 +8,7 @@ import { presenceTracker } from '@/features/presence/services/presenceTracker';
 import { addConnectionListener, isWebSocketReady } from '@/shared/websocket/websocketService';
 import { logger } from '@/shared/lib/logger';
 import { notifyError } from '@/shared/lib/notification';
+import { localizeText } from '@/shared/i18n';
 
 function subscribeConversationPartners(partnerIds: string[]): void {
     logger.info('[PresenceManager] Syncing', partnerIds.length, 'conversation partners');
@@ -81,7 +82,7 @@ export function PresenceManager(): null {
                     });
                     const didRollback = usePresenceStore.getState().rollbackMyStatus(requestId, traceId);
                     if (didRollback) {
-                        notifyError(`${errorType}: ${message}`);
+                        notifyError(localizeText('Không thể cập nhật trạng thái hoạt động. Vui lòng thử lại.'));
                     }
                 }
             );

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { submitUserReport } from '@/features/moderation/api/report.api';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 interface ReportUserModalProps {
   userId: string;
@@ -65,9 +66,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
       onSubmitted();
       onClose();
     } catch (submitError) {
-      const responseMessage = (submitError as { response?: { data?: { message?: string } } })
-        .response?.data?.message;
-      setError(responseMessage || localizeText('Không thể gửi báo cáo. Vui lòng thử lại.'));
+      setError(getUserFacingErrorMessage(submitError, 'Không thể gửi báo cáo. Vui lòng thử lại.'));
     } finally {
       setIsSubmitting(false);
     }
