@@ -1058,3 +1058,16 @@ Correction in this increment:
 
 - Removed ignored Friends `page` parameters and undocumented `size` client
   queries; all canonical Friends list routes now use the bounded `limit` input.
+
+# Follow-up self-review (2026-08-29, bounded query documentation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| OpenAPI accuracy | Pass | `GET /conversations/{conversationId}/members` and `GET /admin/conversations/{conversationId}` now document the backend-supported bounded `limit` parameter | A complete generated-schema comparison remains part of release engineering | Keep the OpenAPI surface synchronized with implemented request parameters |
+| Scope discipline | Pass | Documentation-only update; no new endpoint, alias, or runtime fallback was introduced | None for these two routes | Do not invent undocumented query behavior |
+| Regression safety | Pass | Existing Java 20 suite (98 tests) and frontend validation remain the verification baseline | Clean-stack contract validation remains blocked by unavailable Docker | Preserve the canonical docs gate with each route change |
+
+Correction in this increment:
+
+- Added the missing `limit` parameter references for room-member and global
+  admin room-detail reads in the canonical OpenAPI document.

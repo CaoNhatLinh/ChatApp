@@ -189,7 +189,7 @@ paths:
   /conversations/{conversationId}/members:
     get:
       tags: [Conversations]
-      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Members, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ConversationMember'}}}}}}
     post:
       tags: [Conversations]
@@ -589,7 +589,7 @@ paths:
   /admin/conversations/{conversationId}:
     get:
       tags: [Admin]
-      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Room detail and bounded member snapshot}}
     delete:
       tags: [Admin]
