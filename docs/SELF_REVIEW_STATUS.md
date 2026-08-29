@@ -322,6 +322,21 @@ Correction in this increment:
 - Added an explicit catch for conversation-level notification read updates during
   conversation selection so background sync cannot create unhandled rejections.
 
+# Follow-up self-review (2026-08-29, DM creation boundary increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract correctness | Pass for active contacts flow | `ContactListView.handleOpenChat` creates a DM only for canonical 404/not-found; network, auth and server errors propagate | Duplicate-create race still needs backend idempotency/integration evidence | Never turn an arbitrary lookup failure into a create request |
+| Failure safety | Pass | Caller maps propagated failure through `getUserFacingErrorMessage` | Clean-stack two-account browser proof remains pending | Keep status-aware error copy |
+| Legacy/fallback discipline | Pass for touched route | Removed broad catch-as-create behavior from the active route; no compatibility fallback added | Unused duplicate FriendItem retains old code and is intentionally outside scope | Do not expand work into dead/legacy modules |
+| Traceability | Pass | `findDmConversation` API, ContactListView and function inventory | Cross-instance idempotency proof remains | Keep lookup/create boundary explicit |
+
+Correction in this increment:
+
+- DM creation now falls back only on an explicit 404 from the canonical lookup;
+  authorization, network, rate-limit and server errors are no longer masked by a
+  second mutation request.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

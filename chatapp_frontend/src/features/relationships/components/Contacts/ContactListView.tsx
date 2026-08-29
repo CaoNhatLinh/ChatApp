@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { useMessenger } from "@/features/messenger/model/useMessenger";
 import { createConversation, findDmConversation } from "@/features/messenger/api/messenger.api";
@@ -87,7 +88,10 @@ export const ContactListView = () => {
       let conversation;
       try {
         conversation = await findDmConversation(user.userId, targetUserId);
-      } catch {
+      } catch (error: unknown) {
+        if (!axios.isAxiosError(error) || error.response?.status !== 404) {
+          throw error;
+        }
         conversation = await createConversation({
           type: "dm",
           memberIds: [targetUserId],
