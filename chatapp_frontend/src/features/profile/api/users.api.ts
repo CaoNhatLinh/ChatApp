@@ -4,7 +4,6 @@ import type { UserDTO } from '@/entities/user/model/user.types';
 export interface UpdateProfileRequest {
     displayName: string;
     avatarUrl: string;
-    nickname: string;
 }
 
 interface CanonicalPublicUser {

@@ -1103,3 +1103,19 @@ Correction in this increment:
 - Aligned search response typing and OpenAPI with the actual backend DTO,
   removed the unused sender-name compatibility fields, and added cursor-based
   result traversal with localized loading and error states.
+
+# Follow-up self-review (2026-08-29, profile contract cleanup increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | The canonical `UpdateProfileRequest` supports only `displayName` and `avatarUrl`; Settings no longer renders or stores an ignored nickname field | Live profile persistence remains blocked by unavailable Cassandra/auth stack | Do not expose a control for data the backend cannot persist |
+| State integrity | Pass | Profile change detection and save payload now compare exactly the two writable fields returned by `/users/me` | Cross-account update and refresh verification remain pending | Keep client state shaped by the canonical user response |
+| Bilingual copy | Pass | Profile description and panel copy now state only the supported fields and have exact English entries; i18n gate reports 766 checked keys with none missing | Full authenticated locale walkthrough remains pending | Remove obsolete nickname copy instead of retaining compatibility text |
+| Regression safety | Pass | Frontend type-check/lint and profile locale smoke remain the release evidence for this UI slice | Clean-stack profile mutation proof remains external | Keep mutation behavior bounded to the documented PATCH contract |
+| Traceability | Pass | `users.api.ts`, auth/user types, Settings modal/panel, UI copy, resources, and this entry are synchronized | A future nickname feature requires a separately specified backend field and migration | Record unsupported profile attributes as absent, not silently ignored |
+
+Correction in this increment:
+
+- Removed the non-persisted nickname field from profile types, Settings UI, and
+  update payloads; corrected the bilingual profile descriptions to match the
+  actual canonical backend contract.

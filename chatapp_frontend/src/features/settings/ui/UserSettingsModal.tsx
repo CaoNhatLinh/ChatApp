@@ -42,7 +42,6 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [displayName, setDisplayName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [nickname, setNickname] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -54,8 +53,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     if (!user) return;
     setDisplayName(user.displayName);
     setAvatarUrl(user.avatarUrl ?? '');
-    setNickname(user.nickName ?? '');
-  }, [user, user?.userId, user?.displayName, user?.avatarUrl, user?.nickName, isOpen]);
+  }, [user, user?.userId, user?.displayName, user?.avatarUrl, isOpen]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -66,15 +64,12 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const isProfileUnchanged = useMemo(
     () =>
       normalizedDisplayName === currentDisplayName &&
-      avatarUrl === (user?.avatarUrl ?? '') &&
-      nickname === (user?.nickName ?? ''),
+      avatarUrl === (user?.avatarUrl ?? ''),
     [
       avatarUrl,
       currentDisplayName,
       normalizedDisplayName,
-      nickname,
       user?.avatarUrl,
-      user?.nickName,
     ]
   );
 
@@ -101,7 +96,6 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       const updatedUser = await updateProfile({
         displayName: normalizedDisplayName,
         avatarUrl,
-        nickname,
       });
       updateUser(updatedUser);
       notifySuccess(UI_COPY.settings.saveProfileSuccess);
@@ -185,12 +179,10 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
                 userName={user.userName}
                 displayName={displayName}
                 avatarUrl={avatarUrl}
-                nickname={nickname}
                 isSaving={isSaving}
                 canSave={!isProfileUnchanged}
                 onDisplayNameChange={setDisplayName}
                 onAvatarChange={setAvatarUrl}
-                onNicknameChange={setNickname}
                 onSave={handleSaveProfile}
               /> : null
             ) : activeTab === 'appearance' ? (

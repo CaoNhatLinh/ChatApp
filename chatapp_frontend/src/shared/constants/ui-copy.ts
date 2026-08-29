@@ -275,7 +275,7 @@ const rawUICopy = {
   settings: {
     closeButton: "Đóng cài đặt",
     profileTitle: "Tài khoản",
-    profileDescription: "Cập nhật tên hiển thị, bí danh và ảnh đại diện.",
+    profileDescription: "Cập nhật tên hiển thị và ảnh đại diện.",
     themeLight: "Sáng",
     themeDark: "Tối",
     themeSystem: "Theo hệ thống",

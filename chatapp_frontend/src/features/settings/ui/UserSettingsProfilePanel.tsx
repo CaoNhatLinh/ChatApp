@@ -10,12 +10,10 @@ interface UserSettingsProfilePanelProps {
   userName: string;
   displayName: string;
   avatarUrl: string;
-  nickname: string;
   isSaving: boolean;
   canSave: boolean;
   onDisplayNameChange: (value: string) => void;
   onAvatarChange: (value: string) => void;
-  onNicknameChange: (value: string) => void;
   onSave: () => void;
 }
 
@@ -23,12 +21,10 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
   userName,
   displayName,
   avatarUrl,
-  nickname,
   isSaving,
   canSave,
   onDisplayNameChange,
   onAvatarChange,
-  onNicknameChange,
   onSave,
 }) => {
   const avatarUrlInputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +48,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">{localizeText('Hồ sơ cá nhân')}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          {localizeText('Cập nhật tên hiển thị, biệt danh và ảnh đại diện của bạn.')}
+          {localizeText('Cập nhật tên hiển thị và ảnh đại diện của bạn.')}
         </p>
       </div>
 
@@ -98,10 +94,6 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
         <label className="text-sm font-semibold text-foreground">{localizeText('Tên hiển thị')}</label>
         <Input value={displayName} onChange={(event) => onDisplayNameChange(event.target.value)} placeholder={localizeText('Nhập tên hiển thị')} />
-      </motion.div>
-      <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-        <label className="text-sm font-semibold text-foreground">{localizeText('Biệt danh')}</label>
-        <Input value={nickname} onChange={(event) => onNicknameChange(event.target.value)} placeholder={localizeText('Nhập biệt danh')} />
       </motion.div>
       <motion.div className="space-y-2" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
         <label className="text-sm font-semibold text-foreground">{localizeText('URL ảnh đại diện')}</label>
