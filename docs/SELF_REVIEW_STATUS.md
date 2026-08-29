@@ -291,6 +291,21 @@ Corrections in this increment:
 - Routed send-message and create-poll failures through the shared safe error
   mapper while retaining operator diagnostics.
 
+# Follow-up self-review (2026-08-29, relationship mutation contract increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Mutation result correctness | Pass for active contact flows | Friend-store mutations now rethrow after recording safe state errors; ContactListView maps the real status to user copy | Legacy duplicate FriendItem remains outside the active route surface | Never report success when a canonical mutation rejected |
+| Failure safety | Pass | Status-aware mapper used by profile/open-chat/send/accept/reject/unfriend handlers | Clean-stack two-account browser proof remains pending | Keep raw transport detail out of UI |
+| Promise lifecycle | Pass for audited callers | Caller `try/catch` paths now receive mutation failures instead of swallowed resolutions | Background fetch actions intentionally keep state-based error handling | Distinguish user-triggered mutations from background reads |
+| Traceability | Pass | `friend.store.ts`, `ContactListView.tsx`, API contract and function inventory | Cross-tab relationship reconciliation remains an integration gap | Preserve rethrow contract for future active callers |
+
+Correction in this increment:
+
+- Relationship mutations now have an explicit reject-on-failure contract. This
+  prevents false success notifications and lets each active caller apply the
+  correct localized status message.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

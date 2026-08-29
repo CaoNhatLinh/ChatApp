@@ -83,6 +83,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.sentFailed);
       set({ error: errorMessage });
       logger.error('Error sending friend request:', { error: err, friendId });
+      throw err;
     } finally {
       set({ loadingSent: false });
     }
@@ -214,6 +215,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.acceptFailed);
       set({ error: errorMessage });
       logger.error('Error accepting friend request:', { error: err, friendId });
+      throw err;
     }
   },
 
@@ -235,6 +237,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.rejectFailed);
       set({ error: errorMessage });
       logger.error('Error rejecting friend request:', { error: err, friendId });
+      throw err;
     }
   },
 
@@ -253,6 +256,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.unfriendFailed);
       set({ error: errorMessage });
       logger.error('Error unfriending:', { error: err, friendId });
+      throw err;
     }
   },
 
@@ -291,6 +295,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể chặn người dùng.');
       set({ error: errorMessage });
       logger.error('Error blocking user:', { error: err, friendId });
+      throw err;
     }
   },
 
@@ -306,6 +311,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể bỏ chặn người dùng.');
       set({ error: errorMessage });
       logger.error('Error unblocking user:', { error: err, friendId });
+      throw err;
     }
   },
 

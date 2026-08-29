@@ -20,6 +20,7 @@ import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { localizeText } from "@/shared/i18n";
 import { logger } from "@/shared/lib/logger";
+import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 
 export const ContactListView = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -73,7 +74,7 @@ export const ContactListView = () => {
       });
     } catch (error) {
       logger.error("[ContactListView] Failed to load user profile", error);
-      notifyError(FRIEND_COPY.status.openProfileFailed);
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.status.openProfileFailed));
     } finally {
       setIsProfileLoading(false);
     }
@@ -99,7 +100,7 @@ export const ContactListView = () => {
       notifySuccess(FRIEND_COPY.actions.openChatSuccess);
     } catch (error) {
       logger.error("[ContactListView] Open conversation failed", error);
-      notifyError(FRIEND_COPY.actions.openChatFailed);
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.openChatFailed));
     }
   };
 
@@ -107,8 +108,8 @@ export const ContactListView = () => {
     try {
       await handleSendRequestAction(targetUserId);
       notifySuccess(FRIEND_COPY.actions.sentSuccess);
-    } catch {
-      notifyError(FRIEND_COPY.actions.sentFailed);
+    } catch (error: unknown) {
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.sentFailed));
     }
   };
 
@@ -116,8 +117,8 @@ export const ContactListView = () => {
     try {
       await handleAcceptAction(senderId);
       notifySuccess(FRIEND_COPY.actions.acceptSuccess);
-    } catch {
-      notifyError(FRIEND_COPY.actions.acceptFailed);
+    } catch (error: unknown) {
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.acceptFailed));
     }
   };
 
@@ -125,8 +126,8 @@ export const ContactListView = () => {
     try {
       await handleRejectAction(senderId);
       notifySuccess(FRIEND_COPY.actions.rejectSuccess);
-    } catch {
-      notifyError(FRIEND_COPY.actions.rejectFailed);
+    } catch (error: unknown) {
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.rejectFailed));
     }
   };
 
@@ -136,8 +137,8 @@ export const ContactListView = () => {
       await handleUnfriendAction(friendId);
       setUnfriendTargetId(null);
       notifySuccess(FRIEND_COPY.actions.unfriendSuccess);
-    } catch {
-      notifyError(FRIEND_COPY.actions.unfriendFailed);
+    } catch (error: unknown) {
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.unfriendFailed));
     } finally {
       setIsUnfriendLoading(false);
     }
