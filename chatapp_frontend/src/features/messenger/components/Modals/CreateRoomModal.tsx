@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Search, X, Loader2, Users, Check, Hash, LayoutGrid, ArrowRight } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useUserSearch } from '@/shared/hooks/useUserSearch';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -31,6 +32,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const [isCreating, setIsCreating] = useState(false);
+    const modalRef = useRef<HTMLDivElement>(null);
+    const isCreatingRef = useRef(false);
+    isCreatingRef.current = isCreating;
 
     const { selectConversation, hoistConversation } = useMessenger();
     // Reset state when opened/closed
@@ -46,6 +50,36 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             setSearchResults([]);
         }
     }, [isOpen, setSearchResults]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                if (!isCreatingRef.current) onClose();
+                return;
+            }
+            if (event.key !== 'Tab' || !modalRef.current) return;
+            const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+            ));
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            previouslyFocused?.focus();
+        };
+    }, [isOpen, onClose]);
 
     const handleToggleUser = (user: User) => {
         setSelectedUsers(prev => {
@@ -76,7 +110,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             onClose();
         } catch (error) {
             console.error("Failed to create room", error);
-            setErrorMessage("Không thể tạo phòng. Kiểm tra dữ liệu và thử lại.");
+            setErrorMessage(getUserFacingErrorMessage(error, localizeText("Không thể tạo phòng. Kiểm tra dữ liệu và thử lại.")));
         } finally {
             setIsCreating(false);
         }
@@ -87,9 +121,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const modalContent = (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             {/* Backdrop */}
-            <motion.div
+            <motion.button
+                type="button"
                 className="absolute inset-0 bg-background/40 backdrop-blur-md"
-                onClick={onClose}
+                onClick={isCreating ? undefined : onClose}
+                aria-label={localizeText('Đóng cửa sổ tạo phòng')}
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.fadeIn}
@@ -97,6 +133,13 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
             {/* Modal Container */}
             <motion.div
+                ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-room-title"
+                aria-describedby={errorMessage ? 'create-room-error' : undefined}
+                aria-busy={isCreating}
+                tabIndex={-1}
                 className="relative w-full max-w-2xl h-[80vh] max-h-[700px] bg-card/60 glass rounded-[2.5rem] neo-shadow flex flex-col overflow-hidden z-10"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
@@ -110,7 +153,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                             <Users size={24} />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-semibold tracking-tight text-primary">{MESSENGER_COPY.createRoomModal.title}</h2>
+                            <h2 id="create-room-title" className="text-2xl font-semibold tracking-tight text-primary">{MESSENGER_COPY.createRoomModal.title}</h2>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={cn(
                                     "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
@@ -125,7 +168,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                         </div>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
+                        disabled={isCreating}
                         className="p-3 hover:bg-primary/10 rounded-full transition-colors group"
                         aria-label={MESSENGER_COPY.newConversationModal.closeAriaLabel}
                     >
@@ -136,7 +181,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
                     {errorMessage ? (
-                        <p role="alert" className="mb-5 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+                        <p id="create-room-error" role="alert" className="mb-5 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
                             {errorMessage}
                         </p>
                     ) : null}
@@ -150,8 +195,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                             {/* Inputs */}
                             <div className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomNameLabel}</label>
+                                    <label htmlFor="create-room-name" className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomNameLabel}</label>
                                     <input
+                                        id="create-room-name"
                                         type="text"
                                         placeholder={MESSENGER_COPY.createRoomModal.roomNamePlaceholder}
                                         value={roomName}
@@ -162,8 +208,9 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomDescriptionLabel}</label>
+                                    <label htmlFor="create-room-description" className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomDescriptionLabel}</label>
                                     <textarea
+                                        id="create-room-description"
                                         placeholder={MESSENGER_COPY.createRoomModal.roomDescriptionPlaceholder}
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
@@ -172,10 +219,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                     />
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomTypeLabel}</label>
+                                <fieldset className="space-y-4">
+                                    <legend className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">{MESSENGER_COPY.createRoomModal.roomTypeLabel}</legend>
                                     <div className="grid grid-cols-2 gap-4">
                                         <button
+                                            type="button"
                                             onClick={() => setRoomType('group')}
                                             className={cn(
                                                 "flex items-center gap-4 p-4 rounded-2xl border-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] text-left",
@@ -191,6 +239,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                             </div>
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => setRoomType('channel')}
                                             className={cn(
                                                 "flex items-center gap-4 p-4 rounded-2xl border-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] text-left",
@@ -206,7 +255,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                             </div>
                                         </button>
                                     </div>
-                                </div>
+                                </fieldset>
                             </div>
                         </motion.div>
                     ) : (
@@ -228,7 +277,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                             variants={UI_MOTION_VARIANTS.zoomReveal}
                                         >
                                             <span>{user.displayName}</span>
-                                            <button onClick={() => handleToggleUser(user)} className="hover:bg-white/20 rounded-lg p-0.5 transition-colors" aria-label={`${MESSENGER_COPY.newConversationModal.removeChipAriaPrefix} ${user.displayName}`}>
+                                            <button type="button" onClick={() => handleToggleUser(user)} className="hover:bg-white/20 rounded-lg p-0.5 transition-colors" aria-label={`${MESSENGER_COPY.newConversationModal.removeChipAriaPrefix} ${user.displayName}`}>
                                                 <X size={12} strokeWidth={4} />
                                             </button>
                                         </motion.div>
@@ -261,6 +310,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                     const isSelected = selectedUsers.some(u => u.userId === user.userId);
                                     return (
                                         <button
+                                            type="button"
                                             key={user.userId}
                                             onClick={() => handleToggleUser(user)}
                                             className={cn(
@@ -306,6 +356,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                 <div className="p-8 border-t border-border/50 bg-background/30 flex gap-4">
                     {step === 'members' && (
                         <button
+                            type="button"
                             onClick={() => setStep('settings')}
                             className="flex-1 py-4 rounded-2xl font-black uppercase tracking-widest bg-muted text-muted-foreground hover:bg-muted/80 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                         >
@@ -315,6 +366,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
                     {step === 'settings' ? (
                         <button
+                            type="button"
                             onClick={() => setStep('members')}
                             disabled={!roomName.trim()}
                             className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2 group"
@@ -324,6 +376,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                         </button>
                     ) : (
                         <button
+                            type="button"
                             onClick={() => void handleCreateRoom()}
                             disabled={isCreating}
                             className="flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-50 disabled:cursor-not-allowed neo-shadow flex items-center justify-center gap-2"

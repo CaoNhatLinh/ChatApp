@@ -117,6 +117,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Tham gia': 'Joined',
   'Bạn không có quyền quản lý lời mời.': 'You do not have permission to manage invites.',
   'Không thể tạo lời mời. Hãy kiểm tra quyền của bạn.': 'Unable to create the invite. Check your permissions.',
+  'Không thể tạo phòng. Kiểm tra dữ liệu và thử lại.': 'Unable to create the room. Check the details and try again.',
+  'Đóng cửa sổ tạo phòng': 'Close the create-room dialog',
   'Tham gia ngay': 'Join now',
   'Cần quản lý duyệt': 'Manager approval required',
   'Tạo lời mời 7 ngày': 'Create 7-day invite',

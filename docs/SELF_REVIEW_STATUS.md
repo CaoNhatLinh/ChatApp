@@ -134,7 +134,7 @@ remain externally blocked.
 | --- | --- | --- | --- | --- |
 | Feature completeness | Partial | `UI_COPY`, `MESSENGER_COPY`, `CHAT_THEME_COPY`, and `resources.ts` source scan | Authenticated live content and provider-generated copy are outside this source registry | Added explicit EN keys for every static registry string; keep domain/status codes untranslated |
 | Flow completeness | Partial | `test:i18n:copy`, `test:e2e:locale`, `test:e2e:admin` | Authenticated two-account chat and live realtime flow remain blocked by missing stack | Preserve canonical runtime copy and verify public/operator locale journeys in browser |
-| Code-doc consistency | Pass | `docs/TESTING.md`, `docs/AGENT_WORK_PLAN.md`, `tasks/function-audit.md`, package script | No gap found in affected command references | Documented the 342-key source-contract check and current evidence |
+| Code-doc consistency | Pass | `docs/TESTING.md`, `docs/AGENT_WORK_PLAN.md`, `tasks/function-audit.md`, package script | No gap found in affected command references | Documented the source-contract check and current evidence |
 | Runtime consistency | Partial | Next build plus locale/admin smoke after latest build restart | Cassandra/Redis/Kafka/Elasticsearch unavailable locally | No runtime fallback added; external services remain explicitly blocked |
 | Permission coverage | Pass for affected UI | No permission code changed; admin strict labels remain server-gated | Full operator permission matrix still needs live integration | Keep labels presentation-only; server remains authority |
 | Failure and recovery | Partial | Copy check fails on missing key; browser smoke fails on console/request errors | Provider/reconnect recovery needs live dependencies | Use deterministic source check and retain explicit browser failure gates |
@@ -167,6 +167,22 @@ Corrections in this increment:
 - Added `test:errors:copy` as a regression check for the audited error surfaces.
 - Expanded the locale guard to every static `localizeText(...)` call under
   `src/`; 683 keys currently have explicit English translations.
+
+# Follow-up self-review (2026-08-29, create-room modal increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Modal semantics | Pass for Create Room | `CreateRoomModal`, explicit dialog name/labels, Escape and Tab containment | Profile/report custom modals still rely on their existing focus behavior | Keep modal boundaries semantic and block dismissal while creating |
+| Failure safety | Pass for create action | `getUserFacingErrorMessage` plus localized create-room fallback | Live create-room API failure statuses need authenticated browser proof | Preserve server status mapping; never show raw exception text |
+| Bilingual UI coverage | Pass for new copy | `resources.ts`, `test:i18n:copy` (685 static keys) | Dynamic user content remains untranslated by design | Translate product copy, not usernames or message content |
+| Runtime verification | Partial | `npm run validate`, copy/error guards, Next build route surface | Authenticated modal create flow needs live service/browser proof | Keep the action wired to the canonical create-conversation API |
+
+Corrections in this increment:
+
+- Added semantic dialog metadata, explicit room-name/description labels, Escape
+  handling, and keyboard focus containment to Create Room.
+- Prevented closing while a room request is in flight and routed create errors
+  through status-aware bilingual copy.
 
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
