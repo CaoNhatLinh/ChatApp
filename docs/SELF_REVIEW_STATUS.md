@@ -1287,10 +1287,19 @@ Correction in this increment:
 | Retry and projections | Pass at service level | A repeated completed transfer repairs both user projections and bounded admin directory without another authority mutation or audit event | Automated outbox repair remains a broader projection task | Retrying an unknown outcome is safe and idempotent |
 | API compatibility | Pass | Existing ownership resource endpoint and response semantics are retained; only persistence authority changed | Frontend management controls remain pending | Correct the implementation behind the canonical contract instead of adding an alternate endpoint |
 | Dead-code discipline | Pass | The unconditional member writer and metadata-owner update path were removed after all consumers moved to conditional commands | Broader repository dead-code audit remains ongoing | Do not retain unsafe writers as compatibility helpers |
-| Regression safety | Pass for available backend gates | Java 20 suite reports 125 tests, 0 failures and 0 errors | Clean Cassandra and frontend room-management browser proof remain pending | Complete authority before exposing management controls |
+| Regression safety | Pass for available backend gates | Java 20 suite reports 126 tests, 0 failures and 0 errors | Clean Cassandra contention remains pending | Management controls consume explicit actor permissions rather than role-name inference |
 
 Correction in this increment:
 
 - Moved room ownership into the membership consistency boundary, protected role
   and removal races, added retryable projection repair, and documented the
   decision without a legacy inference path.
+
+# Follow-up self-review (2026-08-29, room management UI increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Authorization boundary | Pass | UI fetches `/permissions`; backend remains authoritative for every mutation | Live multi-account authorization pending | Controls are hidden by effective permission, never inferred from role labels |
+| Interaction and recovery | Pass | Loading, retry, mutation failure, confirmation and authoritative ownership refresh are implemented | Large-member pagination remains a later contract task | Failed writes retain prior UI state and expose localized errors |
+| Responsive i18n | Pass | Production Playwright verifies live VI→EN rendering and 390px layout with zero overflow | Broader authenticated accessibility audit pending | Panel and messenger shell subscribe to locale context; entering mobile closes the desktop sidebar |
+| Regression safety | Pass | Java 20: 126/126; frontend validate/build/copy/smoke pass | Clean Cassandra contention pending | Browser smoke asserts exact role and ownership request payloads |

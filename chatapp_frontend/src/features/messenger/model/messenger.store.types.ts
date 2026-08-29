@@ -26,6 +26,7 @@ export interface ConversationSlice {
         conversationId: string,
         policy: Pick<Conversation, 'defaultNotificationLevel' | 'notificationOverride'>,
     ) => void;
+    updateConversationOwner: (conversationId: string, ownerId: string) => void;
     upsertConversationFromMessage: (message: Message) => void;
     resetUnreadCount: (conversationId: string) => void;
 }

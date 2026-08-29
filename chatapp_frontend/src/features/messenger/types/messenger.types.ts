@@ -54,7 +54,8 @@ export interface Conversation {
 export interface ConversationMember {
     userId: string;
     conversationId: string;
-    role: 'owner' | 'admin' | 'member';
+    role: 'owner' | 'member';
+    roleIds: string[];
     joinedAt: string;
     username: string;
     displayName: string;

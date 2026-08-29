@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.service;
 
-import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleRequest;
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleCreateRequest;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
@@ -56,7 +57,18 @@ public class ConversationRoleService {
         return repository.findRoles(conversationId);
     }
 
-    public ConversationRole create(UUID actorId, UUID conversationId, ConversationRoleRequest request) {
+    public CanonicalApiContracts.ConversationPermissionsView permissions(
+            UUID actorId,
+            UUID conversationId) {
+        CanonicalConversation conversation = requireRoleEnabledConversation(conversationId);
+        Set<String> permissions = authorization.effectivePermissions(conversationId, actorId).stream()
+                .map(Enum::name)
+                .collect(Collectors.toUnmodifiableSet());
+        return new CanonicalApiContracts.ConversationPermissionsView(
+                permissions, actorId.equals(conversation.ownerId()));
+    }
+
+    public ConversationRole create(UUID actorId, UUID conversationId, ConversationRoleCreateRequest request) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.ROLE_CREATE);
         requireRoleEnabledConversation(conversationId);
         List<ConversationRole> existing = repository.findRoles(conversationId);

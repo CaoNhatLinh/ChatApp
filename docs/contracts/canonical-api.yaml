@@ -36,12 +36,20 @@ http:
     - GET /conversations/{conversationId}/notification-policy
     - GET /conversations/dm/{otherUserId}
     - GET /conversations/{conversationId}/members
+    - GET /conversations/{conversationId}/roles
+    - POST /conversations/{conversationId}/roles
+    - DELETE /conversations/{conversationId}/roles/{roleId}
+    - GET /conversations/{conversationId}/permissions
     - POST /conversations/{conversationId}/members
     - DELETE /conversations/{conversationId}/members/{userId}
+    - POST /conversations/{conversationId}/members/{userId}/roles
+    - POST /conversations/{conversationId}/ownership/{userId}
     - POST /conversations/{conversationId}/leave
     - POST /conversations/{conversationId}/pin
     - DELETE /conversations/{conversationId}/pin
     - PUT /conversations/{conversationId}/notification-policy
+    - PUT /conversations/{conversationId}/chat-policy
+    - PUT /conversations/{conversationId}/members/{userId}/chat-policy
     - PUT /conversations/{conversationId}/members/{userId}/notification-policy
   communities:
     - GET /communities

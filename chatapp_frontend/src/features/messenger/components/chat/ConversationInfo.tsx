@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/Button';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { InviteManager } from './InviteManager';
+import { RoomManagementPanel } from './RoomManagementPanel';
 import {
     getConversationNotificationPolicy,
     updateConversationNotificationPolicy as saveConversationNotificationPolicy,
@@ -226,7 +227,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     return (
         <motion.div
-            className="w-[300px] border-l border-border/50 bg-background/50 flex flex-col h-full z-20"
+            className="w-full shrink-0 border-l border-border/50 bg-background/95 sm:w-[380px] flex flex-col h-full z-20"
             initial={UI_MOTION_CONFIG.initialState}
             animate={UI_MOTION_CONFIG.animateState}
             variants={UI_MOTION_VARIANTS.slideInFromRight}
@@ -333,10 +334,13 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </section>
 
                     {activeConv.type !== 'dm' && (
-                        <div>
-                            <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">{localizeText('Lời mời & yêu cầu tham gia')}</h4>
-                            <InviteManager conversationId={activeConv.conversationId} />
-                        </div>
+                        <>
+                            <RoomManagementPanel conversation={activeConv} />
+                            <div>
+                                <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">{localizeText('Lời mời & yêu cầu tham gia')}</h4>
+                                <InviteManager conversationId={activeConv.conversationId} />
+                            </div>
+                        </>
                     )}
                     {/* Danger Zone */}
                     <div>

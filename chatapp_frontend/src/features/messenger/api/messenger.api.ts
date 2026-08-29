@@ -184,6 +184,20 @@ export interface ConversationRole {
     updatedAt?: string;
 }
 
+export interface ConversationPermissionsView {
+    permissions: string[];
+    owner: boolean;
+}
+
+export interface ConversationRoleCreateRequest {
+    roleCode: string;
+    displayName: string;
+    colorHex: string;
+    permissionCodes: string[];
+    isDefault: boolean;
+    rolePosition?: number;
+}
+
 export interface ConversationChatPolicyRequest {
     chatMode: 'OPEN' | 'READ_ONLY' | 'MANAGERS_ONLY';
     slowModeSeconds: number;
@@ -602,12 +616,38 @@ export const listConversationRoles = async (conversationId: string): Promise<Con
     return response.data;
 };
 
+export const getConversationPermissions = async (
+    conversationId: string,
+): Promise<ConversationPermissionsView> => {
+    const response = await apiClient.get<ConversationPermissionsView>(`/conversations/${conversationId}/permissions`);
+    return response.data;
+};
+
+export const createConversationRole = async (
+    conversationId: string,
+    request: ConversationRoleCreateRequest,
+): Promise<ConversationRole> => {
+    const response = await apiClient.post<ConversationRole>(`/conversations/${conversationId}/roles`, request);
+    return response.data;
+};
+
+export const deleteConversationRole = async (conversationId: string, roleId: string): Promise<void> => {
+    await apiClient.delete(`/conversations/${conversationId}/roles/${roleId}`);
+};
+
 export const assignConversationRoles = async (
     conversationId: string,
     userId: string,
     roleIds: string[],
 ): Promise<void> => {
     await apiClient.post(`/conversations/${conversationId}/members/${userId}/roles`, { roleIds });
+};
+
+export const transferConversationOwnership = async (
+    conversationId: string,
+    userId: string,
+): Promise<void> => {
+    await apiClient.post(`/conversations/${conversationId}/ownership/${userId}`);
 };
 
 export const updateConversationChatPolicy = async (

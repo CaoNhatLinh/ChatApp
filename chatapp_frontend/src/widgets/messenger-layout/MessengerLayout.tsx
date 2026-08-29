@@ -31,6 +31,15 @@ export const MessengerLayout: React.FC = () => {
   }, [activeConversationId, setSidebarOpen]);
 
   useEffect(() => {
+    const mobileViewport = window.matchMedia('(max-width: 767px)');
+    const closeSidebarOnMobile = (event: MediaQueryListEvent) => {
+      if (event.matches && activeConversationId) setSidebarOpen(false);
+    };
+    mobileViewport.addEventListener('change', closeSidebarOnMobile);
+    return () => mobileViewport.removeEventListener('change', closeSidebarOnMobile);
+  }, [activeConversationId, setSidebarOpen]);
+
+  useEffect(() => {
     if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) {
       void selectConversation(conversationIdFromQuery);
     }

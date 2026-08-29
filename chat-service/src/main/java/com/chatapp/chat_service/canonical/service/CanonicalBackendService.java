@@ -589,6 +589,7 @@ public class CanonicalBackendService {
                             member.userId(),
                             member.conversationId(),
                             member.userId().equals(conversation.ownerId()) ? "owner" : "member",
+                            member.roleIds(),
                             member.joinedAt(),
                             user.username(),
                             user.displayName(),

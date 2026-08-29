@@ -116,10 +116,16 @@ public class CanonicalConversationController {
         return roles.list(actorId(), conversationId);
     }
 
+    @GetMapping("/{conversationId}/permissions")
+    public CanonicalApiContracts.ConversationPermissionsView permissions(
+            @PathVariable UUID conversationId) {
+        return roles.permissions(actorId(), conversationId);
+    }
+
     @PostMapping("/{conversationId}/roles")
     public ResponseEntity<ConversationRole> createRole(
             @PathVariable UUID conversationId,
-            @RequestBody CanonicalApiContracts.ConversationRoleRequest request) {
+            @RequestBody CanonicalApiContracts.ConversationRoleCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(roles.create(actorId(), conversationId, request));
     }
 
@@ -133,7 +139,7 @@ public class CanonicalConversationController {
     public ResponseEntity<Void> assignRoles(
             @PathVariable UUID conversationId,
             @PathVariable UUID userId,
-            @RequestBody CanonicalApiContracts.ConversationRoleRequest request) {
+            @Valid @RequestBody CanonicalApiContracts.ConversationRoleAssignmentRequest request) {
         roles.assign(actorId(), conversationId, userId, request.roleIds());
         return ResponseEntity.noContent().build();
     }

@@ -91,6 +91,7 @@ public final class CanonicalApiContracts {
             UUID userId,
             UUID conversationId,
             String role,
+            Set<UUID> roleIds,
             Instant joinedAt,
             String username,
             String displayName,
@@ -149,6 +150,9 @@ public final class CanonicalApiContracts {
     public record ConversationChatPolicyRequest(String chatMode, Integer slowModeSeconds) {
     }
 
+    public record ConversationPermissionsView(Set<String> permissions, boolean owner) {
+    }
+
     public record ConversationNotificationPolicyRequest(
             @NotBlank @Pattern(regexp = "ALL|MENTIONS|NONE") String defaultNotificationLevel) {
     }
@@ -160,15 +164,16 @@ public final class CanonicalApiContracts {
     public record MemberChatPolicyRequest(Instant mutedUntil, Integer messageIntervalSeconds, String reason) {
     }
 
-    public record ConversationRoleRequest(
+    public record ConversationRoleCreateRequest(
             String roleCode,
             String displayName,
             String colorHex,
             Set<String> permissionCodes,
             Boolean isDefault,
-            Integer rolePosition,
-            UUID targetUserId,
-            Set<UUID> roleIds) {
+            Integer rolePosition) {
+    }
+
+    public record ConversationRoleAssignmentRequest(@NotNull Set<UUID> roleIds) {
     }
 
     public record MessageSendRequest(

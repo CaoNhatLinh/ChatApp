@@ -2,12 +2,15 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role-assignment concurrency, community discovery/approval recovery, invite compensation, and infrastructure manifests (125 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role-assignment concurrency, community discovery/approval recovery, invite compensation, and infrastructure manifests (126 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
 `npm run build` (Next), `npm run lint`
 (zero errors), and `npm run test:e2e:smoke` with `next start` running.
+`npm run test:e2e:room-management` verifies permission-backed room role
+creation and assignment, ownership transfer, live VI→EN rendering and the
+390px responsive layout against a strict HTTP fixture.
 
 The public/deep-link Playwright smoke currently passes (`/`, `/login`, `/about`,
 `/403`, `/search`, `/settings?tab=reports`, and `/admin` with unauthenticated redirect) with zero

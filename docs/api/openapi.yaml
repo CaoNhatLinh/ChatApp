@@ -245,8 +245,16 @@ paths:
     post:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
-      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/ConversationRoleRequest'}}}}
+      requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/ConversationRoleCreateRequest'}}}}
       responses: {'201': {description: Role created}}
+  /conversations/{conversationId}/permissions:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses:
+        '200':
+          description: Effective room permissions for the authenticated member
+          content: {application/json: {schema: {$ref: '#/components/schemas/ConversationPermissions'}}}
   /conversations/{conversationId}/roles/{roleId}:
     delete:
       tags: [Conversations]
@@ -735,8 +743,9 @@ components:
     CommunitySummary: {type: object, required: [conversationId, name, communityTags, joinPolicy, memberCount, maxMembers, lastActivityAt, membershipStatus], properties: {conversationId: {type: string, format: uuid}, name: {type: string}, description: {type: string, nullable: true}, avatarUrl: {type: string, format: uri, nullable: true}, categoryId: {type: string, nullable: true}, communityTags: {type: array, items: {type: string}}, languageCode: {type: string, nullable: true}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL, CLOSED]}, memberCount: {type: integer}, maxMembers: {type: integer}, lastActivityAt: {type: string, format: date-time}, membershipStatus: {type: string, enum: [AVAILABLE, PENDING, JOINED]}}}
     CommunityPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/CommunitySummary'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
     CommunityJoinResponse: {type: object, required: [status, conversationId], properties: {status: {type: string, enum: [JOINED, PENDING, CAPACITY_REACHED, RETRY_REQUIRED]}, conversationId: {type: string, format: uuid}}}
-    ConversationMember: {type: object, required: [userId, conversationId, role, joinedAt, username, displayName], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}}}
-    ConversationRoleRequest: {type: object, properties: {roleCode: {type: string}, displayName: {type: string}, colorHex: {type: string}, permissionCodes: {type: array, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer}}}
+    ConversationMember: {type: object, required: [userId, conversationId, role, roleIds, joinedAt, username, displayName], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string, enum: [owner, member]}, roleIds: {type: array, items: {type: string, format: uuid}}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}}}
+    ConversationPermissions: {type: object, required: [permissions, owner], properties: {permissions: {type: array, items: {type: string}}, owner: {type: boolean}}}
+    ConversationRoleCreateRequest: {type: object, required: [roleCode, displayName, colorHex, permissionCodes, isDefault], properties: {roleCode: {type: string, pattern: '^[A-Z][A-Z0-9_]{1,31}$'}, displayName: {type: string, minLength: 1, maxLength: 64}, colorHex: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}, permissionCodes: {type: array, uniqueItems: true, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer, minimum: 1, maximum: 10000}}}
     ConversationChatPolicy: {type: object, required: [chatMode], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
     MemberChatPolicy: {type: object, properties: {mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}, reason: {type: string, maxLength: 500}}}
     ConversationNotificationPolicy: {type: object, required: [defaultNotificationLevel], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}}}

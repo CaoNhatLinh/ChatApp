@@ -1,6 +1,6 @@
 package com.chatapp.chat_service.canonical.service;
 
-import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleRequest;
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleCreateRequest;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
@@ -45,14 +45,30 @@ class ConversationRoleServiceTest {
         when(authorization.effectivePermissions(conversationId, actorId))
                 .thenReturn(EnumSet.allOf(ConversationPermission.class));
 
-        ConversationRole created = service.create(actorId, conversationId, new ConversationRoleRequest(
-                "helpers", "Helpers", "#3366ff", Set.of("MESSAGE_PIN"), false, 200, null, null));
+        ConversationRole created = service.create(actorId, conversationId, new ConversationRoleCreateRequest(
+                "helpers", "Helpers", "#3366ff", Set.of("MESSAGE_PIN"), false, 200));
 
         assertThat(created.roleCode()).isEqualTo("HELPERS");
         assertThat(created.colorHex()).isEqualTo("#3366FF");
         assertThat(created.permissions()).containsExactly(ConversationPermission.MESSAGE_PIN);
         verify(repository).saveRole(created);
         verify(events).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void returnsTheActorsEffectiveRoomPermissionsAndOwnership() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        when(store.findConversation(conversationId))
+                .thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(authorization.effectivePermissions(conversationId, actorId)).thenReturn(Set.of(
+                ConversationPermission.MEMBER_KICK,
+                ConversationPermission.ROLE_ASSIGN));
+
+        var view = service.permissions(actorId, conversationId);
+
+        assertThat(view.owner()).isTrue();
+        assertThat(view.permissions()).containsExactlyInAnyOrder("MEMBER_KICK", "ROLE_ASSIGN");
     }
 
     @Test
@@ -64,8 +80,8 @@ class ConversationRoleServiceTest {
         when(authorization.effectivePermissions(conversationId, actorId))
                 .thenReturn(Set.of(ConversationPermission.MESSAGE_SEND));
 
-        assertThatThrownBy(() -> service.create(actorId, conversationId, new ConversationRoleRequest(
-                "admins", "Admins", "#FF0000", Set.of("MEMBER_KICK"), false, 200, null, null)))
+        assertThatThrownBy(() -> service.create(actorId, conversationId, new ConversationRoleCreateRequest(
+                "admins", "Admins", "#FF0000", Set.of("MEMBER_KICK"), false, 200)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("cannot grant");
     }

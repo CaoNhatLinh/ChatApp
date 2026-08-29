@@ -1,7 +1,7 @@
 import { Menu, X } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useCallback } from "react";
-import { localizeText } from "@/shared/i18n";
+import { localizeText, useAppLocale } from "@/shared/i18n";
 
 interface MessengerLayoutShellProps {
   isSidebarOpen: boolean;
@@ -16,10 +16,11 @@ export const MessengerLayoutShell = ({
   sidebar,
   children,
 }: MessengerLayoutShellProps) => {
+  const { locale } = useAppLocale();
   const handleOverlayClick = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   return (
-    <section className="relative h-full w-full overflow-hidden bg-background text-foreground">
+    <section lang={locale} className="relative h-full w-full overflow-hidden bg-background text-foreground">
       <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className="focus-ring surface fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full text-primary md:hidden"
