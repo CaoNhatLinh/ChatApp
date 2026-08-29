@@ -16,7 +16,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class CanonicalConversationRepository {
     private final CqlSession session;
-    private final PreparedStatement upsertMember;
     private final PreparedStatement selectMember;
     private final PreparedStatement selectMembers;
     private final PreparedStatement selectRoles;
@@ -25,12 +24,6 @@ public class CanonicalConversationRepository {
 
     public CanonicalConversationRepository(CqlSession session) {
         this.session = session;
-        this.upsertMember = session.prepare("""
-                INSERT INTO conversation_members_by_conversation
-                (conversation_id, user_id, role_ids, joined_at, invited_by, muted_until,
-                 message_interval_seconds, notification_override, last_read_message_id, last_read_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """);
         this.selectMember = session.prepare("""
                 SELECT conversation_id, user_id, role_ids, joined_at, invited_by, muted_until,
                        message_interval_seconds, notification_override, last_read_message_id, last_read_at
@@ -58,26 +51,6 @@ public class CanonicalConversationRepository {
                 DELETE FROM conversation_roles_by_conversation
                 WHERE conversation_id = ? AND role_position = ? AND role_id = ?
                 """);
-    }
-
-    public void saveMember(ConversationMember member) {
-        var builder = upsertMember.boundStatementBuilder()
-                .setUuid(0, member.conversationId())
-                .setUuid(1, member.userId())
-                .setSet(2, member.roleIds(), UUID.class)
-                .setInstant(3, member.joinedAt())
-                .setUuid(4, member.invitedBy())
-                .setInstant(5, member.mutedUntil());
-        if (member.messageIntervalSeconds() == null) {
-            builder.setToNull(6);
-        } else {
-            builder.setInt(6, member.messageIntervalSeconds());
-        }
-        session.execute(builder
-                .setString(7, member.notificationOverride())
-                .setUuid(8, member.lastReadMessageId())
-                .setInstant(9, member.lastReadAt())
-                .build());
     }
 
     public ConversationMember findMember(UUID conversationId, UUID userId) {

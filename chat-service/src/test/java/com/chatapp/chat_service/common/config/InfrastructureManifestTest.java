@@ -52,6 +52,8 @@ class InfrastructureManifestTest {
                 "message_interval_seconds int",
                 "member_count int static",
                 "max_members int static",
+                "owner_id uuid static",
+                "owner_updated_at timestamp static",
                 "CREATE TABLE IF NOT EXISTS media_assets_by_id",
                 "CREATE TABLE IF NOT EXISTS message_buckets_by_conversation",
                 "CREATE TABLE IF NOT EXISTS app_role_members_by_role",
@@ -84,8 +86,28 @@ class InfrastructureManifestTest {
                 .contains("IF NOT EXISTS")
                 .contains("IF member_count = ?")
                 .contains("IF EXISTS")
+                .contains("IF member_count = ? AND owner_id != ?")
                 .contains("MembershipMutationResult.CAPACITY_REACHED")
                 .contains("BatchStatement.builder(BatchType.LOGGED)");
+    }
+
+    @Test
+    void ownershipTransferUsesOnlyTheMembershipPartitionAsAuthority() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        String store = Files.readString(Path.of(
+                "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
+                "repository", "CanonicalCqlStore.java"));
+        String conversationMetadata = schema.substring(
+                schema.indexOf("CREATE TABLE IF NOT EXISTS conversations_by_id"),
+                schema.indexOf("CREATE TABLE IF NOT EXISTS dm_conversation_by_pair"));
+
+        assertThat(conversationMetadata).doesNotContain("owner_id uuid");
+        assertThat(store)
+                .contains("transferCurrentOwnerRoles.bind")
+                .contains("transferNextOwnerRoles.bind")
+                .contains("transferConversationOwner.bind")
+                .contains("IF owner_id = ?")
+                .doesNotContain("UPDATE conversations_by_id SET owner_id");
     }
 
     @Test

@@ -21,6 +21,14 @@ membership state is rejected instead of inferred. Existing keyspaces must apply
 `migrations/V_add_conversation_membership_state.cql`; see
 `docs/adr/0005-partition-local-membership-capacity.md`.
 
+The same membership partition owns static `owner_id` and `owner_updated_at`.
+Ownership transfer conditionally changes both affected role sets and the static
+owner values in one logged batch. `conversations_by_id` has no owner copy;
+canonical room hydration combines metadata time with the ownership timestamp.
+Member removal and ordinary role assignment use conditional writes so neither
+can overwrite a concurrent transfer. Apply
+`migrations/V_add_conversation_owner_state.cql`; see ADR 0007.
+
 Public community discovery uses `community_directory_by_filter`, a derived
 16-shard projection keyed by one canonical language/category/tag filter and
 ordered by normalized name plus conversation ID. Directory reads fan out only

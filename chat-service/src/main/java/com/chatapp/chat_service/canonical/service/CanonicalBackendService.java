@@ -421,7 +421,8 @@ public class CanonicalBackendService {
             );
             initialMembers.add(peer);
         }
-        store.createConversationMembership(initialMembers, maxMembers);
+        store.createConversationMembership(
+                initialMembers, maxMembers, conversation.ownerId(), conversation.createdAt());
         initialMembers.forEach(member ->
                 store.addConversationMembershipProjection(member.userId(), conversation, member));
         adminConversationDirectory.index(conversation);
@@ -673,8 +674,12 @@ public class CanonicalBackendService {
         if (store.findConversationMember(conversationId, removedUserId) == null) {
             throw new NotFoundException("conversation member not found");
         }
-        if (store.tryRemoveConversationMember(conversationId, removedUserId)
-                == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
+        CanonicalCqlStore.MembershipMutationResult result =
+                store.tryRemoveConversationMember(conversationId, removedUserId);
+        if (result == CanonicalCqlStore.MembershipMutationResult.OWNER_PROTECTED) {
+            throw new ConflictException("conversation owner cannot be kicked");
+        }
+        if (result == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
             adminConversationDirectory.index(getConversation(conversationId));
             return;
         }
@@ -688,8 +693,12 @@ public class CanonicalBackendService {
         if (actorId.equals(conversation.ownerId())) {
             throw new ConflictException("transfer ownership before leaving the conversation");
         }
-        if (store.tryRemoveConversationMember(conversationId, actorId)
-                == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
+        CanonicalCqlStore.MembershipMutationResult result =
+                store.tryRemoveConversationMember(conversationId, actorId);
+        if (result == CanonicalCqlStore.MembershipMutationResult.OWNER_PROTECTED) {
+            throw new ConflictException("transfer ownership before leaving the conversation");
+        }
+        if (result == CanonicalCqlStore.MembershipMutationResult.NOT_MEMBER) {
             adminConversationDirectory.index(getConversation(conversationId));
             return;
         }

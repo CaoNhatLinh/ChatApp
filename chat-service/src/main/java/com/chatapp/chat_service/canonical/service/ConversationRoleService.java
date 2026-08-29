@@ -7,8 +7,10 @@ import com.chatapp.chat_service.canonical.model.ConversationRole;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.admin.AdminConversationDirectoryRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.ConflictException;
+import com.chatapp.chat_service.common.exception.ForbiddenException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -33,16 +35,19 @@ public class ConversationRoleService {
     private final CanonicalConversationRepository repository;
     private final ConversationAuthorizationService authorization;
     private final CanonicalEventRecorder events;
+    private final AdminConversationDirectoryRepository adminDirectory;
 
     public ConversationRoleService(
             CanonicalCqlStore store,
             CanonicalConversationRepository repository,
             ConversationAuthorizationService authorization,
-            CanonicalEventRecorder events) {
+            CanonicalEventRecorder events,
+            AdminConversationDirectoryRepository adminDirectory) {
         this.store = store;
         this.repository = repository;
         this.authorization = authorization;
         this.events = events;
+        this.adminDirectory = adminDirectory;
     }
 
     public List<ConversationRole> list(UUID actorId, UUID conversationId) {
@@ -136,7 +141,10 @@ public class ConversationRoleService {
                 target.conversationId(), target.userId(), Set.copyOf(roleIds), target.joinedAt(), target.invitedBy(),
                 target.mutedUntil(), target.messageIntervalSeconds(), target.notificationOverride(),
                 target.lastReadMessageId(), target.lastReadAt());
-        repository.saveMember(updated);
+        if (!store.updateMemberRolesIfUnchanged(
+                conversationId, targetUserId, previous, updated.roleIds())) {
+            throw new ConflictException("conversation member roles changed concurrently");
+        }
         store.updateConversationProjectionRoles(targetUserId, conversationId, updated.roleIds());
         events.record(actorId, conversationId, "ROLES_ASSIGNED", "conversation_member", targetUserId.toString(),
                 targetUserId, null, Map.of("roleIds", previous.toString()), Map.of("roleIds", roleIds.toString()));
@@ -145,9 +153,6 @@ public class ConversationRoleService {
     public void transferOwnership(UUID actorId, UUID conversationId, UUID targetUserId) {
         CanonicalConversation conversation = requireRoleEnabledConversation(conversationId);
         authorization.requireMember(conversationId, actorId);
-        if (!actorId.equals(conversation.ownerId())) {
-            throw new BadRequestException("only the current owner can transfer ownership");
-        }
         if (actorId.equals(targetUserId)) {
             throw new BadRequestException("target user is already the owner");
         }
@@ -155,6 +160,13 @@ public class ConversationRoleService {
         ConversationMember nextOwner = repository.findMember(conversationId, targetUserId);
         if (nextOwner == null) {
             throw new BadRequestException("target user is not a conversation member");
+        }
+        if (targetUserId.equals(conversation.ownerId())) {
+            repairOwnershipProjections(conversationId, currentOwner, nextOwner);
+            return;
+        }
+        if (!actorId.equals(conversation.ownerId())) {
+            throw new ForbiddenException("only the current owner can transfer ownership");
         }
 
         List<ConversationRole> roles = repository.findRoles(conversationId);
@@ -171,20 +183,54 @@ public class ConversationRoleService {
         oldOwnerRoles.addAll(defaultRoleIds);
         Set<UUID> nextOwnerRoles = new HashSet<>(nextOwner.roleIds() == null ? Set.of() : nextOwner.roleIds());
         nextOwnerRoles.add(ownerRoleId);
-        saveRoles(currentOwner, oldOwnerRoles);
-        saveRoles(nextOwner, nextOwnerRoles);
-        store.updateConversationOwner(conversationId, targetUserId, Instant.now());
+        CanonicalCqlStore.OwnershipTransferResult result = store.transferConversationOwnership(
+                conversationId,
+                actorId,
+                targetUserId,
+                currentOwner.roleIds() == null ? Set.of() : currentOwner.roleIds(),
+                Set.copyOf(oldOwnerRoles),
+                nextOwner.roleIds() == null ? Set.of() : nextOwner.roleIds(),
+                Set.copyOf(nextOwnerRoles));
+        if (result == CanonicalCqlStore.OwnershipTransferResult.CHANGED_CONCURRENTLY) {
+            throw new ConflictException("conversation ownership or roles changed concurrently");
+        }
+        if (result == CanonicalCqlStore.OwnershipTransferResult.ALREADY_TRANSFERRED) {
+            ConversationMember authoritativePrevious = repository.findMember(conversationId, actorId);
+            ConversationMember authoritativeCurrent = repository.findMember(conversationId, targetUserId);
+            if (authoritativePrevious == null || authoritativeCurrent == null) {
+                throw new IllegalStateException("ownership members are missing after transfer");
+            }
+            repairOwnershipProjections(conversationId, authoritativePrevious, authoritativeCurrent);
+            return;
+        }
+        repairOwnershipProjections(
+                conversationId,
+                withRoles(currentOwner, oldOwnerRoles),
+                withRoles(nextOwner, nextOwnerRoles));
         events.record(actorId, conversationId, "OWNERSHIP_TRANSFERRED", "conversation", conversationId.toString(),
                 targetUserId, null, Map.of("ownerId", actorId.toString()), Map.of("ownerId", targetUserId.toString()));
     }
 
-    private void saveRoles(ConversationMember member, Set<UUID> roleIds) {
-        ConversationMember updated = new ConversationMember(
+    private ConversationMember withRoles(ConversationMember member, Set<UUID> roleIds) {
+        return new ConversationMember(
                 member.conversationId(), member.userId(), Set.copyOf(roleIds), member.joinedAt(), member.invitedBy(),
                 member.mutedUntil(), member.messageIntervalSeconds(), member.notificationOverride(),
                 member.lastReadMessageId(), member.lastReadAt());
-        repository.saveMember(updated);
-        store.updateConversationProjectionRoles(member.userId(), member.conversationId(), updated.roleIds());
+    }
+
+    private void repairOwnershipProjections(
+            UUID conversationId,
+            ConversationMember previousOwner,
+            ConversationMember currentOwner) {
+        store.updateConversationProjectionRoles(
+                previousOwner.userId(), conversationId, previousOwner.roleIds());
+        store.updateConversationProjectionRoles(
+                currentOwner.userId(), conversationId, currentOwner.roleIds());
+        CanonicalConversation current = store.findConversation(conversationId);
+        if (current == null) {
+            throw new IllegalStateException("conversation is missing after ownership transfer");
+        }
+        adminDirectory.index(current);
     }
 
     private ConversationRole findRole(UUID conversationId, UUID roleId) {

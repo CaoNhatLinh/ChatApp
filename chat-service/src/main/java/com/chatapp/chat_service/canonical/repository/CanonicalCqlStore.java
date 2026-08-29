@@ -74,7 +74,6 @@ public class CanonicalCqlStore {
     private final PreparedStatement lookupDmPair;
     private final PreparedStatement saveDmPair;
     private final PreparedStatement saveConversation;
-    private final PreparedStatement updateConversationOwner;
     private final PreparedStatement updateConversationChatPolicy;
     private final PreparedStatement updateConversationNotificationPolicy;
     private final PreparedStatement updateConversationLastMessage;
@@ -94,13 +93,18 @@ public class CanonicalCqlStore {
     private final PreparedStatement initializeConversationMembership;
     private final PreparedStatement loadConversationMembership;
     private final PreparedStatement updateConversationMemberCount;
+    private final PreparedStatement decrementConversationMemberCount;
     private final PreparedStatement deleteConversationMember;
+    private final PreparedStatement transferCurrentOwnerRoles;
+    private final PreparedStatement transferNextOwnerRoles;
+    private final PreparedStatement transferConversationOwner;
     private final PreparedStatement loadConversationMember;
     private final PreparedStatement listConversationMembers;
     private final PreparedStatement updateMemberChatPolicy;
     private final PreparedStatement updateMemberNotificationPolicy;
     private final PreparedStatement saveConversationProjection;
     private final PreparedStatement updateConversationProjectionRoles;
+    private final PreparedStatement updateMemberRolesIfUnchanged;
     private final PreparedStatement updateConversationProjectionNotification;
     private final PreparedStatement listConversationsByUser;
     private final PreparedStatement deleteConversationProjection;
@@ -326,10 +330,10 @@ public class CanonicalCqlStore {
         this.saveConversation = session.prepare("""
                 INSERT INTO conversations_by_id (
                     conversation_id, conversation_type, visibility, join_policy, name, name_normalized,
-                    description, avatar_url, avatar_asset_id, created_by, owner_id, created_at, updated_at, is_deleted,
+                    description, avatar_url, avatar_asset_id, created_by, created_at, updated_at, is_deleted,
                     deleted_at, chat_mode, slow_mode_seconds, message_retention_days, default_notification_level,
                     category_id, community_tags, language_code, last_message, last_activity_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """);
         this.loadConversation = session.prepare("SELECT * FROM conversations_by_id WHERE conversation_id = ?");
         this.saveCommunityDirectoryEntry = session.prepare("""
@@ -381,9 +385,6 @@ public class CanonicalCqlStore {
                 SET status = ?, resolved_by = ?, resolved_at = ?, updated_at = ?
                 WHERE conversation_id = ? AND user_id = ? IF request_id = ? AND status = 'APPROVING'
                 """);
-        this.updateConversationOwner = session.prepare("""
-                UPDATE conversations_by_id SET owner_id = ?, updated_at = ? WHERE conversation_id = ?
-                """);
         this.updateConversationChatPolicy = session.prepare("""
                 UPDATE conversations_by_id SET chat_mode = ?, slow_mode_seconds = ?, updated_at = ?
                 WHERE conversation_id = ?
@@ -411,19 +412,37 @@ public class CanonicalCqlStore {
                 """);
         this.initializeConversationMembership = session.prepare("""
                 UPDATE conversation_members_by_conversation
-                SET member_count = ?, max_members = ? WHERE conversation_id = ?
+                SET member_count = ?, max_members = ?, owner_id = ?, owner_updated_at = ?
+                WHERE conversation_id = ?
                 """);
         this.loadConversationMembership = session.prepare("""
-                SELECT member_count, max_members FROM conversation_members_by_conversation
+                SELECT member_count, max_members, owner_id, owner_updated_at
+                FROM conversation_members_by_conversation
                 WHERE conversation_id = ? LIMIT 1
                 """);
         this.updateConversationMemberCount = session.prepare("""
                 UPDATE conversation_members_by_conversation SET member_count = ?
                 WHERE conversation_id = ? IF member_count = ?
                 """);
+        this.decrementConversationMemberCount = session.prepare("""
+                UPDATE conversation_members_by_conversation SET member_count = ?
+                WHERE conversation_id = ? IF member_count = ? AND owner_id != ?
+                """);
         this.deleteConversationMember = session.prepare("""
                 DELETE FROM conversation_members_by_conversation
                 WHERE conversation_id = ? AND user_id = ? IF EXISTS
+                """);
+        this.transferCurrentOwnerRoles = session.prepare("""
+                UPDATE conversation_members_by_conversation SET role_ids = ?
+                WHERE conversation_id = ? AND user_id = ? IF role_ids = ?
+                """);
+        this.transferNextOwnerRoles = session.prepare("""
+                UPDATE conversation_members_by_conversation SET role_ids = ?
+                WHERE conversation_id = ? AND user_id = ? IF role_ids = ?
+                """);
+        this.transferConversationOwner = session.prepare("""
+                UPDATE conversation_members_by_conversation SET owner_id = ?, owner_updated_at = ?
+                WHERE conversation_id = ? IF owner_id = ?
                 """);
         this.loadConversationMember = session.prepare("""
                 SELECT * FROM conversation_members_by_conversation
@@ -452,6 +471,10 @@ public class CanonicalCqlStore {
         this.updateConversationProjectionRoles = session.prepare("""
                 UPDATE conversations_by_user SET role_ids = ?
                 WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
+                """);
+        this.updateMemberRolesIfUnchanged = session.prepare("""
+                UPDATE conversation_members_by_conversation SET role_ids = ?
+                WHERE conversation_id = ? AND user_id = ? IF role_ids = ?
                 """);
         this.updateConversationProjectionNotification = session.prepare("""
                 UPDATE conversations_by_user SET notification_override = ?
@@ -1174,7 +1197,6 @@ public class CanonicalCqlStore {
                 conversation.avatarUrl(),
                 conversation.avatarAssetId(),
                 conversation.createdBy(),
-                conversation.ownerId(),
                 conversation.createdAt(),
                 conversation.updatedAt(),
                 Boolean.TRUE.equals(conversation.isDeleted()),
@@ -1328,10 +1350,6 @@ public class CanonicalCqlStore {
                 request.resolvedAt(), updatedAt));
     }
 
-    public void updateConversationOwner(UUID conversationId, UUID ownerId, Instant updatedAt) {
-        session.execute(updateConversationOwner.bind(ownerId, updatedAt, conversationId));
-    }
-
     public void updateConversationChatPolicy(
             UUID conversationId, String chatMode, int slowModeSeconds, Instant updatedAt) {
         session.execute(updateConversationChatPolicy.bind(chatMode, slowModeSeconds, updatedAt, conversationId));
@@ -1383,7 +1401,9 @@ public class CanonicalCqlStore {
 
     public void createConversationMembership(
             List<CanonicalConversationMember> members,
-            int maxMembers) {
+            int maxMembers,
+            UUID ownerId,
+            Instant ownerUpdatedAt) {
         if (members.isEmpty()) {
             throw new IllegalArgumentException("a conversation requires at least one member");
         }
@@ -1394,12 +1414,17 @@ public class CanonicalCqlStore {
         if (maxMembers < members.size()) {
             throw new IllegalArgumentException("initial members exceed maxMembers");
         }
+        if (ownerId == null || ownerUpdatedAt == null
+                || members.stream().noneMatch(member -> ownerId.equals(member.userId()))) {
+            throw new IllegalArgumentException("conversation owner must be an initial member");
+        }
         var batch = BatchStatement.builder(BatchType.LOGGED);
         members.forEach(member -> batch.addStatement(saveConversationMember.bind(
                 member.conversationId(), member.userId(), member.roleIds(), member.joinedAt(),
                 member.invitedBy(), member.mutedUntil(), member.messageIntervalSeconds(),
                 member.notificationOverride(), member.lastReadMessageId(), member.lastReadAt())));
-        batch.addStatement(initializeConversationMembership.bind(members.size(), maxMembers, conversationId));
+        batch.addStatement(initializeConversationMembership.bind(
+                members.size(), maxMembers, ownerId, ownerUpdatedAt, conversationId));
         session.execute(batch.build());
     }
 
@@ -1430,13 +1455,16 @@ public class CanonicalCqlStore {
     public MembershipMutationResult tryRemoveConversationMember(UUID conversationId, UUID userId) {
         for (int attempt = 0; attempt < 5; attempt++) {
             MembershipState state = requireMembershipState(conversationId);
+            if (userId.equals(state.ownerId())) {
+                return MembershipMutationResult.OWNER_PROTECTED;
+            }
             if (state.memberCount() <= 1) {
                 throw new IllegalStateException("conversation membership cannot fall below one owner");
             }
             var batch = BatchStatement.builder(BatchType.LOGGED)
                     .addStatement(deleteConversationMember.bind(conversationId, userId))
-                    .addStatement(updateConversationMemberCount.bind(
-                            state.memberCount() - 1, conversationId, state.memberCount()))
+                    .addStatement(decrementConversationMemberCount.bind(
+                            state.memberCount() - 1, conversationId, state.memberCount(), userId))
                     .build();
             if (session.execute(batch).wasApplied()) {
                 deleteConversationMembershipProjection(userId, conversationId);
@@ -1452,10 +1480,39 @@ public class CanonicalCqlStore {
 
     public MembershipState requireMembershipState(UUID conversationId) {
         Row row = session.execute(loadConversationMembership.bind(conversationId)).one();
-        if (row == null || row.isNull("member_count") || row.isNull("max_members")) {
+        if (row == null || row.isNull("member_count") || row.isNull("max_members")
+                || row.isNull("owner_id") || row.isNull("owner_updated_at")) {
             throw new IllegalStateException("conversation membership state is missing");
         }
-        return new MembershipState(row.getInt("member_count"), row.getInt("max_members"));
+        return new MembershipState(
+                row.getInt("member_count"), row.getInt("max_members"), row.getUuid("owner_id"),
+                row.getInstant("owner_updated_at"));
+    }
+
+    public OwnershipTransferResult transferConversationOwnership(
+            UUID conversationId,
+            UUID currentOwnerId,
+            UUID nextOwnerId,
+            Set<UUID> currentOwnerRoleIds,
+            Set<UUID> nextCurrentOwnerRoleIds,
+            Set<UUID> nextOwnerRoleIds,
+            Set<UUID> nextCurrentTargetRoleIds) {
+        Instant transferredAt = Instant.now();
+        var batch = BatchStatement.builder(BatchType.LOGGED)
+                .addStatement(transferCurrentOwnerRoles.bind(
+                        nextCurrentOwnerRoleIds, conversationId, currentOwnerId, currentOwnerRoleIds))
+                .addStatement(transferNextOwnerRoles.bind(
+                        nextCurrentTargetRoleIds, conversationId, nextOwnerId, nextOwnerRoleIds))
+                .addStatement(transferConversationOwner.bind(
+                        nextOwnerId, transferredAt, conversationId, currentOwnerId))
+                .build();
+        if (session.execute(batch).wasApplied()) {
+            return OwnershipTransferResult.TRANSFERRED;
+        }
+        MembershipState state = requireMembershipState(conversationId);
+        return nextOwnerId.equals(state.ownerId())
+                ? OwnershipTransferResult.ALREADY_TRANSFERRED
+                : OwnershipTransferResult.CHANGED_CONCURRENTLY;
     }
 
     public CanonicalConversationMember findConversationMember(UUID conversationId, UUID userId) {
@@ -1505,10 +1562,21 @@ public class CanonicalCqlStore {
         REMOVED,
         ALREADY_MEMBER,
         NOT_MEMBER,
-        CAPACITY_REACHED
+        CAPACITY_REACHED,
+        OWNER_PROTECTED
     }
 
-    public record MembershipState(int memberCount, int maxMembers) {
+    public enum OwnershipTransferResult {
+        TRANSFERRED,
+        ALREADY_TRANSFERRED,
+        CHANGED_CONCURRENTLY
+    }
+
+    public record MembershipState(
+            int memberCount,
+            int maxMembers,
+            UUID ownerId,
+            Instant ownerUpdatedAt) {
     }
 
     public void addConversationMembershipProjection(UUID userId, CanonicalConversation conversation, CanonicalConversationMember member) {
@@ -1565,6 +1633,15 @@ public class CanonicalCqlStore {
                     row.getInstant("last_activity_at"),
                     conversationId));
         }
+    }
+
+    public boolean updateMemberRolesIfUnchanged(
+            UUID conversationId,
+            UUID userId,
+            Set<UUID> expectedRoleIds,
+            Set<UUID> nextRoleIds) {
+        return session.execute(updateMemberRolesIfUnchanged.bind(
+                nextRoleIds, conversationId, userId, expectedRoleIds)).wasApplied();
     }
 
     public boolean tryPinConversation(UUID userId, UUID conversationId, int targetPinSlot) {
@@ -2711,9 +2788,9 @@ public class CanonicalCqlStore {
                 row.getString("avatar_url"),
                 row.getUuid("avatar_asset_id"),
                 row.getUuid("created_by"),
-                row.getUuid("owner_id"),
+                membership.ownerId(),
                 row.getInstant("created_at"),
-                row.getInstant("updated_at"),
+                latest(row.getInstant("updated_at"), membership.ownerUpdatedAt()),
                 row.getBoolean("is_deleted"),
                 row.getInstant("deleted_at"),
                 row.getString("chat_mode"),
@@ -2728,6 +2805,10 @@ public class CanonicalCqlStore {
                 row.getObject("last_message") != null,
                 row.getInstant("last_activity_at")
         );
+    }
+
+    private Instant latest(Instant first, Instant second) {
+        return first.isAfter(second) ? first : second;
     }
 
     private CanonicalConversationMember mapConversationMember(Row row) {

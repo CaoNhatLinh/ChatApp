@@ -1277,3 +1277,20 @@ Correction in this increment:
 - Added bounded canonical community discovery and admission, production bilingual
   UI, state-preserving language switching, concurrency recovery and matching
   contract/test/documentation evidence without retaining the obsolete designs.
+
+# Follow-up self-review (2026-08-29, atomic room ownership increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Ownership authority | Pass at implementation boundary | `owner_id` and `owner_updated_at` are static membership-partition values; metadata no longer stores a duplicate owner | Clean Cassandra migration is not available locally | Missing ownership state is rejected, never inferred from removed metadata |
+| Concurrency | Pass at unit/manifest level | Owner role swap and static owner use one conditional batch; kick checks owner in the decrement LWT; role assignment is CAS-protected | Live LWT contention/load proof remains pending | Conflicting commands fail visibly instead of overwriting newer authority |
+| Retry and projections | Pass at service level | A repeated completed transfer repairs both user projections and bounded admin directory without another authority mutation or audit event | Automated outbox repair remains a broader projection task | Retrying an unknown outcome is safe and idempotent |
+| API compatibility | Pass | Existing ownership resource endpoint and response semantics are retained; only persistence authority changed | Frontend management controls remain pending | Correct the implementation behind the canonical contract instead of adding an alternate endpoint |
+| Dead-code discipline | Pass | The unconditional member writer and metadata-owner update path were removed after all consumers moved to conditional commands | Broader repository dead-code audit remains ongoing | Do not retain unsafe writers as compatibility helpers |
+| Regression safety | Pass for available backend gates | Java 20 suite reports 125 tests, 0 failures and 0 errors | Clean Cassandra and frontend room-management browser proof remain pending | Complete authority before exposing management controls |
+
+Correction in this increment:
+
+- Moved room ownership into the membership consistency boundary, protected role
+  and removal races, added retryable projection repair, and documented the
+  decision without a legacy inference path.

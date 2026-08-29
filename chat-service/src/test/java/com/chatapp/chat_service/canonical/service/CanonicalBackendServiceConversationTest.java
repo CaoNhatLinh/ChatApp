@@ -243,12 +243,34 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
+    void ownershipRacePreventsRemovingTheNewOwner() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID removedUserId = UUID.randomUUID();
+        when(store.findConversation(conversationId))
+                .thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findConversationMember(conversationId, removedUserId))
+                .thenReturn(member(conversationId, removedUserId));
+        when(store.tryRemoveConversationMember(conversationId, removedUserId))
+                .thenReturn(CanonicalCqlStore.MembershipMutationResult.OWNER_PROTECTED);
+
+        assertThatThrownBy(() -> service.removeMember(actorId, conversationId, removedUserId))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("owner cannot be kicked");
+
+        verify(eventRecorder, never()).record(
+                eq(actorId), eq(conversationId), eq("MEMBER_REMOVE"), eq("conversation"),
+                eq(conversationId.toString()), eq(removedUserId), any(), any(), any());
+    }
+
+    @Test
     void directInviteDoesNotConsumeAUseWhenTheConversationIsAlreadyFull() {
         UUID actorId = UUID.randomUUID();
         CanonicalInviteLink invite = invite(UUID.randomUUID());
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
-                .thenReturn(new CanonicalCqlStore.MembershipState(10, 10));
+                .thenReturn(new CanonicalCqlStore.MembershipState(
+                        10, 10, UUID.randomUUID(), Instant.now()));
 
         CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
                 actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
@@ -395,7 +417,9 @@ class CanonicalBackendServiceConversationTest {
         when(store.findCommunityJoinRequest(conversationId, userId)).thenReturn(requestRow);
         when(store.claimCommunityJoinResolution(
                 conversationId, userId, requestId, actorId, "APPROVE")).thenReturn(true);
-        when(store.requireMembershipState(conversationId)).thenReturn(new CanonicalCqlStore.MembershipState(1, 10));
+        when(store.requireMembershipState(conversationId))
+                .thenReturn(new CanonicalCqlStore.MembershipState(
+                        1, 10, UUID.randomUUID(), Instant.now()));
         when(store.tryAddConversationMember(any())).thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
         when(store.findConversation(conversationId)).thenReturn(community(conversationId, false));
 
@@ -460,7 +484,8 @@ class CanonicalBackendServiceConversationTest {
         CanonicalInviteLink invite = invite(UUID.randomUUID());
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
-                .thenReturn(new CanonicalCqlStore.MembershipState(9, 10));
+                .thenReturn(new CanonicalCqlStore.MembershipState(
+                        9, 10, UUID.randomUUID(), Instant.now()));
         when(store.consumeInvite(invite.linkToken(), actorId))
                 .thenReturn(CanonicalCqlStore.InviteConsumeResult.CONSUMED);
         when(store.tryAddConversationMember(any()))
@@ -479,7 +504,8 @@ class CanonicalBackendServiceConversationTest {
         CanonicalInviteLink invite = invite(UUID.randomUUID());
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
-                .thenReturn(new CanonicalCqlStore.MembershipState(1, 10));
+                .thenReturn(new CanonicalCqlStore.MembershipState(
+                        1, 10, UUID.randomUUID(), Instant.now()));
         when(store.consumeInvite(invite.linkToken(), actorId))
                 .thenReturn(CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED);
 

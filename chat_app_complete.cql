@@ -310,7 +310,6 @@ CREATE TABLE IF NOT EXISTS conversations_by_id (
   avatar_url text,
   avatar_asset_id uuid,
   created_by uuid,
-  owner_id uuid,
   created_at timestamp,
   updated_at timestamp,
   is_deleted boolean,
@@ -338,6 +337,8 @@ CREATE TABLE IF NOT EXISTS conversation_members_by_conversation (
   conversation_id uuid,
   member_count int static,
   max_members int static,
+  owner_id uuid static,
+  owner_updated_at timestamp static,
   user_id uuid,
   role_ids set<uuid>,               /* bounded by service; permission is the union */
   joined_at timestamp,
