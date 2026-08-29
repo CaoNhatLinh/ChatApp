@@ -59,6 +59,8 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     // UI states for new features
     const [blockStatus, setBlockStatus] = React.useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
     const [blockStatusLoading, setBlockStatusLoading] = React.useState(false);
+    const [blockStatusError, setBlockStatusError] = React.useState(false);
+    const [blockStatusRetry, setBlockStatusRetry] = React.useState(0);
     const [isBlockConfirmOpen, setIsBlockConfirmOpen] = React.useState(false);
     const [isBlockLoading, setIsBlockLoading] = React.useState(false);
     const [notificationPolicy, setNotificationPolicy] = React.useState<ConversationNotificationPolicyView | null>(null);
@@ -67,6 +69,8 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     const [notificationPolicyError, setNotificationPolicyError] = React.useState(false);
     const [roomNotificationLevel, setRoomNotificationLevel] = React.useState<ConversationNotificationLevel>('ALL');
     const [memberNotificationOverride, setMemberNotificationOverride] = React.useState<MemberNotificationOverride>('INHERIT');
+    const notificationPolicyRequestRef = React.useRef(0);
+    const notificationPolicyMutationRef = React.useRef(0);
 
     const { user: currentUser } = useAuthStore();
     const { blockFriend, unblockFriend, fetchBlockedUsers } = useFriendStore();
@@ -74,26 +78,39 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     const activeConv = conversations?.find((c: Conversation) => c.conversationId === activeConversationId);
 
     const loadNotificationPolicy = React.useCallback(async () => {
-        if (!activeConversationId) return;
+        const requestId = ++notificationPolicyRequestRef.current;
+        if (!activeConversationId) {
+            setNotificationPolicy(null);
+            setNotificationPolicyLoading(false);
+            setNotificationPolicyError(false);
+            return;
+        }
         setNotificationPolicyLoading(true);
         setNotificationPolicyError(false);
         try {
             const nextPolicy = await getConversationNotificationPolicy(activeConversationId);
+            if (requestId !== notificationPolicyRequestRef.current) return;
             setNotificationPolicy(nextPolicy);
             setRoomNotificationLevel(nextPolicy.defaultNotificationLevel);
             setMemberNotificationOverride(nextPolicy.notificationOverride);
         } catch (error) {
+            if (requestId !== notificationPolicyRequestRef.current) return;
             setNotificationPolicy(null);
             setNotificationPolicyError(true);
             logger.error('[ConversationInfo] Notification policy load failed', error instanceof Error ? error.message : String(error));
         } finally {
-            setNotificationPolicyLoading(false);
+            if (requestId === notificationPolicyRequestRef.current) setNotificationPolicyLoading(false);
         }
     }, [activeConversationId]);
 
     React.useEffect(() => {
         if (isOpen && activeConversationId) {
             void loadNotificationPolicy();
+        } else {
+            notificationPolicyRequestRef.current += 1;
+            setNotificationPolicy(null);
+            setNotificationPolicyLoading(false);
+            setNotificationPolicyError(false);
         }
     }, [activeConversationId, isOpen, loadNotificationPolicy]);
 
@@ -101,32 +118,41 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     const saveNotificationPolicy = async () => {
         if (!activeConv || !currentUser?.userId || !notificationPolicy) return;
+        const mutationId = ++notificationPolicyMutationRef.current;
+        const conversationId = activeConv.conversationId;
+        const isCurrentMutation = () => (
+            mutationId === notificationPolicyMutationRef.current && isOpen && activeConversationId === conversationId
+        );
         setNotificationPolicySaving(true);
         try {
+            if (!isCurrentMutation()) return;
             if (canManageRoomNotifications && roomNotificationLevel !== notificationPolicy.defaultNotificationLevel) {
-                await saveConversationNotificationPolicy(activeConv.conversationId, {
+                await saveConversationNotificationPolicy(conversationId, {
                     defaultNotificationLevel: roomNotificationLevel,
                 });
             }
+            if (!isCurrentMutation()) return;
             if (memberNotificationOverride !== notificationPolicy.notificationOverride) {
-                await saveMemberNotificationPolicy(activeConv.conversationId, currentUser.userId, {
+                await saveMemberNotificationPolicy(conversationId, currentUser.userId, {
                     notificationOverride: memberNotificationOverride,
                 });
             }
+            if (!isCurrentMutation()) return;
             const nextPolicy = {
                 defaultNotificationLevel: roomNotificationLevel,
                 notificationOverride: memberNotificationOverride,
             } satisfies ConversationNotificationPolicyView;
             setNotificationPolicy(nextPolicy);
-            updateConversationNotificationPolicy(activeConv.conversationId, nextPolicy);
+            updateConversationNotificationPolicy(conversationId, nextPolicy);
             notifySuccess(localizeText('Đã cập nhật cài đặt thông báo của phòng.'));
         } catch (error: unknown) {
+            if (!isCurrentMutation()) return;
             logger.error('[ConversationInfo] Notification policy save failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật cài đặt thông báo của phòng.')));
             setRoomNotificationLevel(notificationPolicy.defaultNotificationLevel);
             setMemberNotificationOverride(notificationPolicy.notificationOverride);
         } finally {
-            setNotificationPolicySaving(false);
+            if (mutationId === notificationPolicyMutationRef.current) setNotificationPolicySaving(false);
         }
     };
 
@@ -136,18 +162,21 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
         if (!isOpen || !otherUserId) {
             setBlockStatus(null);
             setBlockStatusLoading(false);
+            setBlockStatusError(false);
             return undefined;
         }
 
         let active = true;
         setBlockStatus(null);
         setBlockStatusLoading(true);
+        setBlockStatusError(false);
         void friendApi.checkBlockStatus(otherUserId)
             .then((status) => {
                 if (active) setBlockStatus(status);
             })
             .catch((error: unknown) => {
                 if (!active) return;
+                setBlockStatusError(true);
                 logger.error('[ConversationInfo] Block check failed', error instanceof Error ? error.message : String(error));
                 notifyError(getUserFacingErrorMessage(error, localizeText('Không thể kiểm tra trạng thái chặn.')));
             })
@@ -158,7 +187,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
         return () => {
             active = false;
         };
-    }, [activeConv?.conversationId, activeConv?.otherParticipant?.userId, activeConv?.type, isOpen]);
+    }, [activeConv?.conversationId, activeConv?.otherParticipant?.userId, activeConv?.type, blockStatusRetry, isOpen]);
 
     const handleBlock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
@@ -318,6 +347,13 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                             {activeConv.type === 'dm' && activeConv.otherParticipant && (
                                 blockStatusLoading ? (
                                     <p className="px-3 py-2 text-sm text-muted-foreground">{localizeText('Đang kiểm tra trạng thái chặn...')}</p>
+                                ) : blockStatusError ? (
+                                    <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                                        <p className="text-destructive">{localizeText('Không thể kiểm tra trạng thái chặn.')}</p>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setBlockStatusRetry((value) => value + 1)}>
+                                            {localizeText('Thử lại')}
+                                        </Button>
+                                    </div>
                                 ) : blockStatus?.hasBlocked ? (
                                     <button
                                         type="button"
@@ -330,7 +366,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                         </div>
                                         <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.unblockUser}</span>
                                     </button>
-                                ) : (
+                                ) : blockStatus ? (
                                     <button
                                         type="button"
                                         onClick={() => setIsBlockConfirmOpen(true)}
@@ -341,7 +377,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                         </div>
                                         <span className="font-bold text-sm">{MESSENGER_COPY.conversationInfo.blockUser}</span>
                                     </button>
-                                )
+                                ) : null
                             )}
 
                         </div>

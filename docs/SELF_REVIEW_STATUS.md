@@ -763,3 +763,20 @@ Correction in this increment:
 - Advanced message-search request generation at the start of every filter
   effect, preventing late network responses from repopulating results after a
   scope change or validation failure.
+
+# Follow-up self-review (2026-08-29, conversation-info recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Room state integrity | Pass for policy reads | `ConversationInfo` request generation scopes notification policy responses to the current conversation | Live multi-room navigation and Cassandra policy persistence remain pending | A previous room cannot overwrite the current room's policy controls |
+| Permission safety | Pass for block actions | Block/unblock actions render only after a confirmed block-status response; failed checks show retry instead of a default mutation action | Live authorization matrix remains pending | Unknown relationship state is not treated as unblocked |
+| Mutation lifecycle | Pass for policy save UI | Policy save checks mutation identity and conversation ID before applying local state or error feedback | Cross-device concurrent policy edits remain unverified | Keep visible state owned by the room and mutation that initiated it |
+| Failure recovery | Pass | Block and notification policy reads expose localized retry controls and clear stale state on room changes | Dependency outage/retry behavior needs clean-stack evidence | Preserve an explicit error rather than silently falling back to defaults |
+| Bilingual and accessibility coverage | Pass for affected controls | Existing localized labels, alert semantics, button type and keyboard-reachable retry controls remain in place | Full screen-reader and authenticated browser walkthrough remains pending | Keep room controls concise and actionable in both locales |
+| Traceability | Pass | `ConversationInfo.tsx` and this entry; validate/build/browser gates pass | Live room-policy/block persistence remains blocked | Preserve request and mutation boundaries in future panel actions |
+
+Correction in this increment:
+
+- Added room-scoped request/mutation guards, explicit block-status recovery and
+  stale-state clearing to conversation info, preventing incorrect room policy
+  or block actions during navigation and failed reads.
