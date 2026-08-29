@@ -109,6 +109,14 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         )),
     }), false, 'updateConversationOwner'),
 
+    updateConversationChatPolicy: (conversationId, policy) => set((state) => ({
+        conversations: state.conversations.map((conversation) => (
+            conversation.conversationId === conversationId
+                ? { ...conversation, ...policy }
+                : conversation
+        )),
+    }), false, 'updateConversationChatPolicy'),
+
     pinConversation: (conversationId) => set((state) => {
         const conversations = state.conversations.map(c =>
             c.conversationId === conversationId ? { ...c, isPinned: true } : c

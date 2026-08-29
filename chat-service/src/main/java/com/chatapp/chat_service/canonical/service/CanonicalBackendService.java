@@ -55,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -593,7 +594,9 @@ public class CanonicalBackendService {
                             member.joinedAt(),
                             user.username(),
                             user.displayName(),
-                            user.avatarUrl());
+                            user.avatarUrl(),
+                            member.mutedUntil(),
+                            member.messageIntervalSeconds());
                 })
                 .toList();
     }
@@ -854,9 +857,22 @@ public class CanonicalBackendService {
         if (slowModeSeconds < 0 || slowModeSeconds > 86_400) {
             throw new BadRequestException("slowModeSeconds must be between 0 and 86400");
         }
+        CanonicalConversation current = getConversation(conversationId);
+        if (current.chatMode() == null || current.slowModeSeconds() == null) {
+            throw new IllegalStateException("conversation chat policy is missing");
+        }
+        if (chatMode.equals(current.chatMode()) && slowModeSeconds == current.slowModeSeconds()) {
+            adminConversationDirectory.updateChatPolicy(conversationId, chatMode, slowModeSeconds);
+            return;
+        }
         store.updateConversationChatPolicy(conversationId, chatMode, slowModeSeconds, Instant.now());
+        adminConversationDirectory.updateChatPolicy(conversationId, chatMode, slowModeSeconds);
         appendAudit(actorId, conversationId, "CONVERSATION_CHAT_POLICY_UPDATE", "conversation",
-                conversationId.toString(), null, null);
+                conversationId.toString(), null, null,
+                Map.of("chatMode", current.chatMode(),
+                        "slowModeSeconds", Integer.toString(current.slowModeSeconds())),
+                Map.of("chatMode", chatMode,
+                        "slowModeSeconds", Integer.toString(slowModeSeconds)));
     }
 
     public void updateConversationNotificationPolicy(
@@ -915,16 +931,35 @@ public class CanonicalBackendService {
             UUID userId,
             CanonicalApiContracts.MemberChatPolicyRequest req) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MEMBER_MUTE);
-        if (store.findConversationMember(conversationId, userId) == null) {
+        if (req == null || !StringUtils.hasText(req.reason())) {
+            throw new BadRequestException("reason is required for member chat policy changes");
+        }
+        CanonicalConversation conversation = getConversation(conversationId);
+        if (userId.equals(conversation.ownerId())) {
+            throw new ConflictException("conversation owner cannot be muted or rate limited");
+        }
+        CanonicalConversationMember member = store.findConversationMember(conversationId, userId);
+        if (member == null) {
             throw new NotFoundException("conversation member not found");
         }
         Integer interval = req.messageIntervalSeconds();
         if (interval != null && (interval < 0 || interval > 604_800)) {
             throw new BadRequestException("messageIntervalSeconds must be between 0 and 604800");
         }
+        if (req.mutedUntil() != null && !req.mutedUntil().isAfter(Instant.now())) {
+            throw new BadRequestException("mutedUntil must be in the future or null");
+        }
+        if (Objects.equals(member.mutedUntil(), req.mutedUntil())
+                && Objects.equals(member.messageIntervalSeconds(), interval)) {
+            return;
+        }
         store.updateMemberChatPolicy(conversationId, userId, req.mutedUntil(), interval);
         appendAudit(actorId, conversationId, "MEMBER_CHAT_POLICY_UPDATE", "conversation_member",
-                userId.toString(), userId, req.reason());
+                userId.toString(), userId, req.reason().trim(),
+                Map.of("mutedUntil", String.valueOf(member.mutedUntil()),
+                        "messageIntervalSeconds", String.valueOf(member.messageIntervalSeconds())),
+                Map.of("mutedUntil", String.valueOf(req.mutedUntil()),
+                        "messageIntervalSeconds", String.valueOf(interval)));
     }
 
     public CanonicalMessage editMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId, CanonicalApiContracts.MessageUpdateRequest req) {

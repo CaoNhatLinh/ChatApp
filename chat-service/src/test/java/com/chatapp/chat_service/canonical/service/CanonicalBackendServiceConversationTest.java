@@ -137,6 +137,95 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
+    void memberDirectoryIncludesTheAuthoritativeChatPolicy() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        Instant mutedUntil = Instant.parse("2026-08-29T10:00:00Z");
+        CanonicalConversationMember member = new CanonicalConversationMember(
+                conversationId, userId, Set.of(), Instant.now(), actorId,
+                mutedUntil, 45, "INHERIT", null, null);
+        when(store.findConversationMember(conversationId, actorId)).thenReturn(member(conversationId, actorId));
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.listConversationMembers(conversationId, 200)).thenReturn(List.of(member));
+        when(store.findUserById(userId)).thenReturn(activeUser(userId));
+
+        var members = service.listConversationMembers(actorId, conversationId, 200);
+
+        assertThat(members).singleElement().satisfies(view -> {
+            assertThat(view.mutedUntil()).isEqualTo(mutedUntil);
+            assertThat(view.messageIntervalSeconds()).isEqualTo(45);
+        });
+    }
+
+    @Test
+    void roomChatPolicyWritesCanonicalProjectionAndAuditState() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        CanonicalConversation before = conversationWithChatPolicy(conversationId, actorId, "OPEN", 0);
+        when(store.findConversation(conversationId)).thenReturn(before);
+
+        service.updateConversationChatPolicy(actorId, conversationId,
+                new CanonicalApiContracts.ConversationChatPolicyRequest("READ_ONLY", 30));
+
+        verify(store).updateConversationChatPolicy(eq(conversationId), eq("READ_ONLY"), eq(30), any(Instant.class));
+        verify(adminConversationDirectory).updateChatPolicy(conversationId, "READ_ONLY", 30);
+        verify(eventRecorder).record(
+                actorId, conversationId, "CONVERSATION_CHAT_POLICY_UPDATE", "conversation",
+                conversationId.toString(), null, null,
+                Map.of("chatMode", "OPEN", "slowModeSeconds", "0"),
+                Map.of("chatMode", "READ_ONLY", "slowModeSeconds", "30"));
+    }
+
+    @Test
+    void memberChatPolicyRequiresReasonAndProtectsTheOwner() {
+        UUID actorId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, ownerId, "ALL"));
+
+        assertThatThrownBy(() -> service.updateMemberChatPolicy(
+                actorId, conversationId, ownerId,
+                new CanonicalApiContracts.MemberChatPolicyRequest(Instant.now(), 60, "moderation")))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("owner");
+
+        UUID memberId = UUID.randomUUID();
+        assertThatThrownBy(() -> service.updateMemberChatPolicy(
+                actorId, conversationId, memberId,
+                new CanonicalApiContracts.MemberChatPolicyRequest(Instant.now(), 60, " ")))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.BadRequestException.class)
+                .hasMessageContaining("reason");
+
+        verify(store, never()).updateMemberChatPolicy(any(), any(), any(), any());
+    }
+
+    @Test
+    void memberChatPolicyWritesTheExactBeforeAndAfterState() {
+        UUID actorId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        Instant mutedUntil = Instant.parse("2026-08-30T05:00:00Z");
+        CanonicalConversationMember member = new CanonicalConversationMember(
+                conversationId, memberId, Set.of(), Instant.now(), ownerId,
+                null, null, "INHERIT", null, null);
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, ownerId, "ALL"));
+        when(store.findConversationMember(conversationId, memberId)).thenReturn(member);
+
+        service.updateMemberChatPolicy(actorId, conversationId, memberId,
+                new CanonicalApiContracts.MemberChatPolicyRequest(
+                        mutedUntil, 120, " repeated advertising "));
+
+        verify(store).updateMemberChatPolicy(conversationId, memberId, mutedUntil, 120);
+        verify(eventRecorder).record(
+                actorId, conversationId, "MEMBER_CHAT_POLICY_UPDATE", "conversation_member",
+                memberId.toString(), memberId, "repeated advertising",
+                Map.of("mutedUntil", "null", "messageIntervalSeconds", "null"),
+                Map.of("mutedUntil", mutedUntil.toString(), "messageIntervalSeconds", "120"));
+    }
+
+    @Test
     void addMemberRejectsInactiveAccountsBeforeMutatingMembership() {
         UUID actorId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
@@ -527,6 +616,18 @@ class CanonicalBackendServiceConversationTest {
         return new CanonicalConversation(
                 conversationId, "GROUP", "PRIVATE", "INVITE_ONLY", "Room", "room", null, null, null,
                 ownerId, ownerId, now, now, false, null, "OPEN", 0, null, defaultNotificationLevel,
+                null, Set.of(), "vi", 10, 1, false, now);
+    }
+
+    private CanonicalConversation conversationWithChatPolicy(
+            UUID conversationId,
+            UUID ownerId,
+            String chatMode,
+            int slowModeSeconds) {
+        Instant now = Instant.now();
+        return new CanonicalConversation(
+                conversationId, "GROUP", "PRIVATE", "INVITE_ONLY", "Room", "room", null, null, null,
+                ownerId, ownerId, now, now, false, null, chatMode, slowModeSeconds, null, "ALL",
                 null, Set.of(), "vi", 10, 1, false, now);
     }
 

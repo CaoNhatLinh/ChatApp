@@ -9,6 +9,7 @@ import type {
     CreateConversationRequest,
     SendMessageRequest,
     ConversationNotificationLevel,
+    ConversationChatMode,
     MemberNotificationOverride
 } from '../types/messenger.types';
 
@@ -125,6 +126,8 @@ interface CanonicalConversation {
     lastActivityAt: string;
     memberCount: number;
     defaultNotificationLevel: ConversationNotificationLevel;
+    chatMode: string;
+    slowModeSeconds: number;
 }
 
 const toAttachment = (uploaded: UploadedFileDto): Attachment => {
@@ -226,9 +229,9 @@ export interface ConversationNotificationPolicyView {
 }
 
 export interface MemberChatPolicyRequest {
-    mutedUntil?: string | null;
-    messageIntervalSeconds?: number | null;
-    reason?: string;
+    mutedUntil: string | null;
+    messageIntervalSeconds: number | null;
+    reason: string;
 }
 
 const mapConversationType = (type: string): Conversation['type'] => {
@@ -244,6 +247,20 @@ const mapConversationNotificationLevel = (level: string): ConversationNotificati
         return level;
     }
     throw new Error(`Unsupported canonical conversation notification level: ${level}`);
+};
+
+const mapConversationChatMode = (mode: string): ConversationChatMode => {
+    if (mode === 'OPEN' || mode === 'READ_ONLY' || mode === 'MANAGERS_ONLY') {
+        return mode;
+    }
+    throw new Error(`Unsupported canonical conversation chat mode: ${mode}`);
+};
+
+const mapSlowModeSeconds = (seconds: number): number => {
+    if (Number.isInteger(seconds) && seconds >= 0 && seconds <= 86400) {
+        return seconds;
+    }
+    throw new Error(`Unsupported canonical slow mode value: ${seconds}`);
 };
 
 const mapMemberNotificationOverride = (override: string): MemberNotificationOverride => {
@@ -268,6 +285,8 @@ const mapConversation = (conversation: CanonicalConversation): Conversation => (
     lastActivityAt: conversation.lastActivityAt,
     unreadCount: 0,
     defaultNotificationLevel: mapConversationNotificationLevel(conversation.defaultNotificationLevel),
+    chatMode: mapConversationChatMode(conversation.chatMode),
+    slowModeSeconds: mapSlowModeSeconds(conversation.slowModeSeconds),
 });
 
 const mapConversationListItem = (item: CanonicalConversationListItem): Conversation => ({

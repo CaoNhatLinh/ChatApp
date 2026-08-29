@@ -10,6 +10,8 @@ import {
     listConversationRoles,
     removeConversationMember,
     transferConversationOwnership,
+    updateConversationChatPolicy,
+    updateMemberChatPolicy,
     updateConversationRole,
     type ConversationPermissionsView,
     type ConversationRole,
@@ -27,6 +29,8 @@ import { logger } from '@/shared/lib/logger';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { cn } from '@/shared/lib/cn';
 import { RoomRoleForm, type RoomRoleFormValue } from './RoomRoleForm';
+import { RoomChatPolicyForm } from './RoomChatPolicyForm';
+import { RoomMemberPolicyForm, type RoomMemberPolicyValue } from './RoomMemberPolicyForm';
 
 const EMPTY_ROLE: RoomRoleFormValue = {
     displayName: '',
@@ -51,6 +55,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const { locale } = useAppLocale();
     const currentUserId = useAuthStore((state) => state.user?.userId);
     const updateConversationOwner = useMessengerStore((state) => state.updateConversationOwner);
+    const updateStoredChatPolicy = useMessengerStore((state) => state.updateConversationChatPolicy);
     const [members, setMembers] = React.useState<ConversationMember[]>([]);
     const [roles, setRoles] = React.useState<ConversationRole[]>([]);
     const [access, setAccess] = React.useState<ConversationPermissionsView | null>(null);
@@ -163,6 +168,38 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         }
     };
 
+    const saveRoomChatPolicy = async (value: Pick<Conversation, 'chatMode' | 'slowModeSeconds'>) => {
+        setBusyKey('room-chat-policy');
+        try {
+            await updateConversationChatPolicy(conversation.conversationId, value);
+            updateStoredChatPolicy(conversation.conversationId, value);
+            notifySuccess(localizeText('Đã cập nhật chính sách chat của phòng.'));
+        } catch (error) {
+            logger.error('[RoomManagementPanel] Room chat policy update failed', error instanceof Error ? error.message : String(error));
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật chính sách chat của phòng.')));
+        } finally {
+            setBusyKey(null);
+        }
+    };
+
+    const saveMemberChatPolicy = async (member: ConversationMember, value: RoomMemberPolicyValue) => {
+        setBusyKey(`member-policy:${member.userId}`);
+        try {
+            await updateMemberChatPolicy(conversation.conversationId, member.userId, value);
+            setMembers((current) => current.map((item) => item.userId === member.userId ? {
+                ...item,
+                mutedUntil: value.mutedUntil,
+                messageIntervalSeconds: value.messageIntervalSeconds,
+            } : item));
+            notifySuccess(localizeText('Đã cập nhật chính sách chat của thành viên.'));
+        } catch (error) {
+            logger.error('[RoomManagementPanel] Member chat policy update failed', error instanceof Error ? error.message : String(error));
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật chính sách chat của thành viên.')));
+        } finally {
+            setBusyKey(null);
+        }
+    };
+
     const confirmAction = async () => {
         if (!pendingAction) return;
         const action = pendingAction;
@@ -239,6 +276,28 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 <Badge variant="outline" className="shrink-0">{members.length}</Badge>
             </div>
 
+            {can('ROOM_UPDATE') ? (
+                <details className="group rounded-2xl border border-border/70">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 p-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <ShieldCheck className="h-4 w-4 text-primary" />
+                        <span className="flex-1">{localizeText('Chính sách chat')}</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="border-t border-border/60 p-3">
+                        <RoomChatPolicyForm
+                            key={`${conversation.chatMode}:${conversation.slowModeSeconds}`}
+                            initialValue={{
+                                chatMode: conversation.chatMode,
+                                slowModeSeconds: conversation.slowModeSeconds,
+                            }}
+                            loading={busyKey === 'room-chat-policy'}
+                            disabled={busyKey !== null}
+                            onSubmit={(value) => void saveRoomChatPolicy(value)}
+                        />
+                    </div>
+                </details>
+            ) : null}
+
             <div className="space-y-2">
                 {members.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
@@ -269,7 +328,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                                 </span>
                                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                             </summary>
-                            {!isOwner && (can('ROLE_ASSIGN') || can('MEMBER_KICK') || access.owner) ? (
+                            {!isOwner && (can('ROLE_ASSIGN') || can('MEMBER_KICK') || can('MEMBER_MUTE') || access.owner) ? (
                                 <div className="space-y-3 border-t border-border/60 p-3">
                                     {can('ROLE_ASSIGN') ? (
                                         <div>
@@ -302,6 +361,19 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                                                 })}
                                                 {roles.every((role) => role.isSystem) ? <span className="text-xs text-muted-foreground">{localizeText('Chưa có vai trò tùy chỉnh.')}</span> : null}
                                             </div>
+                                        </div>
+                                    ) : null}
+                                    {can('MEMBER_MUTE') && !isSelf ? (
+                                        <div>
+                                            <p className="mb-2 text-xs font-semibold">{localizeText('Chính sách chat của thành viên')}</p>
+                                            <RoomMemberPolicyForm
+                                                key={`${member.mutedUntil}:${member.messageIntervalSeconds}`}
+                                                initialMutedUntil={member.mutedUntil}
+                                                initialMessageIntervalSeconds={member.messageIntervalSeconds}
+                                                loading={busyKey === `member-policy:${member.userId}`}
+                                                disabled={busyKey !== null}
+                                                onSubmit={(value) => void saveMemberChatPolicy(member, value)}
+                                            />
                                         </div>
                                     ) : null}
                                     <div className="flex flex-wrap gap-2">

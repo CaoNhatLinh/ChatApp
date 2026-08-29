@@ -189,7 +189,7 @@ public class CanonicalConversationController {
     public ResponseEntity<Void> updateMemberChatPolicy(
             @PathVariable UUID conversationId,
             @PathVariable UUID userId,
-            @RequestBody CanonicalApiContracts.MemberChatPolicyRequest request) {
+            @Valid @RequestBody CanonicalApiContracts.MemberChatPolicyRequest request) {
         backend.updateMemberChatPolicy(actorId(), conversationId, userId, request);
         return ResponseEntity.noContent().build();
     }

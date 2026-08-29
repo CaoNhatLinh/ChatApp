@@ -95,7 +95,9 @@ public final class CanonicalApiContracts {
             Instant joinedAt,
             String username,
             String displayName,
-            String avatarUrl) {
+            String avatarUrl,
+            Instant mutedUntil,
+            Integer messageIntervalSeconds) {
     }
 
     public record ConversationListItem(
@@ -161,7 +163,10 @@ public final class CanonicalApiContracts {
             @NotBlank @Pattern(regexp = "INHERIT|ALL|MENTIONS|NONE") String notificationOverride) {
     }
 
-    public record MemberChatPolicyRequest(Instant mutedUntil, Integer messageIntervalSeconds, String reason) {
+    public record MemberChatPolicyRequest(
+            Instant mutedUntil,
+            Integer messageIntervalSeconds,
+            @NotBlank @Size(max = 500) String reason) {
     }
 
     public record ConversationRoleCreateRequest(

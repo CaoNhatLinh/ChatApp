@@ -31,6 +31,8 @@ const conversation = {
   lastActivityAt: now,
   memberCount: 2,
   defaultNotificationLevel: 'ALL',
+  chatMode: 'OPEN',
+  slowModeSeconds: 0,
 };
 const baseRoles = [
   {
@@ -63,8 +65,8 @@ const baseRoles = [
   },
 ];
 const members = [
-  { userId: ownerId, conversationId, role: 'owner', roleIds: [ownerRoleId], joinedAt: now, username: 'owner', displayName: 'Room Owner' },
-  { userId: memberId, conversationId, role: 'member', roleIds: [], joinedAt: now, username: 'linh', displayName: 'Linh Tran' },
+  { userId: ownerId, conversationId, role: 'owner', roleIds: [ownerRoleId], joinedAt: now, username: 'owner', displayName: 'Room Owner', mutedUntil: null, messageIntervalSeconds: null },
+  { userId: memberId, conversationId, role: 'member', roleIds: [], joinedAt: now, username: 'linh', displayName: 'Linh Tran', mutedUntil: null, messageIntervalSeconds: null },
 ];
 
 let roles = [...baseRoles];
@@ -72,6 +74,8 @@ const roleAssignments = [];
 const ownershipTransfers = [];
 const createdRoles = [];
 const updatedRoles = [];
+const roomPolicies = [];
+const memberPolicies = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const consoleErrors = [];
@@ -79,7 +83,10 @@ const requestFailures = [];
 const apiRequests = [];
 
 page.on('console', (message) => {
-  if (message.type() === 'error' && !message.text().includes('/ws/')) consoleErrors.push(message.text());
+  const location = message.location();
+  if (message.type() === 'error' && !location.url.includes('/ws/') && !message.text().includes('/ws/')) {
+    consoleErrors.push({ text: message.text(), url: location.url });
+  }
 });
 page.on('requestfailed', (request) => {
   if (!request.url().includes('/ws/')) requestFailures.push({ url: request.url(), error: request.failure()?.errorText });
@@ -107,7 +114,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') return json(members);
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
-    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK'], owner: true });
+    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE'], owner: true });
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'POST') {
     const payload = request.postDataJSON();
@@ -144,6 +151,14 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     roles = roles.map((role) => role.roleId === moderatorRoleId ? updated : role);
     return json(updated);
   }
+  if (path.endsWith(`/conversations/${conversationId}/chat-policy`) && method === 'PUT') {
+    roomPolicies.push(request.postDataJSON());
+    return route.fulfill({ status: 204 });
+  }
+  if (path.endsWith(`/conversations/${conversationId}/members/${memberId}/chat-policy`) && method === 'PUT') {
+    memberPolicies.push(request.postDataJSON());
+    return route.fulfill({ status: 204 });
+  }
   if (path.endsWith(`/conversations/${conversationId}/members/${memberId}/roles`) && method === 'POST') {
     roleAssignments.push(request.postDataJSON());
     return route.fulfill({ status: 204 });
@@ -168,6 +183,13 @@ await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 
+const chatPolicyLabel = page.getByText('Chính sách chat', { exact: true });
+const chatPolicySection = chatPolicyLabel.locator('..').locator('..');
+await chatPolicyLabel.click();
+await chatPolicySection.getByLabel('Ai có thể gửi tin nhắn').selectOption('READ_ONLY');
+await chatPolicySection.getByLabel('Thời gian chờ giữa hai tin nhắn').fill('30');
+await chatPolicySection.getByRole('button', { name: 'Lưu chính sách chat' }).click();
+
 const rolesSection = page.locator('details').filter({ hasText: 'Vai trò của phòng' });
 await rolesSection.locator('summary').click();
 await rolesSection.getByRole('button', { name: 'Tạo vai trò', exact: true }).click();
@@ -184,6 +206,10 @@ await rolesSection.getByText('Product lead', { exact: true }).waitFor();
 
 const memberSection = page.locator('details').filter({ hasText: 'Linh Tran' });
 await memberSection.locator('summary').click();
+await memberSection.getByLabel('Tắt tiếng đến').fill('2026-08-30T12:00');
+await memberSection.getByLabel('Thời gian chờ riêng').fill('120');
+await memberSection.getByLabel('Lý do kiểm duyệt').fill('Lặp lại nội dung quảng cáo');
+await memberSection.getByRole('button', { name: 'Lưu chính sách thành viên' }).click();
 await memberSection.getByRole('button', { name: 'Product lead', exact: true }).click();
 await memberSection.getByRole('button', { name: 'Chuyển quyền chủ phòng', exact: true }).click();
 await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).getByRole('button', { name: 'Chuyển quyền', exact: true }).click();
@@ -197,7 +223,7 @@ const overflow = await page.evaluate(() => document.documentElement.scrollWidth 
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roleAssignments, ownershipTransfers, overflow, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -207,6 +233,11 @@ if (
   || updatedRoles[0]?.displayName !== 'Product lead'
   || updatedRoles[0]?.expectedUpdatedAt !== now
   || !updatedRoles[0]?.permissionCodes?.includes('MESSAGE_SEND')
+  || roomPolicies[0]?.chatMode !== 'READ_ONLY'
+  || roomPolicies[0]?.slowModeSeconds !== 30
+  || memberPolicies[0]?.messageIntervalSeconds !== 120
+  || memberPolicies[0]?.reason !== 'Lặp lại nội dung quảng cáo'
+  || !memberPolicies[0]?.mutedUntil
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
   || overflow

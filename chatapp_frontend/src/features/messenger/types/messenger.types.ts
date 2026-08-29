@@ -3,6 +3,7 @@ export type { User };
 
 export type ConversationType = 'dm' | 'group' | 'channel';
 export type ConversationNotificationLevel = 'ALL' | 'MENTIONS' | 'NONE';
+export type ConversationChatMode = 'OPEN' | 'READ_ONLY' | 'MANAGERS_ONLY';
 export type MemberNotificationOverride = 'INHERIT' | 'ALL' | 'MENTIONS' | 'NONE';
 export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'VIDEO' | 'STICKER' | 'POLL' | 'SYSTEM';
 
@@ -46,6 +47,8 @@ export interface Conversation {
     lastActivityAt: string;
     unreadCount: number;
     defaultNotificationLevel: ConversationNotificationLevel;
+    chatMode: ConversationChatMode;
+    slowModeSeconds: number;
     notificationOverride?: MemberNotificationOverride;
     otherParticipant?: User; // Only for DM
     lastMessage?: MessageSummary;
@@ -60,6 +63,8 @@ export interface ConversationMember {
     username: string;
     displayName: string;
     avatarUrl?: string;
+    mutedUntil: string | null;
+    messageIntervalSeconds: number | null;
 }
 
 /* --- Message Types --- */

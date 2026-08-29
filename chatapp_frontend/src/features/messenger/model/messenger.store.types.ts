@@ -27,6 +27,10 @@ export interface ConversationSlice {
         policy: Pick<Conversation, 'defaultNotificationLevel' | 'notificationOverride'>,
     ) => void;
     updateConversationOwner: (conversationId: string, ownerId: string) => void;
+    updateConversationChatPolicy: (
+        conversationId: string,
+        policy: Pick<Conversation, 'chatMode' | 'slowModeSeconds'>,
+    ) => void;
     upsertConversationFromMessage: (message: Message) => void;
     resetUnreadCount: (conversationId: string) => void;
 }
