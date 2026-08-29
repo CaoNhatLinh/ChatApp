@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/Dialog";
 import type { SafeRevision } from "./types";
-import { localizeText } from '@/shared/i18n';
+import { getLocale, localizeText } from '@/shared/i18n';
 
 interface MessageRevisionPanelProps {
   isOpen: boolean;
@@ -30,9 +30,9 @@ export const MessageRevisionPanel = ({
                 className="rounded-2xl border border-border/50 bg-background/60 px-4 py-3"
               >
                 <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  <span>Revision {revision.revisionNumber}</span>
+                  <span>{localizeText('Bản chỉnh sửa')} {revision.revisionNumber}</span>
                   <span>
-                    {new Date(revision.editedAt).toLocaleString("vi-VN")}
+                    {new Date(revision.editedAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN')}
                   </span>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm font-medium">

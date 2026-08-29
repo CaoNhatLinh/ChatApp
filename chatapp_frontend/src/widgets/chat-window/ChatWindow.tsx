@@ -33,6 +33,7 @@ import { RoomThemePanel } from "./components/RoomThemePanel";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { useWebRtcCall } from "@/features/calls/hooks/useWebRtcCall";
 import { CallSessionPanel } from "./components/CallSessionPanel";
+import { getLocale } from '@/shared/i18n';
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
 import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
@@ -346,7 +347,9 @@ export const ChatWindow = () => {
         case "view-seen": {
           const latestSeen = latestReadReceipt(message);
           if (latestSeen) {
-            showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(new Date(latestSeen.readAt).toLocaleString("vi-VN")));
+            showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(
+              new Date(latestSeen.readAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN'),
+            ));
           }
           return;
         }

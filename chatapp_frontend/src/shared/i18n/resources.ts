@@ -391,6 +391,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Chính sách': 'Policy',
   'Đăng ký tài khoản': 'Create your account',
   'Chào mừng trở lại': 'Welcome back',
+  'Bản chỉnh sửa': 'Revision',
   'Đăng ký tài khoản thành công! Vui lòng đăng nhập.': 'Account created. Please sign in.',
   'Tên đăng nhập hoặc mật khẩu không đúng.': 'Incorrect username or password.',
   'Tài khoản hiện không hoạt động. Vui lòng liên hệ hỗ trợ.': 'This account is not active. Contact support for help.',

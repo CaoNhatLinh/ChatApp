@@ -2,7 +2,7 @@ import { Bell, Heart, MessageCircle, Reply, User, UserPlus, X } from "lucide-rea
 import { motion } from "framer-motion";
 import type { NotificationRecord, NotificationType } from "@/features/notifications/api/notifications.api";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
-import { localizeText } from '@/shared/i18n';
+import { getLocale, localizeText } from '@/shared/i18n';
 
 interface NotificationListProps {
   isOpen: boolean;
@@ -46,7 +46,7 @@ const getTimeLabel = (timestamp: string) => {
   if (diffInHours < 24) return localizeText(`${diffInHours} giờ trước`);
   const diffInDays = Math.floor(diffInHours / 24);
   if (diffInDays < 7) return localizeText(`${diffInDays} ngày trước`);
-  return parsed.toLocaleDateString("vi-VN");
+  return parsed.toLocaleDateString(getLocale() === 'en' ? 'en-US' : 'vi-VN');
 };
 
 export const NotificationList: React.FC<NotificationListProps> = ({
