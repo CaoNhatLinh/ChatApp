@@ -642,6 +642,22 @@ Correction in this increment:
 - Added localized retry recovery and bounded diagnostics to the user report
   history panel, preserving the distinction between empty and failed reads.
 
+# Follow-up self-review (2026-08-29, invite-manager-recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for invite data load | `InviteManager` now has an explicit loading state and retryable error state when both invite/request lists are unavailable | Invite concurrency/expiry and live permission proof remain pending | Never present a failed initial invite read as an empty manager |
+| Async lifecycle | Pass for manager mount | Active ref prevents late list responses and retry errors from updating an unmounted or replaced conversation manager | Multi-room navigation browser proof remains pending | Keep the conversation ID as the manager boundary |
+| Action state integrity | Pass | Existing busy/pending locks remain; revoke diagnostics no longer serialize the error object | Provider expiry and concurrent revoke proof remain pending | Preserve server-confirmed mutation updates |
+| Data exposure | Pass | Initial/retry/revoke logs contain only bounded native error text; user copy uses the shared status mapper | Server-side structured redaction remains an operations task | Keep invite tokens/URLs out of diagnostics |
+| Bilingual and accessibility coverage | Pass | Loading, retry and error controls use localized copy with explicit button type and alert/status semantics | Full screen-reader audit remains pending | Keep recovery keyboard reachable |
+| Traceability | Pass | `InviteManager.tsx`, `resources.ts`, invite/join screen inventory and this entry | Authenticated invite lifecycle remains pending | Preserve canonical invite API ownership |
+
+Correction in this increment:
+
+- Added loading/retry recovery and unmount protection to invite management,
+  while hardening the remaining revoke diagnostic log.
+
 # Follow-up self-review (2026-08-29, contacts-load-recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

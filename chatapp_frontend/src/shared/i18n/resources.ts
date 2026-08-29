@@ -33,6 +33,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Đã từ chối yêu cầu tham gia.': 'Join request declined.',
   'Không thể xử lý yêu cầu tham gia.': 'Unable to process the join request.',
   'Không thể tải lời mời. Vui lòng thử lại.': 'Unable to load the invite. Try again.',
+  'Đang tải danh sách lời mời...': 'Loading invites…',
   'Không thể chấp nhận lời mời. Vui lòng thử lại.': 'Unable to accept the invite. Try again.',
   'Không thể từ chối lời mời. Vui lòng thử lại.': 'Unable to decline the invite. Try again.',
   'Không thể ghim cuộc trò chuyện.': 'Unable to pin the conversation.',

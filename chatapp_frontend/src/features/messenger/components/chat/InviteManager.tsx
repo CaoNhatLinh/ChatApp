@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Link2, Loader2, QrCode, Trash2, UserCheck, UserX } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -23,27 +23,51 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     const [kind, setKind] = useState<'LINK' | 'QR'>('LINK');
     const [policy, setPolicy] = useState<'DIRECT_JOIN' | 'REQUEST_APPROVAL'>('DIRECT_JOIN');
     const [busy, setBusy] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const activeRef = useRef(true);
 
     const refresh = async () => {
-        const [nextLinks, nextRequests] = await Promise.all([
-            listInvites(conversationId),
-            listJoinRequests(conversationId),
-        ]);
-        setLinks(nextLinks);
-        setRequests(nextRequests);
+        if (activeRef.current) setLoading(true);
+        try {
+            const [nextLinks, nextRequests] = await Promise.all([
+                listInvites(conversationId),
+                listJoinRequests(conversationId),
+            ]);
+            if (!activeRef.current) return;
+            setLinks(nextLinks);
+            setRequests(nextRequests);
+        } finally {
+            if (activeRef.current) setLoading(false);
+        }
     };
 
     useEffect(() => {
+        activeRef.current = true;
         setError(null);
         void refresh().catch((refreshError: unknown) => {
-            logger.error('[InviteManager] Failed to load invite data:', refreshError);
+            if (!activeRef.current) return;
+            logger.error('[InviteManager] Failed to load invite data', refreshError instanceof Error ? refreshError.message : String(refreshError));
+            setLoading(false);
             setError(getUserFacingErrorMessage(refreshError, localizeText('Bạn không có quyền quản lý lời mời.')));
         });
+        return () => {
+            activeRef.current = false;
+        };
         // conversationId is the complete identity of this manager instance.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [conversationId]);
+
+    const retryLoad = () => {
+        setError(null);
+        void refresh().catch((refreshError: unknown) => {
+            if (!activeRef.current) return;
+            logger.error('[InviteManager] Invite data retry failed', refreshError instanceof Error ? refreshError.message : String(refreshError));
+            setLoading(false);
+            setError(getUserFacingErrorMessage(refreshError, localizeText('Bạn không có quyền quản lý lời mời.')));
+        });
+    };
 
     const makeInvite = async () => {
         setBusy(true);
@@ -91,7 +115,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             }
             notifySuccess(localizeText('Đã thu hồi lời mời.'));
         } catch (revokeError: unknown) {
-            logger.error('[InviteManager] Failed to revoke invite:', revokeError);
+            logger.error('[InviteManager] Failed to revoke invite', revokeError instanceof Error ? revokeError.message : String(revokeError));
             notifyError(getUserFacingErrorMessage(revokeError, localizeText('Không thể thu hồi lời mời.')));
         } finally {
             setPendingAction(null);
@@ -113,12 +137,17 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
         }
     };
 
-    if (error && links.length === 0) {
-        return <p className="rounded-xl bg-destructive/5 p-3 text-xs text-destructive">{error}</p>;
+    if (loading && links.length === 0 && requests.length === 0) {
+        return <div className="rounded-xl border border-border/50 p-3 text-xs text-muted-foreground" role="status">{localizeText('Đang tải danh sách lời mời...')}</div>;
+    }
+
+    if (error && links.length === 0 && requests.length === 0) {
+        return <div className="flex items-start justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive" role="alert"><span>{error}</span><button type="button" onClick={retryLoad} className="focus-ring shrink-0 rounded-md px-2 py-1 font-semibold text-primary hover:bg-primary/10">{localizeText('Thử lại')}</button></div>;
     }
 
     return (
         <div className="space-y-4 rounded-2xl border border-border/50 p-3">
+            {error ? <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" role="alert"><span>{error}</span><button type="button" onClick={retryLoad} className="focus-ring shrink-0 rounded-md px-2 py-1 font-semibold text-primary hover:bg-primary/10">{localizeText('Thử lại')}</button></div> : null}
             <div className="flex gap-2">
                 <button type="button" onClick={() => setKind('LINK')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'LINK' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Link2 className="mx-auto mb-1 size-4" />{localizeText('Liên kết')}</button>
                 <button type="button" onClick={() => setKind('QR')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'QR' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><QrCode className="mx-auto mb-1 size-4" />QR</button>
