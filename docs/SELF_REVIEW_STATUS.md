@@ -456,6 +456,20 @@ Correction in this increment:
 - Added explicit notification inbox loading and retryable error states across the
   store and sidebar panel; failed initialization no longer appears as success.
 
+# Follow-up self-review (2026-08-29, profile relationship action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for profile block/unblock | Profile relationship fetch and block mutations use status-aware localized errors; diagnostics are sanitized to operator logs | Authenticated two-account relationship proof remains pending | Keep transport detail out of the profile dialog |
+| Concurrency/state | Pass for local controls | Block and unblock share an explicit pending state; unblock cannot be double-submitted and local state updates after success | Cross-tab relationship reconciliation remains an integration gap | Do not imply completion before the mutation resolves |
+| Bilingual UI coverage | Pass | Existing profile action copy plus loading text remain registered; locale smoke (713 keys) | User display data remains domain content | Translate product feedback, not profile data |
+| Traceability | Pass | `UserProfileModal.tsx`, friend-store mutation contract and this entry | Clean-stack authenticated browser proof remains blocked | Preserve the caller-visible reject contract |
+
+Correction in this increment:
+
+- Hardened profile relationship actions with status-aware failure copy and a
+  shared loading lock for block/unblock, preventing duplicate unblock requests.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

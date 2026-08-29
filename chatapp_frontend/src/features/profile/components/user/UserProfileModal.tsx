@@ -17,6 +17,8 @@ import { ReportUserModal } from "./ReportUserModal";
 import { localizeText } from '@/shared/i18n';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -79,8 +81,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           await fetchMutualFriends(userId);
         }
       } catch (error) {
-        console.error("[UserProfileModal] Failed to fetch relationship:", error);
-        notifyError(localizeText("Không thể tải dữ liệu hồ sơ liên quan."));
+        logger.error('[UserProfileModal] Failed to fetch relationship', error instanceof Error ? error.message : String(error));
+        notifyError(getUserFacingErrorMessage(error, localizeText("Không thể tải dữ liệu hồ sơ liên quan.")));
       } finally {
         if (isMounted) setLoadingRelationship(false);
       }
@@ -109,8 +111,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       notifySuccess(localizeText("Đã chặn người dùng này."));
       onBlock?.();
     } catch (error) {
-      console.error("[UserProfileModal] Failed to block:", error);
-      notifyError(localizeText("Không thể chặn người dùng."));
+      logger.error('[UserProfileModal] Failed to block', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText("Không thể chặn người dùng.")));
     } finally {
       setIsBlockLoading(false);
     }
@@ -119,13 +121,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleUnblock = useCallback(async () => {
     try {
       if (!currentUser?.userId) return;
+      setIsBlockLoading(true);
       await unblockFriend(userId);
       setBlockStatus({ hasBlocked: false, isBlockedBy: blockStatus?.isBlockedBy ?? false });
       notifySuccess(localizeText("Đã bỏ chặn người dùng này."));
       onUnblock?.();
     } catch (error) {
-      console.error("[UserProfileModal] Failed to unblock:", error);
-      notifyError(localizeText("Không thể bỏ chặn người dùng."));
+      logger.error('[UserProfileModal] Failed to unblock', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText("Không thể bỏ chặn người dùng.")));
+    } finally {
+      setIsBlockLoading(false);
     }
   }, [blockStatus?.isBlockedBy, currentUser?.userId, onUnblock, unblockFriend, userId]);
 
@@ -305,9 +310,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <button
                   onClick={handleUnblock}
                   type="button"
+                  disabled={isBlockLoading}
                   className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:bg-primary/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                 >
-                  <ShieldOff size={14} /> {localizeText("Bỏ chặn người dùng này")}
+                  <ShieldOff size={14} /> {isBlockLoading ? localizeText("Đang cập nhật...") : localizeText("Bỏ chặn người dùng này")}
                 </button>
               ) : (
                 <button
