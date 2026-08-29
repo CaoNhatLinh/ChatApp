@@ -52,7 +52,7 @@ const clearInitSubscriptions = (key: string): void => {
         try {
             unsubscribe();
         } catch (error) {
-            logger.debug('[useMessenger] Failed to unsubscribe previous init subscription', error);
+            logger.debug('[useMessenger] Failed to unsubscribe previous init subscription', error instanceof Error ? error.message : String(error));
         }
     });
     initMessengerSubscriptions.delete(key);
@@ -185,7 +185,7 @@ export const useMessenger = (): UseMessengerResult => {
                 useMessengerStore.getState().setConversationUnreadCount(conversationId, unreadCount);
             }
         } catch (err) {
-            logger.debug('Failed to refresh conversation summary', conversationId, err);
+            logger.debug('Failed to refresh conversation summary', err instanceof Error ? err.message : String(err));
         } finally {
             if (refreshConversationSeqRef.current.get(conversationId) === requestId) {
                 refreshConversationSeqRef.current.delete(conversationId);
@@ -297,7 +297,7 @@ export const useMessenger = (): UseMessengerResult => {
                 const errorMessage = getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadConversationsFailed);
                 clearInitSubscriptions(initKey);
                 setError(errorMessage);
-                logger.error('[useMessenger] Error initializing messenger:', err instanceof Error ? err.message : err);
+                logger.error('[useMessenger] Error initializing messenger:', err instanceof Error ? err.message : String(err));
             } finally {
                 setLoading(false);
             }
@@ -340,7 +340,7 @@ export const useMessenger = (): UseMessengerResult => {
 
         resetUnreadCount(conversationId);
         void useNotificationStore.getState().markConversationAsRead(conversationId).catch((error: unknown) => {
-            logger.debug('Failed to mark conversation notifications as read', error);
+            logger.debug('Failed to mark conversation notifications as read', error instanceof Error ? error.message : String(error));
         });
         void getConversationUnreadCount(conversationId)
             .then((count) => {
@@ -348,7 +348,7 @@ export const useMessenger = (): UseMessengerResult => {
                 setConversationUnreadCount(conversationId, count);
             })
             .catch((error: unknown) => {
-                logger.debug('Failed to refresh conversation unread count', error);
+                logger.debug('Failed to refresh conversation unread count', error instanceof Error ? error.message : String(error));
             });
 
         const cachedMessages = useMessengerStore.getState().messages[conversationId];
@@ -360,7 +360,7 @@ export const useMessenger = (): UseMessengerResult => {
 
             if (unreadMessages.length > 0) {
                 void markMessagesAsRead(conversationId, unreadMessages).catch((error: unknown) => {
-                    logger.debug('Failed to mark cached messages as read', error);
+                    logger.debug('Failed to mark cached messages as read', error instanceof Error ? error.message : String(error));
                 });
             }
 
@@ -370,7 +370,7 @@ export const useMessenger = (): UseMessengerResult => {
                     setConversationUnreadCount(conversationId, count);
                 })
                 .catch((error: unknown) => {
-                    logger.debug('Failed to refresh cached conversation unread count', error);
+                    logger.debug('Failed to refresh cached conversation unread count', error instanceof Error ? error.message : String(error));
                 });
             return;
         }
@@ -395,7 +395,7 @@ export const useMessenger = (): UseMessengerResult => {
         } catch (err: unknown) {
             if (requestId !== conversationLoadRequestRef.current) return;
             setError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadMessagesFailed));
-            logger.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : err);
+            logger.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : String(err));
         }
     }, [
         resetUnreadCount,
@@ -556,7 +556,7 @@ export const useMessenger = (): UseMessengerResult => {
             await pinConversationApi(conversationId);
             pinConversationStore(conversationId);
         } catch (err: unknown) {
-            logger.error('[useMessenger] Error pinning conversation', err);
+            logger.error('[useMessenger] Error pinning conversation', err instanceof Error ? err.message : String(err));
             notifyError(getUserFacingErrorMessage(err, localizeText('Không thể ghim cuộc trò chuyện.')));
         }
     }, [pinConversationStore]);
@@ -566,7 +566,7 @@ export const useMessenger = (): UseMessengerResult => {
             await unpinConversationApi(conversationId);
             unpinConversationStore(conversationId);
         } catch (err: unknown) {
-            logger.error('[useMessenger] Error unpinning conversation', err);
+            logger.error('[useMessenger] Error unpinning conversation', err instanceof Error ? err.message : String(err));
             notifyError(getUserFacingErrorMessage(err, localizeText('Không thể bỏ ghim cuộc trò chuyện.')));
         }
     }, [unpinConversationStore]);
@@ -661,8 +661,8 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
                 .then((conversation) => {
                     hoistConversation(conversation);
                 })
-                .catch((error) => {
-                    logger.debug('[useMessengerSetup] Failed to refresh active conversation before subscribe', error);
+                .catch((error: unknown) => {
+                    logger.debug('[useMessengerSetup] Failed to refresh active conversation before subscribe', error instanceof Error ? error.message : String(error));
                 });
         }
 

@@ -672,6 +672,20 @@ Correction in this increment:
 - Removed websocket payload/error-object logging from active transport paths and
   replaced presence/auth diagnostic fields with bounded metadata.
 
+# Follow-up self-review (2026-08-29, messenger-diagnostic-redaction increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass for active messenger diagnostics | `useMessenger` no longer passes raw errors or message data into logger calls; only bounded native error text is retained | Legacy duplicate `FriendItem` remains outside active canonical route scope | Keep conversation/message payloads out of browser diagnostics |
+| Runtime behavior | Pass | Logging-only changes preserve init, selection, pagination, send, pin and realtime subscription control flow | Authenticated realtime/pagination evidence remains pending | Do not use diagnostics as a success/fallback path |
+| User-facing behavior | Pass | Existing status-aware errors/toasts and optimistic failure markers are unchanged | Full authenticated failure matrix remains pending | Preserve visible recovery copy for every action |
+| Traceability | Pass | `useMessenger.ts` and this entry; frontend validation remains green | Clean-stack Cassandra/Redis/Kafka proof remains blocked | Apply the same boundary to future messenger handlers |
+
+Correction in this increment:
+
+- Replaced remaining raw error-object logging in the active messenger store and
+  setup lifecycle with bounded diagnostic strings.
+
 # Follow-up self-review (2026-08-29, contacts-load-recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
