@@ -23,7 +23,7 @@ http:
     - GET /friends/requests/sent
     - PUT /friends/accept
     - PUT /friends/reject
-    - POST /friends/{friendId}/cancel
+    - DELETE /friends/requests/{recipientId}
     - DELETE /friends/{friendId}
     - POST /friends/block/{friendId}
     - POST /friends/unblock/{friendId}

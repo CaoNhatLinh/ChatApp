@@ -1212,3 +1212,20 @@ Correction in this increment:
 - Removed dead add/remove-friend props, state and buttons from the user-profile
   modal; retained the real friendship actions on their canonical Contacts
   surfaces and added browser proof for the remaining profile actions.
+
+# Follow-up self-review (2026-08-29, outgoing friend-request cancellation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract correctness | Pass | Replaced the misleading verb route `POST /friends/{friendId}/cancel` with canonical `DELETE /friends/requests/{recipientId}` across Spring, OpenAPI, TypeScript client and browser assertions; no compatibility alias remains | External callers, if any, must use the canonical contract | A pending recipient is not yet a friend; model the request resource and delete it |
+| User journey | Pass for HTTP-boundary browser evidence | Find people now renders Cancel request for an outgoing pending row; success removes the pending projection from client state and restores Invite without a refresh | Live Cassandra persistence across two accounts remains pending | Let users reverse a pending request where its state is visible |
+| Failure handling | Pass at implementation boundary | Store preserves pending state when cancellation throws, records a safe localized error and rethrows for the existing notification path; three new active copy keys pass the registry gate | Browser provider-failure retry is not exercised in this increment | Do not optimistically clear an authoritative pending request before server success |
+| Backend state transition | Pass at unit level | `FriendshipServiceTest` verifies a pending cancellation removes the outgoing projection and recipient inbox entry; Java 20 suite reports 100 tests, 0 failures, 0 errors | Clean Cassandra/LWT integration remains unavailable locally | Keep service cleanup behavior protected independently from the UI fixture |
+| Accessibility and visual scope | Pass | Pending state uses a visible named native button with explicit type, disabled/loading feedback and existing design-system variants; no new animation or dependency was added | Full populated-row screen-reader walkthrough remains pending | Use the existing compact action hierarchy rather than adding a new modal for a reversible pending request |
+| Traceability | Pass | Controller, OpenAPI, API client, store, Contacts UI, copy registry, browser smoke, feature inventory, traceability matrix, function audit and testing guide describe one contract | Full multi-account flow remains unverified | Update all authorities in the same increment |
+
+Correction in this increment:
+
+- Connected outgoing friend-request cancellation from the Contacts UI through
+  the canonical DELETE contract to the existing service cleanup, with localized
+  feedback, unit coverage and browser method/path/state regression evidence.

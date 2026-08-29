@@ -10,7 +10,7 @@ end-to-end evidence.
 | ID-IDENTITY-001 | Register/login/me/logout | Implemented but not fully verified | Backend tests green; real Cassandra/CORS cookie journey pending |
 | ID-IDENTITY-002 | Rotating refresh cookie | Implemented but not fully verified | `RefreshTokenServiceTest`; browser cookie journey pending |
 | ID-IDENTITY-003 | User search/profile update | Implemented but not fully verified | `CanonicalBackendServiceUserTest`; live directory data pending |
-| ID-SOCIAL-001 | Friendship, block, mutuals | Implemented but not fully verified | `FriendshipServiceTest`; live two-user journey pending |
+| ID-SOCIAL-001 | Friendship requests (send/cancel/accept/reject), accepted friends, block and mutuals | Implemented but not fully verified | Contacts exposes pending-request cancellation through canonical `DELETE /friends/requests/{recipientId}`; `FriendshipServiceTest` verifies projection/inbox cleanup and the browser smoke verifies the wire method, path and restored Invite state; live two-user persistence remains pending |
 | ID-ROOM-001 | DM/group creation and member management | Implemented but not fully verified | Service/controller coverage; live Cassandra pending |
 | ID-ROOM-002 | Room chat policy, member roles, kick/leave, invite/search | Implemented but not fully verified | Canonical conversation APIs and real frontend hooks; live authorization journey pending |
 | ID-MESSAGE-001 | Cursor message history/idempotent send | Implemented but not fully verified | shard merge and retry tests; live persistence/realtime pending |

@@ -78,6 +78,10 @@ export const rejectFriendRequest = async (friendId: string): Promise<void> => {
     await apiClient.put('/friends/reject', { friendId });
 };
 
+export const cancelFriendRequest = async (recipientId: string): Promise<void> => {
+    await apiClient.delete(`/friends/requests/${recipientId}`);
+};
+
 export const unfriend = async (friendId: string): Promise<void> => {
     await apiClient.delete(`/friends/${friendId}`);
 };
@@ -121,6 +125,7 @@ export const checkBlockStatus = async (otherUserId: string): Promise<BlockStatus
 
 export interface FriendApi {
     sendRequest: (friendId: string) => Promise<void>;
+    cancelRequest: (recipientId: string) => Promise<void>;
     getReceivedRequests: (limit?: number) => Promise<FriendshipStatusResponse>;
     getUsersByStatus: (status: FriendshipStatus, limit?: number) => Promise<FriendshipStatusResponse>;
     acceptFriendRequest: (senderId: string) => Promise<void>;
@@ -134,6 +139,7 @@ export interface FriendApi {
 
 export const friendApi: FriendApi = {
     sendRequest: async (friendId: string) => sendFriendRequest(friendId),
+    cancelRequest: async (recipientId: string) => cancelFriendRequest(recipientId),
     getReceivedRequests: async (limit = 30) => getReceivedRequests(limit),
     getUsersByStatus: async (status: FriendshipStatus, limit = 30) => getUsersByStatus(status, limit),
     acceptFriendRequest: async (senderId: string) => acceptFriendRequest(senderId),

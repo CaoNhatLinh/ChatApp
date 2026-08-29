@@ -72,9 +72,9 @@ public class CanonicalFriendController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{friendId}/cancel")
-    public ResponseEntity<Void> cancel(@PathVariable UUID friendId) {
-        friendshipService.cancelRequest(actorId(), friendId);
+    @DeleteMapping("/requests/{recipientId}")
+    public ResponseEntity<Void> cancel(@PathVariable UUID recipientId) {
+        friendshipService.cancelRequest(actorId(), recipientId);
         return ResponseEntity.noContent().build();
     }
 

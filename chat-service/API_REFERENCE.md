@@ -11,7 +11,7 @@ The backend base path is `/api`; every endpoint below is relative to that base.
 - **Users:** `/users/search`, `/users/{userId}`, `/users/me`
 - **Friendships and blocking:** `/friends`, `/friends/request`,
   `/friends/requests/received`, `/friends/requests/sent`, `/friends/accept`,
-  `/friends/reject`, `/friends/status/{status}`, `/friends/{friendId}/cancel`,
+  `/friends/reject`, `/friends/status/{status}`, `/friends/requests/{recipientId}`,
   `/friends/{friendId}`, `/friends/block/{friendId}`,
   `/friends/unblock/{friendId}`, `/friends/check-block/{friendId}`,
   `/friends/mutual/{userId}`

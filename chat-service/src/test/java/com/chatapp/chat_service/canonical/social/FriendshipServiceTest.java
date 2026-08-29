@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +62,24 @@ class FriendshipServiceTest {
         assertThat(response.userDetails()).singleElement()
                 .extracting(summary -> summary.userId())
                 .isEqualTo(blockedUserId);
+    }
+
+    @Test
+    void cancelPendingRequestRemovesTheOutgoingProjectionAndRecipientInboxEntry() {
+        UUID actorId = UUID.randomUUID();
+        UUID recipientId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        when(repository.findRequest(actorId, recipientId))
+                .thenReturn(new FriendshipRepository.RequestRow(
+                        actorId, recipientId, requestedAt, null, "PENDING", null));
+        when(repository.markRequestStatus(eq(actorId), eq(recipientId), eq("CANCELLED"), any(Instant.class)))
+                .thenReturn(true);
+
+        service().cancelRequest(actorId, recipientId);
+
+        verify(repository).markRequestStatus(eq(actorId), eq(recipientId), eq("CANCELLED"), any(Instant.class));
+        verify(repository).removeFriendshipProjection(actorId, recipientId);
+        verify(repository).deleteRequestInbox(recipientId, requestedAt, actorId);
     }
 
     private FriendshipService service() {

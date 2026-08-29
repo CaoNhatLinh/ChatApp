@@ -94,6 +94,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Đang chờ': 'Pending',
   'Hủy lời mời': 'Cancel request',
   'Đã gửi lời mời kết bạn.': 'Friend request sent.',
+  'Đã hủy lời mời kết bạn.': 'Friend request canceled.',
+  'Không thể hủy lời mời kết bạn.': 'Unable to cancel the friend request.',
   'Không thể gửi lời mời.': 'Unable to send the request.',
   'Đã chấp nhận lời mời.': 'Request accepted.',
   'Lỗi khi chấp nhận lời mời.': 'Unable to accept the request.',

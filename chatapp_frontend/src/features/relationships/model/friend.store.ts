@@ -34,6 +34,7 @@ interface FriendStoreActions {
   blockFriend: (friendId: string) => Promise<void>;
   unblockFriend: (friendId: string) => Promise<void>;
   sendFriendRequest: (friendId: string) => Promise<void>;
+  cancelFriendRequest: (recipientId: string) => Promise<void>;
   fetchBlockedUsers: () => Promise<void>;
   unfriend: (friendId: string) => Promise<void>;
   getIsFriend: (userId: string) => boolean;
@@ -83,6 +84,33 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.sentFailed);
       set({ error: errorMessage });
       logger.error('Error sending friend request', err instanceof Error ? err.message : String(err));
+      throw err;
+    } finally {
+      set({ loadingSent: false });
+    }
+  },
+  cancelFriendRequest: async (recipientId: string) => {
+    set({ loadingSent: true, error: null });
+    try {
+      await friendApi.cancelRequest(recipientId);
+      set((state) => ({
+        pendingRequests: state.pendingRequests
+          ? {
+            ...state.pendingRequests,
+            userDetails: state.pendingRequests.userDetails.filter((person) => person.userId !== recipientId),
+          }
+          : null,
+        searchResults: state.searchResults.map((candidate) => (
+          candidate.userId === recipientId
+            ? { ...candidate, requestSent: false }
+            : candidate
+        )),
+        error: null,
+      }));
+    } catch (err: unknown) {
+      const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.cancelFailed);
+      set({ error: errorMessage });
+      logger.error('Error cancelling friend request', err instanceof Error ? err.message : String(err));
       throw err;
     } finally {
       set({ loadingSent: false });

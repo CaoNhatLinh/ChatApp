@@ -127,11 +127,14 @@ paths:
       tags: [Friends]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FriendAction'}}}}
       responses: {'204': {description: Rejected}}
-  /friends/{friendId}/cancel:
-    post:
+  /friends/requests/{recipientId}:
+    delete:
       tags: [Friends]
-      parameters: [{$ref: '#/components/parameters/FriendId'}]
-      responses: {'204': {description: Cancelled}}
+      operationId: cancelFriendRequest
+      summary: Cancel an outgoing pending friend request
+      parameters:
+        - {name: recipientId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses: {'204': {description: Outgoing request cancelled}}
   /friends/{friendId}:
     delete:
       tags: [Friends]

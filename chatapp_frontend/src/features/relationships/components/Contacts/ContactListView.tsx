@@ -32,6 +32,7 @@ export const ContactListView = () => {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [unfriendTargetId, setUnfriendTargetId] = useState<string | null>(null);
   const [isUnfriendLoading, setIsUnfriendLoading] = useState(false);
+  const [friendActionTargetId, setFriendActionTargetId] = useState<string | null>(null);
 
   const {
     activeTab,
@@ -73,6 +74,7 @@ export const ContactListView = () => {
   const handleRejectAction = useFriendStore((state) => state.handleReject);
   const handleUnfriendAction = useFriendStore((state) => state.unfriend);
   const handleSendRequestAction = useFriendStore((state) => state.sendFriendRequest);
+  const handleCancelRequestAction = useFriendStore((state) => state.cancelFriendRequest);
 
   const handleUserClick = async (targetUserId: string) => {
     setSelectedUserId(targetUserId);
@@ -126,11 +128,26 @@ export const ContactListView = () => {
   };
 
   const handleSendRequest = async (targetUserId: string) => {
+    setFriendActionTargetId(targetUserId);
     try {
       await handleSendRequestAction(targetUserId);
       notifySuccess(FRIEND_COPY.actions.sentSuccess);
     } catch (error: unknown) {
       notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.sentFailed));
+    } finally {
+      setFriendActionTargetId(null);
+    }
+  };
+
+  const handleCancelRequest = async (targetUserId: string) => {
+    setFriendActionTargetId(targetUserId);
+    try {
+      await handleCancelRequestAction(targetUserId);
+      notifySuccess(FRIEND_COPY.actions.cancelSuccess);
+    } catch (error: unknown) {
+      notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.cancelFailed));
+    } finally {
+      setFriendActionTargetId(null);
     }
   };
 
@@ -210,11 +227,13 @@ export const ContactListView = () => {
               searchResults={searchResults}
               friendsIds={new Set(friends.map((friend) => friend.userId))}
               pendingIds={sentRequestIds}
-              isLoading={loadingSearch || loadingSent}
+              isLoading={loadingSearch}
+              actionTargetId={loadingSent ? friendActionTargetId : null}
               globalSearchQuery={globalSearchQuery}
               onSearchChange={setGlobalSearchQuery}
               onUserClick={handleUserClick}
               onSendRequest={handleSendRequest}
+              onCancelRequest={handleCancelRequest}
               currentUserId={user?.userId}
             />
           ) : null}

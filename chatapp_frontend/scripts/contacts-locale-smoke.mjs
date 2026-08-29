@@ -27,6 +27,18 @@ const acceptedFriendship = {
   status: 'ACCEPTED',
   userDetails: [friend],
 };
+const pendingFriend = {
+  userId: '00000000-0000-0000-0000-000000000012',
+  username: 'pending',
+  displayName: 'Pending Friend',
+  accountStatus: 'ACTIVE',
+};
+const pendingFriendship = {
+  userId: operator.userId,
+  status: 'PENDING',
+  userDetails: [pendingFriend],
+};
+let cancelledFriendRequest = null;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -93,8 +105,25 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return;
   }
+  if (pathname.endsWith(`/friends/requests/${pendingFriend.userId}`)) {
+    cancelledFriendRequest = { method: route.request().method(), pathname };
+    await route.fulfill({ status: 204, body: '' });
+    return;
+  }
   if (pathname.endsWith('/friends') || pathname.endsWith('/friends/status/ACCEPTED')) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(acceptedFriendship) });
+    return;
+  }
+  if (pathname.endsWith('/friends/status/PENDING')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pendingFriendship) });
+    return;
+  }
+  if (pathname.endsWith('/users/search')) {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ content: [pendingFriend], nextCursor: null, hasNext: false }),
+    });
     return;
   }
   if (pathname.includes('/friends/')) {
@@ -136,6 +165,10 @@ const profileActions = {
 await profileDialog.getByRole('button', { name: 'Close profile' }).click();
 await page.getByRole('button', { name: 'Requests', exact: true }).click();
 const enRequestsSelected = await page.getByRole('button', { name: 'Requests', exact: true }).getAttribute('aria-pressed');
+await page.getByRole('button', { name: 'Find people', exact: true }).click();
+await page.getByPlaceholder('Enter a name or email').fill('pending');
+await page.getByRole('button', { name: 'Cancel request', exact: true }).click();
+await page.getByRole('button', { name: 'Invite', exact: true }).waitFor();
 
 const report = {
   baseUrl,
@@ -148,6 +181,7 @@ const report = {
   enSelectedTab,
   enRequestsSelected,
   profileActions,
+  cancelledFriendRequest,
   realtimeFailures,
   consoleErrors,
   requestFailures,
@@ -166,6 +200,8 @@ if (
   || !profileActions.hasBlock
   || !profileActions.hasReport
   || profileActions.hasInertFriendAction
+  || cancelledFriendRequest?.method !== 'DELETE'
+  || cancelledFriendRequest?.pathname !== `/api/friends/requests/${pendingFriend.userId}`
   || !viTabs.includes('Bạn bè')
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')

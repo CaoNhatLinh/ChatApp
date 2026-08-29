@@ -13,10 +13,12 @@ interface ContactAddSectionProps {
   friendsIds: Set<string>;
   pendingIds: Set<string>;
   isLoading: boolean;
+  actionTargetId: string | null;
   globalSearchQuery: string;
   onSearchChange: (value: string) => void;
   onUserClick: (userId: string) => void;
   onSendRequest: (userId: string) => void;
+  onCancelRequest: (userId: string) => void;
   currentUserId?: string;
 }
 
@@ -25,10 +27,12 @@ export const ContactAddSection = ({
   friendsIds,
   pendingIds,
   isLoading,
+  actionTargetId,
   globalSearchQuery,
   onSearchChange,
   onUserClick,
   onSendRequest,
+  onCancelRequest,
   currentUserId,
 }: ContactAddSectionProps) => {
   return (
@@ -90,12 +94,27 @@ export const ContactAddSection = ({
                           {FRIEND_COPY.row.alreadyFriend}
                         </span>
                       ) : person.requestSent || pendingIds.has(person.userId) ? (
-                        <span className="inline-flex rounded-2xl border border-border/50 bg-muted px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          {FRIEND_COPY.row.requestSent}
-                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          loading={actionTargetId === person.userId}
+                          disabled={actionTargetId !== null}
+                          aria-busy={actionTargetId === person.userId}
+                          onClick={() => onCancelRequest(person.userId)}
+                        >
+                          {FRIEND_COPY.actions.cancel}
+                        </Button>
                       ) : (
-                        <Button size="sm" onClick={() => onSendRequest(person.userId)}>
-                          <UserPlus size={16} className="mr-1" />
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={actionTargetId === person.userId}
+                          disabled={actionTargetId !== null}
+                          aria-busy={actionTargetId === person.userId}
+                          onClick={() => onSendRequest(person.userId)}
+                        >
+                          <UserPlus size={16} className="mr-1" aria-hidden="true" />
                           {FRIEND_COPY.row.send}
                         </Button>
                       )}

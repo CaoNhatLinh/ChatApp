@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, and infrastructure manifests (99 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, and infrastructure manifests (100 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -44,7 +44,9 @@ confirms the shared app-shell navigation stays translated in both locales. It
 also verifies that the Friends/Requests segmented control exposes its selected
 state before and after a tab change. The populated-friend fixture opens the
 profile dialog and verifies its Message, Block and Report actions while
-rejecting the former inert add/remove-friend controls. An unavailable realtime
+rejecting the former inert add/remove-friend controls. It also cancels a pending
+outgoing request, verifies the canonical `DELETE /friends/requests/{recipientId}`
+wire contract, and waits for the row to return to the Invite action. An unavailable realtime
 transport does not block the REST-backed screen. Realtime transport failures
 are reported separately because the local integration stack is intentionally
 absent.
