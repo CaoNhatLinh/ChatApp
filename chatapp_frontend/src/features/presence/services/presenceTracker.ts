@@ -1,14 +1,13 @@
 import { presenceWsService } from '@/features/presence/services/presenceWsService';
 
 const referenceCounts = new Map<string, number>();
-const managedUserIds = new Set<string>();
 
 function normalize(userIds: string[]): string[] {
   return [...new Set(userIds.filter(Boolean))];
 }
 
 function isTracked(userId: string): boolean {
-  return managedUserIds.has(userId) || (referenceCounts.get(userId) ?? 0) > 0;
+  return (referenceCounts.get(userId) ?? 0) > 0;
 }
 
 function subscribe(userIds: string[]): void {
@@ -39,26 +38,8 @@ export const presenceTracker = {
     presenceWsService.unsubscribeFromUserPresence(noLongerTracked);
   },
 
-  replaceManaged(userIds: string[]): void {
-    const nextUserIds = new Set(normalize(userIds));
-    const newlyTracked: string[] = [];
-    const noLongerTracked: string[] = [];
-
-    for (const userId of nextUserIds) {
-      if (!managedUserIds.has(userId) && !isTracked(userId)) newlyTracked.push(userId);
-    }
-    for (const userId of managedUserIds) {
-      if (!nextUserIds.has(userId) && (referenceCounts.get(userId) ?? 0) === 0) noLongerTracked.push(userId);
-    }
-
-    managedUserIds.clear();
-    nextUserIds.forEach((userId) => managedUserIds.add(userId));
-    subscribe(newlyTracked);
-    presenceWsService.unsubscribeFromUserPresence(noLongerTracked);
-  },
-
   resync(): void {
-    const trackedUsers = [...new Set([...managedUserIds, ...referenceCounts.keys()])];
+    const trackedUsers = [...referenceCounts.keys()];
     if (trackedUsers.length === 0) {
       return;
     }
@@ -68,8 +49,7 @@ export const presenceTracker = {
   },
 
   clear(): void {
-    const userIds = [...new Set([...managedUserIds, ...referenceCounts.keys()])];
-    managedUserIds.clear();
+    const userIds = [...referenceCounts.keys()];
     referenceCounts.clear();
     presenceWsService.unsubscribeFromUserPresence(userIds);
   },

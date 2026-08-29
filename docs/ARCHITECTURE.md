@@ -2,7 +2,10 @@
 
 The backend is a Spring Boot service with Cassandra as the authoritative query-
 designed store. Redis owns ephemeral typing/presence and distributed send-rate
-state. Kafka receives durable outbox events for downstream projections.
+state. Presence is an aggregate of per-STOMP-session heartbeats: an expiring
+sorted set determines whether any device is active, while a user snapshot is
+sent through Redis Pub/Sub so every Spring node can fan out to its local
+WebSocket sessions. Kafka receives durable outbox events for downstream projections.
 Elasticsearch is a rebuildable authorized search projection; Cloudinary is an
 optional binary provider. STOMP over SockJS exposes authenticated realtime
 commands and user/conversation destinations.
@@ -27,6 +30,8 @@ flowchart LR
   WS --> S
   S --> C[(Cassandra authoritative)]
   S --> R[(Redis ephemeral)]
+  R --> RP[Presence Pub/Sub]
+  RP --> WS
   S --> O[Outbox]
   O --> K[Kafka]
   K --> ES[(Elasticsearch projection)]

@@ -3,6 +3,7 @@ import { usePresence } from "@/features/presence/model/presence.store";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { localizeText } from "@/shared/i18n";
+import { useTrackPresenceInViewport } from "@/features/presence/hooks/useTrackPresence";
 
 interface ContactRowProps {
   userId: string;
@@ -33,9 +34,10 @@ export const ContactRow: FC<ContactRowProps> = memo(({
   const { presence } = usePresence(userId);
   const isOnline = presence?.isOnline ?? false;
   const status = presence?.status ?? "OFFLINE";
+  const presenceRef = useTrackPresenceInViewport<HTMLDivElement>([userId]);
 
   return (
-    <div className="group flex items-center justify-between rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
+    <div ref={presenceRef} className="group flex items-center justify-between rounded-[var(--radius-lg)] border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
       <button
         onClick={() => onUserClick(userId)}
         className="group flex min-w-0 flex-1 items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 sm:gap-4"

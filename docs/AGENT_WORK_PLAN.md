@@ -50,7 +50,7 @@
     delete-versus-assign/transfer races now use catalog CAS plus a membership
     revision barrier. Clean Cassandra verification remains pending.
 
-Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 130 tests, 0 failures, 0 errors
+Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 144 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and
@@ -62,6 +62,10 @@ silently translating legacy aliases or inventing sender/attachment metadata.
 Friendship and presence clients likewise consume only their canonical backend
 contracts; variant response adapters, presence aliases, fabricated IDs/statuses,
 and unwired placeholder controls are out of runtime scope.
+Presence subscriptions are session-scoped and capped at 200 targets per session;
+per-session heartbeat expiry is aggregated in Redis and presence changes fan out
+through the configured Redis Pub/Sub channel. Client rows use an Intersection
+Observer window rather than subscribing an entire loaded directory.
 Typing now follows the same boundary: commands contain only canonical command
 fields, and server-emitted user summaries use `username` plus required
 `displayName`.

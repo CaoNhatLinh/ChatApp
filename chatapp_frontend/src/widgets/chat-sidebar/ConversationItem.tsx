@@ -9,6 +9,7 @@ import { useFriendStore } from '@/features/relationships/model/friend.store';
 import { getConversationLastMessagePreview } from '@/features/messenger/utils/conversation-preview';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { localizeText, useAppLocale } from '@/shared/i18n';
+import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -75,6 +76,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const { presence: otherPresence } = usePresence(otherUser?.userId);
   const isOtherOnline = otherPresence?.isOnline ?? false;
   const otherStatus = otherPresence?.status ?? 'OFFLINE';
+  const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
+    isDM && otherUser?.userId ? [otherUser.userId] : [],
+  );
   const blockedUserIds = useFriendStore((state) => state.blockedUserIds);
   const isLastMsgBlocked = lastMsg?.senderId ? blockedUserIds.has(lastMsg.senderId) : false;
   const unreadCount = conversation.unreadCount;
@@ -104,6 +108,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
 
   return (
     <div
+      ref={presenceRef}
       role="button"
       tabIndex={0}
       onClick={onClick}

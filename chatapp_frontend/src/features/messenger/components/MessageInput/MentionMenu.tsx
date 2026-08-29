@@ -46,10 +46,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
     const [hasFetched, setHasFetched] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const currentUser = useAuthStore(state => state.user);
-    const memberIds = useMemo(() => members.map((member) => member.userId), [members]);
-    const presences = usePresenceByUserIds(memberIds);
     const lastConvId = useRef<string>('');
-    useTrackPresence(query === null ? [] : memberIds);
 
     // Fetch members when menu opens (with caching per conversationId)
     useEffect(() => {
@@ -115,6 +112,14 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             ...matchedMembers.slice(0, 8) // Limit to prevent overflow
         ];
     }, [members, query]);
+    const visibleMemberIds = useMemo(
+        () => filteredItems
+            .filter((item): item is ConversationMember => item.userId !== 'all')
+            .map((member) => member.userId),
+        [filteredItems],
+    );
+    const presences = usePresenceByUserIds(visibleMemberIds);
+    useTrackPresence(query === null ? [] : visibleMemberIds);
 
     // Reset index when filtered items change
     useEffect(() => {

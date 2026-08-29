@@ -2,6 +2,7 @@ package com.chatapp.chat_service.realtime;
 
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 
@@ -19,13 +20,19 @@ public class PresenceController {
     }
 
     @MessageMapping("/presence.subscribe")
-    public void subscribe(PresenceService.PresenceSubscription command, Principal principal) {
-        presence.subscribe(actorId(principal), command);
+    public void subscribe(
+            PresenceService.PresenceSubscription command,
+            Principal principal,
+            @Header("simpSessionId") String sessionId) {
+        presence.subscribe(actorId(principal), sessionId, command);
     }
 
     @MessageMapping("/presence.unsubscribe")
-    public void unsubscribe(PresenceService.PresenceSubscription command, Principal principal) {
-        presence.unsubscribe(actorId(principal), command);
+    public void unsubscribe(
+            PresenceService.PresenceSubscription command,
+            Principal principal,
+            @Header("simpSessionId") String sessionId) {
+        presence.unsubscribe(actorId(principal), sessionId, command);
     }
 
     @MessageMapping("/presence.batch")
@@ -34,18 +41,26 @@ public class PresenceController {
     }
 
     @MessageMapping("/heartbeat")
-    public void heartbeat(PresenceService.HeartbeatCommand command, Principal principal) {
-        presence.heartbeat(actorId(principal), command);
+    public void heartbeat(
+            PresenceService.HeartbeatCommand command,
+            Principal principal,
+            @Header("simpSessionId") String sessionId) {
+        presence.heartbeat(actorId(principal), sessionId, command);
     }
 
     @MessageMapping("/online-status")
-    public void status(PresenceService.PresenceStatusCommand command, Principal principal) {
-        presence.setStatus(actorId(principal), command);
+    public void status(
+            PresenceService.PresenceStatusCommand command,
+            Principal principal,
+            @Header("simpSessionId") String sessionId) {
+        presence.setStatus(actorId(principal), sessionId, command);
     }
 
     @MessageMapping("/presence.logout")
-    public void logout(Principal principal) {
-        presence.logout(actorId(principal));
+    public void logout(
+            Principal principal,
+            @Header("simpSessionId") String sessionId) {
+        presence.logout(actorId(principal), sessionId);
     }
 
     private UUID actorId(Principal principal) {

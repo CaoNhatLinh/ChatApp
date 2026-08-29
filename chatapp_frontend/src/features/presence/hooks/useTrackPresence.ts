@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { presenceTracker } from '@/features/presence/services/presenceTracker';
 
 /**
@@ -55,4 +55,35 @@ export function useTrackPresence(userIds: string[]): void {
       }
     };
   }, []);
+}
+
+export function useTrackPresenceInViewport<TElement extends Element>(userIds: string[]) {
+  const [element, setElement] = useState<TElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const serialized = useMemo(
+    () => [...new Set(userIds.filter(Boolean))].sort().join(','),
+    [userIds],
+  );
+  const trackedUserIds = useMemo(
+    () => (isNearViewport && serialized ? serialized.split(',') : []),
+    [isNearViewport, serialized],
+  );
+
+  useTrackPresence(trackedUserIds);
+
+  useEffect(() => {
+    if (!element) {
+      setIsNearViewport(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsNearViewport(entry.isIntersecting),
+      { rootMargin: '160px 0px' },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+
+  return useCallback((node: TElement | null) => setElement(node), []);
 }

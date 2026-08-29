@@ -57,6 +57,21 @@ channels:
   appPresence:
     address: /app/online-status
     messages: {presence: {$ref: '#/components/messages/PresenceCommand'}}
+  appPresenceSubscribe:
+    address: /app/presence.subscribe
+    messages: {subscription: {$ref: '#/components/messages/PresenceSubscriptionCommand'}}
+  appPresenceUnsubscribe:
+    address: /app/presence.unsubscribe
+    messages: {subscription: {$ref: '#/components/messages/PresenceSubscriptionCommand'}}
+  appPresenceBatch:
+    address: /app/presence.batch
+    messages: {subscription: {$ref: '#/components/messages/PresenceSubscriptionCommand'}}
+  appHeartbeat:
+    address: /app/heartbeat
+    messages: {heartbeat: {$ref: '#/components/messages/HeartbeatCommand'}}
+  appPresenceLogout:
+    address: /app/presence.logout
+    messages: {logout: {$ref: '#/components/messages/PresenceLogoutCommand'}}
   appCallStart:
     address: /app/call.start
     messages: {call: {$ref: '#/components/messages/CallCommand'}}
@@ -81,6 +96,11 @@ operations:
   receiveNotificationDelete: {action: receive, channel: {$ref: '#/channels/userNotificationDelete'}, messages: [{$ref: '#/channels/userNotificationDelete/messages/delete'}]}
   sendTyping: {action: send, channel: {$ref: '#/channels/appTyping'}, messages: [{$ref: '#/channels/appTyping/messages/typing'}]}
   sendPresence: {action: send, channel: {$ref: '#/channels/appPresence'}, messages: [{$ref: '#/channels/appPresence/messages/presence'}]}
+  subscribePresence: {action: send, channel: {$ref: '#/channels/appPresenceSubscribe'}, messages: [{$ref: '#/channels/appPresenceSubscribe/messages/subscription'}]}
+  unsubscribePresence: {action: send, channel: {$ref: '#/channels/appPresenceUnsubscribe'}, messages: [{$ref: '#/channels/appPresenceUnsubscribe/messages/subscription'}]}
+  sendPresenceBatch: {action: send, channel: {$ref: '#/channels/appPresenceBatch'}, messages: [{$ref: '#/channels/appPresenceBatch/messages/subscription'}]}
+  sendHeartbeat: {action: send, channel: {$ref: '#/channels/appHeartbeat'}, messages: [{$ref: '#/channels/appHeartbeat/messages/heartbeat'}]}
+  sendPresenceLogout: {action: send, channel: {$ref: '#/channels/appPresenceLogout'}, messages: [{$ref: '#/channels/appPresenceLogout/messages/logout'}]}
   sendCallStart: {action: send, channel: {$ref: '#/channels/appCallStart'}, messages: [{$ref: '#/channels/appCallStart/messages/call'}]}
   sendCallJoin: {action: send, channel: {$ref: '#/channels/appCallJoin'}, messages: [{$ref: '#/channels/appCallJoin/messages/call'}]}
   sendCallLeave: {action: send, channel: {$ref: '#/channels/appCallLeave'}, messages: [{$ref: '#/channels/appCallLeave/messages/call'}]}
@@ -139,18 +159,35 @@ components:
             required: [action, notificationId]
             properties: {action: {const: DELETE}, notificationId: {type: string, format: uuid}}
     PresenceEvent:
-      payload: {type: object, required: [userId, online, status, timestamp], properties: {userId: {type: string}, online: {type: boolean}, status: {type: string}, timestamp: {type: string, format: date-time}, lastSeen: {type: string}, device: {type: string}}}
+      payload: {$ref: '#/components/schemas/PresenceEvent'}
     PresenceSync:
       payload: {type: object, required: [type], properties: {type: {type: string}, status: {type: string}, requestId: {type: string}, traceId: {type: string}, errorType: {type: string}, message: {type: string}}}
     PresenceBatch:
       payload: {type: object, additionalProperties: {$ref: '#/components/schemas/PresenceEvent'}}
     PresenceCommand:
       payload: {type: object, properties: {status: {type: string}, requestId: {type: string}, traceId: {type: string}}}
+    PresenceSubscriptionCommand:
+      payload: {type: object, required: [userIds], properties: {userIds: {type: array, minItems: 1, maxItems: 200, uniqueItems: true, items: {type: string, format: uuid}}, requestId: {type: string}, traceId: {type: string}}}
+    HeartbeatCommand:
+      payload: {type: object, properties: {deviceInfo: {type: string, nullable: true, maxLength: 120}, requestId: {type: string}, traceId: {type: string}}}
+    PresenceLogoutCommand:
+      payload: {type: object}
     CallCommand:
       payload: {type: object, required: [conversationId, callId, targetUserId], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid, description: Direct-call peer and event recipient}, signal: {type: object, description: Native WebRTC SDP or ICE envelope}}}
     CallEvent:
       payload: {type: object, required: [conversationId, callId, actorId, action, targetUserId, occurredAt], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, actorId: {type: string, format: uuid}, action: {type: string, enum: [START, JOIN, LEAVE, SIGNAL, END]}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid}, signal: {type: object}, occurredAt: {type: string, format: date-time}}}
   schemas:
+    PresenceEvent:
+      type: object
+      required: [userId, online, status, timestamp]
+      properties:
+        userId: {type: string, format: uuid}
+        online: {type: boolean}
+        status: {type: string, enum: [ONLINE, OFFLINE, DND]}
+        timestamp: {type: string, format: date-time}
+        lastSeen: {type: string, format: date-time, nullable: true}
+        device: {type: string, nullable: true, maxLength: 120}
+        lastActiveAgo: {type: string, nullable: true}
     MessageEvent:
       type: object
       required: [eventType, conversationId, messageId, messageBucket, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt]

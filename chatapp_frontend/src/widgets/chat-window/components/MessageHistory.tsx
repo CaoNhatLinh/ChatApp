@@ -5,7 +5,6 @@ import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import type { Message } from "@/features/messenger/types/messenger.types";
 import type { RefObject } from "react";
 import type { RoomVisualComputed } from "@/features/settings/constants/chat-theme.constants";
-import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
 import { motion } from "framer-motion";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 
@@ -38,8 +37,6 @@ export const MessageHistory = ({
   onUserClick,
   onRetry,
 }: MessageHistoryProps) => {
-  useTrackPresence(messages.map((message) => message.sender.userId));
-
   const roomBackground = roomVisual?.backgroundImage;
   const roomStyle = roomVisual?.preset?.overlay
     ? {

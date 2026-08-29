@@ -22,6 +22,7 @@ import {
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
+import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
 
 interface MessageItemProps {
     message: Message;
@@ -50,6 +51,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const { user } = useAuthStore();
     const [isRevealed, setIsRevealed] = React.useState(false);
     const isOwn = message.sender.userId === user?.userId;
+    const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
+        isOwn ? [] : [message.sender.userId],
+    );
     const isPoll = message.type === 'POLL' && message.poll;
     const { presence } = usePresence(message.sender.userId);
     const isOnline = presence?.isOnline ?? false;
@@ -75,6 +79,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
     return (
         <motion.div
+            ref={presenceRef}
             data-message-id={dataMessageId}
             className={cn(
                 "flex w-full gap-3",

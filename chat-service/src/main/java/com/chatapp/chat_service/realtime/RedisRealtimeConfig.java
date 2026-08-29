@@ -15,13 +15,19 @@ public class RedisRealtimeConfig {
     RedisMessageListenerContainer realtimeRedisListener(
             RedisConnectionFactory connectionFactory,
             TypingService typingService,
-            @Value("${app.redis.typing-channel:chat:realtime:typing}") String typingChannel) {
+            PresenceService presenceService,
+            @Value("${app.redis.typing-channel:chat:realtime:typing}") String typingChannel,
+            @Value("${app.redis.presence-channel:chat:realtime:presence}") String presenceChannel) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(
                 (message, pattern) -> typingService.forwardRedisPayload(
                         new String(message.getBody(), StandardCharsets.UTF_8)),
                 new ChannelTopic(typingChannel));
+        container.addMessageListener(
+                (message, pattern) -> presenceService.forwardRedisPayload(
+                        new String(message.getBody(), StandardCharsets.UTF_8)),
+                new ChannelTopic(presenceChannel));
         return container;
     }
 }

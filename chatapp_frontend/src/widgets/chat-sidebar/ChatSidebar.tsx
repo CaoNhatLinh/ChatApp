@@ -3,7 +3,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useMessenger } from '@/features/messenger/model/useMessenger';
-import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
 import { UserSettingsModal } from '@/features/settings/ui/UserSettingsModal';
 import {
   getNotificationConversationId,
@@ -74,17 +73,6 @@ export const ChatSidebar = () => {
       ),
     [conversations, searchTerm],
   );
-
-  const dmUserIds = useMemo(
-    () =>
-      filteredConversations
-        .filter((conversation) => conversation.type === 'dm' && conversation.otherParticipant)
-        .map((conversation) => conversation.otherParticipant?.userId)
-        .filter((userId): userId is string => Boolean(userId)),
-    [filteredConversations],
-  );
-
-  useTrackPresence(dmUserIds);
 
   const handleOpenSettings = useCallback(
     (tab: SettingsTab = 'profile') => {

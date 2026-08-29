@@ -17,10 +17,10 @@ Mục tiêu: khóa lại các luồng đã chạm và đảm bảo không còn o
 5. Kỳ vọng chỉ retry khi trạng thái vẫn chưa đổi do user.
 
 ## 2) `reconnect 2-3 lần liên tiếp`
-1. Mở 2 tab, giữ 1 tab online.
+1. Mở 2 tab/thiết bị, giữ 1 tab online.
 2. Thực hiện disconnect/reconnect mạng liên tục 2–3 lần (hoặc tắt/mở WS bằng devtools).
 3. Quan sát log: chỉ gọi subscribe `/user/queue/presence`, `/user/queue/presence-sync` 1 lần mỗi destination (không nhân đôi callback).
-4. Quan sát sau mỗi reconnect: gửi heartbeat + resync + tracking partner vẫn hoạt động.
+4. Quan sát sau mỗi reconnect: gửi heartbeat + resync + các row trong viewport vẫn hoạt động.
 5. Kỳ vọng không có status rollback do response của request cũ bị đè (requestId mismatch).
 
 ## 3) Chuyển/switch conversation khi có message mới
@@ -42,6 +42,7 @@ Mục tiêu: khóa lại các luồng đã chạm và đảm bảo không còn o
 1. Đảm bảo payload heartbeat gửi `deviceInfo`.
 2. Truyền presence nhiều phiên/devices, kiểm tra `status-sync` có requestId/traceId.
 3. Kỳ vọng requestId được dùng để ignore response stale (không rollback nhầm request trước).
+4. Đóng một tab không làm user offline khi tab còn lại vẫn heartbeat; chỉ khi session cuối hết TTL mới phát offline.
 
 ## 6) Ghi chú triển khai đã sửa
 - `PresenceStore` lưu `pendingStatusRequestId` + `pendingStatusDesired`.

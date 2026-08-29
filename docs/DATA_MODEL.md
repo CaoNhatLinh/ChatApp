@@ -83,6 +83,13 @@ post-`LIMIT` filtering starvation without making Kafka authoritative. Existing
 keyspaces must apply `migrations/V_add_outbox_pending_projection.cql` before
 enabling the publisher.
 
-Redis keys (`chat:typing:*`, `chat:presence:*`, rate-limit keys) are ephemeral and
-must always have TTLs. Projection repair is a worker/replay concern, never a
+Redis keys (`chat:typing:*`, `chat:presence:*`, `chat:presence:session:*`, and
+rate-limit keys) are ephemeral and must always have TTLs. A presence session
+is a sorted-set member whose score is its heartbeat expiry; the aggregate is
+online only while at least one unexpired session exists, and `INVISIBLE` keeps
+the session alive while suppressing public online state. Presence deltas are
+published on `chat:realtime:presence` and consumed by every application node;
+the local watcher registry is keyed by WebSocket session and cleaned on
+disconnect. The browser resynchronizes only its bounded viewport/relationship
+window after reconnect. Projection repair is a worker/replay concern, never a
 reason to expose an unbounded scan to a request.
