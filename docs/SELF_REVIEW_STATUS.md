@@ -611,3 +611,18 @@ Correction in this increment:
 - Added cleanup and generation guards for global-admin overview, room, audit,
   analytics, report, user, session/device and room-detail requests; replaced
   log-only admin catches with bounded diagnostics and localized status-aware copy.
+
+# Follow-up self-review (2026-08-29, notification-settings-retry increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for settings load | `NotificationSettingsPanel` keeps the explicit error state and now exposes a retry action that starts a fresh request | Live provider/authentication failure remains unverified | Never leave a settings panel in a dead-end error state |
+| Async lifecycle | Pass | Existing active guard plus `retryToken` prevents late responses from updating an unmounted panel | Cross-tab settings conflict still needs integration evidence | A retry is a new request; stale responses cannot win |
+| Data exposure | Pass | Load failures use bounded logger text and shared status-aware user copy; server payloads are not rendered | Server-side structured redaction remains an operations task | Keep transport details out of the settings UI |
+| Bilingual and accessibility coverage | Pass | Retry copy is routed through `localizeText`; the retry control has an explicit button type, visible label and alert container | Full screen-reader audit remains pending | Keep recovery control keyboard reachable and localized |
+| Traceability | Pass | `NotificationSettingsPanel.tsx`, existing settings smoke and this entry | Authenticated persistence remains pending | Preserve canonical `/notifications/settings` request ownership |
+
+Correction in this increment:
+
+- Added localized, status-aware retry recovery to notification settings loading
+  without introducing default or fallback settings data.

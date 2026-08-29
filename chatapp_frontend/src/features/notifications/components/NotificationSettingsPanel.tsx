@@ -9,6 +9,8 @@ import {
 } from '@/features/notifications/api/notifications.api';
 import { localizeText } from '@/shared/i18n';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
+import { logger } from '@/shared/lib/logger';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 type NotificationDraft = Pick<
   NotificationSettings,
@@ -56,6 +58,7 @@ export function NotificationSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -67,8 +70,11 @@ export function NotificationSettingsPanel() {
         setSettings(result);
         setDraft(toDraft(result));
       })
-      .catch(() => {
-        if (active) setError(localizeText('Không thể tải cài đặt thông báo. Vui lòng thử lại sau.'));
+      .catch((loadError: unknown) => {
+        if (active) {
+          logger.warn('Notification settings load failed', loadError instanceof Error ? loadError.message : String(loadError));
+          setError(getUserFacingErrorMessage(loadError, localizeText('Không thể tải cài đặt thông báo. Vui lòng thử lại sau.')));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -76,7 +82,7 @@ export function NotificationSettingsPanel() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   const isDirty = useMemo(() => {
     if (!settings || !draft) return false;
@@ -118,7 +124,7 @@ export function NotificationSettingsPanel() {
   }
 
   if (error || !settings || !draft) {
-    return <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert"><AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error ?? localizeText('Không thể tải cài đặt thông báo.')}</span></div>;
+    return <div className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert"><div className="flex min-w-0 items-start gap-3"><AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error ?? localizeText('Không thể tải cài đặt thông báo.')}</span></div><Button type="button" size="sm" variant="outline" onClick={() => setRetryToken((current) => current + 1)}>{localizeText('Thử lại')}</Button></div>;
   }
 
   return (
