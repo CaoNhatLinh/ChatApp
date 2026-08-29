@@ -58,9 +58,12 @@ const normalizeThemeState = (raw: string | null): RoomVisualSettingsState => {
               ? typedValue.roomThemeId
               : undefined;
 
-            const customBackgroundImage = typedValue?.customBackgroundImage?.trim()
-              ? typedValue.customBackgroundImage.trim()
-              : undefined;
+            let customBackgroundImage: string | undefined;
+            try {
+              customBackgroundImage = normalizeRoomBackgroundUrl(typedValue?.customBackgroundImage) ?? undefined;
+            } catch {
+              customBackgroundImage = undefined;
+            }
 
             if (!roomThemeId && !customBackgroundImage) {
               return acc;

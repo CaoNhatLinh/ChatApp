@@ -43,7 +43,10 @@ const toPreferences = (response: ChatAppearancePreferencesResponse): ChatAppeara
     if (!isRoomThemeId(room.themeId)) {
       throw new Error(`Unsupported room chat theme from server: ${room.themeId}`);
     }
-    return room;
+    return {
+      ...room,
+      customBackgroundUrl: normalizeRoomBackgroundUrl(room.customBackgroundUrl),
+    };
   });
   return {
     defaultThemeId: response.defaultThemeId,
