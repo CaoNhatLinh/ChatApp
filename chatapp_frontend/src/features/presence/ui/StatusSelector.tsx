@@ -13,6 +13,7 @@ import {
 } from '@/shared/ui/DropdownMenu';
 import { cn } from '@/shared/lib/cn';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { localizeText } from '@/shared/i18n';
 
 type StatusValue = 'ONLINE' | 'DND' | 'INVISIBLE';
 
@@ -199,6 +200,12 @@ export const StatusDot = ({
         lg: 'h-3.5 w-3.5',
     };
 
+    const statusLabel = status === 'DND' && isOnline
+        ? localizeText('Không làm phiền')
+        : isOnline
+            ? localizeText('Đang hoạt động')
+            : localizeText('Ngoại tuyến');
+
     // Determine dot color and icon based on public status
     if (status === 'DND' && isOnline) {
     return (
@@ -209,6 +216,8 @@ export const StatusDot = ({
                     className
                 )}
                 title={title}
+                role="img"
+                aria-label={title ?? statusLabel}
             >
                 <MinusCircle
                     className="w-full h-full fill-red-500 text-red-500"
@@ -226,6 +235,8 @@ export const StatusDot = ({
                 className
             )}
             title={title}
+            role="img"
+            aria-label={title ?? statusLabel}
         />
     );
     }
@@ -239,6 +250,8 @@ export const StatusDot = ({
                 className
             )}
             title={title}
+            role="img"
+            aria-label={title ?? statusLabel}
         />
     );
 };
