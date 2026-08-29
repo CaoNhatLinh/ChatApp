@@ -66,7 +66,7 @@
 
 - [ ] 6.1 Global admin IA foundation is implemented (`/admin`, capability gate, whole-app room directory, room policy/archive controls, audit timeline, report queue/resolution, sanctions, app-role and bounded session/device management, bounded analytics panel); language moderation, appeals, long-range analytics/SLO/export tabs and full permission matrix remain.
 - [ ] 6.2 BA/DA metric dictionary, operational aggregates and dashboards.
-- [ ] 6.3 Investigation timeline, moderation/support actions and bounded export (global admin tabs remain).
+- [ ] 6.3 Investigation timeline, moderation/support actions and bounded export (monthly audit CSV export is implemented; support workflows and broader export/reporting remain).
 - [ ] 6.4 Observability, health, backup, replay/reindex and incident runbooks.
 - [ ] Checkpoint 6: admin permission/investigation/ops drills pass.
 

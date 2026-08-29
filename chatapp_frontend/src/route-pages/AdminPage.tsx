@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Archive, ArrowLeft, BarChart3, Building2, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, Building2, Download, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
@@ -25,6 +25,7 @@ import {
   getAdminUserRoles,
   listAdminConversations,
   listAdminAuditEvents,
+  exportAdminAuditEvents,
   listAdminReports,
   resolveAdminReport,
   imposeAdminSanction,
@@ -124,6 +125,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const [auditMonth, setAuditMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [auditEvents, setAuditEvents] = useState<AdminAuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditExporting, setAuditExporting] = useState(false);
   const [messageConversationId, setMessageConversationId] = useState("");
   const [messageBucket, setMessageBucket] = useState("");
   const [messageId, setMessageId] = useState("");
@@ -214,6 +216,27 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       .catch(() => setFeedback("Không thể tải audit timeline của tháng này."))
       .finally(() => setAuditLoading(false));
   }, [overview, auditMonth]);
+
+  const handleAuditExport = async () => {
+    setAuditExporting(true);
+    setFeedback(null);
+    try {
+      const blob = await exportAdminAuditEvents(auditMonth, 200);
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `novachat-audit-${auditMonth}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+      setFeedback("Đã xuất audit CSV cho tháng đã chọn.");
+    } catch {
+      setFeedback("Không thể xuất audit CSV. Kiểm tra quyền AUDIT_READ và tháng đã chọn.");
+    } finally {
+      setAuditExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!overview?.permissions.includes("ANALYTICS_READ")) return;
@@ -678,7 +701,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Audit timeline toàn ứng dụng")}>
-          {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{event.action}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{event.outcome}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · ${localizeText("người thao tác")} ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
+          {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><Button size="sm" variant="outline" onClick={() => void handleAuditExport()} loading={auditExporting}><Download size={15} />{localizeText("Xuất CSV audit")}</Button><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{event.action}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{event.outcome}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · ${localizeText("người thao tác")} ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Điều tra tin nhắn") }>

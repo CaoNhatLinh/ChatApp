@@ -20,7 +20,7 @@ They can never grant access to this console or to another room.
 | Users | bounded search, profile/status, suspend/ban/restore, app-role grant/revoke, session/device revoke | Search, status, app-role and bounded session/device revoke implemented; live persistence proof pending |
 | Rooms | browse all indexed rooms by month, room detail/members, global chat policy, archive/restore, ownership/moderation actions | Monthly directory, detail, policy and archive/restore implemented; historical backfill and deeper moderation pending |
 | Reports & moderation | report queue, assign/review/resolve, room ban/mute, language moderation, appeals | Report submission, bounded queue, resolution, APP/CONVERSATION sanctions and timed-expiry worker implemented; language moderation and appeals pending |
-| Messages & audit | authorized message lookup, deletion/tombstone review, immutable audit timeline, bounded export | Monthly audit timeline and reasoned message inspection/revision review implemented; bounded export pending |
+| Messages & audit | authorized message lookup, deletion/tombstone review, immutable audit timeline, bounded export | Monthly audit timeline, reasoned message inspection/revision review and bounded UTF-8 CSV export implemented |
 | Notifications | inbox health, policy inspection, delivery attempts, device/token lifecycle | Inbox/settings API exists; provider delivery and operator views pending |
 | Media | asset lookup, quarantine/delete, webhook/lifecycle failures, reference-safe cleanup | Upload metadata path exists; operator lifecycle UI pending Cloudinary integration |
 | Search & index | index health, lag, rebuild/reindex, zero-downtime alias switch | Search projector exists; operator controls pending |

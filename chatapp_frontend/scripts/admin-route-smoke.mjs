@@ -47,6 +47,13 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       cassandra: 'UP',
       timestamp: new Date().toISOString(),
     };
+  } else if (pathname.endsWith('/admin/audit/export')) {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'text/csv; charset=UTF-8' },
+      body: 'eventMonth,eventId,action\n',
+    });
+    return;
   } else if (pathname.includes('/admin/')) {
     body = [];
   }
@@ -59,9 +66,13 @@ await page.addInitScript(() => {
 await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Điều hành toàn ứng dụng' }).waitFor();
 const before = page.url();
+const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.getByRole('button', { name: /Xuất CSV audit/ }).click(),
+]);
 await page.getByRole('button', { name: /Về ứng dụng/ }).click();
 await page.waitForURL('**/app');
-const result = { baseUrl, before, after: page.url(), consoleErrors, requestFailures };
+const result = { baseUrl, before, after: page.url(), exportedFilename: download.suggestedFilename(), consoleErrors, requestFailures };
 console.log(JSON.stringify(result, null, 2));
 await browser.close();
-if (consoleErrors.length || requestFailures.length || !result.after.endsWith('/app')) process.exitCode = 1;
+if (consoleErrors.length || requestFailures.length || !result.after.endsWith('/app') || !/^novachat-audit-\d{4}-\d{2}\.csv$/.test(result.exportedFilename)) process.exitCode = 1;

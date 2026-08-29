@@ -302,6 +302,14 @@ export const listAdminAuditEvents = async (month?: string, limit = 50): Promise<
   return response.data;
 };
 
+export const exportAdminAuditEvents = async (month?: string, limit = 200): Promise<Blob> => {
+  const response = await apiClient.get<Blob>('/admin/audit/export', {
+    params: { month, limit },
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
 export const inspectAdminMessage = async (
   conversationId: string,
   messageId: string,

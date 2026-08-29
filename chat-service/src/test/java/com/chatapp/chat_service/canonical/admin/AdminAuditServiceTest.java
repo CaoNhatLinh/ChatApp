@@ -7,7 +7,9 @@ import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,5 +38,23 @@ class AdminAuditServiceTest {
         assertThatThrownBy(() -> service.list(actorId, "2026/08", 50))
                 .isInstanceOf(BadRequestException.class);
         verify(store, never()).listAuditEvents(anyString(), anyInt());
+    }
+
+    @Test
+    void exportUsesTheBoundedAuditListAndEscapesCsvValues() {
+        UUID actorId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        when(store.listAuditEvents("2026-08", 200)).thenReturn(List.of(new CanonicalCqlStore.AuditEventRow(
+                "2026-08", eventId, "REPORT_RESOLVE", "report", "report-1", actorId,
+                null, null, "SUCCESS", "reason,with\"quote", Map.of("z", "last", "a", "first"),
+                Map.of("status", "RESOLVED"), null, Instant.parse("2026-08-20T10:15:30Z"))));
+
+        String csv = service.export(actorId, "2026-08", 999);
+
+        assertThat(csv).startsWith("eventMonth,eventId,action,resourceType,resourceId,actorId,conversationId,targetUserId,");
+        assertThat(csv).contains("\"reason,with\"\"quote\"");
+        assertThat(csv).contains("\"a=first;z=last\"");
+        verify(authorization).require(actorId, AppPermission.AUDIT_READ);
+        verify(store).listAuditEvents("2026-08", 200);
     }
 }

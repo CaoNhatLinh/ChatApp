@@ -37,7 +37,7 @@ app-role changes use `/admin/users/{userId}/app-roles`. Moderation reports,
 user status and bounded session/device controls use the corresponding
 `/admin/users/{userId}/status|sessions|devices` routes. Moderation reports,
 sanctions, analytics and bounded export are separated by capability: report
-submission/queue/resolution, APP/CONVERSATION sanctions and bounded daily
-analytics and message investigation are implemented, while long-range
-analytics/SLO dashboards and bounded export remain planned. Conversation roles
-are room-local.
+submission/queue/resolution, APP/CONVERSATION sanctions, bounded daily
+analytics, message investigation and monthly UTF-8 CSV audit export are
+implemented, while long-range analytics/SLO dashboards remain planned.
+Conversation roles are room-local.

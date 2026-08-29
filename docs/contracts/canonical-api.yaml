@@ -86,6 +86,7 @@ http:
   admin:
     - GET /admin/overview
     - GET /admin/audit
+    - GET /admin/audit/export
     - GET /admin/messages/{conversationId}/{messageId}
     - GET /admin/analytics
     - GET /admin/reports
