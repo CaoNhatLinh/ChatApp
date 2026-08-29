@@ -400,6 +400,20 @@ Correction in this increment:
 - Added an active lifecycle guard to Create Room user search so stale responses
   and post-unmount errors cannot corrupt the modal state.
 
+# Follow-up self-review (2026-08-29, conversation-pin action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for sidebar pin actions | Pin and unpin API failures now map to stable localized notifications; the local store changes only after the request succeeds | Authenticated concurrent pin-limit proof remains pending | Never leave a visible pin control with a log-only failure path |
+| State integrity | Pass for request boundary | Pin state is updated only after the canonical API resolves; failed requests do not mutate local state | Cross-tab pin ordering still needs realtime/integration evidence | Keep the server result authoritative |
+| Bilingual UI coverage | Pass | `useMessenger`, `resources.ts`, locale copy smoke (710 keys) | Conversation names remain domain data | Translate action failures only |
+| Traceability | Pass | Sidebar callbacks, messenger API adapters and this entry | Clean-stack authenticated browser proof remains blocked | Preserve the notification boundary for future sidebar mutations |
+
+Correction in this increment:
+
+- Replaced silent pin/unpin catches with operator diagnostics plus user-facing,
+  status-aware Vietnamese/English error notifications.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

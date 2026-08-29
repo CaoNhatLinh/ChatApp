@@ -33,6 +33,8 @@ import type {
 import type { ConversationSlice, MessageSlice } from './messenger.store.types';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
+import { notifyError } from '@/shared/lib/notification';
+import { localizeText } from '@/shared/i18n';
 import { useNotificationStore } from '@/features/notifications/model/notification.store';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
@@ -551,8 +553,9 @@ export const useMessenger = (): UseMessengerResult => {
         try {
             await pinConversationApi(conversationId);
             pinConversationStore(conversationId);
-        } catch (err) {
-            console.error('[useMessenger] Error pinning conversation:', err);
+        } catch (err: unknown) {
+            logger.error('[useMessenger] Error pinning conversation', err);
+            notifyError(getUserFacingErrorMessage(err, localizeText('Không thể ghim cuộc trò chuyện.')));
         }
     }, [pinConversationStore]);
 
@@ -560,8 +563,9 @@ export const useMessenger = (): UseMessengerResult => {
         try {
             await unpinConversationApi(conversationId);
             unpinConversationStore(conversationId);
-        } catch (err) {
-            console.error('[useMessenger] Error unpinning conversation:', err);
+        } catch (err: unknown) {
+            logger.error('[useMessenger] Error unpinning conversation', err);
+            notifyError(getUserFacingErrorMessage(err, localizeText('Không thể bỏ ghim cuộc trò chuyện.')));
         }
     }, [unpinConversationStore]);
 

@@ -35,6 +35,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Không thể tải lời mời. Vui lòng thử lại.': 'Unable to load the invite. Try again.',
   'Không thể chấp nhận lời mời. Vui lòng thử lại.': 'Unable to accept the invite. Try again.',
   'Không thể từ chối lời mời. Vui lòng thử lại.': 'Unable to decline the invite. Try again.',
+  'Không thể ghim cuộc trò chuyện.': 'Unable to pin the conversation.',
+  'Không thể bỏ ghim cuộc trò chuyện.': 'Unable to unpin the conversation.',
   'Không thể lưu giao diện phòng. Vui lòng thử lại.': 'Unable to save the room appearance. Try again.',
   'Đã ghi nhận bình chọn.': 'Vote recorded.',
   'Đã hủy bình chọn.': 'Vote removed.',
