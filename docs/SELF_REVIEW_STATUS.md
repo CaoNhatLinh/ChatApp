@@ -337,6 +337,27 @@ Correction in this increment:
   authorization, network, rate-limit and server errors are no longer masked by a
   second mutation request.
 
+# Follow-up self-review (2026-08-29, invite-preview/action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure semantics | Pass for invite page | Preview network/auth errors render an explicit retryable error; invalid status is reserved for the canonical API result | Authenticated invite lifecycle still needs clean-stack browser proof | Never convert transport failure into an invalid-domain state |
+| Mutation lifecycle | Pass | Accept/decline handlers catch failures, preserve submitting state and render stable copy | Provider concurrency/expiry matrix remains partial | Keep server result authoritative |
+| Bilingual UI coverage | Pass | `JoinInvitePage`, `resources.ts`, locale copy smoke (708 keys) | Conversation names and invite display names remain domain content | Translate product labels and errors only |
+| Traceability | Pass | Invite API contract, route page, retry control and inventory | Full invite state/browser journey remains pending | Keep active/invalid/revoked/expired/limit states explicit |
+
+Corrections in this increment:
+
+- Added retryable preview-error UI instead of treating every fetch failure as an
+  invalid token.
+- Added safe localized errors for invite accept/decline and explicit button
+  semantics.
+
+Direct browser check reached `/join/invalid-token` with HTTP 200, one visible
+heading and a retryable alert. The canonical API was unavailable on this host
+(`ERR_CONNECTION_REFUSED`), so backend-dependent invite status/mutation evidence
+remains blocked rather than being replaced with mock data.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

@@ -7,6 +7,8 @@ import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { ShellFrame } from '@/route-pages/shared/layout/ShellFrame';
 import PublicShellHeader from '@/route-pages/shared/layout/PublicShellHeader';
 import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
 
 const statusCopy: Record<Exclude<InvitePreview['status'], 'ACTIVE'>, string> = {
     INVALID: 'Liên kết mời không hợp lệ.',
@@ -27,16 +29,28 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
     const [result, setResult] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [previewError, setPreviewError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [previewRetry, setPreviewRetry] = useState(0);
     const localizedStatusCopy = Object.fromEntries(Object.entries(statusCopy).map(([key, value]) => [key, localizeText(value)])) as Record<Exclude<InvitePreview['status'], 'ACTIVE'>, string>;
 
     useEffect(() => {
         let active = true;
+        setPreviewError(null);
         void previewInvite(token)
-            .then(data => active && setPreview(data))
-            .catch(() => active && setPreview({ status: 'INVALID' }))
+            .then(data => {
+                if (!active) return;
+                setPreview(data);
+            })
+            .catch((error: unknown) => {
+                if (!active) return;
+                logger.error('[JoinInvitePage] Failed to preview invite:', error);
+                setPreview(null);
+                setPreviewError(getUserFacingErrorMessage(error, localizeText('Không thể tải lời mời. Vui lòng thử lại.')));
+            })
             .finally(() => active && setLoading(false));
         return () => { active = false; };
-    }, [token]);
+    }, [previewRetry, token]);
 
     const requireLogin = () => {
         router.push(`/login?from=${encodeURIComponent(`/join/${token}`)}`);
@@ -45,12 +59,16 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
     const accept = async () => {
         if (!authToken) return requireLogin();
         setSubmitting(true);
+        setActionError(null);
         try {
             const response = await acceptInvite(token);
             setResult(response.status);
             if (['ACCEPTED', 'ALREADY_MEMBER'].includes(response.status) && response.conversationId) {
                 router.replace(`/app?conversationId=${response.conversationId}`);
             }
+        } catch (error: unknown) {
+            logger.error('[JoinInvitePage] Failed to accept invite:', error);
+            setActionError(getUserFacingErrorMessage(error, localizeText('Không thể chấp nhận lời mời. Vui lòng thử lại.')));
         } finally {
             setSubmitting(false);
         }
@@ -59,9 +77,13 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
     const decline = async () => {
         if (authToken) {
             setSubmitting(true);
+            setActionError(null);
             try {
                 const response = await declineInvite(token);
                 setResult(response.status);
+            } catch (error: unknown) {
+                logger.error('[JoinInvitePage] Failed to decline invite:', error);
+                setActionError(getUserFacingErrorMessage(error, localizeText('Không thể từ chối lời mời. Vui lòng thử lại.')));
             } finally {
                 setSubmitting(false);
             }
@@ -100,7 +122,14 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                 </div>
 
                 <div className="space-y-5 p-8">
-                    {unavailable ? (
+                    {previewError ? (
+                        <div className="space-y-3 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
+                            <p>{previewError}</p>
+                            <button type="button" onClick={() => { setLoading(true); setPreviewRetry((value) => value + 1); }} className="focus-ring rounded-[var(--radius-md)] border border-destructive/30 px-3 py-2 font-semibold hover:bg-destructive/10">
+                                {localizeText('Thử lại')}
+                            </button>
+                        </div>
+                    ) : unavailable ? (
                             <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                             {localizedStatusCopy[unavailableStatus]}
                         </p>
@@ -125,18 +154,20 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => void decline()} disabled={submitting} className="focus-ring rounded-[var(--radius-md)] border border-border px-4 py-3 font-semibold hover:bg-muted disabled:opacity-50">
+                                <button type="button" onClick={() => void decline()} disabled={submitting} className="focus-ring rounded-[var(--radius-md)] border border-border px-4 py-3 font-semibold hover:bg-muted disabled:opacity-50">
                                     {localizeText('Từ chối')}
                                 </button>
-                                <button onClick={() => void accept()} disabled={submitting} className="focus-ring flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-3 font-semibold text-primary-foreground hover:-translate-y-px disabled:opacity-50">
+                                <button type="button" onClick={() => void accept()} disabled={submitting} className="focus-ring flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-primary px-4 py-3 font-semibold text-primary-foreground hover:-translate-y-px disabled:opacity-50">
                                     {authToken ? localizeText('Chấp nhận') : localizeText('Đăng nhập')} <ArrowRight className="size-4" />
                                 </button>
                             </div>
                         </>
                     )}
 
-                    {(unavailable || declined || pending) && (
-                        <button onClick={() => router.push('/')} className="focus-ring flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-3 font-semibold hover:bg-muted">
+                    {actionError ? <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">{actionError}</p> : null}
+
+                    {(previewError || unavailable || declined || pending) && (
+                        <button type="button" onClick={() => router.push('/')} className="focus-ring flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-3 font-semibold hover:bg-muted">
                             <Check className="size-4" /> {localizeText('Về trang chủ')}
                         </button>
                     )}
