@@ -184,6 +184,14 @@ Corrections in this increment:
 - Prevented closing while a room request is in flight and routed create errors
   through status-aware bilingual copy.
 
+# Follow-up self-review (2026-08-29, report-modal focus increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Modal keyboard behavior | Pass for report dialogs | Shared `useFocusTrap`, Escape handling, Tab containment, focus restoration | Profile modal has nested report/confirm layers and needs a dedicated nested-dialog browser journey | Keep one active focus boundary per modal layer; Radix owns confirm-dialog focus |
+| Runtime/contract safety | Pass | Only UI event handling changed; report API payloads and status-aware error mapping unchanged | Authenticated report submission still needs live backend proof | Do not alter moderation API semantics |
+| Traceability | Pass | `ACCESSIBILITY.md`, shared hook, report modal sources | Full axe/screen-reader review remains pending | Keep keyboard assertions in the release checklist |
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

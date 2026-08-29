@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Message } from '../../types/messenger.types';
@@ -6,6 +6,7 @@ import { submitMessageReport } from '@/features/moderation/api/report.api';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 interface ReportMessageModalProps {
   message: Message | null;
@@ -27,6 +28,7 @@ export const ReportMessageModal = ({ message, onClose, onSubmitted }: ReportMess
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!message) return;
@@ -36,13 +38,7 @@ export const ReportMessageModal = ({ message, onClose, onSubmitted }: ReportMess
     setIsSubmitting(false);
   }, [message]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSubmitting) onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, onClose]);
+  useFocusTrap(Boolean(message), dialogRef, onClose, isSubmitting);
 
   const canSubmit = useMemo(
     () => Boolean(message?.messageBucket && message.messageId && !isSubmitting),
@@ -87,6 +83,7 @@ export const ReportMessageModal = ({ message, onClose, onSubmitted }: ReportMess
         onClick={isSubmitting ? undefined : onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-message-title"

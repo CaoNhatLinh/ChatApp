@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { submitUserReport } from '@/features/moderation/api/report.api';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 interface ReportUserModalProps {
   userId: string;
@@ -27,6 +28,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setReasonCode(REASONS[0].value);
@@ -40,13 +42,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
     [isSubmitting, reasonCode, userId],
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSubmitting) onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isSubmitting, onClose]);
+  useFocusTrap(Boolean(userId), dialogRef, onClose, isSubmitting);
 
   const handleSubmit = async () => {
     if (!canSubmit) {
@@ -81,6 +77,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
         onClick={isSubmitting ? undefined : onClose}
       />
       <motion.div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-user-title"

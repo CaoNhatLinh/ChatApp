@@ -12,6 +12,8 @@
 - The Create Room flow is a semantic modal with an accessible name, explicit
   field labels, Escape dismissal, a disabled close action while submitting, and
   keyboard focus containment.
+- Report-user and report-message dialogs use the same Escape/focus containment
+  contract and restore focus to the triggering control after close.
 - Test at 320, 768, 1024 and 1440px, in light and dark themes, with reduced
   motion enabled.
 - Browser evidence must include console/request failure checks and an
