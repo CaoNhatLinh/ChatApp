@@ -29,6 +29,15 @@ Member removal and ordinary role assignment use conditional writes so neither
 can overwrite a concurrent transfer. Apply
 `migrations/V_add_conversation_owner_state.cql`; see ADR 0007.
 
+Room role definitions are code-keyed rows in
+`conversation_roles_by_conversation`; `custom_role_count` is static catalog
+authority for the 50-role bound. Creation uses one conditional batch for count
+and code uniqueness. Deletion uses `ACTIVE`/`DELETING` state plus the membership
+partition's static `role_revision`: assignment and ownership transfer CAS the
+revision they used to read role definitions. This is an ordering barrier, not a
+cross-table transaction. Apply
+`migrations/V_rebuild_conversation_role_authority.cql`; see ADR 0008.
+
 Public community discovery uses `community_directory_by_filter`, a derived
 16-shard projection keyed by one canonical language/category/tag filter and
 ordered by normalized name plus conversation ID. Directory reads fan out only

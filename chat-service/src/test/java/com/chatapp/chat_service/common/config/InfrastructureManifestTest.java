@@ -111,6 +111,32 @@ class InfrastructureManifestTest {
     }
 
     @Test
+    void roomRoleLifecycleUsesPartitionLocalCatalogCasAndMembershipRevision() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        String repository = Files.readString(Path.of(
+                "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
+                "repository", "CanonicalConversationRepository.java"));
+        String store = Files.readString(Path.of(
+                "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
+                "repository", "CanonicalCqlStore.java"));
+
+        assertThat(schema)
+                .contains("role_revision bigint static")
+                .contains("custom_role_count int static")
+                .contains("lifecycle_state text")
+                .contains("PRIMARY KEY ((conversation_id), role_code)")
+                .doesNotContain("PRIMARY KEY ((conversation_id), role_position, role_id)");
+        assertThat(repository)
+                .contains("IF custom_role_count = ?")
+                .contains("IF NOT EXISTS")
+                .contains("lifecycle_state = 'DELETING'")
+                .contains("IF role_id = ? AND lifecycle_state = 'DELETING'");
+        assertThat(store)
+                .contains("IF role_ids = ? AND role_revision = ?")
+                .contains("IF role_revision = ?");
+    }
+
+    @Test
     void communityDiscoveryUsesAFilterAndShardPartitionWithoutFiltering() throws IOException {
         String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
         String store = Files.readString(Path.of(

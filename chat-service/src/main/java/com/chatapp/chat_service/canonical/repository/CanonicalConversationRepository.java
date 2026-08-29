@@ -7,6 +7,7 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.Row;
 import java.util.EnumSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -19,8 +20,13 @@ public class CanonicalConversationRepository {
     private final PreparedStatement selectMember;
     private final PreparedStatement selectMembers;
     private final PreparedStatement selectRoles;
+    private final PreparedStatement selectCustomRoleCount;
+    private final PreparedStatement initializeRoleCatalog;
     private final PreparedStatement upsertRole;
-    private final PreparedStatement deleteRole;
+    private final PreparedStatement createCustomRole;
+    private final PreparedStatement markRoleDeleting;
+    private final PreparedStatement restoreRoleActive;
+    private final PreparedStatement deleteCustomRole;
 
     public CanonicalConversationRepository(CqlSession session) {
         this.session = session;
@@ -37,19 +43,50 @@ public class CanonicalConversationRepository {
                 """);
         this.selectRoles = session.prepare("""
                 SELECT conversation_id, role_position, role_id, role_code, display_name,
-                       color_hex, permission_codes, is_default, is_system, created_by,
+                       color_hex, permission_codes, is_default, is_system, lifecycle_state, created_by,
                        created_at, updated_at
                 FROM conversation_roles_by_conversation WHERE conversation_id = ?
                 """);
+        this.selectCustomRoleCount = session.prepare("""
+                SELECT DISTINCT custom_role_count
+                FROM conversation_roles_by_conversation WHERE conversation_id = ?
+                """);
+        this.initializeRoleCatalog = session.prepare("""
+                UPDATE conversation_roles_by_conversation SET custom_role_count = 0
+                WHERE conversation_id = ? IF custom_role_count = null
+                """);
         this.upsertRole = session.prepare("""
                 INSERT INTO conversation_roles_by_conversation
-                (conversation_id, role_position, role_id, role_code, display_name, color_hex,
-                 permission_codes, is_default, is_system, created_by, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (conversation_id, role_code, role_id, role_position, display_name, color_hex,
+                 permission_codes, is_default, is_system, lifecycle_state, created_by, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
                 """);
-        this.deleteRole = session.prepare("""
+        this.createCustomRole = session.prepare("""
+                BEGIN BATCH
+                UPDATE conversation_roles_by_conversation SET custom_role_count = ?
+                WHERE conversation_id = ? IF custom_role_count = ?;
+                INSERT INTO conversation_roles_by_conversation
+                (conversation_id, role_code, role_id, role_position, display_name, color_hex,
+                 permission_codes, is_default, is_system, lifecycle_state, created_by, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, false, 'ACTIVE', ?, ?, ?) IF NOT EXISTS;
+                APPLY BATCH
+                """);
+        this.markRoleDeleting = session.prepare("""
+                UPDATE conversation_roles_by_conversation SET lifecycle_state = 'DELETING'
+                WHERE conversation_id = ? AND role_code = ?
+                IF role_id = ? AND lifecycle_state = 'ACTIVE' AND is_system = false
+                """);
+        this.restoreRoleActive = session.prepare("""
+                UPDATE conversation_roles_by_conversation SET lifecycle_state = 'ACTIVE'
+                WHERE conversation_id = ? AND role_code = ? IF role_id = ? AND lifecycle_state = 'DELETING'
+                """);
+        this.deleteCustomRole = session.prepare("""
+                BEGIN BATCH
+                UPDATE conversation_roles_by_conversation SET custom_role_count = ?
+                WHERE conversation_id = ? IF custom_role_count = ?;
                 DELETE FROM conversation_roles_by_conversation
-                WHERE conversation_id = ? AND role_position = ? AND role_id = ?
+                WHERE conversation_id = ? AND role_code = ? IF role_id = ? AND lifecycle_state = 'DELETING';
+                APPLY BATCH
                 """);
     }
 
@@ -76,19 +113,64 @@ public class CanonicalConversationRepository {
 
     public List<ConversationRole> findRoles(UUID conversationId) {
         return session.execute(selectRoles.bind(conversationId)).all().stream()
+                .filter(row -> "ACTIVE".equals(row.getString("lifecycle_state")))
                 .map(this::roleFromRow)
+                .sorted(Comparator.comparingInt(ConversationRole::rolePosition).reversed())
                 .toList();
     }
 
-    public void saveRole(ConversationRole role) {
+    public void initializeRoleCatalog(UUID conversationId) {
+        if (!session.execute(initializeRoleCatalog.bind(conversationId)).wasApplied()) {
+            throw new IllegalStateException("conversation role catalog is already initialized");
+        }
+    }
+
+    public int findCustomRoleCount(UUID conversationId) {
+        Row row = session.execute(selectCustomRoleCount.bind(conversationId)).one();
+        if (row == null || row.isNull("custom_role_count")) {
+            throw new IllegalStateException("conversation role catalog state is missing");
+        }
+        return row.getInt("custom_role_count");
+    }
+
+    public void saveSystemRole(ConversationRole role) {
+        if (!role.isSystem()) {
+            throw new IllegalArgumentException("custom roles require conditional catalog creation");
+        }
         Set<String> permissions = role.permissions().stream().map(Enum::name).collect(java.util.stream.Collectors.toSet());
-        session.execute(upsertRole.bind(role.conversationId(), role.rolePosition(), role.roleId(),
-                role.roleCode(), role.displayName(), role.colorHex(), permissions, role.isDefault(),
+        session.execute(upsertRole.bind(role.conversationId(), role.roleCode(), role.roleId(), role.rolePosition(),
+                role.displayName(), role.colorHex(), permissions, role.isDefault(),
                 role.isSystem(), role.createdBy(), role.createdAt(), role.updatedAt()));
     }
 
-    public void deleteRole(ConversationRole role) {
-        session.execute(deleteRole.bind(role.conversationId(), role.rolePosition(), role.roleId()));
+    public boolean createCustomRole(ConversationRole role, int expectedCount) {
+        Set<String> permissions = role.permissions().stream().map(Enum::name).collect(java.util.stream.Collectors.toSet());
+        return session.execute(createCustomRole.bind(
+                expectedCount + 1, role.conversationId(), expectedCount,
+                role.conversationId(), role.roleCode(), role.roleId(), role.rolePosition(), role.displayName(),
+                role.colorHex(), permissions, role.isDefault(), role.createdBy(), role.createdAt(), role.updatedAt()))
+                .wasApplied();
+    }
+
+    public boolean markRoleDeleting(ConversationRole role) {
+        return session.execute(markRoleDeleting.bind(
+                role.conversationId(), role.roleCode(), role.roleId())).wasApplied();
+    }
+
+    public void restoreRoleActive(ConversationRole role) {
+        if (!session.execute(restoreRoleActive.bind(
+                role.conversationId(), role.roleCode(), role.roleId())).wasApplied()) {
+            throw new IllegalStateException("conversation role deletion state changed concurrently");
+        }
+    }
+
+    public boolean deleteCustomRole(ConversationRole role, int expectedCount) {
+        if (expectedCount <= 0) {
+            throw new IllegalStateException("conversation custom role count is invalid");
+        }
+        return session.execute(deleteCustomRole.bind(
+                expectedCount - 1, role.conversationId(), expectedCount,
+                role.conversationId(), role.roleCode(), role.roleId())).wasApplied();
     }
 
     private ConversationRole roleFromRow(Row row) {

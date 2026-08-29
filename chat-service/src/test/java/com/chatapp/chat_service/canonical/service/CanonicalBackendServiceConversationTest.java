@@ -270,7 +270,7 @@ class CanonicalBackendServiceConversationTest {
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
                 .thenReturn(new CanonicalCqlStore.MembershipState(
-                        10, 10, UUID.randomUUID(), Instant.now()));
+                        10, 10, UUID.randomUUID(), Instant.now(), 0L));
 
         CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
                 actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
@@ -419,7 +419,7 @@ class CanonicalBackendServiceConversationTest {
                 conversationId, userId, requestId, actorId, "APPROVE")).thenReturn(true);
         when(store.requireMembershipState(conversationId))
                 .thenReturn(new CanonicalCqlStore.MembershipState(
-                        1, 10, UUID.randomUUID(), Instant.now()));
+                        1, 10, UUID.randomUUID(), Instant.now(), 0L));
         when(store.tryAddConversationMember(any())).thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
         when(store.findConversation(conversationId)).thenReturn(community(conversationId, false));
 
@@ -485,7 +485,7 @@ class CanonicalBackendServiceConversationTest {
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
                 .thenReturn(new CanonicalCqlStore.MembershipState(
-                        9, 10, UUID.randomUUID(), Instant.now()));
+                        9, 10, UUID.randomUUID(), Instant.now(), 0L));
         when(store.consumeInvite(invite.linkToken(), actorId))
                 .thenReturn(CanonicalCqlStore.InviteConsumeResult.CONSUMED);
         when(store.tryAddConversationMember(any()))
@@ -505,7 +505,7 @@ class CanonicalBackendServiceConversationTest {
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
         when(store.requireMembershipState(invite.conversationId()))
                 .thenReturn(new CanonicalCqlStore.MembershipState(
-                        1, 10, UUID.randomUUID(), Instant.now()));
+                        1, 10, UUID.randomUUID(), Instant.now(), 0L));
         when(store.consumeInvite(invite.linkToken(), actorId))
                 .thenReturn(CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED);
 

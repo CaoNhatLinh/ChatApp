@@ -105,6 +105,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement saveConversationProjection;
     private final PreparedStatement updateConversationProjectionRoles;
     private final PreparedStatement updateMemberRolesIfUnchanged;
+    private final PreparedStatement advanceConversationRoleRevision;
     private final PreparedStatement updateConversationProjectionNotification;
     private final PreparedStatement listConversationsByUser;
     private final PreparedStatement deleteConversationProjection;
@@ -412,11 +413,11 @@ public class CanonicalCqlStore {
                 """);
         this.initializeConversationMembership = session.prepare("""
                 UPDATE conversation_members_by_conversation
-                SET member_count = ?, max_members = ?, owner_id = ?, owner_updated_at = ?
+                SET member_count = ?, max_members = ?, owner_id = ?, owner_updated_at = ?, role_revision = ?
                 WHERE conversation_id = ?
                 """);
         this.loadConversationMembership = session.prepare("""
-                SELECT member_count, max_members, owner_id, owner_updated_at
+                SELECT member_count, max_members, owner_id, owner_updated_at, role_revision
                 FROM conversation_members_by_conversation
                 WHERE conversation_id = ? LIMIT 1
                 """);
@@ -442,7 +443,7 @@ public class CanonicalCqlStore {
                 """);
         this.transferConversationOwner = session.prepare("""
                 UPDATE conversation_members_by_conversation SET owner_id = ?, owner_updated_at = ?
-                WHERE conversation_id = ? IF owner_id = ?
+                WHERE conversation_id = ? IF owner_id = ? AND role_revision = ?
                 """);
         this.loadConversationMember = session.prepare("""
                 SELECT * FROM conversation_members_by_conversation
@@ -474,7 +475,11 @@ public class CanonicalCqlStore {
                 """);
         this.updateMemberRolesIfUnchanged = session.prepare("""
                 UPDATE conversation_members_by_conversation SET role_ids = ?
-                WHERE conversation_id = ? AND user_id = ? IF role_ids = ?
+                WHERE conversation_id = ? AND user_id = ? IF role_ids = ? AND role_revision = ?
+                """);
+        this.advanceConversationRoleRevision = session.prepare("""
+                UPDATE conversation_members_by_conversation SET role_revision = ?
+                WHERE conversation_id = ? IF role_revision = ?
                 """);
         this.updateConversationProjectionNotification = session.prepare("""
                 UPDATE conversations_by_user SET notification_override = ?
@@ -1424,7 +1429,7 @@ public class CanonicalCqlStore {
                 member.invitedBy(), member.mutedUntil(), member.messageIntervalSeconds(),
                 member.notificationOverride(), member.lastReadMessageId(), member.lastReadAt())));
         batch.addStatement(initializeConversationMembership.bind(
-                members.size(), maxMembers, ownerId, ownerUpdatedAt, conversationId));
+                members.size(), maxMembers, ownerId, ownerUpdatedAt, 0L, conversationId));
         session.execute(batch.build());
     }
 
@@ -1481,16 +1486,17 @@ public class CanonicalCqlStore {
     public MembershipState requireMembershipState(UUID conversationId) {
         Row row = session.execute(loadConversationMembership.bind(conversationId)).one();
         if (row == null || row.isNull("member_count") || row.isNull("max_members")
-                || row.isNull("owner_id") || row.isNull("owner_updated_at")) {
+                || row.isNull("owner_id") || row.isNull("owner_updated_at") || row.isNull("role_revision")) {
             throw new IllegalStateException("conversation membership state is missing");
         }
         return new MembershipState(
                 row.getInt("member_count"), row.getInt("max_members"), row.getUuid("owner_id"),
-                row.getInstant("owner_updated_at"));
+                row.getInstant("owner_updated_at"), row.getLong("role_revision"));
     }
 
     public OwnershipTransferResult transferConversationOwnership(
             UUID conversationId,
+            long expectedRoleRevision,
             UUID currentOwnerId,
             UUID nextOwnerId,
             Set<UUID> currentOwnerRoleIds,
@@ -1504,7 +1510,7 @@ public class CanonicalCqlStore {
                 .addStatement(transferNextOwnerRoles.bind(
                         nextCurrentTargetRoleIds, conversationId, nextOwnerId, nextOwnerRoleIds))
                 .addStatement(transferConversationOwner.bind(
-                        nextOwnerId, transferredAt, conversationId, currentOwnerId))
+                        nextOwnerId, transferredAt, conversationId, currentOwnerId, expectedRoleRevision))
                 .build();
         if (session.execute(batch).wasApplied()) {
             return OwnershipTransferResult.TRANSFERRED;
@@ -1576,7 +1582,8 @@ public class CanonicalCqlStore {
             int memberCount,
             int maxMembers,
             UUID ownerId,
-            Instant ownerUpdatedAt) {
+            Instant ownerUpdatedAt,
+            long roleRevision) {
     }
 
     public void addConversationMembershipProjection(UUID userId, CanonicalConversation conversation, CanonicalConversationMember member) {
@@ -1639,9 +1646,19 @@ public class CanonicalCqlStore {
             UUID conversationId,
             UUID userId,
             Set<UUID> expectedRoleIds,
-            Set<UUID> nextRoleIds) {
+            Set<UUID> nextRoleIds,
+            long expectedRoleRevision) {
         return session.execute(updateMemberRolesIfUnchanged.bind(
-                nextRoleIds, conversationId, userId, expectedRoleIds)).wasApplied();
+                nextRoleIds, conversationId, userId, expectedRoleIds, expectedRoleRevision)).wasApplied();
+    }
+
+    public boolean advanceConversationRoleRevision(UUID conversationId, long expectedRevision) {
+        return session.execute(advanceConversationRoleRevision.bind(
+                expectedRevision + 1, conversationId, expectedRevision)).wasApplied();
+    }
+
+    public long requireConversationRoleRevision(UUID conversationId) {
+        return requireMembershipState(conversationId).roleRevision();
     }
 
     public boolean tryPinConversation(UUID userId, UUID conversationId, int targetPinSlot) {

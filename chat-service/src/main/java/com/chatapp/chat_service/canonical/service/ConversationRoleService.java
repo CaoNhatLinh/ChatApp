@@ -72,7 +72,8 @@ public class ConversationRoleService {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.ROLE_CREATE);
         requireRoleEnabledConversation(conversationId);
         List<ConversationRole> existing = repository.findRoles(conversationId);
-        if (existing.stream().filter(role -> !role.isSystem()).count() >= MAX_CUSTOM_ROLES) {
+        int customRoleCount = repository.findCustomRoleCount(conversationId);
+        if (customRoleCount >= MAX_CUSTOM_ROLES) {
             throw new ConflictException("custom role limit reached");
         }
 
@@ -96,7 +97,16 @@ public class ConversationRoleService {
                 conversationId, position, UUID.randomUUID(), roleCode, request.displayName().trim(),
                 request.colorHex().toUpperCase(Locale.ROOT), requestedPermissions,
                 Boolean.TRUE.equals(request.isDefault()), false, actorId, now, now);
-        repository.saveRole(role);
+        if (!repository.createCustomRole(role, customRoleCount)) {
+            List<ConversationRole> current = repository.findRoles(conversationId);
+            if (current.stream().anyMatch(item -> item.roleCode().equals(roleCode))) {
+                throw new ConflictException("role code already exists");
+            }
+            if (repository.findCustomRoleCount(conversationId) >= MAX_CUSTOM_ROLES) {
+                throw new ConflictException("custom role limit reached");
+            }
+            throw new ConflictException("conversation role catalog changed concurrently");
+        }
         events.record(actorId, conversationId, "ROLE_CREATED", "conversation_role", role.roleId().toString(),
                 null, null, Map.of(), Map.of("roleCode", roleCode, "colorHex", role.colorHex()));
         return role;
@@ -109,13 +119,36 @@ public class ConversationRoleService {
         if (role.isSystem()) {
             throw new ConflictException("system roles cannot be deleted");
         }
-        boolean assigned = repository.findMembers(conversationId).stream()
-                .map(ConversationMember::roleIds)
-                .anyMatch(roleIds -> roleIds != null && roleIds.contains(roleId));
-        if (assigned) {
-            throw new ConflictException("role is assigned to conversation members");
+        if (!repository.markRoleDeleting(role)) {
+            throw new ConflictException("conversation role changed concurrently");
         }
-        repository.deleteRole(role);
+        boolean deleted = false;
+        try {
+            long roleRevision = store.requireConversationRoleRevision(conversationId);
+            if (!store.advanceConversationRoleRevision(conversationId, roleRevision)) {
+                throw new ConflictException("conversation roles changed concurrently");
+            }
+            boolean assigned = repository.findMembers(conversationId).stream()
+                    .map(ConversationMember::roleIds)
+                    .anyMatch(roleIds -> roleIds != null && roleIds.contains(roleId));
+            if (assigned) {
+                throw new ConflictException("role is assigned to conversation members");
+            }
+            for (int attempt = 0; attempt <= MAX_CUSTOM_ROLES; attempt++) {
+                int customRoleCount = repository.findCustomRoleCount(conversationId);
+                if (repository.deleteCustomRole(role, customRoleCount)) {
+                    deleted = true;
+                    break;
+                }
+            }
+            if (!deleted) {
+                throw new ConflictException("conversation role catalog changed concurrently");
+            }
+        } finally {
+            if (!deleted) {
+                repository.restoreRoleActive(role);
+            }
+        }
         events.record(actorId, conversationId, "ROLE_DELETED", "conversation_role", roleId.toString(),
                 null, null, Map.of("roleCode", role.roleCode()), Map.of());
     }
@@ -133,6 +166,7 @@ public class ConversationRoleService {
         if (target == null) {
             throw new BadRequestException("target user is not a conversation member");
         }
+        long roleRevision = store.requireConversationRoleRevision(conversationId);
         List<ConversationRole> roles = repository.findRoles(conversationId);
         List<ConversationRole> selected = roles.stream().filter(role -> roleIds.contains(role.roleId())).toList();
         if (selected.size() != roleIds.size()) {
@@ -154,7 +188,7 @@ public class ConversationRoleService {
                 target.mutedUntil(), target.messageIntervalSeconds(), target.notificationOverride(),
                 target.lastReadMessageId(), target.lastReadAt());
         if (!store.updateMemberRolesIfUnchanged(
-                conversationId, targetUserId, previous, updated.roleIds())) {
+                conversationId, targetUserId, previous, updated.roleIds(), roleRevision)) {
             throw new ConflictException("conversation member roles changed concurrently");
         }
         store.updateConversationProjectionRoles(targetUserId, conversationId, updated.roleIds());
@@ -181,6 +215,7 @@ public class ConversationRoleService {
             throw new ForbiddenException("only the current owner can transfer ownership");
         }
 
+        long roleRevision = store.requireConversationRoleRevision(conversationId);
         List<ConversationRole> roles = repository.findRoles(conversationId);
         UUID ownerRoleId = roles.stream()
                 .filter(role -> role.isSystem() && "OWNER".equals(role.roleCode()))
@@ -197,6 +232,7 @@ public class ConversationRoleService {
         nextOwnerRoles.add(ownerRoleId);
         CanonicalCqlStore.OwnershipTransferResult result = store.transferConversationOwnership(
                 conversationId,
+                roleRevision,
                 actorId,
                 targetUserId,
                 currentOwner.roleIds() == null ? Set.of() : currentOwner.roleIds(),

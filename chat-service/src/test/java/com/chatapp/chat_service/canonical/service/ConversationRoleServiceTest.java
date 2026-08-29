@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
@@ -44,6 +45,7 @@ class ConversationRoleServiceTest {
         when(repository.findRoles(conversationId)).thenReturn(List.of());
         when(authorization.effectivePermissions(conversationId, actorId))
                 .thenReturn(EnumSet.allOf(ConversationPermission.class));
+        when(repository.createCustomRole(any(), eq(0))).thenReturn(true);
 
         ConversationRole created = service.create(actorId, conversationId, new ConversationRoleCreateRequest(
                 "helpers", "Helpers", "#3366ff", Set.of("MESSAGE_PIN"), false, 200));
@@ -51,7 +53,7 @@ class ConversationRoleServiceTest {
         assertThat(created.roleCode()).isEqualTo("HELPERS");
         assertThat(created.colorHex()).isEqualTo("#3366FF");
         assertThat(created.permissions()).containsExactly(ConversationPermission.MESSAGE_PIN);
-        verify(repository).saveRole(created);
+        verify(repository).createCustomRole(created, 0);
         verify(events).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -87,6 +89,28 @@ class ConversationRoleServiceTest {
     }
 
     @Test
+    void rejectsACustomRoleCodeWonByAConcurrentCreator() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        ConversationRole competing = new ConversationRole(
+                conversationId, 200, UUID.randomUUID(), "HELPERS", "Helpers", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.now(), Instant.now());
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(), List.of(competing));
+        when(repository.createCustomRole(any(), eq(0))).thenReturn(false);
+        when(authorization.effectivePermissions(conversationId, actorId))
+                .thenReturn(EnumSet.allOf(ConversationPermission.class));
+
+        assertThatThrownBy(() -> service.create(actorId, conversationId, new ConversationRoleCreateRequest(
+                "helpers", "Helpers", "#3366FF", Set.of("MESSAGE_PIN"), false, 200)))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("already exists");
+
+        verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void refusesToDeleteProtectedSystemRole() {
         UUID actorId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
@@ -102,6 +126,56 @@ class ConversationRoleServiceTest {
     }
 
     @Test
+    void deletesAnUnassignedRoleBehindTheMembershipRevisionBarrier() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        ConversationRole role = new ConversationRole(
+                conversationId, 200, roleId, "HELPER", "Helper", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.now(), Instant.now());
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(role));
+        when(repository.markRoleDeleting(role)).thenReturn(true);
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(7L);
+        when(store.advanceConversationRoleRevision(conversationId, 7L)).thenReturn(true);
+        when(repository.findMembers(conversationId)).thenReturn(List.of());
+        when(repository.findCustomRoleCount(conversationId)).thenReturn(1);
+        when(repository.deleteCustomRole(role, 1)).thenReturn(true);
+
+        service.delete(actorId, conversationId, roleId);
+
+        verify(repository).deleteCustomRole(role, 1);
+        verify(repository, never()).restoreRoleActive(role);
+        verify(events).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void restoresARoleWhenTheRevisionBarrierFindsAnAssignment() {
+        UUID actorId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        ConversationRole role = new ConversationRole(
+                conversationId, 200, roleId, "HELPER", "Helper", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.now(), Instant.now());
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(role));
+        when(repository.markRoleDeleting(role)).thenReturn(true);
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(3L);
+        when(store.advanceConversationRoleRevision(conversationId, 3L)).thenReturn(true);
+        when(repository.findMembers(conversationId)).thenReturn(List.of(member(conversationId, targetId, Set.of(roleId))));
+
+        assertThatThrownBy(() -> service.delete(actorId, conversationId, roleId))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("assigned");
+
+        verify(repository).restoreRoleActive(role);
+        verify(repository, never()).deleteCustomRole(any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
     void assignsValidatedRolesAndUpdatesRoomListProjection() {
         UUID actorId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
@@ -114,16 +188,17 @@ class ConversationRoleServiceTest {
         when(repository.findMember(conversationId, targetId)).thenReturn(new ConversationMember(
                 conversationId, targetId, Set.of(), Instant.now(), actorId, null, null, "INHERIT", null, null));
         when(repository.findRoles(conversationId)).thenReturn(List.of(role));
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(4L);
         when(authorization.effectivePermissions(conversationId, actorId))
                 .thenReturn(EnumSet.allOf(ConversationPermission.class));
 
         when(store.updateMemberRolesIfUnchanged(
-                conversationId, targetId, Set.of(), Set.of(roleId))).thenReturn(true);
+                conversationId, targetId, Set.of(), Set.of(roleId), 4L)).thenReturn(true);
 
         service.assign(actorId, conversationId, targetId, Set.of(roleId));
 
         verify(store).updateMemberRolesIfUnchanged(
-                conversationId, targetId, Set.of(), Set.of(roleId));
+                conversationId, targetId, Set.of(), Set.of(roleId), 4L);
         verify(store).updateConversationProjectionRoles(targetId, conversationId, Set.of(roleId));
     }
 
@@ -140,10 +215,11 @@ class ConversationRoleServiceTest {
         when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
         when(repository.findMember(conversationId, targetId)).thenReturn(member(conversationId, targetId, Set.of()));
         when(repository.findRoles(conversationId)).thenReturn(List.of(role));
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(4L);
         when(authorization.effectivePermissions(conversationId, actorId))
                 .thenReturn(EnumSet.allOf(ConversationPermission.class));
         when(store.updateMemberRolesIfUnchanged(
-                conversationId, targetId, Set.of(), Set.of(roleId))).thenReturn(false);
+                conversationId, targetId, Set.of(), Set.of(roleId), 4L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.assign(actorId, conversationId, targetId, Set.of(roleId)))
                 .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
@@ -171,7 +247,7 @@ class ConversationRoleServiceTest {
                 role(conversationId, ownerRoleId, "OWNER", false, true),
                 role(conversationId, memberRoleId, "MEMBER", true, true)));
         when(store.transferConversationOwnership(
-                conversationId, actorId, targetId,
+                conversationId, 0L, actorId, targetId,
                 Set.of(ownerRoleId), Set.of(memberRoleId),
                 Set.of(memberRoleId), Set.of(memberRoleId, ownerRoleId)))
                 .thenReturn(CanonicalCqlStore.OwnershipTransferResult.TRANSFERRED);
@@ -203,7 +279,7 @@ class ConversationRoleServiceTest {
         when(repository.findRoles(conversationId)).thenReturn(List.of(
                 role(conversationId, ownerRoleId, "OWNER", false, true)));
         when(store.transferConversationOwnership(
-                conversationId, actorId, targetId,
+                conversationId, 0L, actorId, targetId,
                 Set.of(ownerRoleId), Set.of(), Set.of(), Set.of(ownerRoleId)))
                 .thenReturn(CanonicalCqlStore.OwnershipTransferResult.CHANGED_CONCURRENTLY);
 
@@ -230,7 +306,7 @@ class ConversationRoleServiceTest {
         service.transferOwnership(previousOwnerId, conversationId, currentOwnerId);
 
         verify(store, never()).transferConversationOwnership(
-                any(), any(), any(), any(), any(), any(), any());
+                any(), org.mockito.ArgumentMatchers.anyLong(), any(), any(), any(), any(), any(), any());
         verify(store).updateConversationProjectionRoles(
                 previousOwnerId, conversationId, previousOwner.roleIds());
         verify(store).updateConversationProjectionRoles(

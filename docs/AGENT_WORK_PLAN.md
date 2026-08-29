@@ -46,10 +46,11 @@
     OWNER role mutation, removal protection and role assignment now share the
     membership partition's conditional consistency boundary. The bilingual
     member/role/transfer panel consumes effective permissions from the server;
-    its production-browser journey now passes. Role-definition contention and
-    clean Cassandra verification remain the next increment.
+    its production-browser journey now passes. Role-code/count creation and
+    delete-versus-assign/transfer races now use catalog CAS plus a membership
+    revision barrier. Clean Cassandra verification remains pending.
 
-Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 126 tests, 0 failures, 0 errors
+Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 130 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and

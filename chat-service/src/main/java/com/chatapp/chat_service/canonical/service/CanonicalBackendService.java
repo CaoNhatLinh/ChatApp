@@ -1863,9 +1863,10 @@ public class CanonicalBackendService {
     }
 
     private Set<UUID> createSystemConversationRoles(UUID conversationId, UUID actorId, Instant now) {
+        conversationRepository.initializeRoleCatalog(conversationId);
         UUID ownerRoleId = UUID.randomUUID();
         UUID memberRoleId = UUID.randomUUID();
-        conversationRepository.saveRole(new ConversationRole(
+        conversationRepository.saveSystemRole(new ConversationRole(
                 conversationId,
                 10_000,
                 ownerRoleId,
@@ -1878,7 +1879,7 @@ public class CanonicalBackendService {
                 actorId,
                 now,
                 now));
-        conversationRepository.saveRole(new ConversationRole(
+        conversationRepository.saveSystemRole(new ConversationRole(
                 conversationId,
                 1,
                 memberRoleId,

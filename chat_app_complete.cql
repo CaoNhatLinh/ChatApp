@@ -339,6 +339,7 @@ CREATE TABLE IF NOT EXISTS conversation_members_by_conversation (
   max_members int static,
   owner_id uuid static,
   owner_updated_at timestamp static,
+  role_revision bigint static,
   user_id uuid,
   role_ids set<uuid>,               /* bounded by service; permission is the union */
   joined_at timestamp,
@@ -467,19 +468,21 @@ CREATE TABLE IF NOT EXISTS community_join_requests_by_conversation (
  */
 CREATE TABLE IF NOT EXISTS conversation_roles_by_conversation (
   conversation_id uuid,
-  role_position int,                /* higher number = higher privilege */
+  custom_role_count int static,
+  role_code text,                   /* unique inside one conversation */
   role_id uuid,
-  role_code text,                   /* OWNER, or null for a custom role */
+  role_position int,                /* higher number = higher privilege */
   display_name text,
   color_hex text,
   permission_codes set<text>,       /* bounded allow-list */
   is_default boolean,
   is_system boolean,                /* protected from delete/rename */
+  lifecycle_state text,             /* ACTIVE or DELETING */
   created_by uuid,
   created_at timestamp,
   updated_at timestamp,
-  PRIMARY KEY ((conversation_id), role_position, role_id)
-) WITH CLUSTERING ORDER BY (role_position DESC, role_id ASC);
+  PRIMARY KEY ((conversation_id), role_code)
+) WITH CLUSTERING ORDER BY (role_code ASC);
 
 CREATE TABLE IF NOT EXISTS conversation_bans_by_conversation (
   conversation_id uuid,
