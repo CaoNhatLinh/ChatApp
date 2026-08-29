@@ -162,7 +162,7 @@ export const ChatWindow = () => {
   const { presence: otherPresence } = usePresence(otherUserId);
   const isOtherOnline = otherPresence?.isOnline ?? false;
   const otherStatus = otherPresence?.status ?? "OFFLINE";
-  const roomThemeSettings = useRoomThemeState(activeConversationId);
+  const roomThemeSettings = useRoomThemeState(activeConversationId, currentUser?.userId ?? null);
   const canCall = activeConversation?.type === "dm" && Boolean(otherUserId);
   const callControls = useWebRtcCall({
     conversationId: activeConversationId,

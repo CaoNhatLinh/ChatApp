@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_BUBBLE_STYLE_ID,
   DEFAULT_ROOM_THEME_ID,
@@ -76,23 +76,33 @@ const normalizeThemeState = (raw: string | null): RoomVisualSettingsState => {
   }
 };
 
-const getPersistedRoomVisualSettings = (): RoomVisualSettingsState => {
-  if (typeof window === 'undefined') return EMPTY_ROOM_VISUAL_SETTINGS;
+const getRoomVisualStorageKey = (userId: string | null): string | null => (
+  userId ? `${ROOM_THEME_STORAGE_KEY}:${userId}` : null
+);
 
-  const rawSettings = localStorage.getItem(ROOM_THEME_STORAGE_KEY);
+const getPersistedRoomVisualSettings = (userId: string | null): RoomVisualSettingsState => {
+  const storageKey = getRoomVisualStorageKey(userId);
+  if (typeof window === 'undefined' || !storageKey) return EMPTY_ROOM_VISUAL_SETTINGS;
+
+  const rawSettings = localStorage.getItem(storageKey);
   return normalizeThemeState(rawSettings);
 };
 
-const persistRoomVisualSettings = (settings: RoomVisualSettingsState) => {
-  if (typeof window === 'undefined') return;
+const persistRoomVisualSettings = (storageKey: string | null, settings: RoomVisualSettingsState) => {
+  if (typeof window === 'undefined' || !storageKey) return;
 
-  localStorage.setItem(ROOM_THEME_STORAGE_KEY, JSON.stringify(settings));
+  localStorage.setItem(storageKey, JSON.stringify(settings));
 };
 
-export const useRoomThemeState = (conversationId: string | null) => {
+export const useRoomThemeState = (conversationId: string | null, userId: string | null) => {
+  const storageKey = useMemo(() => getRoomVisualStorageKey(userId), [userId]);
   const [settings, setSettings] = useState<RoomVisualSettingsState>(() =>
-    getPersistedRoomVisualSettings(),
+    getPersistedRoomVisualSettings(userId),
   );
+
+  useEffect(() => {
+    setSettings(getPersistedRoomVisualSettings(userId));
+  }, [userId]);
 
   const computed = useMemo<RoomVisualComputed>(
     () => getRoomVisualComputed(settings, conversationId),
@@ -115,10 +125,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         defaultRoomThemeId: themeId,
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const setRoomBubbleStyle = useCallback((bubbleStyle: ChatBubbleStyleId) => {
     setSettings((current) => {
@@ -127,10 +137,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         messageBubbleStyle: bubbleStyle,
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const setConversationTheme = useCallback((conversationIdToSet: string, themeId: RoomThemeId) => {
     setSettings((current) => {
@@ -145,10 +155,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         },
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const setConversationBackground = useCallback((conversationIdToSet: string, backgroundUrl: string) => {
     setSettings((current) => {
@@ -163,10 +173,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         },
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const resetConversationTheme = useCallback((conversationIdToReset: string) => {
     setSettings((current) => {
@@ -181,10 +191,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         },
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const clearConversationBackground = useCallback((conversationIdToClear: string) => {
     setSettings((current) => {
@@ -202,10 +212,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         },
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   const clearRoomSettingsIfEmpty = useCallback((conversationIdToClean: string) => {
     setSettings((current) => {
@@ -228,10 +238,10 @@ export const useRoomThemeState = (conversationId: string | null) => {
         },
       };
 
-      persistRoomVisualSettings(next);
+      persistRoomVisualSettings(storageKey, next);
       return next;
     });
-  }, []);
+  }, [storageKey]);
 
   return {
     settings,
