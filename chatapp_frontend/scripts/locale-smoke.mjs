@@ -32,9 +32,23 @@ const notFound = {
   hasWorkspaceRecovery: (await page.getByRole('link', { name: 'Open workspace' }).count()) === 1,
 };
 
+await page.goto(`${baseUrl}/login`, { waitUntil: 'networkidle' });
+const login = {
+  heading: await page.locator('h1').innerText(),
+  passwordLabel: (await page.getByText('Password', { exact: true }).count()) === 1,
+  accountPrompt: (await page.locator('p').filter({ hasText: 'No account yet?' }).count()) === 1,
+};
+
+await page.goto(`${baseUrl}/register`, { waitUntil: 'networkidle' });
+const register = {
+  heading: await page.locator('h1').innerText(),
+  passwordLabel: (await page.getByText('Password', { exact: true }).count()) === 1,
+  backToSignIn: (await page.getByRole('link', { name: 'Back to sign in' }).count()) === 1,
+};
+
 const expectedNotFoundDocumentError = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
 const unexpectedConsoleErrors = consoleErrors.filter((message) => !message.includes(expectedNotFoundDocumentError));
-const report = { baseUrl, home, notFound, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
+const report = { baseUrl, home, notFound, login, register, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -45,7 +59,13 @@ if (
   home.storedLocale !== 'en' ||
   notFound.lang !== 'en' ||
   !notFound.hasHomeRecovery ||
-  !notFound.hasWorkspaceRecovery
+  !notFound.hasWorkspaceRecovery ||
+  login.heading !== 'Sign in' ||
+  !login.passwordLabel ||
+  !login.accountPrompt ||
+  register.heading !== 'Create your account' ||
+  !register.passwordLabel ||
+  !register.backToSignIn
 ) {
   process.exitCode = 1;
 }

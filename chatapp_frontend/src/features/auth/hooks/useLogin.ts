@@ -1,11 +1,12 @@
 ﻿import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import axios from 'axios';
 import { login as loginApi } from '../api/auth.api';
 import type { LoginRequest } from '../types/auth.types';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
+import { getAuthErrorMessage } from '@/features/auth/lib/auth-error';
+import { localizeText } from '@/shared/i18n';
 
 export const useLogin = () => {
     const [loading, setLoading] = useState(false);
@@ -29,20 +30,14 @@ export const useLogin = () => {
 
             await login(response.token);
 
-            notifySuccess(`Chào mừng trở lại, ${response.displayName}!`);
+            notifySuccess(`${localizeText('Chào mừng trở lại')}, ${response.displayName}!`);
 
             // Cast the location state safely to extract the 'from' path
             const requestedPath = searchParams.get('from');
             const from = requestedPath?.startsWith('/') ? requestedPath : '/app';
             router.replace(from);
         } catch (err: unknown) {
-            let message = 'Tên đăng nhập hoặc mật khẩu không đúng.';
-            if (axios.isAxiosError(err)) {
-                const responseData = err.response?.data as { message?: string } | undefined;
-                if (responseData?.message) {
-                    message = String(responseData.message);
-                }
-            }
+            const message = getAuthErrorMessage(err, 'login');
             setError(message);
             notifyError(message);
             logger.error('Login error', err);

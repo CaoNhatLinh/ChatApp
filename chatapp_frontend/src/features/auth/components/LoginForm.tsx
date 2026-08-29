@@ -32,7 +32,7 @@ export const LoginForm: React.FC = () => {
       />
 
       <AuthField
-        label="Mật khẩu"
+        label={localizeText("Mật khẩu")}
         icon={<Lock size={18} />}
         inputType={showPassword ? "text" : "password"}
         autoComplete="current-password"
