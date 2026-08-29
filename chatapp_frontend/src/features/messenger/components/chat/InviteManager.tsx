@@ -26,43 +26,46 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     const [loading, setLoading] = useState(true);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const activeRef = useRef(true);
+    const managerIdentityRef = useRef<object>({});
 
-    const refresh = async () => {
-        if (activeRef.current) setLoading(true);
+    const refresh = async (identity: object = managerIdentityRef.current) => {
+        if (identity !== managerIdentityRef.current) return;
+        setLoading(true);
         try {
             const [nextLinks, nextRequests] = await Promise.all([
                 listInvites(conversationId),
                 listJoinRequests(conversationId),
             ]);
-            if (!activeRef.current) return;
+            if (identity !== managerIdentityRef.current) return;
             setLinks(nextLinks);
             setRequests(nextRequests);
         } finally {
-            if (activeRef.current) setLoading(false);
+            if (identity === managerIdentityRef.current) setLoading(false);
         }
     };
 
     useEffect(() => {
-        activeRef.current = true;
+        const identity = {};
+        managerIdentityRef.current = identity;
         setError(null);
-        void refresh().catch((refreshError: unknown) => {
-            if (!activeRef.current) return;
+        void refresh(identity).catch((refreshError: unknown) => {
+            if (identity !== managerIdentityRef.current) return;
             logger.error('[InviteManager] Failed to load invite data', refreshError instanceof Error ? refreshError.message : String(refreshError));
             setLoading(false);
             setError(getUserFacingErrorMessage(refreshError, localizeText('Bạn không có quyền quản lý lời mời.')));
         });
         return () => {
-            activeRef.current = false;
+            if (managerIdentityRef.current === identity) managerIdentityRef.current = {};
         };
         // conversationId is the complete identity of this manager instance.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [conversationId]);
 
     const retryLoad = () => {
+        const identity = managerIdentityRef.current;
         setError(null);
-        void refresh().catch((refreshError: unknown) => {
-            if (!activeRef.current) return;
+        void refresh(identity).catch((refreshError: unknown) => {
+            if (identity !== managerIdentityRef.current) return;
             logger.error('[InviteManager] Invite data retry failed', refreshError instanceof Error ? refreshError.message : String(refreshError));
             setLoading(false);
             setError(getUserFacingErrorMessage(refreshError, localizeText('Bạn không có quyền quản lý lời mời.')));
