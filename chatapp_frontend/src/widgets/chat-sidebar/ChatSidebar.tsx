@@ -133,10 +133,6 @@ export const ChatSidebar = () => {
 
   const handleNotificationClick = useCallback(
     async (notification: NotificationRecord) => {
-      if (!notification.isRead) {
-        await markOneAsRead(notification.notificationId);
-      }
-
       const conversationId = getNotificationConversationId(notification);
       closeNotificationPanel();
 
@@ -147,7 +143,7 @@ export const ChatSidebar = () => {
         setActiveView('contacts');
       }
     },
-    [closeNotificationPanel, handleSelectConversation, markOneAsRead, setActiveView],
+    [closeNotificationPanel, handleSelectConversation, setActiveView],
   );
 
   const handleMarkAllNotificationsAsRead = useCallback(async () => {

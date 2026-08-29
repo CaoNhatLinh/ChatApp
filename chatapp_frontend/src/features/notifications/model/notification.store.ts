@@ -176,10 +176,16 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         logger.warn('Ignoring invalid notification event payload');
         return;
       }
-      set(state => ({
-        notifications: upsertNotification(state.notifications, notification),
-        unreadCount: state.unreadCount + (notification.isRead ? 0 : 1),
-      }));
+      set(state => {
+        const previous = state.notifications.find(
+          (item) => item.notificationId === notification.notificationId,
+        );
+        const unreadDelta = (notification.isRead ? 0 : 1) - (previous && !previous.isRead ? 1 : 0);
+        return {
+          notifications: upsertNotification(state.notifications, notification),
+          unreadCount: Math.max(0, state.unreadCount + unreadDelta),
+        };
+      });
     });
 
     const unsubRead = realtimeService.subscribe('/user/queue/notification-read', (payload: unknown) => {
