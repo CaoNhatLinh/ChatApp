@@ -337,7 +337,9 @@ export const useMessenger = (): UseMessengerResult => {
         }
 
         resetUnreadCount(conversationId);
-        void useNotificationStore.getState().markConversationAsRead(conversationId);
+        void useNotificationStore.getState().markConversationAsRead(conversationId).catch((error: unknown) => {
+            logger.debug('Failed to mark conversation notifications as read', error);
+        });
         void getConversationUnreadCount(conversationId)
             .then((count) => {
                 if (requestId !== conversationLoadRequestRef.current) return;

@@ -319,6 +319,8 @@ Correction in this increment:
 
 - Added one guarded runner for mark-read, mark-all-read and notification-open
   callbacks, with localized failure feedback and no unhandled UI promise.
+- Added an explicit catch for conversation-level notification read updates during
+  conversation selection so background sync cannot create unhandled rejections.
 
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
