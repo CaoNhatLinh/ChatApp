@@ -82,7 +82,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.sentFailed);
       set({ error: errorMessage });
-      logger.error('Error sending friend request:', { error: err, friendId });
+      logger.error('Error sending friend request', err instanceof Error ? err.message : String(err));
       throw err;
     } finally {
       set({ loadingSent: false });
@@ -103,7 +103,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         error: errorMessage,
         receivedRequests: null,
       });
-      logger.error('Error fetching received requests:', { error: err });
+      logger.error('Error fetching received requests', err instanceof Error ? err.message : String(err));
     } finally {
       set({ loadingReceived: false });
     }
@@ -140,7 +140,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       if ((err as Error).name === 'AbortError') return;
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể tải người dùng.');
       set({ error: errorMessage });
-      logger.error('Error searching users:', { error: err, username });
+      logger.error('Error searching users', err instanceof Error ? err.message : String(err));
     } finally {
       set({ loadingSearch: false });
     }
@@ -161,7 +161,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         error: errorMessage,
         friends: null,
       });
-      logger.error('Error fetching friends:', { error: err });
+      logger.error('Error fetching friends', err instanceof Error ? err.message : String(err));
     } finally {
       set({ loadingFriends: false });
     }
@@ -181,7 +181,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         error: errorMessage,
         pendingRequests: null,
       });
-      logger.error('Error fetching sent requests:', { error: err });
+      logger.error('Error fetching sent requests', err instanceof Error ? err.message : String(err));
     } finally {
       set({ loadingSent: false });
     }
@@ -214,7 +214,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.acceptFailed);
       set({ error: errorMessage });
-      logger.error('Error accepting friend request:', { error: err, friendId });
+      logger.error('Error accepting friend request', err instanceof Error ? err.message : String(err));
       throw err;
     }
   },
@@ -236,7 +236,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.rejectFailed);
       set({ error: errorMessage });
-      logger.error('Error rejecting friend request:', { error: err, friendId });
+      logger.error('Error rejecting friend request', err instanceof Error ? err.message : String(err));
       throw err;
     }
   },
@@ -255,7 +255,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, FRIEND_COPY.actions.unfriendFailed);
       set({ error: errorMessage });
-      logger.error('Error unfriending:', { error: err, friendId });
+      logger.error('Error unfriending', err instanceof Error ? err.message : String(err));
       throw err;
     }
   },
@@ -294,7 +294,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể chặn người dùng.');
       set({ error: errorMessage });
-      logger.error('Error blocking user:', { error: err, friendId });
+      logger.error('Error blocking user', err instanceof Error ? err.message : String(err));
       throw err;
     }
   },
@@ -310,7 +310,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     } catch (err: unknown) {
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể bỏ chặn người dùng.');
       set({ error: errorMessage });
-      logger.error('Error unblocking user:', { error: err, friendId });
+      logger.error('Error unblocking user', err instanceof Error ? err.message : String(err));
       throw err;
     }
   },
@@ -346,7 +346,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
       if ((err as Error).name === 'AbortError') return;
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể tải bạn chung.');
       set({ error: errorMessage });
-      logger.error('Error fetching mutual friends:', { error: err, otherUserId });
+      logger.error('Error fetching mutual friends', err instanceof Error ? err.message : String(err));
     } finally {
       set({ loadingMutual: false });
     }
