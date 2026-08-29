@@ -260,6 +260,20 @@ Corrections in this increment:
   actions, with safe error mapping and operator-only diagnostics.
 - Added explicit `type="button"` semantics to poll controls.
 
+# Follow-up self-review (2026-08-29, room-appearance persistence increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for appearance persistence | Remote theme/default/reset writes now map failures to localized notifications while retaining operator logs | Server preference retry/rollback needs authenticated provider evidence | Never imply a remote save succeeded when the request failed |
+| Bilingual UI coverage | Pass | `useRoomThemeState`, `resources.ts`, locale copy smoke (703 keys) | Custom background URLs and room names remain domain input | Translate only product feedback |
+| State model | Partial | Local state remains optimistic and persisted per user; remote writes are explicit | A failed write currently keeps the local optimistic value until reload; transactional rollback is a future bounded improvement | Keep the failure visible and avoid fake server success |
+| Traceability | Pass | Theme API adapters, hook, room panel, self-review entry | Clean-stack authenticated theme journey remains pending | Keep local and server preference boundaries explicit |
+
+Correction in this increment:
+
+- Appearance default, room-theme, background and reset persistence failures now
+  produce stable user-facing error notifications instead of operator-only logs.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

@@ -18,6 +18,9 @@ import {
   saveConversationAppearancePreference,
 } from '@/features/settings/api/chat-appearance.api';
 import { logger } from '@/shared/lib/logger';
+import { localizeText } from '@/shared/i18n';
+import { notifyError } from '@/shared/lib/notification';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 const EMPTY_ROOM_VISUAL_SETTINGS: RoomVisualSettingsState = {
   defaultRoomThemeId: DEFAULT_ROOM_THEME_ID,
@@ -154,6 +157,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     if (!userId) return;
     void saveChatAppearancePreferences(next.defaultRoomThemeId, next.messageBubbleStyle).catch((error: unknown) => {
       logger.warn('[RoomTheme] Failed to save default preferences', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể lưu giao diện phòng. Vui lòng thử lại.')));
     });
   }, [userId]);
 
@@ -167,6 +171,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
       override?.customBackgroundImage ?? null,
     ).catch((error: unknown) => {
       logger.warn('[RoomTheme] Failed to save room preference', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể lưu giao diện phòng. Vui lòng thử lại.')));
     });
   }, [userId]);
 
@@ -174,6 +179,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     if (!userId) return;
     void resetConversationAppearancePreference(conversationIdToReset).catch((error: unknown) => {
       logger.warn('[RoomTheme] Failed to reset room preference', error instanceof Error ? error.message : String(error));
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể lưu giao diện phòng. Vui lòng thử lại.')));
     });
   }, [userId]);
 

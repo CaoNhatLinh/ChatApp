@@ -32,6 +32,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Đã duyệt yêu cầu tham gia.': 'Join request approved.',
   'Đã từ chối yêu cầu tham gia.': 'Join request declined.',
   'Không thể xử lý yêu cầu tham gia.': 'Unable to process the join request.',
+  'Không thể lưu giao diện phòng. Vui lòng thử lại.': 'Unable to save the room appearance. Try again.',
   'Đã ghi nhận bình chọn.': 'Vote recorded.',
   'Đã hủy bình chọn.': 'Vote removed.',
   'Đã đóng bình chọn.': 'Poll closed.',
