@@ -40,7 +40,7 @@ Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 96 tests, 0 failu
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and
-mock-authenticated `npm run test:e2e:admin` and `npm run test:e2e:search` pass. The locale smoke also passes
+mock-authenticated `npm run test:e2e:admin`, `npm run test:e2e:contacts`, and `npm run test:e2e:search` pass. The locale smoke also passes
 the English landing/auth/recovery journey, and notification settings payload
 smoke passes without console or request failures.
 The canonical message UI mapping rejects incompatible payload shapes instead of

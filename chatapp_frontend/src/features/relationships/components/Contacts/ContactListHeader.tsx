@@ -12,12 +12,6 @@ interface ContactListHeaderProps {
   onSearchChange: (value: string) => void;
 }
 
-const tabs: Array<{ key: ContactListTab; label: string }> = [
-  { key: "friends", label: FRIEND_COPY.tabs.friends },
-  { key: "requests", label: FRIEND_COPY.tabs.requests },
-  { key: "add", label: FRIEND_COPY.tabs.add },
-];
-
 export const ContactListHeader = ({
   activeTab,
   requestCount,
@@ -26,6 +20,12 @@ export const ContactListHeader = ({
   onTabChange,
   onSearchChange,
 }: ContactListHeaderProps) => {
+  const tabs: Array<{ key: ContactListTab; label: string }> = [
+    { key: "friends", label: FRIEND_COPY.tabs.friends },
+    { key: "requests", label: FRIEND_COPY.tabs.requests },
+    { key: "add", label: FRIEND_COPY.tabs.add },
+  ];
+
   return (
     <header className="surface sticky top-0 z-20 border-b border-border px-4 py-4 sm:px-6 sm:py-0 sm:h-20 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-2 sm:gap-4 sm:flex-row sm:items-center sm:flex-nowrap">

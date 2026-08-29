@@ -1,6 +1,7 @@
 import { UI_COPY } from "@/shared/constants/ui-copy";
+import { localizedCopy } from "@/shared/i18n";
 
-export const FRIEND_COPY = {
+const rawFriendCopy = {
   tabs: {
     all: UI_COPY.friends.tabs.all,
     friends: UI_COPY.friends.tabs.friends,
@@ -56,4 +57,6 @@ export const FRIEND_COPY = {
     openProfileFailed: UI_COPY.status.openProfileFailed,
   },
 } as const;
+
+export const FRIEND_COPY = localizedCopy(rawFriendCopy);
 

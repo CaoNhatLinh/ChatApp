@@ -878,3 +878,18 @@ Correction in this increment:
   alter the request enum.
 - Added `search-filter-smoke.mjs` to keep those payload, locale, and missing-
   conversation guarantees executable in the browser gate.
+
+# Follow-up self-review (2026-08-29, contacts locale and realtime startup increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Startup availability | Pass for REST-backed Contacts | `useMessenger` no longer awaits an unbounded realtime connection before releasing the initial loading state; `contacts-locale-smoke.mjs` renders the Contacts screen with the realtime transport unavailable | A real STOMP reconnect/resync journey still needs the integration stack | Keep realtime optional for first paint while retaining queued subscriptions and server authority |
+| Bilingual UI coverage | Pass for Contacts labels | `FRIEND_COPY` and `PROFILE_COPY` now use dynamic localized proxies; Contacts tab labels are created during render; the browser smoke verifies VI and EN tabs/empty-state copy | Full authenticated Contacts mutation journey remains pending | Do not capture locale-dependent labels in module-level constants |
+| Failure/recovery | Pass for the affected boundary | REST initialization can complete when SockJS is unavailable; realtime failures are reported separately in the smoke rather than converted into fake data | Reconnect notification UX and cross-instance delivery remain pending | Never block the screen or fabricate conversation/friend data for an optional transport |
+| Traceability | Pass | `useMessenger.ts`, relationship/profile copy registries, `ContactListHeader.tsx`, `contacts-locale-smoke.mjs`, package scripts and this entry are synchronized | Clean-stack browser proof remains external | Keep the realtime startup rule documented with the test boundary |
+
+Correction in this increment:
+
+- Made Contacts/Profile copy locale-reactive and moved Contacts tabs into the
+  render path; changed initial Messenger startup so a missing realtime server
+  cannot leave REST-backed screens in an infinite loading state.

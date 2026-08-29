@@ -233,7 +233,12 @@ export const useMessenger = (): UseMessengerResult => {
                 }
 
                 if (!realtimeService.isConnected()) {
-                    await realtimeService.connect(token);
+                    void realtimeService.connect(token).catch((error: unknown) => {
+                        logger.warn(
+                            '[useMessenger] Realtime connection is unavailable; continuing with HTTP data',
+                            error instanceof Error ? error.message : String(error),
+                        );
+                    });
                 }
 
                 if (user?.userId) {

@@ -37,6 +37,12 @@ HTTP-boundary fixture, verifies message type/attachment/pin filter payloads and
 English labels, and confirms that message search is not requested without the
 required conversation context.
 
+`npm run test:e2e:contacts` loads the authenticated Contacts route with an
+explicit HTTP-boundary fixture, verifies the VI→EN tab and empty-state copy, and
+confirms that an unavailable realtime transport does not block the REST-backed
+screen. Realtime transport failures are reported separately because the local
+integration stack is intentionally absent.
+
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
 `localizeText(...)` call under `src/` has an explicit English translation key.
