@@ -4,7 +4,8 @@ import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
 import { localizeText } from '@/shared/i18n';
-import { CHAT_BUBBLE_PRESETS, CHAT_THEME_COPY, CHAT_THEME_STATUS, ROOM_THEME_PRESETS } from '@/features/settings/constants/chat-theme.constants';
+import { notifyError } from '@/shared/lib/notification';
+import { CHAT_BUBBLE_PRESETS, CHAT_THEME_COPY, CHAT_THEME_STATUS, normalizeRoomBackgroundUrl, ROOM_THEME_PRESETS } from '@/features/settings/constants/chat-theme.constants';
 import type {
   ChatBubbleStyleId,
   RoomThemeId,
@@ -59,6 +60,19 @@ export const RoomThemePanel = ({
     () => ROOM_THEME_PRESETS,
     [],
   );
+
+  const handleApplyBackground = () => {
+    try {
+      const normalized = normalizeRoomBackgroundUrl(localBackgroundUrl);
+      if (!normalized) {
+        onClearConversationBackground();
+        return;
+      }
+      onSetBackgroundImage(normalized);
+    } catch {
+      notifyError(localizeText('Hình nền phải là URL http(s) hợp lệ.'));
+    }
+  };
 
   return (
     <SurfacePanel className="mx-4 rounded-xl border-border/40 bg-card/90 px-3 py-3 sm:px-5 sm:py-4">
@@ -158,7 +172,7 @@ export const RoomThemePanel = ({
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  onClick={() => onSetBackgroundImage(localBackgroundUrl)}
+                  onClick={handleApplyBackground}
                 >
                   {CHAT_THEME_COPY.roomBackgroundApply}
                 </Button>

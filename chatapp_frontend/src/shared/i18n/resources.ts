@@ -138,6 +138,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Nhập biệt danh': 'Enter a nickname',
   'Nhập link ảnh đại diện': 'Enter an avatar URL',
   'Dán link ảnh trực tiếp (https://...) rồi nhấn Enter hoặc lưu ngay.': 'Paste a direct image link (https://...), then press Enter or save.',
+  'Hình nền phải là URL http(s) hợp lệ.': 'Background must be a valid http(s) URL.',
   'Giao diện nền sáng, dễ đọc ban ngày.': 'A bright interface that is easy to read during the day.',
   'Giảm mỏi mắt khi dùng đêm.': 'Reduce eye strain at night.',
   'Tự đồng bộ theo cấu hình máy.': 'Sync with your device settings.',
