@@ -62,12 +62,12 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
             setLoading(true);
             setLoadError(null);
             try {
-                const data = await getConversationMembers(conversationId);
+                const page = await getConversationMembers(conversationId, undefined, 500);
                 if (!cancelled) {
                     lastConvId.current = conversationId;
                     setHasFetched(true);
                     // Exclude current user from the list
-                    const filtered = data.filter(m => m.userId !== currentUser?.userId);
+                    const filtered = page.content.filter((member) => member.userId !== currentUser?.userId);
                     setMembers(filtered);
                 }
             } catch (err: unknown) {

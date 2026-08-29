@@ -101,6 +101,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement transferConversationOwner;
     private final PreparedStatement loadConversationMember;
     private final PreparedStatement listConversationMembers;
+    private final PreparedStatement listConversationMembersAfter;
     private final PreparedStatement updateMemberChatPolicy;
     private final PreparedStatement updateMemberNotificationPolicy;
     private final PreparedStatement saveConversationProjection;
@@ -455,6 +456,10 @@ public class CanonicalCqlStore {
         this.listConversationMembers = session.prepare("""
                 SELECT * FROM conversation_members_by_conversation
                 WHERE conversation_id = ? LIMIT ?
+                """);
+        this.listConversationMembersAfter = session.prepare("""
+                SELECT * FROM conversation_members_by_conversation
+                WHERE conversation_id = ? AND user_id > ? LIMIT ?
                 """);
         this.updateMemberChatPolicy = session.prepare("""
                 UPDATE conversation_members_by_conversation
@@ -1541,8 +1546,14 @@ public class CanonicalCqlStore {
         return row == null ? null : mapConversationMember(row);
     }
 
-    public List<CanonicalConversationMember> listConversationMembers(UUID conversationId, int limit) {
-        return session.execute(listConversationMembers.bind(conversationId, limit)).all().stream()
+    public List<CanonicalConversationMember> listConversationMembers(
+            UUID conversationId,
+            UUID afterUserId,
+            int limit) {
+        var statement = afterUserId == null
+                ? listConversationMembers.bind(conversationId, limit)
+                : listConversationMembersAfter.bind(conversationId, afterUserId, limit);
+        return session.execute(statement).all().stream()
                 .map(this::mapConversationMember)
                 .toList();
     }

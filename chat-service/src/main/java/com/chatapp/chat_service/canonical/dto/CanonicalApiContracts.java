@@ -100,6 +100,12 @@ public final class CanonicalApiContracts {
             Integer messageIntervalSeconds) {
     }
 
+    public record ConversationMemberPage(
+            List<ConversationMemberView> content,
+            UUID nextCursor,
+            boolean hasNext) {
+    }
+
     public record ConversationListItem(
             CqlCanonicalRecords.CanonicalConversation conversation,
             boolean pinned,

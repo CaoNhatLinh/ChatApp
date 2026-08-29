@@ -575,12 +575,16 @@ public class CanonicalBackendService {
         return conversation;
     }
 
-    public List<CanonicalApiContracts.ConversationMemberView> listConversationMembers(
-            UUID actorId, UUID conversationId, int requestedLimit) {
+    public CanonicalApiContracts.ConversationMemberPage listConversationMembers(
+            UUID actorId, UUID conversationId, UUID afterUserId, int requestedLimit) {
         requireMember(conversationId, actorId);
         CanonicalConversation conversation = getConversation(conversationId);
         int limit = Math.max(1, Math.min(500, requestedLimit));
-        return store.listConversationMembers(conversationId, limit).stream()
+        List<CanonicalConversationMember> rows = store.listConversationMembers(
+                conversationId, afterUserId, limit + 1);
+        boolean hasNext = rows.size() > limit;
+        List<CanonicalConversationMember> pageRows = hasNext ? rows.subList(0, limit) : rows;
+        List<CanonicalApiContracts.ConversationMemberView> content = pageRows.stream()
                 .map(member -> {
                     CanonicalUser user = store.findUserById(member.userId());
                     if (user == null) {
@@ -599,6 +603,8 @@ public class CanonicalBackendService {
                             member.messageIntervalSeconds());
                 })
                 .toList();
+        UUID nextCursor = hasNext ? pageRows.get(pageRows.size() - 1).userId() : null;
+        return new CanonicalApiContracts.ConversationMemberPage(content, nextCursor, hasNext);
     }
 
     public List<CanonicalApiContracts.ConversationListItem> listMyConversations(UUID actorId, int limit) {

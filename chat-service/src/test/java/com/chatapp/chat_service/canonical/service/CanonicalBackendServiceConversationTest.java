@@ -137,25 +137,29 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
-    void memberDirectoryIncludesTheAuthoritativeChatPolicy() {
+    void memberDirectoryPagesByUserIdAndIncludesTheAuthoritativeChatPolicy() {
         UUID actorId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        UUID nextUserId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
         Instant mutedUntil = Instant.parse("2026-08-29T10:00:00Z");
         CanonicalConversationMember member = new CanonicalConversationMember(
                 conversationId, userId, Set.of(), Instant.now(), actorId,
                 mutedUntil, 45, "INHERIT", null, null);
+        CanonicalConversationMember nextMember = member(conversationId, nextUserId);
         when(store.findConversationMember(conversationId, actorId)).thenReturn(member(conversationId, actorId));
         when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
-        when(store.listConversationMembers(conversationId, 200)).thenReturn(List.of(member));
+        when(store.listConversationMembers(conversationId, null, 2)).thenReturn(List.of(member, nextMember));
         when(store.findUserById(userId)).thenReturn(activeUser(userId));
 
-        var members = service.listConversationMembers(actorId, conversationId, 200);
+        var members = service.listConversationMembers(actorId, conversationId, null, 1);
 
-        assertThat(members).singleElement().satisfies(view -> {
+        assertThat(members.content()).singleElement().satisfies(view -> {
             assertThat(view.mutedUntil()).isEqualTo(mutedUntil);
             assertThat(view.messageIntervalSeconds()).isEqualTo(45);
         });
+        assertThat(members.hasNext()).isTrue();
+        assertThat(members.nextCursor()).isEqualTo(userId);
     }
 
     @Test

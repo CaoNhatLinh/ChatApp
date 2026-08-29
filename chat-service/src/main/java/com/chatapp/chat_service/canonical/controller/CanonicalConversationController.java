@@ -77,10 +77,11 @@ public class CanonicalConversationController {
     }
 
     @GetMapping("/{conversationId}/members")
-    public List<CanonicalApiContracts.ConversationMemberView> listMembers(
+    public CanonicalApiContracts.ConversationMemberPage listMembers(
             @PathVariable UUID conversationId,
-            @RequestParam(defaultValue = "200") int limit) {
-        return backend.listConversationMembers(actorId(), conversationId, limit);
+            @RequestParam(required = false) UUID afterUserId,
+            @RequestParam(defaultValue = "100") int limit) {
+        return backend.listConversationMembers(actorId(), conversationId, afterUserId, limit);
     }
 
     @PostMapping("/{conversationId}/members")

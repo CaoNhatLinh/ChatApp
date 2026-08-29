@@ -58,6 +58,8 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const updateConversationOwner = useMessengerStore((state) => state.updateConversationOwner);
     const updateStoredChatPolicy = useMessengerStore((state) => state.updateConversationChatPolicy);
     const [members, setMembers] = React.useState<ConversationMember[]>([]);
+    const [memberCursor, setMemberCursor] = React.useState<string | null>(null);
+    const [hasMoreMembers, setHasMoreMembers] = React.useState(false);
     const [roles, setRoles] = React.useState<ConversationRole[]>([]);
     const [access, setAccess] = React.useState<ConversationPermissionsView | null>(null);
     const [loading, setLoading] = React.useState(true);
@@ -74,13 +76,15 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         setLoading(true);
         setLoadError(false);
         try {
-            const [nextMembers, nextRoles, nextAccess] = await Promise.all([
+            const [memberPage, nextRoles, nextAccess] = await Promise.all([
                 getConversationMembers(conversation.conversationId),
                 listConversationRoles(conversation.conversationId),
                 getConversationPermissions(conversation.conversationId),
             ]);
             if (requestId !== requestRef.current) return;
-            setMembers(nextMembers);
+            setMembers(memberPage.content);
+            setMemberCursor(memberPage.nextCursor);
+            setHasMoreMembers(memberPage.hasNext);
             setRoles(nextRoles);
             setAccess(nextAccess);
         } catch (error) {
@@ -120,6 +124,22 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         } catch (error) {
             logger.error('[RoomManagementPanel] Role assignment failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật vai trò thành viên.')));
+        } finally {
+            setBusyKey(null);
+        }
+    };
+
+    const loadMoreMembers = async () => {
+        if (!memberCursor || !hasMoreMembers) return;
+        setBusyKey('load-more-members');
+        try {
+            const page = await getConversationMembers(conversation.conversationId, memberCursor);
+            setMembers((current) => [...current, ...page.content]);
+            setMemberCursor(page.nextCursor);
+            setHasMoreMembers(page.hasNext);
+        } catch (error) {
+            logger.error('[RoomManagementPanel] Member page load failed', error instanceof Error ? error.message : String(error));
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể tải thêm thành viên.')));
         } finally {
             setBusyKey(null);
         }
@@ -275,7 +295,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                         {localizeText('Quản lý quyền theo vai trò của phòng. Thay đổi được áp dụng ngay.')}
                     </p>
                 </div>
-                <Badge variant="outline" className="shrink-0">{members.length}</Badge>
+                <Badge variant="outline" className="shrink-0">{conversation.memberCount}</Badge>
             </div>
 
             {can('ROOM_UPDATE') ? (
@@ -413,6 +433,19 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                         </details>
                     );
                 })}
+                {hasMoreMembers ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        loading={busyKey === 'load-more-members'}
+                        disabled={busyKey !== null}
+                        onClick={() => void loadMoreMembers()}
+                    >
+                        {localizeText('Tải thêm thành viên')}
+                    </Button>
+                ) : null}
             </div>
 
             {(can('ROLE_CREATE') || can('ROLE_UPDATE') || can('ROLE_DELETE')) ? (
@@ -453,9 +486,13 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        disabled={busyKey !== null || assignedRoleIds.has(role.roleId)}
+                                        disabled={busyKey !== null || hasMoreMembers || assignedRoleIds.has(role.roleId)}
                                         aria-label={localizeText('Xóa vai trò')}
-                                        title={assignedRoleIds.has(role.roleId) ? localizeText('Gỡ vai trò khỏi mọi thành viên trước khi xóa.') : localizeText('Xóa vai trò')}
+                                        title={hasMoreMembers
+                                            ? localizeText('Tải tất cả thành viên trước khi xóa vai trò.')
+                                            : assignedRoleIds.has(role.roleId)
+                                                ? localizeText('Gỡ vai trò khỏi mọi thành viên trước khi xóa.')
+                                                : localizeText('Xóa vai trò')}
                                         onClick={() => setPendingAction({ kind: 'delete-role', role })}
                                     >
                                         <Trash2 className="h-4 w-4" />

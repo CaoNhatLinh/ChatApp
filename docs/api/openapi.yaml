@@ -211,8 +211,8 @@ paths:
   /conversations/{conversationId}/members:
     get:
       tags: [Conversations]
-      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {description: Members, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ConversationMember'}}}}}}
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: afterUserId, in: query, schema: {type: string, format: uuid}}, {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 500, default: 100}}]
+      responses: {'200': {description: Cursor-paged members ordered by user ID, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationMemberPage'}}}}}
     post:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
@@ -761,6 +761,7 @@ components:
     CommunityPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/CommunitySummary'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
     CommunityJoinResponse: {type: object, required: [status, conversationId], properties: {status: {type: string, enum: [JOINED, PENDING, CAPACITY_REACHED, RETRY_REQUIRED]}, conversationId: {type: string, format: uuid}}}
     ConversationMember: {type: object, required: [userId, conversationId, role, roleIds, joinedAt, username, displayName, mutedUntil, messageIntervalSeconds], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string, enum: [owner, member]}, roleIds: {type: array, items: {type: string, format: uuid}}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}, mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}}}
+    ConversationMemberPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/ConversationMember'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
     ConversationPermissions: {type: object, required: [permissions, owner], properties: {permissions: {type: array, items: {type: string}}, owner: {type: boolean}}}
     RoomAuditEvent: {type: object, required: [eventId, eventType, actorId, targetUserId, messageBucket, messageId, reasonCode, metadata, createdAt], properties: {eventId: {type: string, format: uuid}, eventType: {type: string}, actorId: {type: string, format: uuid, nullable: true}, targetUserId: {type: string, format: uuid, nullable: true}, messageBucket: {type: string, nullable: true}, messageId: {type: string, format: uuid, nullable: true}, reasonCode: {type: string, nullable: true}, metadata: {type: object, additionalProperties: {type: string}}, createdAt: {type: string, format: date-time}}}
     RoomAuditPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/RoomAuditEvent'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}

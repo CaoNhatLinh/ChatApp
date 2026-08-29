@@ -210,6 +210,12 @@ export interface RoomAuditPage {
     hasNext: boolean;
 }
 
+export interface ConversationMemberPage {
+    content: ConversationMember[];
+    nextCursor: string | null;
+    hasNext: boolean;
+}
+
 export interface ConversationRoleCreateRequest {
     roleCode: string;
     displayName: string;
@@ -630,8 +636,14 @@ export const unpinConversation = async (conversationId: string): Promise<void> =
 
 // --- Additional Conversation helpers ---
 
-export const getConversationMembers = async (conversationId: string): Promise<ConversationMember[]> => {
-    const response = await apiClient.get<ConversationMember[]>(`/conversations/${conversationId}/members`);
+export const getConversationMembers = async (
+    conversationId: string,
+    afterUserId?: string,
+    limit = 100,
+): Promise<ConversationMemberPage> => {
+    const response = await apiClient.get<ConversationMemberPage>(`/conversations/${conversationId}/members`, {
+        params: { afterUserId, limit },
+    });
     return response.data;
 };
 

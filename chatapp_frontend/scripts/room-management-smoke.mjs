@@ -112,7 +112,12 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith(`/conversations/${conversationId}/notification-policy`)) {
     return json({ defaultNotificationLevel: 'ALL', notificationOverride: 'INHERIT' });
   }
-  if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') return json(members);
+  if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') {
+    const afterUserId = new URL(request.url()).searchParams.get('afterUserId');
+    return afterUserId
+      ? json({ content: [members[1]], nextCursor: null, hasNext: false })
+      : json({ content: [members[0]], nextCursor: ownerId, hasNext: true });
+  }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
     return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE', 'ROOM_AUDIT_READ'], owner: true });
@@ -200,6 +205,8 @@ await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
 await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
+await page.getByRole('button', { name: 'Tải thêm thành viên' }).click();
+await page.getByText('Linh Tran', { exact: true }).waitFor();
 
 await page.getByText('Nhật ký phòng', { exact: true }).click();
 await page.getByText('Đã cập nhật vai trò', { exact: true }).waitFor();
