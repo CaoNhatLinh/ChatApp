@@ -10,6 +10,9 @@ import { useTrackPresence } from '@/features/presence/hooks/useTrackPresence';
 import { StatusDot } from '@/features/presence/ui/StatusSelector';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
+import { localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
 
 interface MentionMenuProps {
     conversationId: string;
@@ -37,6 +40,8 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
 }) => {
     const [members, setMembers] = useState<ConversationMember[]>([]);
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [retryToken, setRetryToken] = useState(0);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [hasFetched, setHasFetched] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -55,6 +60,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
         let cancelled = false;
         const fetchMembers = async () => {
             setLoading(true);
+            setLoadError(null);
             try {
                 const data = await getConversationMembers(conversationId);
                 if (!cancelled) {
@@ -64,11 +70,12 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                     const filtered = data.filter(m => m.userId !== currentUser?.userId);
                     setMembers(filtered);
                 }
-            } catch (err) {
-                console.error('[MentionMenu] Failed to load members:', err);
+            } catch (err: unknown) {
+                logger.error('[MentionMenu] Failed to load members', err instanceof Error ? err.message : String(err));
                 if (!cancelled) {
                     setHasFetched(true);
                     setMembers([]);
+                    setLoadError(getUserFacingErrorMessage(err, localizeText('Không thể tải thành viên phòng. Vui lòng thử lại.')));
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -77,7 +84,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
 
         void fetchMembers();
         return () => { cancelled = true; };
-    }, [conversationId, query, currentUser?.userId, hasFetched, members.length]);
+    }, [conversationId, query, currentUser?.userId, hasFetched, members.length, retryToken]);
 
     // Filter members by query
     const filteredItems = useMemo(() => {
@@ -197,8 +204,21 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                 </div>
             )}
 
+            {!loading && loadError && (
+                <div className="space-y-3 px-4 py-6 text-center" role="alert">
+                    <p className="text-xs font-medium text-destructive">{loadError}</p>
+                    <button
+                        type="button"
+                        onClick={() => setRetryToken((current) => current + 1)}
+                        className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-bold text-foreground transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                        {localizeText('Thử lại')}
+                    </button>
+                </div>
+            )}
+
             {/* Empty State */}
-            {!loading && filteredItems.length === 0 && (
+            {!loading && !loadError && filteredItems.length === 0 && (
                 <div className="py-6 text-center">
                     <p className="text-xs text-muted-foreground font-medium">{MESSENGER_COPY.mentionMenu.noMembers}</p>
                 </div>

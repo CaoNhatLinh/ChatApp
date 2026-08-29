@@ -428,6 +428,20 @@ Correction in this increment:
 - Replaced the raw `console.error` search path with sanitized operator logging
   and status-aware localized failure copy.
 
+# Follow-up self-review (2026-08-29, mention-menu recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for member lookup UI | Mention lookup failures render a retryable alert; an empty list is reserved for a successful query with no matches | Authenticated member-policy/browser proof remains pending | Do not turn a transport failure into an empty success state |
+| Async lifecycle | Pass | Existing cancellation guard remains; retry is an explicit new request | Abort signal support depends on the canonical member API contract | Keep late responses from changing a closed menu |
+| Bilingual UI coverage | Pass | Retry label and member-load error are registered; locale smoke (711 keys) | Member display names remain domain data | Translate controls and failure copy only |
+| Traceability | Pass | `MentionMenu.tsx`, messenger member adapter and this entry | Clean-stack authenticated browser proof remains blocked | Preserve explicit loading/error/empty states |
+
+Correction in this increment:
+
+- Added a retryable, localized error state to the mention member menu so a
+  failed member lookup is not presented as a valid empty result.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
