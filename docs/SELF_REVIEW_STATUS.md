@@ -245,6 +245,21 @@ Corrections in this increment:
 - Removed a revoked selected link from the preview immediately after the server
   confirms the revoke.
 
+# Follow-up self-review (2026-08-29, poll-action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for poll vote/remove/close | Poll mutations now map transport failures to stable error copy and expose success/failure feedback | Authenticated realtime poll reconciliation still needs clean-stack proof | Keep raw details in logs only |
+| Mutation integrity | Pass for local vote controls | Existing ref double-submit guard retained; server response updates local and central state before success notice | Cross-tab conflict and policy enforcement need integration evidence | Server response remains authoritative |
+| Bilingual UI coverage | Pass | `PollCard`, `resources.ts`, locale copy smoke (702 keys) | Poll option text is user-authored domain content | Translate labels/statuses, never user content |
+| Traceability | Pass | Poll API calls, action handlers, tests and self-review entry | Poll deadline/anonymous-policy matrix remains partial in inventory | Keep explicit mutation feedback for every new poll action |
+
+Corrections in this increment:
+
+- Added localized success/failure feedback for vote, remove-vote and close-poll
+  actions, with safe error mapping and operator-only diagnostics.
+- Added explicit `type="button"` semantics to poll controls.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

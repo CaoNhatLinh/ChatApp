@@ -9,6 +9,9 @@ import { formatDistanceToNow, isPast } from 'date-fns';
 import { enUS, vi } from 'date-fns/locale';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText, useAppLocale } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
+import { notifyError, notifySuccess } from '@/shared/lib/notification';
 
 interface PollCardProps {
     poll: PollData;
@@ -103,8 +106,10 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             // Synchronize local state with fresh server data
             setSelectedOptions(updatedPoll.currentUserVotes ?? []);
             setLocalPoll(updatedPoll);
-        } catch (err) {
-            console.error('[PollCard] Vote failed:', err);
+            notifySuccess(localizeText('Đã ghi nhận bình chọn.'));
+        } catch (error: unknown) {
+            logger.error('[PollCard] Vote failed:', error);
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         } finally {
             isVotingRef.current = false;
             setIsVoting(false);
@@ -123,8 +128,10 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
             setSelectedOptions([]);
             setLocalPoll(updatedPoll);
-        } catch (err) {
-            console.error('[PollCard] Remove vote failed:', err);
+            notifySuccess(localizeText('Đã hủy bình chọn.'));
+        } catch (error: unknown) {
+            logger.error('[PollCard] Remove vote failed:', error);
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         } finally {
             isVotingRef.current = false;
             setIsVoting(false);
@@ -136,8 +143,10 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             const updatedPoll = await closePoll(localPoll.pollId);
             updatePollData(localPoll.conversationId, updatedPoll);
             setLocalPoll(updatedPoll);
-        } catch (err) {
-            console.error('[PollCard] Close poll failed:', err);
+            notifySuccess(localizeText('Đã đóng bình chọn.'));
+        } catch (error: unknown) {
+            logger.error('[PollCard] Close poll failed:', error);
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         }
     }, [localPoll.pollId, localPoll.conversationId, updatePollData]);
 
@@ -201,6 +210,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                     return (
                         <button
+                            type="button"
                             key={option.option}
                             onClick={() => toggleOption(option.option)}
                             disabled={isClosed}
@@ -278,6 +288,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                     {localPoll.totalVotes > 0 && (
                         <button
+                            type="button"
                             onClick={() => setShowVoters(!showVoters)}
                             className="text-[8px] font-black text-primary/70 hover:text-primary uppercase tracking-tighter"
                         >
@@ -289,6 +300,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                 <div className="flex items-center gap-2">
                     {hasVoted && !isClosed && (
                         <button
+                            type="button"
                             onClick={() => void handleRemoveVote()}
                             disabled={isVoting}
                             className="p-1 hover:bg-destructive/5 rounded transition-colors text-destructive/40 hover:text-destructive"
@@ -300,6 +312,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                     {!isClosed && selectedOptions.length > 0 && (
                         <button
+                            type="button"
                             onClick={() => void handleVote()}
                             disabled={isVoting}
                             className="px-3 py-1 text-[9px] font-black uppercase bg-primary text-primary-foreground rounded-md shadow-sm hover:shadow active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40"
