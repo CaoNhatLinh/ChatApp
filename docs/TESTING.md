@@ -33,11 +33,11 @@ canonical `PUT /notifications/settings` payload, and fails on console or request
 errors.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
-`UI_COPY`, messenger copy, and chat-theme copy registries has an explicit English
-translation key. It also checks static `localizeText(...)` copy in the audited
-error/report/call/presence surfaces. Dynamic messages remain covered by the
-canonical patterns in `src/shared/i18n/runtime.ts`; this check does not
-introduce runtime fallback behavior.
+`UI_COPY`, messenger copy, and chat-theme copy registries plus every static
+`localizeText(...)` call under `src/` has an explicit English translation key.
+Dynamic messages remain covered by the canonical patterns in
+`src/shared/i18n/runtime.ts`; this check does not introduce runtime fallback
+behavior.
 
 `npm run test:errors:copy` guards the production error surfaces for messenger,
 relationships, reports, calls, and presence. It rejects direct rendering of

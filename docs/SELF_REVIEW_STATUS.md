@@ -154,7 +154,7 @@ Corrections in this increment:
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | Failure safety | Pass for audited surfaces | `getUserFacingErrorMessage`, localized WebRTC errors, sanitized report/presence errors, `npm run test:errors:copy` | Other authenticated provider failures still need live-stack browser proof | Never render native exception or server response text; keep raw detail in operator logs only |
-| Bilingual UI coverage | Pass for new error copy | `resources.ts`, localized call/config messages, locale copy smoke (342 static keys) | Live server/provider-generated content remains domain data rather than UI copy | Add each new product message to the explicit VI→EN map |
+| Bilingual UI coverage | Pass for new error copy | `resources.ts`, all static `localizeText(...)` calls, locale copy smoke (683 static keys) | Live server/provider-generated content remains domain data rather than UI copy | Add each new product message to the explicit VI→EN map |
 | Code-doc consistency | Pass | `TESTING.md`, package script, affected feature sources | None in this increment | Keep the guard scoped to user-facing error surfaces |
 | Runtime verification | Partial | `npm run validate`, `npm run build`, `npm run test:errors:copy` | Authenticated backend and media errors need clean-stack/browser proof | Preserve the deterministic failure path and do not add fallback success behavior |
 
@@ -165,6 +165,8 @@ Corrections in this increment:
 - Sanitized presence status-sync toasts so server `errorType`/`message` never
   leak protocol or implementation text into the UI.
 - Added `test:errors:copy` as a regression check for the audited error surfaces.
+- Expanded the locale guard to every static `localizeText(...)` call under
+  `src/`; 683 keys currently have explicit English translations.
 
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
