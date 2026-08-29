@@ -62,27 +62,33 @@ const formatDate = (value: string | null | undefined) => {
   return new Date(value).toLocaleString(locale);
 };
 
+const strictLocalizedLabel = (kind: string, value: string, labels: Record<string, string>): string => {
+  const label = labels[value];
+  if (!label) throw new Error(`Unsupported ${kind}: ${value}`);
+  return localizeText(label);
+};
+
 const roleBadgeVariant = (role: string): "default" | "destructive" | "secondary" =>
   role === "SUPER_ADMIN" ? "destructive" : role === "APP_ADMIN" ? "default" : "secondary";
 
-const reportStatusLabel = (status: AdminReport["status"]) => ({
-  OPEN: localizeText("Mở"),
-  IN_REVIEW: localizeText("Đang xem xét"),
-  RESOLVED: localizeText("Đã giải quyết"),
-  DISMISSED: localizeText("Đã bỏ qua"),
-}[status]);
+const reportStatusLabel = (status: AdminReport["status"]) => strictLocalizedLabel("report status", status, {
+  OPEN: "Mở",
+  IN_REVIEW: "Đang xem xét",
+  RESOLVED: "Đã giải quyết",
+  DISMISSED: "Đã bỏ qua",
+});
 
-const sanctionStatusLabel = (status: AdminSanction["status"]) => ({
-  ACTIVE: localizeText("Đang hoạt động"),
-  REVOKED: localizeText("Đã thu hồi"),
-  EXPIRED: localizeText("Đã hết hạn"),
-}[status]);
+const sanctionStatusLabel = (status: AdminSanction["status"]) => strictLocalizedLabel("sanction status", status, {
+  ACTIVE: "Đang hoạt động",
+  REVOKED: "Đã thu hồi",
+  EXPIRED: "Đã hết hạn",
+});
 
-const accountStatusLabel = (status: "ACTIVE" | "SUSPENDED" | "BANNED") => ({
-  ACTIVE: localizeText("Đang hoạt động"),
-  SUSPENDED: localizeText("Tạm khóa"),
-  BANNED: localizeText("Bị cấm"),
-}[status]);
+const accountStatusLabel = (status: "ACTIVE" | "SUSPENDED" | "BANNED") => strictLocalizedLabel("account status", status, {
+  ACTIVE: "Đang hoạt động",
+  SUSPENDED: "Tạm khóa",
+  BANNED: "Bị cấm",
+});
 
 const AUDIT_ACTION_LABELS: Record<string, string> = {
   FRIEND_REQUEST_SEND: "Gửi lời mời kết bạn",
@@ -164,17 +170,17 @@ const reportTargetLabel = (targetType: AdminReport["targetType"]): string => {
   return localizeText(label);
 };
 
-const sanctionTypeLabel = (sanctionType: AdminSanction["sanctionType"]): string => ({
-  BAN: localizeText("Cấm"),
-  MUTE: localizeText("Tắt tiếng"),
-  SUSPEND: localizeText("Tạm ngưng"),
-  WARNING: localizeText("Cảnh cáo"),
-}[sanctionType]);
+const sanctionTypeLabel = (sanctionType: AdminSanction["sanctionType"]): string => strictLocalizedLabel("sanction type", sanctionType, {
+  BAN: "Cấm",
+  MUTE: "Tắt tiếng",
+  SUSPEND: "Tạm ngưng",
+  WARNING: "Cảnh cáo",
+});
 
-const sanctionScopeLabel = (scope: AdminSanction["scope"]): string => ({
-  APP: localizeText("Ứng dụng"),
-  CONVERSATION: localizeText("Cuộc trò chuyện"),
-}[scope]);
+const sanctionScopeLabel = (scope: AdminSanction["scope"]): string => strictLocalizedLabel("sanction scope", scope, {
+  APP: "Ứng dụng",
+  CONVERSATION: "Cuộc trò chuyện",
+});
 
 const ANALYTICS_EVENT_OPTIONS = [
   { value: "ALL", label: "Tất cả sự kiện" },
