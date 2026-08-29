@@ -29,13 +29,21 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const submitRequestRef = useRef(0);
 
   useEffect(() => {
+    submitRequestRef.current += 1;
     setReasonCode(REASONS[0].value);
     setDescription('');
     setError(null);
     setIsSubmitting(false);
   }, [userId]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    submitRequestRef.current += 1;
+  }, []);
 
   const canSubmit = useMemo(
     () => Boolean(userId && reasonCode && !isSubmitting),
@@ -52,6 +60,8 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
 
     setIsSubmitting(true);
     setError(null);
+    const requestId = ++submitRequestRef.current;
+    const targetUserId = userId;
     try {
       await submitUserReport({
         targetType: 'USER',
@@ -59,12 +69,14 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
         reasonCode,
         description: description.trim() || undefined,
       });
+      if (!mountedRef.current || requestId !== submitRequestRef.current || targetUserId !== userId) return;
       onSubmitted();
       onClose();
     } catch (submitError) {
+      if (!mountedRef.current || requestId !== submitRequestRef.current || targetUserId !== userId) return;
       setError(getUserFacingErrorMessage(submitError, 'Không thể gửi báo cáo. Vui lòng thử lại.'));
     } finally {
-      setIsSubmitting(false);
+      if (mountedRef.current && requestId === submitRequestRef.current) setIsSubmitting(false);
     }
   };
 

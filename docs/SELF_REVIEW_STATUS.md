@@ -813,3 +813,19 @@ Correction in this increment:
 - Added mounted/request identity guards to notification settings saves and
   bounded diagnostics, preventing late saves from mutating or notifying an
   unmounted settings panel.
+
+# Follow-up self-review (2026-08-29, report-submit lifecycle increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Target integrity | Pass for user/message report submits | Report modals bind submit completion and error state to the submitted target identity | Authenticated moderation persistence remains pending | A late response cannot close or update a different selected target |
+| Component lifecycle | Pass | Mounted refs invalidate pending submits on unmount; target-change effects invalidate the previous request | Full modal navigation browser proof remains pending | Do not update an unmounted modal or surface a stale toast |
+| Failure recovery | Pass | Active failures retain localized inline error copy and leave the form available for retry | Provider retry/status matrix remains unverified | Keep the report draft intact after a failed POST |
+| Data exposure | Pass | Only user-facing status copy is rendered; report payload details remain out of diagnostics | Server-side moderation audit redaction remains an operations task | Preserve the existing privacy boundary |
+| Bilingual and accessibility coverage | Pass | Existing localized labels, alert semantics, disabled states and focus trap remain unchanged | Full screen-reader modal walkthrough remains pending | Keep report recovery keyboard reachable and concise |
+| Traceability | Pass | `ReportUserModal.tsx`, `ReportMessageModal.tsx` and this entry; validate/build/browser gates pass | Live moderation queue/appeal evidence remains blocked | Preserve target identity when extending report workflows |
+
+Correction in this increment:
+
+- Added target-identity and mounted-state guards to report submissions so late
+  responses cannot mutate or close a replaced user/message report modal.
