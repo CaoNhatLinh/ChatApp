@@ -32,6 +32,12 @@ page with an explicit HTTP-boundary fixture, toggles push delivery, verifies the
 canonical `PUT /notifications/settings` payload, and fails on console or request
 errors.
 
+`npm run test:i18n:copy` statically checks every Vietnamese string in the shared
+`UI_COPY`, messenger copy, and chat-theme copy registries has an explicit English
+translation key. Dynamic messages remain covered by the canonical patterns in
+`src/shared/i18n/runtime.ts`; this check does not introduce runtime fallback
+behavior.
+
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the
 HTTP boundary inside the test process; no runtime code contains that stub.

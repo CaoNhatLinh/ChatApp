@@ -105,7 +105,7 @@ The same follow-up increment added a bounded global message inspection route
 `AUDIT_READ`, the exact Cassandra bucket and a reason, returns the canonical
 message plus revision history, and records the access in the immutable audit
 timeline. The frontend admin panel uses this contract without fabricating
-message or revision data. JDK 20 Maven tests now cover 75 tests; live
+message or revision data. JDK 20 Maven tests now cover 87 tests; live
 Cassandra-backed persistence remains externally blocked.
 
 The search audit also removed two UI filters that had no canonical backend
@@ -127,3 +127,24 @@ The notification settings slice now validates the canonical level/time-zone
 contract at the backend boundary and exposes a bilingual settings tab with an
 explicit payload smoke test; live Cassandra persistence and delivery providers
 remain externally blocked.
+
+# Follow-up self-review (2026-08-29, bilingual copy increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Feature completeness | Partial | `UI_COPY`, `MESSENGER_COPY`, `CHAT_THEME_COPY`, and `resources.ts` source scan | Authenticated live content and provider-generated copy are outside this source registry | Added explicit EN keys for every static registry string; keep domain/status codes untranslated |
+| Flow completeness | Partial | `test:i18n:copy`, `test:e2e:locale`, `test:e2e:admin` | Authenticated two-account chat and live realtime flow remain blocked by missing stack | Preserve canonical runtime copy and verify public/operator locale journeys in browser |
+| Code-doc consistency | Pass | `docs/TESTING.md`, `docs/AGENT_WORK_PLAN.md`, `tasks/function-audit.md`, package script | No gap found in affected command references | Documented the 305-key source-contract check and current evidence |
+| Runtime consistency | Partial | Next build plus locale/admin smoke after latest build restart | Cassandra/Redis/Kafka/Elasticsearch unavailable locally | No runtime fallback added; external services remain explicitly blocked |
+| Permission coverage | Pass for affected UI | No permission code changed; admin strict labels remain server-gated | Full operator permission matrix still needs live integration | Keep labels presentation-only; server remains authority |
+| Failure and recovery | Partial | Copy check fails on missing key; browser smoke fails on console/request errors | Provider/reconnect recovery needs live dependencies | Use deterministic source check and retain explicit browser failure gates |
+| Test traceability | Pass for affected increment | `npm run test:i18n:copy`, `npm run validate`, `npm run build`, locale/admin smoke | Multi-account E2E remains pending | Added a regression guard for static bilingual copy |
+
+Corrections in this increment:
+
+- Added English translations for previously untranslated messenger status,
+  typing, poll, notification-policy, search, profile, and room-theme copy.
+- Fixed the requests counter to avoid a duplicate space when composing its
+  localized suffix.
+- Added a repository-owned `test:i18n:copy` check so future copy registries
+  cannot silently fall back to Vietnamese in English mode.
