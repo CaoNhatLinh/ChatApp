@@ -429,7 +429,7 @@ export const ChatWindow = () => {
           onVideoCall={() => startCall("VIDEO")}
           onVoiceCall={() => startCall("VOICE")}
           canCall={canCall}
-          callDisabledReason="Gọi trực tiếp hiện chỉ hỗ trợ cuộc trò chuyện 1–1."
+          callDisabledReason={localizeText("Gọi trực tiếp hiện chỉ hỗ trợ cuộc trò chuyện 1–1.")}
           onOpenRoomTheme={() => setIsRoomThemeOpen((current) => !current)}
           onToggleInfo={() => setIsInfoOpen((current) => !current)}
         />

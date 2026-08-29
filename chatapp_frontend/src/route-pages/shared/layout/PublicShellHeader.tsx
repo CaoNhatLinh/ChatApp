@@ -29,13 +29,13 @@ const PublicShellHeader = ({
         href="/login"
         className="focus-ring inline-flex items-center rounded-[var(--radius-md)] border border-border bg-transparent px-4 py-2 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
       >
-        {UI_COPY.shell.publicActions.login}
+        {localizeText(UI_COPY.shell.publicActions.login)}
       </Link>
       <Link
         href="/register"
         className="focus-ring inline-flex items-center rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px"
       >
-        {UI_COPY.shell.publicActions.register}
+        {localizeText(UI_COPY.shell.publicActions.register)}
       </Link>
     </>
   );
@@ -65,7 +65,7 @@ const PublicShellHeader = ({
                   )
                 }
               >
-                {item.label}
+                {localizeText(item.label)}
               </Link>
             ))}
           </nav>
@@ -78,7 +78,7 @@ const PublicShellHeader = ({
             {actions ?? defaultActions}
           </div>
           <Link href="/register" className="focus-ring inline-flex rounded-[var(--radius-md)] bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:hidden">
-            {UI_COPY.shell.publicActions.register}
+            {localizeText(UI_COPY.shell.publicActions.register)}
           </Link>
         </div>
       </div>

@@ -340,7 +340,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         if (active) setRooms(result);
       })
       .catch((error: unknown) => {
-        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải danh sách room của tháng này."));
+        if (active) setFeedback(getAdminErrorMessage(error, localizeText("Không thể tải danh sách room của tháng này.")));
       })
       .finally(() => {
         if (active) setRoomsLoading(false);
@@ -359,7 +359,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         if (active) setAuditEvents(result);
       })
       .catch((error: unknown) => {
-        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải audit timeline của tháng này."));
+        if (active) setFeedback(getAdminErrorMessage(error, localizeText("Không thể tải audit timeline của tháng này.")));
       })
       .finally(() => {
         if (active) setAuditLoading(false);
@@ -382,9 +382,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       link.click();
       link.remove();
       URL.revokeObjectURL(downloadUrl);
-      setFeedback("Đã xuất audit CSV cho tháng đã chọn.");
+      setFeedback(localizeText("Đã xuất audit CSV cho tháng đã chọn."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể xuất audit CSV. Kiểm tra quyền AUDIT_READ và tháng đã chọn."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể xuất audit CSV. Kiểm tra quyền AUDIT_READ và tháng đã chọn.")));
     } finally {
       setAuditExporting(false);
     }
@@ -399,7 +399,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         if (active) setAnalyticsPoints(result);
       })
       .catch((error: unknown) => {
-        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải analytics trong khoảng thời gian này."));
+        if (active) setFeedback(getAdminErrorMessage(error, localizeText("Không thể tải analytics trong khoảng thời gian này.")));
       })
       .finally(() => {
         if (active) setAnalyticsLoading(false);
@@ -418,7 +418,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         if (active) setReports(result);
       })
       .catch((error: unknown) => {
-        if (active) setFeedback(getAdminErrorMessage(error, "Không thể tải hàng đợi report của ngày này."));
+        if (active) setFeedback(getAdminErrorMessage(error, localizeText("Không thể tải hàng đợi report của ngày này.")));
       })
       .finally(() => {
         if (active) setReportsLoading(false);
@@ -436,7 +436,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
     event.preventDefault();
     const normalized = query.trim();
     if (normalized.length < 2) {
-      setFeedback("Nhập ít nhất 2 ký tự để tìm người dùng.");
+      setFeedback(localizeText("Nhập ít nhất 2 ký tự để tìm người dùng."));
       return;
     }
     setSearching(true);
@@ -444,7 +444,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
     try {
       setUsers(await searchAdminUsers(normalized));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể tìm người dùng trong lúc này."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể tìm người dùng trong lúc này.")));
     } finally {
       setSearching(false);
     }
@@ -468,7 +468,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
     } catch (error: unknown) {
       if (requestId !== userSelectionRequestRef.current) return;
       setSelectedRoles([]);
-      setFeedback(getAdminErrorMessage(error, "Không thể đọc role của người dùng này."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể đọc role của người dùng này.")));
     } finally {
       if (requestId === userSelectionRequestRef.current) setRolesLoading(false);
     }
@@ -480,7 +480,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         })
         .catch((error: unknown) => {
           if (requestId === userSelectionRequestRef.current) {
-            setFeedback(getAdminErrorMessage(error, "Không thể đọc sanctions của người dùng này."));
+            setFeedback(getAdminErrorMessage(error, localizeText("Không thể đọc sanctions của người dùng này.")));
           }
         })
         .finally(() => {
@@ -500,7 +500,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         const firstError: unknown = sessionResult.status === "rejected"
           ? sessionResult.reason as unknown
           : deviceResult.status === "rejected" ? deviceResult.reason as unknown : undefined;
-        setFeedback(getAdminErrorMessage(firstError, "Không thể đọc đầy đủ session/device của người dùng này."));
+        setFeedback(getAdminErrorMessage(firstError, localizeText("Không thể đọc đầy đủ session/device của người dùng này.")));
       }
       setSecurityLoading(false);
     }
@@ -509,7 +509,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const handleRevokeSession = async (session: AdminSession) => {
     if (!selectedUser || !overview?.permissions.includes("SESSION_REVOKE")) return;
     if (!reason.trim()) {
-      setFeedback("Cần ghi lý do khi thu hồi session.");
+      setFeedback(localizeText("Cần ghi lý do khi thu hồi session."));
       return;
     }
     if (!(await askConfirmation({
@@ -525,9 +525,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         ? { ...item, revokedAt: new Date().toISOString() }
         : item));
       setReason("");
-      setFeedback("Đã thu hồi session.");
+      setFeedback(localizeText("Đã thu hồi session."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi session hoặc session đã không còn active."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể thu hồi session hoặc session đã không còn active.")));
     } finally {
       setMutating(false);
     }
@@ -536,7 +536,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const handleRevokeDevice = async (device: AdminDevice) => {
     if (!selectedUser || !overview?.permissions.includes("SESSION_REVOKE")) return;
     if (!reason.trim()) {
-      setFeedback("Cần ghi lý do khi thu hồi thiết bị.");
+      setFeedback(localizeText("Cần ghi lý do khi thu hồi thiết bị."));
       return;
     }
     if (!(await askConfirmation({
@@ -553,9 +553,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         ? { ...item, revokedAt: new Date().toISOString() }
         : item));
       setReason("");
-      setFeedback("Đã vô hiệu hóa thiết bị và các session được liên kết.");
+      setFeedback(localizeText("Đã vô hiệu hóa thiết bị và các session được liên kết."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi thiết bị hoặc thiết bị đã không còn active."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể thu hồi thiết bị hoặc thiết bị đã không còn active.")));
     } finally {
       setMutating(false);
     }
@@ -564,7 +564,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const handleGrant = async () => {
     if (!selectedUser || !roleCode) return;
     if (!reason.trim()) {
-      setFeedback("Cần ghi lý do để tạo audit record.");
+      setFeedback(localizeText("Cần ghi lý do để tạo audit record."));
       return;
     }
     setMutating(true);
@@ -581,7 +581,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setExpiresAt("");
       setFeedback(`Đã cấp role ${roleCode} cho ${selectedUser.userName}.`);
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể cấp role. Backend sẽ từ chối nếu bạn thiếu quyền hoặc role đã tồn tại."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể cấp role. Backend sẽ từ chối nếu bạn thiếu quyền hoặc role đã tồn tại.")));
     } finally {
       setMutating(false);
     }
@@ -602,7 +602,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setSelectedRoles(await getAdminUserRoles(selectedUser.userId));
       setFeedback(`Đã thu hồi role ${role.roleCode}.`);
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi role. Kiểm tra hierarchy và quyền quản trị."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể thu hồi role. Kiểm tra hierarchy và quyền quản trị.")));
     } finally {
       setMutating(false);
     }
@@ -610,7 +610,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleUserStatus = async () => {
     if (!selectedUser || !reason.trim()) {
-      setFeedback("Cần ghi lý do cho thay đổi trạng thái tài khoản.");
+      setFeedback(localizeText("Cần ghi lý do cho thay đổi trạng thái tài khoản."));
       return;
     }
     if (userStatus !== "ACTIVE" && !(await askConfirmation({
@@ -628,7 +628,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setReason("");
       setFeedback(`Đã cập nhật trạng thái tài khoản thành ${accountStatusLabel(userStatus)}.`);
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật trạng thái. Backend sẽ kiểm tra quyền USER_SUSPEND/USER_RESTORE."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể cập nhật trạng thái. Backend sẽ kiểm tra quyền USER_SUSPEND/USER_RESTORE.")));
     } finally {
       setMutating(false);
     }
@@ -646,14 +646,14 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setRoomSlowMode(detail.slowModeSeconds);
     } catch (error: unknown) {
       if (requestId === roomSelectionRequestRef.current) {
-        setFeedback(getAdminErrorMessage(error, "Không thể đọc chi tiết room này."));
+        setFeedback(getAdminErrorMessage(error, localizeText("Không thể đọc chi tiết room này.")));
       }
     }
   };
 
   const handleRoomPolicy = async () => {
     if (!selectedRoom || !roomReason.trim()) {
-      setFeedback("Cần ghi lý do cho thay đổi moderation room.");
+      setFeedback(localizeText("Cần ghi lý do cho thay đổi moderation room."));
       return;
     }
     setRoomMutating(true);
@@ -661,10 +661,10 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       const updated = await updateAdminConversationPolicy(selectedRoom.conversationId, roomPolicy, roomSlowMode, roomReason);
       setSelectedRoom(updated);
       setRooms((current) => current.map((room) => room.conversationId === updated.conversationId ? { ...room, ...updated } : room));
-      setFeedback("Đã cập nhật policy room toàn cục.");
+      setFeedback(localizeText("Đã cập nhật policy room toàn cục."));
       setRoomReason("");
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật policy. Kiểm tra ROOM_MODERATE và reason."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể cập nhật policy. Kiểm tra ROOM_MODERATE và reason.")));
     } finally {
       setRoomMutating(false);
     }
@@ -672,7 +672,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleRoomArchive = async () => {
     if (!selectedRoom || !roomReason.trim()) {
-      setFeedback("Cần ghi lý do trước khi lưu trữ/khôi phục room.");
+      setFeedback(localizeText("Cần ghi lý do trước khi lưu trữ/khôi phục room."));
       return;
     }
     const action = selectedRoom.deleted ? "restore" : "archive";
@@ -690,9 +690,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setSelectedRoom(updated);
       setRooms((current) => current.map((room) => room.conversationId === updated.conversationId ? { ...room, ...updated } : room));
       setRoomReason("");
-      setFeedback(selectedRoom.deleted ? "Đã khôi phục room." : "Đã lưu trữ room.");
+      setFeedback(localizeText(selectedRoom.deleted ? "Đã khôi phục room." : "Đã lưu trữ room."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể thay đổi trạng thái room."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể thay đổi trạng thái room.")));
     } finally {
       setRoomMutating(false);
     }
@@ -701,7 +701,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const handleMessageInspection = async (event: FormEvent) => {
     event.preventDefault();
     if (!messageConversationId.trim() || !messageBucket.trim() || !messageId.trim() || !messageReason.trim()) {
-      setFeedback("Cần đủ conversation ID, bucket, message ID và lý do điều tra.");
+      setFeedback(localizeText("Cần đủ conversation ID, bucket, message ID và lý do điều tra."));
       return;
     }
     setMessageLoading(true);
@@ -714,9 +714,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         messageBucket.trim(),
         messageReason,
       ));
-      setFeedback("Đã ghi nhận lượt xem message vào audit timeline.");
+      setFeedback(localizeText("Đã ghi nhận lượt xem message vào audit timeline."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể đọc message. Kiểm tra UUID, bucket, quyền AUDIT_READ và reason."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể đọc message. Kiểm tra UUID, bucket, quyền AUDIT_READ và reason.")));
     } finally {
       setMessageLoading(false);
     }
@@ -724,11 +724,11 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleReportResolution = async (report: AdminReport, nextStatus: AdminReport['status']) => {
     if (!moderationReason.trim()) {
-      setFeedback("Cần ghi lý do cho quyết định moderation.");
+      setFeedback(localizeText("Cần ghi lý do cho quyết định moderation."));
       return;
     }
     if ((nextStatus === "RESOLVED" || nextStatus === "DISMISSED") && !resolutionCode.trim()) {
-      setFeedback("Cần resolution code khi đóng report.");
+      setFeedback(localizeText("Cần resolution code khi đóng report."));
       return;
     }
     if (!(await askConfirmation({
@@ -746,7 +746,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setResolutionCode("");
       setFeedback(`Đã cập nhật report thành ${reportStatusLabel(nextStatus)}.`);
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể cập nhật report. Kiểm tra REPORT_MANAGE và trạng thái hiện tại."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể cập nhật report. Kiểm tra REPORT_MANAGE và trạng thái hiện tại.")));
     } finally {
       setModerationMutating(false);
     }
@@ -754,11 +754,11 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleImposeSanction = async () => {
     if (!sanctionTargetUserId.trim() || !moderationReason.trim()) {
-      setFeedback("Cần user ID và lý do trước khi áp dụng sanction.");
+      setFeedback(localizeText("Cần user ID và lý do trước khi áp dụng sanction."));
       return;
     }
     if (sanctionScope === "CONVERSATION" && !sanctionConversationId.trim()) {
-      setFeedback("Sanction theo room cần conversation ID.");
+      setFeedback(localizeText("Sanction theo room cần conversation ID."));
       return;
     }
     setModerationMutating(true);
@@ -777,9 +777,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setModerationReason("");
       setResolutionCode("");
       setSanctionExpiresAt("");
-      setFeedback("Đã áp dụng sanction và ghi audit.");
+      setFeedback(localizeText("Đã áp dụng sanction và ghi audit."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể áp dụng sanction. Kiểm tra user ID, quyền và thời hạn."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể áp dụng sanction. Kiểm tra user ID, quyền và thời hạn.")));
     } finally {
       setModerationMutating(false);
     }
@@ -787,7 +787,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleRevokeSanction = async (sanction: AdminSanction) => {
     if (!moderationReason.trim()) {
-      setFeedback("Cần ghi lý do khi thu hồi sanction.");
+      setFeedback(localizeText("Cần ghi lý do khi thu hồi sanction."));
       return;
     }
     if (!(await askConfirmation({
@@ -801,9 +801,9 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       await revokeAdminSanction(sanction, moderationReason);
       setSanctions((current) => current.map((item) => item.sanctionId === sanction.sanctionId ? { ...item, status: "REVOKED", revokedAt: new Date().toISOString() } : item));
       setModerationReason("");
-      setFeedback("Đã thu hồi sanction.");
+      setFeedback(localizeText("Đã thu hồi sanction."));
     } catch (error: unknown) {
-      setFeedback(getAdminErrorMessage(error, "Không thể thu hồi sanction hoặc sanction đã hết hiệu lực."));
+      setFeedback(getAdminErrorMessage(error, localizeText("Không thể thu hồi sanction hoặc sanction đã hết hiệu lực.")));
     } finally {
       setModerationMutating(false);
     }
@@ -926,7 +926,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
               <p className="pb-2 text-xs text-muted-foreground">{localizeText("Hàng đợi được phân vùng theo ngày để giữ truy vấn bounded.")}</p>
             </div>
             <div className="mt-4 space-y-2" aria-live="polite">
-              {reportsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : reports.length ? reports.map((report) => <div key={report.reportId} className="rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{reportTargetLabel(report.targetType)}</Badge><Badge variant={report.status === "OPEN" ? "destructive" : "secondary"}>{reportStatusLabel(report.status)}</Badge><span className="text-xs text-muted-foreground">{report.reportId}</span></div><p className="mt-2 text-sm font-semibold">{report.reasonCode}</p>{report.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{report.description}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{localizeText("Người báo cáo")}: {report.reporterId}{report.targetUserId ? ` · ${localizeText("mục tiêu")}: ${report.targetUserId}` : ""}</p></div><div className="flex flex-wrap gap-2">{report.targetUserId ? <Button size="sm" variant="outline" onClick={() => { setSanctionTargetUserId(report.targetUserId as string); setSanctions([]); setFeedback("Đã chọn người dùng mục tiêu cho biểu mẫu chế tài."); }}>{localizeText("Chọn người dùng mục tiêu")}</Button> : null}{report.status === "OPEN" ? <Button size="sm" variant="outline" onClick={() => void handleReportResolution(report, "IN_REVIEW")} loading={moderationMutating}>{localizeText("Nhận xử lý")}</Button> : null}{report.status === "OPEN" || report.status === "IN_REVIEW" ? <><Button size="sm" onClick={() => void handleReportResolution(report, "RESOLVED")} loading={moderationMutating}>{localizeText("Giải quyết")}</Button><Button size="sm" variant="destructive" onClick={() => void handleReportResolution(report, "DISMISSED")} loading={moderationMutating}>{localizeText("Bỏ qua")}</Button></> : null}</div></div></div>) : <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Không có báo cáo nào khớp bộ lọc hiện tại.")}</p>}
+              {reportsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : reports.length ? reports.map((report) => <div key={report.reportId} className="rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{reportTargetLabel(report.targetType)}</Badge><Badge variant={report.status === "OPEN" ? "destructive" : "secondary"}>{reportStatusLabel(report.status)}</Badge><span className="text-xs text-muted-foreground">{report.reportId}</span></div><p className="mt-2 text-sm font-semibold">{report.reasonCode}</p>{report.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{report.description}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{localizeText("Người báo cáo")}: {report.reporterId}{report.targetUserId ? ` · ${localizeText("mục tiêu")}: ${report.targetUserId}` : ""}</p></div><div className="flex flex-wrap gap-2">{report.targetUserId ? <Button size="sm" variant="outline" onClick={() => { setSanctionTargetUserId(report.targetUserId as string); setSanctions([]); setFeedback(localizeText("Đã chọn người dùng mục tiêu cho biểu mẫu chế tài.")); }}>{localizeText("Chọn người dùng mục tiêu")}</Button> : null}{report.status === "OPEN" ? <Button size="sm" variant="outline" onClick={() => void handleReportResolution(report, "IN_REVIEW")} loading={moderationMutating}>{localizeText("Nhận xử lý")}</Button> : null}{report.status === "OPEN" || report.status === "IN_REVIEW" ? <><Button size="sm" onClick={() => void handleReportResolution(report, "RESOLVED")} loading={moderationMutating}>{localizeText("Giải quyết")}</Button><Button size="sm" variant="destructive" onClick={() => void handleReportResolution(report, "DISMISSED")} loading={moderationMutating}>{localizeText("Bỏ qua")}</Button></> : null}</div></div></div>) : <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Không có báo cáo nào khớp bộ lọc hiện tại.")}</p>}
             </div>
             <div className="mt-5 rounded-xl border border-border/60 bg-background/45 p-4"><p className="text-sm font-bold">{localizeText("Áp dụng chế tài người dùng")}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText("Chế tài APP BAN/SUSPEND cập nhật trạng thái tài khoản; chế tài CONVERSATION chỉ áp dụng trong room được chỉ định.")}</p><div className="mt-3 grid gap-3 md:grid-cols-2"><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("ID người dùng mục tiêu")}</label><Input className="mt-1" value={sanctionTargetUserId} onChange={(event) => setSanctionTargetUserId(event.target.value)} placeholder={localizeText("UUID của user")} /></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Phạm vi")}</label><select value={sanctionScope} onChange={(event) => setSanctionScope(event.target.value as AdminSanction['scope'])} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm"><option value="APP">{localizeText("Ứng dụng")}</option><option value="CONVERSATION">{localizeText("Cuộc trò chuyện")}</option></select></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Loại sanction")}</label><select value={sanctionType} onChange={(event) => setSanctionType(event.target.value as AdminSanction['sanctionType'])} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm"><option value="BAN">{localizeText("Cấm")}</option><option value="SUSPEND">{localizeText("Tạm ngưng")}</option><option value="MUTE">{localizeText("Tắt tiếng")}</option><option value="WARNING">{localizeText("Cảnh cáo")}</option></select></div>{sanctionScope === "CONVERSATION" ? <div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("ID cuộc trò chuyện")}</label><Input className="mt-1" value={sanctionConversationId} onChange={(event) => setSanctionConversationId(event.target.value)} placeholder={localizeText("UUID của room")} /></div> : null}<div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Hết hạn (tuỳ chọn)")}</label><Input className="mt-1" type="datetime-local" value={sanctionExpiresAt} onChange={(event) => setSanctionExpiresAt(event.target.value)} /></div><div><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Mã lý do")}</label><Input className="mt-1" value={resolutionCode} onChange={(event) => setResolutionCode(event.target.value)} placeholder={localizeText("SPAM, ABUSE...")} /></div></div><label className="mt-3 block text-xs font-semibold text-muted-foreground">{localizeText("Lý do chi tiết (bắt buộc)")}</label><Input className="mt-1" value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} placeholder={localizeText("Ghi rõ căn cứ quyết định")} /><Button className="mt-4" onClick={() => void handleImposeSanction()} loading={moderationMutating}>{localizeText("Áp dụng chế tài")}</Button></div>
             {sanctionsLoading ? <div className="mt-5 flex justify-center py-4"><LoadingSpinner /></div> : sanctionTargetUserId && sanctions.length ? <div className="mt-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Chế tài của người dùng mục tiêu đang chọn")}</p><div className="mt-3 space-y-2">{sanctions.map((sanction) => <div key={sanction.sanctionId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2"><div><Badge variant={sanction.status === "ACTIVE" ? "destructive" : "outline"}>{sanctionTypeLabel(sanction.sanctionType)} · {sanctionStatusLabel(sanction.status)}</Badge><p className="mt-1 text-xs text-muted-foreground">{sanctionScopeLabel(sanction.scope)} · {sanction.reasonText}</p></div>{sanction.status === "ACTIVE" ? <Button size="sm" variant="outline" onClick={() => void handleRevokeSanction(sanction)} loading={moderationMutating}>{localizeText("Thu hồi")}</Button> : null}</div>)}</div></div> : null}

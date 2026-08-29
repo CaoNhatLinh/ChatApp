@@ -13,11 +13,11 @@ The public/deep-link Playwright smoke currently passes (`/`, `/login`, `/about`,
 `/403`, `/search`, `/settings?tab=reports`, and `/admin` with unauthenticated redirect) with zero
 console errors or request failures. The global admin page is therefore covered
 for deep-link protection. A mock-authenticated Playwright check also loads the
-operator overview plus bounded admin panels and verifies `/admin` → `/app`
-navigation with zero console/request failures via `npm run test:e2e:admin`;
-it does not replace a real
-backend journey. An authenticated Cassandra-backed operator journey is still
-pending. Pending layers: Testcontainers/compose integration for
+operator overview plus bounded admin panels, verifies the VI→EN admin heading
+and validation feedback, exports the audit CSV, and verifies `/admin` → `/app`
+navigation with zero console/request failures via `npm run test:e2e:admin`; it
+does not replace a real backend journey. An authenticated Cassandra-backed
+operator journey is still pending. Pending layers: Testcontainers/compose integration for
 Cassandra + Redis + Kafka + Elasticsearch, Playwright authenticated journeys
 with seeded users, STOMP reconnect/read/reaction assertions, accessibility tree
 checks, and performance trace budgets.
@@ -50,7 +50,8 @@ labels after switching from Vietnamese to English.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
-`localizeText(...)` call under `src/` has an explicit English translation key.
+`localizeText(...)` call under `src/` (including the global admin feedback
+surface) has an explicit English translation key.
 Dynamic messages remain covered by the canonical patterns in
 `src/shared/i18n/runtime.ts`; this check does not introduce runtime fallback
 behavior.

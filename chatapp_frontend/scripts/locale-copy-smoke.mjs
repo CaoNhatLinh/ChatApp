@@ -15,6 +15,7 @@ const localizedErrorFiles = [
   'src/features/profile/components/user/ReportUserModal.tsx',
   'src/features/messenger/components/chat/ReportMessageModal.tsx',
   'src/app/providers/PresenceManager.tsx',
+  'src/route-pages/AdminPage.tsx',
 ];
 const resourceFile = path.join(frontendRoot, 'src/shared/i18n/resources.ts');
 const quotedVietnamese = /(?<![A-Za-z0-9])"([^"\r\n]*[À-ỹ][^"\r\n]*)"/g;

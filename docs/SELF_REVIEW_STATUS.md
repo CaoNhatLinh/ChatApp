@@ -900,7 +900,7 @@ Correction in this increment:
 | --- | --- | --- | --- | --- |
 | Bilingual navigation | Pass for authenticated shell | `AppShellHeader` localizes each nav label at render time; Contacts smoke asserts all five shell destinations in VI and EN | Full authenticated screen-reader walkthrough remains pending | Never capture locale-dependent navigation labels in module scope |
 | Bilingual profile actions | Pass for profile quick links | `ProfileQuickLinks`, `ProfileIdentityCard`, and `ProfileAccessNote` use canonical `localizeText` keys; `profile-locale-smoke.mjs` verifies title and four destinations in both locales | Live profile persistence remains pending with the integration stack | Keep link targets canonical and copy translation explicit |
-| Copy quality | Pass for affected copy | Replaced the misleading profile kicker with `Tùy chỉnh hồ sơ` / `Profile customization`; added exact resource keys; copy gate now checks 721 keys | Broader authenticated copy still needs a real-user walkthrough | Prefer concise labels that describe the action or setting accurately |
+| Copy quality | Pass for affected copy | Replaced the misleading profile kicker with `Tùy chỉnh hồ sơ` / `Profile customization`; added exact resource keys; copy gate now checks 768 keys | Broader authenticated copy still needs a real-user walkthrough | Prefer concise labels that describe the action or setting accurately |
 | Failure recovery | Pass | Profile smoke reports zero console errors and request failures with bounded HTTP fixtures | Real auth/device persistence remains blocked | Test locale behavior independently from unavailable provider infrastructure |
 | Traceability | Pass | `AppShellHeader.tsx`, profile components, `resources.ts`, `contacts-locale-smoke.mjs`, `profile-locale-smoke.mjs`, package scripts and this entry are synchronized | Clean-stack browser proof remains external | Keep every new locale assertion executable in CI |
 
@@ -909,3 +909,19 @@ Correction in this increment:
 - Removed the remaining locale-frozen shell/profile labels from rendered UI,
   localized the profile access note, corrected its wording, and added browser
   evidence for both shared navigation and profile quick links.
+
+# Follow-up self-review (2026-08-29, admin feedback and public shell locale increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Admin feedback copy | Pass for current controls | Admin validation, success, and error fallbacks now pass through canonical localization; copy smoke covers the admin route and reports 768 keys with no missing translations | Full operator mutation journey still needs live authorization and persistence | Never render a Vietnamese feedback literal directly from an admin action |
+| Public navigation | Pass | Public header nav and sign-in/register actions localize at render time; locale smoke asserts Home/About/Help plus both auth actions in EN | Authenticated public-to-app journey remains pending | Keep navigation destinations fixed while translating only presentation copy |
+| Message preview copy | Pass for covered media states | Empty previews are read at call time and audio/video/sticker summaries use explicit localized keys | Live multi-message preview/realtime evidence remains blocked | Do not cache locale-dependent preview text at module load |
+| Failure and security boundary | Pass | Admin error fallbacks still use `getUserFacingErrorMessage`; no raw server/native error is rendered | Clean-stack audit/moderation evidence remains external | Keep transport diagnostics operator-only and feedback bounded |
+| Traceability | Pass | `AdminPage.tsx`, `PublicShellHeader.tsx`, `ChatWindow` call reason, `conversation-preview.ts`, `resources.ts`, locale smoke and this entry are synchronized | Full authenticated accessibility walkthrough remains pending | Keep locale regressions executable in the browser gate |
+
+Correction in this increment:
+
+- Localized every global-admin feedback path and extended the copy contract to
+  include AdminPage; fixed public shell actions/nav and locale-dependent media
+  previews, including the previously cached empty preview.

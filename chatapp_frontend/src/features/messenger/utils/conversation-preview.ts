@@ -1,7 +1,6 @@
 ﻿import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
-
-const EMPTY_PREVIEW = MESSENGER_COPY.conversationPreview.emptyMessage;
+import { localizeText } from '@/shared/i18n';
 
 const stripDiacritics = (value: string): string =>
   value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -84,7 +83,7 @@ const formatNotificationPreview = (content: string): string => {
 export const getConversationLastMessagePreview = (conversation: Conversation): string => {
   const message = conversation.lastMessage;
   if (!message) {
-    return EMPTY_PREVIEW;
+    return localizeText(MESSENGER_COPY.conversationPreview.emptyMessage);
   }
 
   const actor = pickActor(message.senderName);
@@ -104,11 +103,11 @@ export const getConversationLastMessagePreview = (conversation: Conversation): s
     case 'SYSTEM':
       return actor + formatNotificationPreview(rawContent);
     case 'AUDIO':
-      return actor + 'đã gửi audio';
+      return actor + localizeText('đã gửi audio');
     case 'VIDEO':
-      return actor + 'đã gửi video';
+      return actor + localizeText('đã gửi video');
     case 'STICKER':
-      return actor + 'đã gửi sticker';
+      return actor + localizeText('đã gửi sticker');
     case 'TEXT':
       if (!rawContent) {
         return actor + MESSENGER_COPY.conversationPreview.emptyTextMessage;

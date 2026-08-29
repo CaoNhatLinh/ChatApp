@@ -79,7 +79,7 @@ export const CallSessionPanel = ({ controls }: CallSessionPanelProps) => {
             {localizeText(isVideo ? 'Video call' : 'Voice call')} · {localizeText(stateLabel[session.state])}
           </p>
           <p className="mt-1 truncate text-sm font-semibold text-foreground">
-            {isIncoming ? `${session.peerDisplayName} đang gọi cho bạn` : session.peerDisplayName}
+            {isIncoming ? `${session.peerDisplayName} ${localizeText('đang gọi cho bạn')}` : session.peerDisplayName}
           </p>
           {session.errorMessage ? (
             <p className="mt-1 text-xs text-destructive">{localizeText(session.errorMessage)}</p>

@@ -22,6 +22,7 @@ const home = {
   lang: await page.locator('html').getAttribute('lang'),
   heading: await page.locator('h1').first().innerText(),
   storedLocale: await page.evaluate(() => window.localStorage.getItem('novachat_locale')),
+  navigation: await page.locator('header a').allTextContents(),
 };
 
 await page.goto(`${baseUrl}/does-not-exist`, { waitUntil: 'networkidle' });
@@ -57,6 +58,11 @@ if (
   requestFailures.length ||
   home.lang !== 'en' ||
   home.storedLocale !== 'en' ||
+  !home.navigation.includes('Home') ||
+  !home.navigation.includes('About') ||
+  !home.navigation.includes('Help') ||
+  !home.navigation.includes('Sign in') ||
+  !home.navigation.includes('Create account') ||
   notFound.lang !== 'en' ||
   !notFound.hasHomeRecovery ||
   !notFound.hasWorkspaceRecovery ||

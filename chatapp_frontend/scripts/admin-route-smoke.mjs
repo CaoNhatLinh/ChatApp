@@ -66,13 +66,18 @@ await page.addInitScript(() => {
 await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Điều hành toàn ứng dụng' }).waitFor();
 const before = page.url();
+await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await page.getByRole('heading', { name: 'Global operations', exact: true }).waitFor();
+await page.getByLabel('Search admin users').fill('x');
+await page.getByRole('button', { name: 'Search', exact: true }).click();
+await page.getByText('Enter at least 2 characters to search for a user.', { exact: true }).waitFor();
 const [download] = await Promise.all([
   page.waitForEvent('download'),
-  page.getByRole('button', { name: /Xuất CSV audit/ }).click(),
+  page.getByRole('button', { name: /Export audit CSV/ }).click(),
 ]);
-await page.getByRole('button', { name: /Về ứng dụng/ }).click();
+await page.getByRole('button', { name: /Back to app/ }).click();
 await page.waitForURL('**/app');
-const result = { baseUrl, before, after: page.url(), exportedFilename: download.suggestedFilename(), consoleErrors, requestFailures };
+const result = { baseUrl, before, after: page.url(), exportedFilename: download.suggestedFilename(), englishHeading: 'Global operations', englishFeedback: 'Enter at least 2 characters to search for a user.', consoleErrors, requestFailures };
 console.log(JSON.stringify(result, null, 2));
 await browser.close();
 if (consoleErrors.length || requestFailures.length || !result.after.endsWith('/app') || !/^novachat-audit-\d{4}-\d{2}\.csv$/.test(result.exportedFilename)) process.exitCode = 1;
