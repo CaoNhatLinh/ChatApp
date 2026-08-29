@@ -2,6 +2,8 @@ import type { User } from '@/features/auth/types/auth.types';
 export type { User };
 
 export type ConversationType = 'dm' | 'group' | 'channel';
+export type ConversationNotificationLevel = 'ALL' | 'MENTIONS' | 'NONE';
+export type MemberNotificationOverride = 'INHERIT' | 'ALL' | 'MENTIONS' | 'NONE';
 export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'VIDEO' | 'STICKER' | 'POLL' | 'SYSTEM';
 
 /* --- Conversation Types --- */
@@ -34,6 +36,7 @@ export interface Conversation {
     type: ConversationType;
     description?: string;
     createdBy: string;
+    ownerId: string;
     createdAt: string;
     updatedAt: string;
     backgroundUrl?: string;
@@ -42,6 +45,8 @@ export interface Conversation {
     isPinned: boolean;
     lastActivityAt: string;
     unreadCount: number;
+    defaultNotificationLevel: ConversationNotificationLevel;
+    notificationOverride?: MemberNotificationOverride;
     otherParticipant?: User; // Only for DM
     lastMessage?: MessageSummary;
 }

@@ -173,6 +173,16 @@ paths:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
       responses: {'200': {description: Conversation}}
+  /conversations/{conversationId}/notification-policy:
+    get:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses: {'200': {description: Effective room and member notification policy, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationNotificationPolicyView'}}}}}
+    put:
+      tags: [Conversations]
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationNotificationPolicy'}}}}
+      responses: {'204': {description: Room default notification policy updated}}
   /conversations/dm/{otherUserId}:
     get:
       tags: [Conversations]
@@ -245,6 +255,12 @@ paths:
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/MemberChatPolicy'}}}}
       responses: {'204': {description: Member policy updated}}
+  /conversations/{conversationId}/members/{userId}/notification-policy:
+    put:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MemberNotificationPolicy'}}}}
+      responses: {'204': {description: Member notification override updated}}
   /conversations/{conversationId}/messages:
     get:
       tags: [Messages]
@@ -651,6 +667,9 @@ components:
     ConversationRoleRequest: {type: object, properties: {roleCode: {type: string}, displayName: {type: string}, colorHex: {type: string}, permissionCodes: {type: array, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer}}}
     ConversationChatPolicy: {type: object, required: [chatMode], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
     MemberChatPolicy: {type: object, properties: {mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}, reason: {type: string, maxLength: 500}}}
+    ConversationNotificationPolicy: {type: object, required: [defaultNotificationLevel], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}}}
+    MemberNotificationPolicy: {type: object, required: [notificationOverride], properties: {notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
+    ConversationNotificationPolicyView: {type: object, required: [defaultNotificationLevel, notificationOverride], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}, notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
     MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, attachments: {type: array}}}
     Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
     MessagePage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}

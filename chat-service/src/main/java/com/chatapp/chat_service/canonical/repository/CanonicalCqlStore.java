@@ -70,6 +70,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement saveConversation;
     private final PreparedStatement updateConversationOwner;
     private final PreparedStatement updateConversationChatPolicy;
+    private final PreparedStatement updateConversationNotificationPolicy;
     private final PreparedStatement updateConversationLastMessage;
     private final PreparedStatement loadConversation;
     private final PreparedStatement saveConversationMember;
@@ -77,8 +78,10 @@ public class CanonicalCqlStore {
     private final PreparedStatement loadConversationMember;
     private final PreparedStatement listConversationMembers;
     private final PreparedStatement updateMemberChatPolicy;
+    private final PreparedStatement updateMemberNotificationPolicy;
     private final PreparedStatement saveConversationProjection;
     private final PreparedStatement updateConversationProjectionRoles;
+    private final PreparedStatement updateConversationProjectionNotification;
     private final PreparedStatement listConversationsByUser;
     private final PreparedStatement deleteConversationProjection;
     private final PreparedStatement pinConversationSlot;
@@ -293,6 +296,10 @@ public class CanonicalCqlStore {
                 UPDATE conversations_by_id SET chat_mode = ?, slow_mode_seconds = ?, updated_at = ?
                 WHERE conversation_id = ?
                 """);
+        this.updateConversationNotificationPolicy = session.prepare("""
+                UPDATE conversations_by_id SET default_notification_level = ?, updated_at = ?
+                WHERE conversation_id = ?
+                """);
         this.updateConversationLastMessage = session.prepare("""
                 UPDATE conversations_by_id
                 SET last_message = ?, last_activity_at = ?, updated_at = ?
@@ -321,6 +328,11 @@ public class CanonicalCqlStore {
                 SET muted_until = ?, message_interval_seconds = ?
                 WHERE conversation_id = ? AND user_id = ?
                 """);
+        this.updateMemberNotificationPolicy = session.prepare("""
+                UPDATE conversation_members_by_conversation
+                SET notification_override = ?
+                WHERE conversation_id = ? AND user_id = ?
+                """);
         this.saveConversationProjection = session.prepare("""
                 INSERT INTO conversations_by_user
                     (user_id, is_pinned, last_activity_at, conversation_id, conversation_type, visibility,
@@ -329,6 +341,10 @@ public class CanonicalCqlStore {
                 """);
         this.updateConversationProjectionRoles = session.prepare("""
                 UPDATE conversations_by_user SET role_ids = ?
+                WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
+                """);
+        this.updateConversationProjectionNotification = session.prepare("""
+                UPDATE conversations_by_user SET notification_override = ?
                 WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
                 """);
         this.listConversationsByUser = session.prepare("""
@@ -1023,6 +1039,12 @@ public class CanonicalCqlStore {
         session.execute(updateConversationChatPolicy.bind(chatMode, slowModeSeconds, updatedAt, conversationId));
     }
 
+    public void updateConversationNotificationPolicy(
+            UUID conversationId, String defaultNotificationLevel, Instant updatedAt) {
+        session.execute(updateConversationNotificationPolicy.bind(
+                defaultNotificationLevel, updatedAt, conversationId));
+    }
+
     public void updateLastMessageProjections(
             CanonicalMessage message,
             String senderDisplayName,
@@ -1091,6 +1113,20 @@ public class CanonicalCqlStore {
             UUID conversationId, UUID userId, Instant mutedUntil, Integer messageIntervalSeconds) {
         session.execute(updateMemberChatPolicy.bind(
                 mutedUntil, messageIntervalSeconds, conversationId, userId));
+    }
+
+    public void updateMemberNotificationPolicy(
+            UUID conversationId, UUID userId, String notificationOverride) {
+        session.execute(updateMemberNotificationPolicy.bind(notificationOverride, conversationId, userId));
+        Row projection = findAnyConversationProjectionRow(userId, conversationId);
+        if (projection != null) {
+            session.execute(updateConversationProjectionNotification.bind(
+                    notificationOverride,
+                    userId,
+                    projection.getBoolean("is_pinned"),
+                    projection.getInstant("last_activity_at"),
+                    conversationId));
+        }
     }
 
     public void removeConversationMember(UUID conversationId, UUID userId) {

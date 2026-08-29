@@ -33,6 +33,7 @@ http:
     - POST /conversations
     - GET /conversations
     - GET /conversations/{conversationId}
+    - GET /conversations/{conversationId}/notification-policy
     - GET /conversations/dm/{otherUserId}
     - GET /conversations/{conversationId}/members
     - POST /conversations/{conversationId}/members
@@ -40,6 +41,8 @@ http:
     - POST /conversations/{conversationId}/leave
     - POST /conversations/{conversationId}/pin
     - DELETE /conversations/{conversationId}/pin
+    - PUT /conversations/{conversationId}/notification-policy
+    - PUT /conversations/{conversationId}/members/{userId}/notification-policy
   messages:
     - GET /conversations/{conversationId}/messages
     - POST /conversations/{conversationId}/messages

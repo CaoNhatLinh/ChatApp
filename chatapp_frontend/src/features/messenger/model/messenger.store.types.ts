@@ -26,6 +26,10 @@ export interface ConversationSlice {
     pinConversation: (id: string) => void;
     unpinConversation: (id: string) => void;
     setConversationUnreadCount: (conversationId: string, unreadCount: number) => void;
+    updateConversationNotificationPolicy: (
+        conversationId: string,
+        policy: Pick<Conversation, 'defaultNotificationLevel' | 'notificationOverride'>,
+    ) => void;
     upsertConversationFromMessage: (message: Message) => void;
     resetUnreadCount: (conversationId: string) => void;
 }

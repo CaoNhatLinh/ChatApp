@@ -20,6 +20,12 @@ canonical `MessageSearchRequest` fields. There is no recipient-user filter
 because messages are conversation-scoped; reply filtering uses
 `replyToSenderId`.
 
+Notification precedence is explicit: a conversation default accepts `ALL`,
+`MENTIONS`, or `NONE`; each member may set `INHERIT`, `ALL`, `MENTIONS`, or
+`NONE` for their own membership. The room default is writable only with
+`ROOM_UPDATE`; a member override is writable only by that member. The effective
+pair is read from `GET /conversations/{conversationId}/notification-policy`.
+
 The global admin UI uses the same frontend/backend projects: `GET /admin/overview`
 is the server-authoritative capability gate. Whole-app room operations use the
 bounded monthly `/admin/conversations` directory and its policy/archive routes;

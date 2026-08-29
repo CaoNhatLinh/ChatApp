@@ -426,6 +426,19 @@ public class CanonicalBackendService {
         return conv;
     }
 
+    public CanonicalApiContracts.ConversationNotificationPolicyView getConversationNotificationPolicy(
+            UUID actorId, UUID conversationId) {
+        authorization.requireMember(conversationId, actorId);
+        CanonicalConversation conversation = getConversation(conversationId);
+        CanonicalConversationMember member = store.findConversationMember(conversationId, actorId);
+        if (member == null) {
+            throw new ForbiddenException("not member of conversation");
+        }
+        return new CanonicalApiContracts.ConversationNotificationPolicyView(
+                NotificationSettingsPolicy.requireRoomLevel(conversation.defaultNotificationLevel()),
+                NotificationSettingsPolicy.requireOverride(member.notificationOverride()));
+    }
+
     public CanonicalConversation findMyDm(UUID actorId, UUID otherUserId) {
         if (actorId.equals(otherUserId)) {
             throw new BadRequestException("the DM peer must be another user");
@@ -683,6 +696,56 @@ public class CanonicalBackendService {
         store.updateConversationChatPolicy(conversationId, chatMode, slowModeSeconds, Instant.now());
         appendAudit(actorId, conversationId, "CONVERSATION_CHAT_POLICY_UPDATE", "conversation",
                 conversationId.toString(), null, null);
+    }
+
+    public void updateConversationNotificationPolicy(
+            UUID actorId,
+            UUID conversationId,
+            CanonicalApiContracts.ConversationNotificationPolicyRequest req) {
+        authorization.requirePermission(conversationId, actorId, ConversationPermission.ROOM_UPDATE);
+        if (req == null) {
+            throw new BadRequestException("defaultNotificationLevel is required");
+        }
+        String nextLevel = NotificationSettingsPolicy.requireRoomLevel(req.defaultNotificationLevel());
+        CanonicalConversation conversation = getConversation(conversationId);
+        String previousLevel = NotificationSettingsPolicy.requireRoomLevel(conversation.defaultNotificationLevel());
+        if (previousLevel.equals(nextLevel)) {
+            return;
+        }
+        NotificationSettingsPolicy.requireRoomReduction(previousLevel, nextLevel);
+        store.updateConversationNotificationPolicy(conversationId, nextLevel, Instant.now());
+        appendAudit(actorId, conversationId, "CONVERSATION_NOTIFICATION_POLICY_UPDATE", "conversation",
+                conversationId.toString(), null, null,
+                Map.of("defaultNotificationLevel", previousLevel),
+                Map.of("defaultNotificationLevel", nextLevel));
+    }
+
+    public void updateMemberNotificationPolicy(
+            UUID actorId,
+            UUID conversationId,
+            UUID userId,
+            CanonicalApiContracts.MemberNotificationPolicyRequest req) {
+        authorization.requireMember(conversationId, actorId);
+        if (!actorId.equals(userId)) {
+            throw new ForbiddenException("members can only change their own notification override");
+        }
+        if (req == null) {
+            throw new BadRequestException("notificationOverride is required");
+        }
+        String nextOverride = NotificationSettingsPolicy.requireOverride(req.notificationOverride());
+        CanonicalConversationMember member = store.findConversationMember(conversationId, userId);
+        if (member == null) {
+            throw new NotFoundException("conversation member not found");
+        }
+        String previousOverride = NotificationSettingsPolicy.requireOverride(member.notificationOverride());
+        if (previousOverride.equals(nextOverride)) {
+            return;
+        }
+        store.updateMemberNotificationPolicy(conversationId, userId, nextOverride);
+        appendAudit(actorId, conversationId, "MEMBER_NOTIFICATION_POLICY_UPDATE", "conversation_member",
+                userId.toString(), userId, null,
+                Map.of("notificationOverride", previousOverride),
+                Map.of("notificationOverride", nextOverride));
     }
 
     public void updateMemberChatPolicy(
@@ -1429,6 +1492,20 @@ public class CanonicalBackendService {
     }
 
     private void appendAudit(UUID actorId, UUID conversationId, String action, String resourceType, String resourceId, UUID targetUserId, String reason) {
+        appendAudit(actorId, conversationId, action, resourceType, resourceId, targetUserId, reason,
+                Map.of(), Map.of());
+    }
+
+    private void appendAudit(
+            UUID actorId,
+            UUID conversationId,
+            String action,
+            String resourceType,
+            String resourceId,
+            UUID targetUserId,
+            String reason,
+            Map<String, String> beforeState,
+            Map<String, String> afterState) {
         eventRecorder.record(
                 actorId,
                 conversationId,
@@ -1437,8 +1514,8 @@ public class CanonicalBackendService {
                 resourceId,
                 targetUserId,
                 reason,
-                Map.of(),
-                Map.of());
+                beforeState,
+                afterState);
     }
 
     private void recordMessageEvent(

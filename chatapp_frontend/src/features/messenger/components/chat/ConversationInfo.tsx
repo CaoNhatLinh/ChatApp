@@ -11,7 +11,36 @@ import { Button } from '@/shared/ui/Button';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { InviteManager } from './InviteManager';
+import {
+    getConversationNotificationPolicy,
+    updateConversationNotificationPolicy as saveConversationNotificationPolicy,
+    updateMemberNotificationPolicy as saveMemberNotificationPolicy,
+    type ConversationNotificationPolicyView,
+} from '@/features/messenger/api/messenger.api';
+import type {
+    ConversationNotificationLevel,
+    MemberNotificationOverride,
+} from '@/features/messenger/types/messenger.types';
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { localizeText } from '@/shared/i18n';
+
+const ROOM_NOTIFICATION_LEVELS: Array<{ value: ConversationNotificationLevel; label: string; hint: string }> = [
+    { value: 'ALL', label: 'Tất cả hoạt động', hint: 'Nhận mọi thông báo được phép.' },
+    { value: 'MENTIONS', label: 'Chỉ lượt nhắc', hint: 'Chỉ nhận thông báo khi có người nhắc bạn.' },
+    { value: 'NONE', label: 'Tắt toàn bộ', hint: 'Không nhận thông báo ngoài các cảnh báo an toàn bắt buộc.' },
+];
+
+const MEMBER_NOTIFICATION_LEVELS: Array<{ value: MemberNotificationOverride; label: string; hint: string }> = [
+    { value: 'INHERIT', label: 'Theo mặc định phòng', hint: 'Dùng mức thông báo do phòng đặt.' },
+    ...ROOM_NOTIFICATION_LEVELS,
+];
+
+const roomNotificationRank: Record<ConversationNotificationLevel, number> = {
+    ALL: 0,
+    MENTIONS: 1,
+    NONE: 2,
+};
 
 interface ConversationInfoProps {
     isOpen: boolean;
@@ -20,14 +49,80 @@ interface ConversationInfoProps {
 
 export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onClose }) => {
     const { conversations, activeConversationId } = useMessenger();
+    const updateConversationNotificationPolicy = useMessengerStore(
+        (state) => state.updateConversationNotificationPolicy,
+    );
 
     // UI states for new features
     const [blockStatus, setBlockStatus] = React.useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
+    const [notificationPolicy, setNotificationPolicy] = React.useState<ConversationNotificationPolicyView | null>(null);
+    const [notificationPolicyLoading, setNotificationPolicyLoading] = React.useState(false);
+    const [notificationPolicySaving, setNotificationPolicySaving] = React.useState(false);
+    const [notificationPolicyError, setNotificationPolicyError] = React.useState(false);
+    const [roomNotificationLevel, setRoomNotificationLevel] = React.useState<ConversationNotificationLevel>('ALL');
+    const [memberNotificationOverride, setMemberNotificationOverride] = React.useState<MemberNotificationOverride>('INHERIT');
 
     const { user: currentUser } = useAuthStore();
     const { blockFriend, unblockFriend, fetchBlockedUsers } = useFriendStore();
 
     const activeConv = conversations?.find((c: Conversation) => c.conversationId === activeConversationId);
+
+    const loadNotificationPolicy = React.useCallback(async () => {
+        if (!activeConversationId) return;
+        setNotificationPolicyLoading(true);
+        setNotificationPolicyError(false);
+        try {
+            const nextPolicy = await getConversationNotificationPolicy(activeConversationId);
+            setNotificationPolicy(nextPolicy);
+            setRoomNotificationLevel(nextPolicy.defaultNotificationLevel);
+            setMemberNotificationOverride(nextPolicy.notificationOverride);
+        } catch (error) {
+            setNotificationPolicy(null);
+            setNotificationPolicyError(true);
+            console.error('[ConversationInfo] Notification policy load failed:', error);
+        } finally {
+            setNotificationPolicyLoading(false);
+        }
+    }, [activeConversationId]);
+
+    React.useEffect(() => {
+        if (isOpen && activeConversationId) {
+            void loadNotificationPolicy();
+        }
+    }, [activeConversationId, isOpen, loadNotificationPolicy]);
+
+    const canManageRoomNotifications = Boolean(currentUser?.userId && activeConv?.ownerId === currentUser.userId);
+
+    const saveNotificationPolicy = async () => {
+        if (!activeConv || !currentUser?.userId || !notificationPolicy) return;
+        setNotificationPolicySaving(true);
+        try {
+            if (canManageRoomNotifications && roomNotificationLevel !== notificationPolicy.defaultNotificationLevel) {
+                await saveConversationNotificationPolicy(activeConv.conversationId, {
+                    defaultNotificationLevel: roomNotificationLevel,
+                });
+            }
+            if (memberNotificationOverride !== notificationPolicy.notificationOverride) {
+                await saveMemberNotificationPolicy(activeConv.conversationId, currentUser.userId, {
+                    notificationOverride: memberNotificationOverride,
+                });
+            }
+            const nextPolicy = {
+                defaultNotificationLevel: roomNotificationLevel,
+                notificationOverride: memberNotificationOverride,
+            } satisfies ConversationNotificationPolicyView;
+            setNotificationPolicy(nextPolicy);
+            updateConversationNotificationPolicy(activeConv.conversationId, nextPolicy);
+            notifySuccess(localizeText('Đã cập nhật cài đặt thông báo của phòng.'));
+        } catch (error) {
+            console.error('[ConversationInfo] Notification policy save failed:', error);
+            notifyError(localizeText('Không thể cập nhật cài đặt thông báo của phòng.'));
+            setRoomNotificationLevel(notificationPolicy.defaultNotificationLevel);
+            setMemberNotificationOverride(notificationPolicy.notificationOverride);
+        } finally {
+            setNotificationPolicySaving(false);
+        }
+    };
 
     // Fetch block status for DM conversations
     React.useEffect(() => {
@@ -99,6 +194,70 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                 </div>
 
                 <div className="space-y-6">
+                    <section className="space-y-4" aria-labelledby="conversation-notification-title">
+                        <div>
+                            <h4 id="conversation-notification-title" className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 px-1">
+                                {localizeText('Thông báo phòng')}
+                            </h4>
+                            <p className="px-1 text-xs leading-5 text-muted-foreground">
+                                {localizeText('Chọn mức thông báo mặc định của phòng và thiết lập riêng cho bạn.')}
+                            </p>
+                        </div>
+                        {notificationPolicyLoading ? (
+                            <p className="text-sm text-muted-foreground">{localizeText('Đang tải cài đặt thông báo...')}</p>
+                        ) : notificationPolicyError ? (
+                            <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                                <p className="text-destructive">{localizeText('Không thể tải cài đặt thông báo của phòng.')}</p>
+                                <Button type="button" variant="outline" size="sm" onClick={() => void loadNotificationPolicy()}>
+                                    {localizeText('Thử lại')}
+                                </Button>
+                            </div>
+                        ) : notificationPolicy ? (
+                            <div className="space-y-4">
+                                <label className="block space-y-2">
+                                    <span className="text-sm font-semibold">{localizeText('Mặc định của phòng')}</span>
+                                    <select
+                                        className="h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                                        value={roomNotificationLevel}
+                                        disabled={!canManageRoomNotifications || notificationPolicySaving}
+                                        onChange={(event) => setRoomNotificationLevel(event.target.value as ConversationNotificationLevel)}
+                                    >
+                                        {ROOM_NOTIFICATION_LEVELS.map((option) => (
+                                            <option
+                                                key={option.value}
+                                                value={option.value}
+                                                disabled={roomNotificationRank[option.value] < roomNotificationRank[notificationPolicy.defaultNotificationLevel]}
+                                            >
+                                                {localizeText(option.label)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="block text-xs leading-5 text-muted-foreground">
+                                        {canManageRoomNotifications
+                                            ? localizeText('Chủ phòng có thể thay đổi mức mặc định cho tất cả thành viên.')
+                                            : localizeText('Chỉ chủ phòng có thể thay đổi mức mặc định.')}
+                                    </span>
+                                </label>
+                                <label className="block space-y-2">
+                                    <span className="text-sm font-semibold">{localizeText('Cài đặt của bạn')}</span>
+                                    <select
+                                        className="h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                                        value={memberNotificationOverride}
+                                        disabled={notificationPolicySaving}
+                                        onChange={(event) => setMemberNotificationOverride(event.target.value as MemberNotificationOverride)}
+                                    >
+                                        {MEMBER_NOTIFICATION_LEVELS.map((option) => (
+                                            <option key={option.value} value={option.value}>{localizeText(option.label)}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                                <Button type="button" className="w-full" loading={notificationPolicySaving} onClick={() => void saveNotificationPolicy()}>
+                                    {localizeText('Lưu cài đặt thông báo')}
+                                </Button>
+                            </div>
+                        ) : null}
+                    </section>
+
                     {activeConv.type !== 'dm' && (
                         <div>
                             <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">{localizeText('Lời mời & yêu cầu tham gia')}</h4>

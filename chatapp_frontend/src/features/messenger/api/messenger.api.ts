@@ -6,7 +6,9 @@ import type {
     Attachment,
     MessageRevision,
     CreateConversationRequest,
-    SendMessageRequest
+    SendMessageRequest,
+    ConversationNotificationLevel,
+    MemberNotificationOverride
 } from '../types/messenger.types';
 
 export interface PaginatedResponse<T> {
@@ -109,11 +111,13 @@ interface CanonicalConversation {
     name: string;
     description?: string;
     createdBy: string;
+    ownerId: string;
     createdAt: string;
     updatedAt: string;
     isDeleted: boolean;
     lastActivityAt: string;
     memberCount: number;
+    defaultNotificationLevel: ConversationNotificationLevel;
 }
 
 const toAttachment = (uploaded: UploadedFileDto): Attachment => {
@@ -145,7 +149,7 @@ interface CanonicalConversationListItem {
     pinned: boolean;
     unreadCount: number;
     joinedAt: string;
-    notificationOverride: string;
+    notificationOverride: MemberNotificationOverride;
     lastMessage: {
         messageId: string;
         senderId: string;
@@ -178,6 +182,19 @@ export interface ConversationChatPolicyRequest {
     slowModeSeconds: number;
 }
 
+export interface ConversationNotificationPolicyRequest {
+    defaultNotificationLevel: ConversationNotificationLevel;
+}
+
+export interface MemberNotificationPolicyRequest {
+    notificationOverride: MemberNotificationOverride;
+}
+
+export interface ConversationNotificationPolicyView {
+    defaultNotificationLevel: ConversationNotificationLevel;
+    notificationOverride: MemberNotificationOverride;
+}
+
 export interface MemberChatPolicyRequest {
     mutedUntil?: string | null;
     messageIntervalSeconds?: number | null;
@@ -192,12 +209,27 @@ const mapConversationType = (type: string): Conversation['type'] => {
     throw new Error(`Unsupported canonical conversation type: ${type}`);
 };
 
+const mapConversationNotificationLevel = (level: string): ConversationNotificationLevel => {
+    if (level === 'ALL' || level === 'MENTIONS' || level === 'NONE') {
+        return level;
+    }
+    throw new Error(`Unsupported canonical conversation notification level: ${level}`);
+};
+
+const mapMemberNotificationOverride = (override: string): MemberNotificationOverride => {
+    if (override === 'INHERIT' || override === 'ALL' || override === 'MENTIONS' || override === 'NONE') {
+        return override;
+    }
+    throw new Error(`Unsupported canonical member notification override: ${override}`);
+};
+
 const mapConversation = (conversation: CanonicalConversation): Conversation => ({
     conversationId: conversation.conversationId,
     name: conversation.name,
     type: mapConversationType(conversation.conversationType),
     description: conversation.description,
     createdBy: conversation.createdBy,
+    ownerId: conversation.ownerId,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     memberCount: conversation.memberCount,
@@ -205,12 +237,14 @@ const mapConversation = (conversation: CanonicalConversation): Conversation => (
     isPinned: false,
     lastActivityAt: conversation.lastActivityAt,
     unreadCount: 0,
+    defaultNotificationLevel: mapConversationNotificationLevel(conversation.defaultNotificationLevel),
 });
 
 const mapConversationListItem = (item: CanonicalConversationListItem): Conversation => ({
     ...mapConversation(item.conversation),
     isPinned: item.pinned,
     unreadCount: item.unreadCount,
+    notificationOverride: mapMemberNotificationOverride(item.notificationOverride),
     lastMessage: item.lastMessage ? {
         messageId: item.lastMessage.messageId,
         senderId: item.lastMessage.senderId,
@@ -270,6 +304,19 @@ export const getConversations = async (page = 0, size = 30): Promise<PaginatedRe
 export const getConversationById = async (id: string): Promise<Conversation> => {
     const response = await apiClient.get<CanonicalConversation>(`/conversations/${id}`);
     return mapConversation(response.data);
+};
+
+export const getConversationNotificationPolicy = async (
+    conversationId: string,
+): Promise<ConversationNotificationPolicyView> => {
+    const response = await apiClient.get<ConversationNotificationPolicyView>(
+        `/conversations/${conversationId}/notification-policy`,
+    );
+    if (!['ALL', 'MENTIONS', 'NONE'].includes(response.data.defaultNotificationLevel)
+        || !['INHERIT', 'ALL', 'MENTIONS', 'NONE'].includes(response.data.notificationOverride)) {
+        throw new Error('Canonical conversation notification policy is invalid');
+    }
+    return response.data;
 };
 
 export const createConversation = async (data: CreateConversationRequest): Promise<Conversation> => {
@@ -562,6 +609,21 @@ export const updateConversationChatPolicy = async (
     request: ConversationChatPolicyRequest,
 ): Promise<void> => {
     await apiClient.put(`/conversations/${conversationId}/chat-policy`, request);
+};
+
+export const updateConversationNotificationPolicy = async (
+    conversationId: string,
+    request: ConversationNotificationPolicyRequest,
+): Promise<void> => {
+    await apiClient.put(`/conversations/${conversationId}/notification-policy`, request);
+};
+
+export const updateMemberNotificationPolicy = async (
+    conversationId: string,
+    userId: string,
+    request: MemberNotificationPolicyRequest,
+): Promise<void> => {
+    await apiClient.put(`/conversations/${conversationId}/members/${userId}/notification-policy`, request);
 };
 
 export const updateMemberChatPolicy = async (

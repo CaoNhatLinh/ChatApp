@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.UUID;
@@ -58,6 +59,12 @@ public class CanonicalConversationController {
     public CanonicalConversation get(@PathVariable UUID conversationId) {
         authorization.requireMember(conversationId, actorId());
         return backend.getConversation(conversationId);
+    }
+
+    @GetMapping("/{conversationId}/notification-policy")
+    public CanonicalApiContracts.ConversationNotificationPolicyView getNotificationPolicy(
+            @PathVariable UUID conversationId) {
+        return backend.getConversationNotificationPolicy(actorId(), conversationId);
     }
 
     @GetMapping("/dm/{otherUserId}")
@@ -144,6 +151,23 @@ public class CanonicalConversationController {
             @PathVariable UUID conversationId,
             @RequestBody CanonicalApiContracts.ConversationChatPolicyRequest request) {
         backend.updateConversationChatPolicy(actorId(), conversationId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{conversationId}/notification-policy")
+    public ResponseEntity<Void> updateNotificationPolicy(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody CanonicalApiContracts.ConversationNotificationPolicyRequest request) {
+        backend.updateConversationNotificationPolicy(actorId(), conversationId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{conversationId}/members/{userId}/notification-policy")
+    public ResponseEntity<Void> updateMemberNotificationPolicy(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID userId,
+            @Valid @RequestBody CanonicalApiContracts.MemberNotificationPolicyRequest request) {
+        backend.updateMemberNotificationPolicy(actorId(), conversationId, userId, request);
         return ResponseEntity.noContent().build();
     }
 

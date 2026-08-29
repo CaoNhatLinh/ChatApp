@@ -33,4 +33,17 @@ class NotificationSettingsPolicyTest {
         assertThatThrownBy(() -> NotificationSettingsPolicy.normalizeTimezone("not/a-zone"))
                 .isInstanceOf(BadRequestException.class);
     }
+
+    @Test
+    void validatesRoomDefaultsAndMemberOverridesAgainstTheCqlEnums() {
+        assertThat(NotificationSettingsPolicy.requireRoomLevel(" mentions ")).isEqualTo("MENTIONS");
+        assertThat(NotificationSettingsPolicy.requireOverride(" inherit ")).isEqualTo("INHERIT");
+        NotificationSettingsPolicy.requireRoomReduction("ALL", "NONE");
+        assertThatThrownBy(() -> NotificationSettingsPolicy.requireRoomReduction("NONE", "ALL"))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class);
+        assertThatThrownBy(() -> NotificationSettingsPolicy.requireRoomLevel("DIRECT_ONLY"))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> NotificationSettingsPolicy.requireOverride("DEFAULT"))
+                .isInstanceOf(BadRequestException.class);
+    }
 }

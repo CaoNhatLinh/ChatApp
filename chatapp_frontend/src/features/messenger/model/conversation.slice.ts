@@ -116,6 +116,14 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
 
     setFriendRequestCount: (count) => set({ friendRequestCount: count }, false, 'setFriendRequestCount'),
 
+    updateConversationNotificationPolicy: (conversationId, policy) => set((state) => ({
+        conversations: state.conversations.map((conversation) => (
+            conversation.conversationId === conversationId
+                ? { ...conversation, ...policy }
+                : conversation
+        )),
+    }), false, 'updateConversationNotificationPolicy'),
+
     pinConversation: (conversationId) => set((state) => {
         const conversations = state.conversations.map(c =>
             c.conversationId === conversationId ? { ...c, isPinned: true } : c

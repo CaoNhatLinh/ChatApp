@@ -22,7 +22,10 @@ class CanonicalContractManifestTest {
                 .contains("POST /conversations/{conversationId}/pin")
                 .contains("DELETE /conversations/{conversationId}/pin")
                 .contains("GET /conversations/dm/{otherUserId}")
-                .contains("GET /conversations/{conversationId}/members");
+                .contains("GET /conversations/{conversationId}/members")
+                .contains("GET /conversations/{conversationId}/notification-policy")
+                .contains("PUT /conversations/{conversationId}/notification-policy")
+                .contains("PUT /conversations/{conversationId}/members/{userId}/notification-policy");
         assertThat(frontend)
                 .contains("apiClient.post(`/conversations/${conversationId}/pin`)")
                 .contains("apiClient.delete(`/conversations/${conversationId}/pin`)")
@@ -57,6 +60,7 @@ class CanonicalContractManifestTest {
                 .contains("/notifications/unread/count")
                 .contains("NotificationSettingRequest")
                 .contains("DIRECT_ONLY")
+                .contains("ConversationNotificationPolicyView")
                 .contains("/admin/overview")
                 .contains("/admin/audit")
                 .contains("/admin/analytics")

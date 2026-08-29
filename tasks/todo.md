@@ -5,7 +5,7 @@
 
 ## Recovery Gate: Current Broken/Inconsistent Work
 
-- [X] R.1 Fix friendship projections and run the existing Maven tests (78 tests pass).
+- [X] R.1 Fix friendship projections and run the existing Maven tests (81 tests pass).
 - [X] R.2 Freeze OpenAPI + AsyncAPI/STOMP contracts and add duplicate-key/path-parameter checks.
 - [ ] R.3 Complete authenticated auth -> user search -> friend -> DM -> message/read E2E flow (implementation is present; live infrastructure and two-account proof are pending).
 - [ ] R.4 Add clean-stack integration and Playwright multi-account tests (the public/deep-link smoke harness exists; Docker/Testcontainers stack is unavailable on this host).

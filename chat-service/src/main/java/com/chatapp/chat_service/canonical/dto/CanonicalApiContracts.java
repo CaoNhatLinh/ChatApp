@@ -134,6 +134,11 @@ public final class CanonicalApiContracts {
             LastMessageSummary lastMessage) {
     }
 
+    public record ConversationNotificationPolicyView(
+            String defaultNotificationLevel,
+            String notificationOverride) {
+    }
+
     public record LastMessageSummary(
             UUID messageId,
             UUID senderId,
@@ -146,6 +151,14 @@ public final class CanonicalApiContracts {
     }
 
     public record ConversationChatPolicyRequest(String chatMode, Integer slowModeSeconds) {
+    }
+
+    public record ConversationNotificationPolicyRequest(
+            @NotBlank @Pattern(regexp = "ALL|MENTIONS|NONE") String defaultNotificationLevel) {
+    }
+
+    public record MemberNotificationPolicyRequest(
+            @NotBlank @Pattern(regexp = "INHERIT|ALL|MENTIONS|NONE") String notificationOverride) {
     }
 
     public record MemberChatPolicyRequest(Instant mutedUntil, Integer messageIntervalSeconds, String reason) {
