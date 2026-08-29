@@ -580,9 +580,15 @@ export const getConversationUnreadCount = async (conversationId: string): Promis
     if (!conversationId) {
         return 0;
     }
-    const page = await getConversations(100);
-    const matched = page.content.find((conversation) => conversation.conversationId === conversationId);
-    return matched?.unreadCount ?? 0;
+    let cursor: string | null = null;
+    do {
+        const page = await getConversations(100, cursor);
+        const matched = page.content.find((conversation) => conversation.conversationId === conversationId);
+        if (matched) return matched.unreadCount;
+        if (!page.hasNext || !page.nextCursor) return 0;
+        cursor = page.nextCursor;
+    } while (cursor);
+    return 0;
 };
 
 export const searchMessages = async (

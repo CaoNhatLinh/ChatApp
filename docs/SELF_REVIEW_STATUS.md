@@ -1346,3 +1346,11 @@ Correction in this increment:
 | Stale response safety | Pass at client boundary | Member-page request captures the room generation and ignores late responses after `requestRef` changes | Mutation cancellation across room switches remains a separate audit | Never append a page from a previous room |
 | UX density | Pass for member panel | Primary member rows remain compact; expanded controls stay per-row and the member list scrolls independently | Full long-directory accessibility review remains pending | Load more on intentional scroll, keep the explicit button as a recovery action |
 | Regression safety | Pass for available gates | `npm run validate`, `npm run build`, and `npm run test:e2e:room-management` pass with zero console/request failures and `overflow=false` | Live multi-user/member persistence remains pending | Treat browser paging evidence as contract proof, not Cassandra proof |
+
+# Follow-up self-review (2026-08-29, exact unread lookup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data correctness | Pass at client contract boundary | `getConversationUnreadCount` searches the canonical conversation projection with its opaque cursor until the requested room is found; no fixed first-page assumption remains | Live multi-page Cassandra projection proof remains pending | Keep exact lookup bounded per request and out of the rendered directory |
+| Network cost | Pass for normal navigation | The first page remains the common path; additional pages are fetched only for a selected room not present in the first page | A very large room directory can require multiple cursor requests for a deep link | Do not silently cap the search or return a guessed count |
+| Regression safety | Pass for available gates | Frontend type-check/lint/build and existing conversation/member browser smokes remain green | Live unread projection mutation remains pending | Preserve the authoritative projection value and cursor semantics |
