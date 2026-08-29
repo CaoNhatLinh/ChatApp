@@ -1,5 +1,5 @@
 import { Menu, Settings } from "lucide-react";
-import { StatusDot } from "@/features/presence/ui/StatusSelector";
+import { StatusDot, StatusSelector } from "@/features/presence/ui/StatusSelector";
 import { usePresenceStore } from "@/features/presence/model/presence.store";
 import type { User } from "@/features/auth/types/auth.types";
 import { Button } from "@/shared/ui/Button";
@@ -86,6 +86,7 @@ export const SidebarFooter = ({ user, onOpenSettings, onOpenContacts }: SidebarF
             </Button>
           </div>
         </div>
+        <StatusSelector className="mt-2 w-full justify-start px-3 text-xs text-muted-foreground hover:text-foreground" />
       </div>
     </div>
   );

@@ -48,6 +48,11 @@ integration stack is intentionally absent.
 HTTP-boundary fixture and verifies the profile quick-link title and all link
 labels after switching from Vietnamese to English.
 
+`npm run test:e2e:presence` loads the authenticated workspace with an explicit
+HTTP-boundary fixture, verifies the Online/Do not disturb/Invisible status menu
+in Vietnamese and English, and keeps unavailable realtime transport separate
+from UI assertions.
+
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
 `localizeText(...)` call under `src/` (including the global admin feedback

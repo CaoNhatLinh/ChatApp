@@ -13,7 +13,7 @@ import {
 } from '@/shared/ui/DropdownMenu';
 import { cn } from '@/shared/lib/cn';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 type StatusValue = 'ONLINE' | 'DND' | 'INVISIBLE';
 
@@ -57,6 +57,7 @@ interface StatusSelectorProps {
 }
 
 export const StatusSelector = ({ className, children }: StatusSelectorProps) => {
+    useAppLocale();
     const myStatus = usePresenceStore((s) => s.myStatus);
     const isUpdatingMyStatus = usePresenceStore((s) => s.isUpdatingMyStatus);
     const setMyStatus = usePresenceStore((s) => s.setMyStatus);
@@ -139,13 +140,13 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
                     )}
                     <span className="hidden sm:inline">
                         {isUpdatingMyStatus
-                          ? MESSENGER_COPY.presence.statusSelector.updateLoading
-                          : currentOption.label}
+                          ? localizeText(MESSENGER_COPY.presence.statusSelector.updateLoading)
+                          : localizeText(currentOption.label)}
                     </span>
                 </DropdownMenuTrigger>
             )}
             <DropdownMenuContent align="end" className="w-64 rounded-xl p-2 z-50">
-                <DropdownMenuLabel className="font-semibold px-2 py-1.5 text-sm text-foreground">{MESSENGER_COPY.presence.statusSelector.title}</DropdownMenuLabel>
+                <DropdownMenuLabel className="font-semibold px-2 py-1.5 text-sm text-foreground">{localizeText(MESSENGER_COPY.presence.statusSelector.title)}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1" />
                 {STATUS_OPTIONS.map((option) => (
                     <DropdownMenuItem
@@ -158,8 +159,8 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
                             {option.icon}
                         </div>
                         <div className="flex flex-col flex-1">
-                            <span className="font-semibold text-sm">{option.label}</span>
-                            <span className="text-[11px] text-muted-foreground leading-tight">{option.description}</span>
+                            <span className="font-semibold text-sm">{localizeText(option.label)}</span>
+                            <span className="text-[11px] text-muted-foreground leading-tight">{localizeText(option.description)}</span>
                         </div>
                         {myStatus === option.value && (
                             <Check className="ml-auto h-4 w-4 text-primary" />

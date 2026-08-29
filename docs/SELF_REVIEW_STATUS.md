@@ -940,3 +940,19 @@ Correction in this increment:
 
 - Added the missing mobile public navigation state and verified its localized
   links and accessibility attributes at a real 390px browser viewport.
+
+# Follow-up self-review (2026-08-29, presence status control increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Online feature reachability | Pass for the current own-status control | `StatusSelector` is now rendered in `SidebarFooter`, exposing Online, Do not disturb, and Invisible choices through the existing presence service | Redis/STOMP two-instance and multi-device presence proof remains pending | Keep status writes on the canonical presence WebSocket command; do not simulate success in the UI |
+| Locale behavior | Pass | Status trigger, loading state, menu title, option labels, and descriptions resolve through `localizeText`; presence smoke verifies VI and EN menus | Full authenticated locale walkthrough with live presence remains pending | Consume locale context in the control so labels cannot freeze between renders |
+| Accessibility | Pass | Native Radix dropdown trigger/menu semantics, keyboard-reachable options, disabled state during mutation, and localized names are retained | Screen-reader tree and focus-return audit remain pending | Preserve the existing dropdown primitive and explicit status descriptions |
+| Failure recovery | Pass for client boundary | Optimistic state remains governed by the existing request timeout/rollback path; smoke records unavailable realtime separately and never stubs a successful status write | Live rollback/error event from the server remains external | Keep transport failure visible through the established bounded rollback path |
+| Traceability | Pass | `StatusSelector.tsx`, `SidebarFooter.tsx`, `presence-status-smoke.mjs`, package scripts, testing docs, function audit and this entry are synchronized | Clean-stack presence integration remains blocked | Keep the online feature in the authenticated shell rather than a disconnected placeholder |
+
+Correction in this increment:
+
+- Connected the existing canonical presence status selector to the workspace
+  footer and added executable bilingual browser coverage for all three status
+  options without introducing mock runtime data.
