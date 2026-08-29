@@ -23,6 +23,7 @@ import com.chatapp.chat_service.canonical.model.MessageBucket;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
+import com.chatapp.chat_service.canonical.notification.NotificationSettingsPolicy;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -1316,16 +1317,19 @@ public class CanonicalBackendService {
     }
 
     public void updateNotificationSettings(UUID actorId, CanonicalApiContracts.NotificationSettingRequest req) {
+        if (req == null) {
+            throw new BadRequestException("notification settings are required");
+        }
         store.saveNotificationSetting(new CqlCanonicalRecords.CanonicalNotificationSettings(
                 actorId,
-                normalize(req.globalLevel(), "ALL"),
-                req.pushEnabled(),
-                req.emailEnabled(),
-                req.desktopEnabled(),
-                req.soundEnabled(),
-                req.quietHoursStart(),
-                req.quietHoursEnd(),
-                normalize(req.timezone(), "UTC"),
+                NotificationSettingsPolicy.requireLevel(req.globalLevel()),
+                NotificationSettingsPolicy.requireBoolean(req.pushEnabled(), "pushEnabled"),
+                NotificationSettingsPolicy.requireBoolean(req.emailEnabled(), "emailEnabled"),
+                NotificationSettingsPolicy.requireBoolean(req.desktopEnabled(), "desktopEnabled"),
+                NotificationSettingsPolicy.requireBoolean(req.soundEnabled(), "soundEnabled"),
+                NotificationSettingsPolicy.normalizeClock(req.quietHoursStart(), "quietHoursStart"),
+                NotificationSettingsPolicy.normalizeClock(req.quietHoursEnd(), "quietHoursEnd"),
+                NotificationSettingsPolicy.normalizeTimezone(req.timezone()),
                 Instant.now()
         ));
     }

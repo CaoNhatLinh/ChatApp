@@ -55,6 +55,8 @@ class CanonicalContractManifestTest {
                 .contains("security:\n  - bearerAuth: []")
                 .contains("/conversations/{conversationId}/messages")
                 .contains("/notifications/unread/count")
+                .contains("NotificationSettingRequest")
+                .contains("DIRECT_ONLY")
                 .contains("/admin/overview")
                 .contains("/admin/audit")
                 .contains("/admin/analytics")

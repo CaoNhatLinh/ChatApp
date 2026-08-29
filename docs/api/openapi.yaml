@@ -422,10 +422,10 @@ paths:
   /notifications/settings:
     get:
       tags: [Notifications]
-      responses: {'200': {description: Notification settings}}
+      responses: {'200': {description: Notification settings, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationSettings'}}}}}
     put:
       tags: [Notifications]
-      requestBody: {content: {application/json: {schema: {type: object}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationSettingRequest'}}}}
       responses: {'204': {description: Updated}}
   /files/upload:
     post:
@@ -660,3 +660,5 @@ components:
     JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}
     AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
     MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid}, mentionUserId: {type: string, format: uuid}, messageType: {type: string}, fromAt: {type: string, format: date-time}, toAt: {type: string, format: date-time}, hasAttachment: {type: boolean}, isPinned: {type: boolean}, pageCursor: {type: string}, limit: {type: integer, minimum: 1, maximum: 100}}}
+    NotificationSettingRequest: {type: object, required: [globalLevel, pushEnabled, emailEnabled, desktopEnabled, soundEnabled], properties: {globalLevel: {type: string, enum: [ALL, MENTIONS, DIRECT_ONLY, NONE]}, pushEnabled: {type: boolean}, emailEnabled: {type: boolean}, desktopEnabled: {type: boolean}, soundEnabled: {type: boolean}, quietHoursStart: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, quietHoursEnd: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, timezone: {type: string, nullable: true, maxLength: 64}}}
+    NotificationSettings: {type: object, required: [userId, globalLevel, pushEnabled, emailEnabled, desktopEnabled, soundEnabled, timezone, updatedAt], properties: {userId: {type: string, format: uuid}, globalLevel: {type: string, enum: [ALL, MENTIONS, DIRECT_ONLY, NONE]}, pushEnabled: {type: boolean}, emailEnabled: {type: boolean}, desktopEnabled: {type: boolean}, soundEnabled: {type: boolean}, quietHoursStart: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, quietHoursEnd: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, timezone: {type: string}, updatedAt: {type: string, format: date-time}}}

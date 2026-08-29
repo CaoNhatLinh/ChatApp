@@ -58,6 +58,7 @@ await page.addInitScript(() => {
 await page.goto(`${baseUrl}/settings?tab=notifications`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Thông báo' }).last().waitFor();
 await page.getByText('Thông báo đẩy', { exact: true }).click();
+await page.locator('#notification-global-level').selectOption('MENTIONS');
 const saveResponse = page.waitForResponse((response) => response.url().endsWith('/notifications/settings') && response.request().method() === 'PUT');
 await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
 await saveResponse;
@@ -79,7 +80,7 @@ if (
   || !result.pageUrl.includes('/settings?tab=notifications')
   || !savedPayload
   || savedPayload.pushEnabled !== false
-  || savedPayload.globalLevel !== settings.globalLevel
+  || savedPayload.globalLevel !== 'MENTIONS'
 ) {
   process.exitCode = 1;
 }

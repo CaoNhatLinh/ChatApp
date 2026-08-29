@@ -13,7 +13,16 @@ import { notifyError, notifySuccess } from '@/shared/lib/notification';
 type NotificationDraft = Pick<
   NotificationSettings,
   'pushEnabled' | 'emailEnabled' | 'desktopEnabled' | 'soundEnabled' | 'quietHoursStart' | 'quietHoursEnd' | 'timezone'
->;
+> & { globalLevel: NotificationLevel };
+
+type NotificationLevel = 'ALL' | 'MENTIONS' | 'DIRECT_ONLY' | 'NONE';
+
+const NOTIFICATION_LEVELS: Array<{ value: NotificationLevel; label: string; description: string }> = [
+  { value: 'ALL', label: 'Tất cả hoạt động', description: 'Nhận mọi thông báo được phép.' },
+  { value: 'MENTIONS', label: 'Chỉ lượt nhắc', description: 'Chỉ nhận thông báo khi có người nhắc bạn.' },
+  { value: 'DIRECT_ONLY', label: 'Chỉ tin nhắn trực tiếp', description: 'Chỉ nhận thông báo từ tin nhắn trực tiếp.' },
+  { value: 'NONE', label: 'Tắt toàn bộ', description: 'Không nhận thông báo ngoài các cảnh báo an toàn bắt buộc.' },
+];
 
 const CHANNELS: Array<{ key: keyof Pick<NotificationDraft, 'pushEnabled' | 'emailEnabled' | 'desktopEnabled' | 'soundEnabled'>; label: string; description: string }> = [
   { key: 'pushEnabled', label: 'Thông báo đẩy', description: 'Nhận thông báo khi bạn không mở NovaChat.' },
@@ -22,15 +31,24 @@ const CHANNELS: Array<{ key: keyof Pick<NotificationDraft, 'pushEnabled' | 'emai
   { key: 'soundEnabled', label: 'Âm thanh', description: 'Phát âm thanh cho thông báo mới.' },
 ];
 
-const toDraft = (settings: NotificationSettings): NotificationDraft => ({
-  pushEnabled: settings.pushEnabled,
-  emailEnabled: settings.emailEnabled,
-  desktopEnabled: settings.desktopEnabled,
-  soundEnabled: settings.soundEnabled,
-  quietHoursStart: settings.quietHoursStart ?? '',
-  quietHoursEnd: settings.quietHoursEnd ?? '',
-  timezone: settings.timezone ?? '',
-});
+const isNotificationLevel = (value: string): value is NotificationLevel =>
+  NOTIFICATION_LEVELS.some((item) => item.value === value);
+
+const toDraft = (settings: NotificationSettings): NotificationDraft => {
+  if (!isNotificationLevel(settings.globalLevel)) {
+    throw new Error('Invalid notification level');
+  }
+  return {
+    globalLevel: settings.globalLevel,
+    pushEnabled: settings.pushEnabled,
+    emailEnabled: settings.emailEnabled,
+    desktopEnabled: settings.desktopEnabled,
+    soundEnabled: settings.soundEnabled,
+    quietHoursStart: settings.quietHoursStart ?? '',
+    quietHoursEnd: settings.quietHoursEnd ?? '',
+    timezone: settings.timezone ?? '',
+  };
+};
 
 export function NotificationSettingsPanel() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -74,8 +92,19 @@ export function NotificationSettingsPanel() {
     if (!settings || !draft || !isDirty) return;
     setSaving(true);
     try {
-      await updateNotificationSettings({ globalLevel: settings.globalLevel, ...draft });
-      setSettings({ ...settings, ...draft });
+      const normalizedDraft: NotificationDraft = {
+        ...draft,
+        quietHoursStart: draft.quietHoursStart?.trim() || '',
+        quietHoursEnd: draft.quietHoursEnd?.trim() || '',
+        timezone: draft.timezone?.trim() || 'UTC',
+      };
+      await updateNotificationSettings({
+        ...normalizedDraft,
+        quietHoursStart: normalizedDraft.quietHoursStart || null,
+        quietHoursEnd: normalizedDraft.quietHoursEnd || null,
+      });
+      setSettings({ ...settings, ...normalizedDraft, quietHoursStart: normalizedDraft.quietHoursStart || null, quietHoursEnd: normalizedDraft.quietHoursEnd || null });
+      setDraft(normalizedDraft);
       notifySuccess(localizeText('Đã lưu cài đặt thông báo.'));
     } catch {
       notifyError(localizeText('Không thể lưu cài đặt thông báo. Vui lòng thử lại.'));
@@ -106,8 +135,12 @@ export function NotificationSettingsPanel() {
 
       <div className="rounded-[var(--radius-md)] border border-border bg-background p-4 sm:p-5">
         <p className="text-sm font-semibold">{localizeText('Mức thông báo toàn cục')}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText('Mức này do policy máy chủ quyết định. Các tuỳ chọn bên dưới chỉ kiểm soát kênh nhận của bạn.')}</p>
-        <output className="mt-3 inline-flex rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-bold uppercase tracking-wide">{settings.globalLevel}</output>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText('Chọn mức độ thông báo chung trước khi tinh chỉnh từng kênh nhận.')}</p>
+        <label htmlFor="notification-global-level" className="sr-only">{localizeText('Mức thông báo toàn cục')}</label>
+        <select id="notification-global-level" className="mt-3 h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm" value={draft.globalLevel} onChange={(event) => updateDraft('globalLevel', event.target.value as NotificationLevel)}>
+          {NOTIFICATION_LEVELS.map((level) => <option key={level.value} value={level.value}>{localizeText(level.label)}</option>)}
+        </select>
+        <p className="mt-2 text-xs text-muted-foreground">{localizeText(NOTIFICATION_LEVELS.find((level) => level.value === draft.globalLevel)?.description ?? '')}</p>
       </div>
 
       <div className="space-y-3">
@@ -152,4 +185,3 @@ export function NotificationSettingsPanel() {
     </section>
   );
 }
-
