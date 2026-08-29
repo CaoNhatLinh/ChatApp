@@ -4,12 +4,14 @@ import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 interface MessageInputBlockedStateProps {
   hasBlocked?: boolean;
   isBlockedBy?: boolean;
+  isLoading?: boolean;
   onUnblock: () => void;
 }
 
 export const MessageInputBlockedState = ({
   hasBlocked,
   isBlockedBy,
+  isLoading = false,
   onUnblock,
 }: MessageInputBlockedStateProps) => {
   if (hasBlocked) {
@@ -19,7 +21,10 @@ export const MessageInputBlockedState = ({
           {MESSENGER_COPY.messageInputBlocked.blockedByMe}
         </span>
         <Button
+          type="button"
           onClick={onUnblock}
+          loading={isLoading}
+          disabled={isLoading}
           className="mt-3 px-5 py-2 bg-primary text-primary-foreground rounded-xl font-bold hover:opacity-90 transition-opacity text-sm shadow-md"
         >
           {MESSENGER_COPY.messageInputBlocked.unblockAction}

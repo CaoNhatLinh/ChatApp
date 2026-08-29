@@ -274,6 +274,23 @@ Correction in this increment:
 - Appearance default, room-theme, background and reset persistence failures now
   produce stable user-facing error notifications instead of operator-only logs.
 
+# Follow-up self-review (2026-08-29, message-input block/retry increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Safety boundary | Pass for DM composer | Block status is checked before rendering the composer; failed checks fail closed with an inline retry state | Multi-tab block changes still need realtime integration proof | Do not enable sending while the relationship policy is unknown |
+| Promise lifecycle | Pass | Unblock, send and poll-create handlers catch failures and map stable copy | Attachment upload/provider failure matrix needs authenticated browser proof | No event-handler promise is intentionally left unobserved |
+| State integrity | Pass for retry/unblock | Retry re-runs the canonical block endpoint; unblock re-reads server state before reopening composer | Transactional rollback of partially uploaded attachments remains a provider gap | Keep server response authoritative |
+| Traceability | Pass | `MessageInput.tsx`, `MessageInputBlockedState.tsx`, shared error mapper and locale guard | Full composer journey remains pending without a clean authenticated stack | Preserve explicit loading/error/blocked states |
+
+Corrections in this increment:
+
+- Added fail-closed loading and retry states for DM block-status checks.
+- Added guarded unblock handling with loading state and localized success/error
+  feedback.
+- Routed send-message and create-poll failures through the shared safe error
+  mapper while retaining operator diagnostics.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

@@ -8,6 +8,7 @@ import { useMessengerStore } from "@/features/messenger/model/messenger.store";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { Textarea } from "@/shared/ui/Textarea";
+import { Button } from "@/shared/ui/Button";
 import { CreatePollModal } from "../Poll/CreatePollModal";
 import { friendApi } from "@/features/relationships/api/friends.api";
 import { createPoll } from "../../api/poll.api";
@@ -19,6 +20,9 @@ import type { Attachment, CreatePollRequest, Message } from "../../types/messeng
 import { MentionMenu } from "./MentionMenu";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
+import { localizeText } from "@/shared/i18n";
+import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
+import { logger } from "@/shared/lib/logger";
 
 interface MessageInputProps {
   replyingTo?: Message | null;
@@ -77,7 +81,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
+  const [blockStatusLoading, setBlockStatusLoading] = useState(false);
+  const [blockStatusError, setBlockStatusError] = useState(false);
+  const [blockStatusRetry, setBlockStatusRetry] = useState(0);
   const [isSending, setIsSending] = useState(false);
+  const [isUnblocking, setIsUnblocking] = useState(false);
 
   const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
   const fetchBlockedUsers = useFriendStore((state) => state.fetchBlockedUsers);
@@ -100,12 +108,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     if (!activeConversationId) {
       setBlockStatus(null);
+      setBlockStatusLoading(false);
+      setBlockStatusError(false);
       return;
     }
 
     const conv = conversationsFromStore.find((item) => item.conversationId === activeConversationId);
     if (conv?.type === "dm" && conv.otherParticipant?.userId) {
       let isMounted = true;
+      setBlockStatus(null);
+      setBlockStatusLoading(true);
+      setBlockStatusError(false);
       friendApi
         .checkBlockStatus(conv.otherParticipant.userId)
         .then((status) => {
@@ -113,8 +126,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             setBlockStatus(status);
           }
         })
-        .catch((error) => {
-          console.error("[MessageInput] Failed to check block status", error);
+        .catch((error: unknown) => {
+          if (isMounted) setBlockStatusError(true);
+          logger.error("[MessageInput] Failed to check block status", error);
+        })
+        .finally(() => {
+          if (isMounted) setBlockStatusLoading(false);
         });
 
       return () => {
@@ -123,7 +140,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     setBlockStatus(null);
-  }, [activeConversationId, conversationsFromStore]);
+    setBlockStatusLoading(false);
+    setBlockStatusError(false);
+  }, [activeConversationId, blockStatusRetry, conversationsFromStore]);
 
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextText = event.target.value;
@@ -311,9 +330,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
-    } catch (error) {
-      console.error("[MessageInput] Failed to send message:", error);
-      showError(MESSENGER_COPY.messageInput.actionSuccess.sendFailure);
+    } catch (error: unknown) {
+      logger.error("[MessageInput] Failed to send message:", error);
+      showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.sendFailure));
     } finally {
       isSendingRef.current = false;
       setIsSending(false);
@@ -339,9 +358,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     try {
       await createPoll(data);
       showSuccess(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreated);
-    } catch (error) {
-      console.error("[MessageInput] Failed to create poll:", error);
-      showError(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError);
+    } catch (error: unknown) {
+      logger.error("[MessageInput] Failed to create poll:", error);
+      showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError));
     }
   }, [showSuccess]);
 
@@ -409,13 +428,29 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleUnblock = async () => {
     const conv = conversationsFromStore.find((conversation) => conversation.conversationId === activeConversationId);
-    if (conv?.otherParticipant?.userId && user?.userId) {
+    if (!conv?.otherParticipant?.userId || !user?.userId || isUnblocking) return;
+    setIsUnblocking(true);
+    try {
       await unblockFriend(conv.otherParticipant.userId);
       const status = await friendApi.checkBlockStatus(conv.otherParticipant.userId);
       setBlockStatus(status);
       void fetchBlockedUsers();
+      notifySuccess(localizeText('Đã bỏ chặn người dùng.'));
+    } catch (error: unknown) {
+      logger.error('[MessageInput] Failed to unblock user:', error);
+      notifyError(getUserFacingErrorMessage(error, localizeText('Không thể bỏ chặn người dùng.')));
+    } finally {
+      setIsUnblocking(false);
     }
   };
+
+  if (blockStatusLoading) {
+    return <div className="flex items-center justify-center rounded-[2rem] border border-border/50 bg-card/75 p-4 text-sm text-muted-foreground" role="status">{localizeText('Đang kiểm tra trạng thái chặn...')}</div>;
+  }
+
+  if (blockStatusError) {
+    return <div className="flex items-center justify-between gap-3 rounded-[2rem] border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="alert"><span>{localizeText('Không thể kiểm tra trạng thái chặn.')}</span><Button type="button" variant="outline" size="sm" onClick={() => setBlockStatusRetry((value) => value + 1)}>{localizeText('Thử lại')}</Button></div>;
+  }
 
   if (blockStatus?.hasBlocked || blockStatus?.isBlockedBy) {
     return (
@@ -423,6 +458,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         hasBlocked={blockStatus?.hasBlocked}
         isBlockedBy={blockStatus?.isBlockedBy}
         onUnblock={handleUnblock}
+        isLoading={isUnblocking}
       />
     );
   }
