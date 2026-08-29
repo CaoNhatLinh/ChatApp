@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Archive, ArrowLeft, BarChart3, Building2, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, LoadingSpinner, SurfacePanel } from "@/shared/ui";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ConfirmDialog, Input, LoadingSpinner, SurfacePanel } from "@/shared/ui";
 import { useAuthStore } from "@/features/auth/model/auth.store";
 import type { UserDTO } from "@/entities/user/model/user.types";
 import {
@@ -68,6 +68,13 @@ interface AdminPageProps {
   onBackToApp?: () => void;
 }
 
+interface AdminConfirmation {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  destructive?: boolean;
+}
+
 const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const router = useRouter();
   const { user, loading: authLoading } = useAuthStore();
@@ -128,8 +135,21 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const [roomReason, setRoomReason] = useState("");
   const [roomMutating, setRoomMutating] = useState(false);
   const [userStatus, setUserStatus] = useState<'ACTIVE' | 'SUSPENDED' | 'BANNED'>('ACTIVE');
+  const [confirmation, setConfirmation] = useState<AdminConfirmation | null>(null);
+  const confirmationResolver = useRef<((accepted: boolean) => void) | null>(null);
   useAppLocale();
   const setFeedback = (message: string | null) => setFeedbackState(message === null ? null : localizeText(message));
+
+  const askConfirmation = (nextConfirmation: AdminConfirmation): Promise<boolean> => new Promise((resolve) => {
+    confirmationResolver.current = resolve;
+    setConfirmation(nextConfirmation);
+  });
+
+  const resolveConfirmation = (accepted: boolean) => {
+    confirmationResolver.current?.(accepted);
+    confirmationResolver.current = null;
+    setConfirmation(null);
+  };
 
   const loadOverview = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -258,7 +278,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setFeedback("Cần ghi lý do khi thu hồi session.");
       return;
     }
-    if (!window.confirm(`Thu hồi session ${session.tokenId.slice(0, 8)}… của ${selectedUser.userName}?`)) return;
+    if (!(await askConfirmation({
+      title: localizeText("Thu hồi session"),
+      description: localizeText(`Thu hồi session ${session.tokenId.slice(0, 8)}… của ${selectedUser.userName}?`),
+      confirmLabel: localizeText("Thu hồi"),
+      destructive: true,
+    }))) return;
     setMutating(true);
     try {
       await revokeAdminSession(selectedUser.userId, session.tokenId, reason);
@@ -280,7 +305,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setFeedback("Cần ghi lý do khi thu hồi thiết bị.");
       return;
     }
-    if (!window.confirm(`Thu hồi thiết bị ${device.deviceName ?? device.deviceId}…?`)) return;
+    if (!(await askConfirmation({
+      title: localizeText("Thu hồi thiết bị"),
+      description: localizeText(`Thu hồi thiết bị ${device.deviceName ?? device.deviceId}…?`),
+      confirmLabel: localizeText("Thu hồi"),
+      destructive: true,
+    }))) return;
     setMutating(true);
     try {
       await revokeAdminDevice(selectedUser.userId, device.deviceId, reason);
@@ -325,8 +355,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   const handleRevoke = async (role: AdminRoleGrant) => {
     if (!selectedUser) return;
-    const confirmed = window.confirm(`Thu hồi role ${role.roleCode} của ${selectedUser.userName}?`);
-    if (!confirmed) return;
+    if (!(await askConfirmation({
+      title: localizeText("Thu hồi role"),
+      description: localizeText(`Thu hồi role ${role.roleCode} của ${selectedUser.userName}?`),
+      confirmLabel: localizeText("Thu hồi"),
+      destructive: true,
+    }))) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -345,7 +379,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setFeedback("Cần ghi lý do cho thay đổi trạng thái tài khoản.");
       return;
     }
-    if (userStatus !== "ACTIVE" && !window.confirm(`Đổi trạng thái @${selectedUser.userName} thành ${userStatus}?`)) return;
+    if (userStatus !== "ACTIVE" && !(await askConfirmation({
+      title: localizeText("Đổi trạng thái tài khoản"),
+      description: localizeText(`Đổi trạng thái @${selectedUser.userName} thành ${userStatus}?`),
+      confirmLabel: localizeText("Xác nhận"),
+      destructive: true,
+    }))) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -399,7 +438,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       return;
     }
     const action = selectedRoom.deleted ? "restore" : "archive";
-    if (!window.confirm(`${action === "archive" ? "Archive" : "Khôi phục"} room này trên toàn ứng dụng?`)) return;
+    if (!(await askConfirmation({
+      title: localizeText(action === "archive" ? "Archive room" : "Khôi phục room"),
+      description: localizeText(`${action === "archive" ? "Lưu trữ" : "Khôi phục"} room này trên toàn ứng dụng?`),
+      confirmLabel: localizeText(action === "archive" ? "Lưu trữ" : "Khôi phục"),
+      destructive: action === "archive",
+    }))) return;
     setRoomMutating(true);
     try {
       const updated = selectedRoom.deleted
@@ -449,7 +493,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setFeedback("Cần resolution code khi đóng report.");
       return;
     }
-    if (!window.confirm(`Chuyển report ${report.reportId.slice(0, 8)}… thành ${nextStatus}?`)) return;
+    if (!(await askConfirmation({
+      title: localizeText("Xác nhận cập nhật report"),
+      description: localizeText(`Chuyển report ${report.reportId.slice(0, 8)}… thành ${nextStatus}?`),
+      confirmLabel: localizeText("Xác nhận"),
+      destructive: nextStatus === "DISMISSED",
+    }))) return;
     setModerationMutating(true);
     setFeedback(null);
     try {
@@ -503,7 +552,12 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       setFeedback("Cần ghi lý do khi thu hồi sanction.");
       return;
     }
-    if (!window.confirm(`Thu hồi sanction ${sanction.sanctionId.slice(0, 8)}…?`)) return;
+    if (!(await askConfirmation({
+      title: localizeText("Thu hồi sanction"),
+      description: localizeText(`Thu hồi sanction ${sanction.sanctionId.slice(0, 8)}…?`),
+      confirmLabel: localizeText("Thu hồi"),
+      destructive: true,
+    }))) return;
     setModerationMutating(true);
     try {
       await revokeAdminSanction(sanction, moderationReason);
@@ -689,6 +743,19 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         </SurfacePanel> : null}
 
         {feedback ? <p role="status" className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">{feedback}</p> : null}
+        {confirmation ? (
+          <ConfirmDialog
+            open
+            onOpenChange={(open) => {
+              if (!open) resolveConfirmation(false);
+            }}
+            title={confirmation.title}
+            description={confirmation.description}
+            confirmLabel={confirmation.confirmLabel}
+            destructive={confirmation.destructive}
+            onConfirm={() => resolveConfirmation(true)}
+          />
+        ) : null}
       </motion.div>
     </AppPageShell>
   );

@@ -17,12 +17,16 @@ import { ContactAddSection } from "./ContactAddSection";
 import { ContactFriendsSection } from "./ContactFriendsSection";
 import { ContactRequestsSection } from "./ContactRequestsSection";
 import { notifyError, notifySuccess } from "@/shared/lib/notification";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
+import { localizeText } from "@/shared/i18n";
 
 export const ContactListView = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | undefined>(undefined);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [unfriendTargetId, setUnfriendTargetId] = useState<string | null>(null);
+  const [isUnfriendLoading, setIsUnfriendLoading] = useState(false);
 
   const {
     activeTab,
@@ -126,15 +130,15 @@ export const ContactListView = () => {
   };
 
   const handleUnfriend = async (friendId: string) => {
-    if (!window.confirm(FRIEND_COPY.actions.unfriendConfirm)) {
-      return;
-    }
-
+    setIsUnfriendLoading(true);
     try {
       await handleUnfriendAction(friendId);
+      setUnfriendTargetId(null);
       notifySuccess(FRIEND_COPY.actions.unfriendSuccess);
     } catch {
       notifyError(FRIEND_COPY.actions.unfriendFailed);
+    } finally {
+      setIsUnfriendLoading(false);
     }
   };
 
@@ -158,7 +162,7 @@ export const ContactListView = () => {
               visibleFriends={visibleFriends}
               isLoading={loadingFriends}
               onOpenChat={handleOpenChat}
-              onUnfriend={handleUnfriend}
+              onUnfriend={(friendId) => setUnfriendTargetId(friendId)}
               onUserClick={handleUserClick}
             />
           ) : null}
@@ -211,6 +215,20 @@ export const ContactListView = () => {
           }}
           onReport={() => setIsProfileModalOpen(false)}
         /> : null}
+      <ConfirmDialog
+        open={Boolean(unfriendTargetId)}
+        onOpenChange={(open) => {
+          if (!open && !isUnfriendLoading) setUnfriendTargetId(null);
+        }}
+        title={localizeText("Hủy kết bạn")}
+        description={FRIEND_COPY.actions.unfriendConfirm}
+        confirmLabel={localizeText("Hủy kết bạn")}
+        destructive
+        loading={isUnfriendLoading}
+        onConfirm={() => {
+          if (unfriendTargetId) return handleUnfriend(unfriendTargetId);
+        }}
+      />
     </div>
   );
 };

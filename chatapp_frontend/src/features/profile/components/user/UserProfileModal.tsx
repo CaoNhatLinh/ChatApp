@@ -15,6 +15,7 @@ import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { ReportUserModal } from "./ReportUserModal";
 import { localizeText } from '@/shared/i18n';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -54,6 +55,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
   const [loadingRelationship, setLoadingRelationship] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isBlockConfirmOpen, setIsBlockConfirmOpen] = useState(false);
+  const [isBlockLoading, setIsBlockLoading] = useState(false);
 
   const isCurrentUser = currentUser?.userId === userId;
 
@@ -101,18 +104,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }, [isOpen, onClose]);
 
   const handleBlock = useCallback(async () => {
-    if (!window.confirm(localizeText("Bạn có chắc chắn muốn chặn người dùng này?"))) return;
-
     try {
       if (!currentUser?.userId) return;
+      setIsBlockLoading(true);
       await blockFriend(userId);
       setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
       setIsFriend(false);
+      setIsBlockConfirmOpen(false);
       notifySuccess(localizeText("Đã chặn người dùng này."));
       onBlock?.();
     } catch (error) {
       console.error("[UserProfileModal] Failed to block:", error);
       notifyError(localizeText("Không thể chặn người dùng."));
+    } finally {
+      setIsBlockLoading(false);
     }
   }, [blockFriend, blockStatus?.isBlockedBy, currentUser?.userId, onBlock, userId]);
 
@@ -310,7 +315,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </button>
               ) : (
                 <button
-                  onClick={handleBlock}
+                  onClick={() => setIsBlockConfirmOpen(true)}
                   type="button"
                   className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                 >
@@ -354,6 +359,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={isBlockConfirmOpen}
+        onOpenChange={setIsBlockConfirmOpen}
+        title={localizeText("Chặn người dùng")}
+        description={localizeText("Bạn có chắc chắn muốn chặn người dùng này?")}
+        confirmLabel={localizeText("Chặn")}
+        destructive
+        loading={isBlockLoading}
+        onConfirm={handleBlock}
+      />
     </div>
   );
 };

@@ -24,6 +24,7 @@ import type {
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { localizeText } from '@/shared/i18n';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 const ROOM_NOTIFICATION_LEVELS: Array<{ value: ConversationNotificationLevel; label: string; hint: string }> = [
     { value: 'ALL', label: 'Tất cả hoạt động', hint: 'Nhận mọi thông báo được phép.' },
@@ -55,6 +56,8 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     // UI states for new features
     const [blockStatus, setBlockStatus] = React.useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
+    const [isBlockConfirmOpen, setIsBlockConfirmOpen] = React.useState(false);
+    const [isBlockLoading, setIsBlockLoading] = React.useState(false);
     const [notificationPolicy, setNotificationPolicy] = React.useState<ConversationNotificationPolicyView | null>(null);
     const [notificationPolicyLoading, setNotificationPolicyLoading] = React.useState(false);
     const [notificationPolicySaving, setNotificationPolicySaving] = React.useState(false);
@@ -135,10 +138,19 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     const handleBlock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
-        if (!confirm(MESSENGER_COPY.conversationInfo.confirmBlock)) return;
-        await blockFriend(activeConv.otherParticipant.userId);
-        setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
-        void fetchBlockedUsers();
+        setIsBlockLoading(true);
+        try {
+            await blockFriend(activeConv.otherParticipant.userId);
+            setBlockStatus({ hasBlocked: true, isBlockedBy: blockStatus?.isBlockedBy ?? false });
+            setIsBlockConfirmOpen(false);
+            void fetchBlockedUsers();
+            notifySuccess(localizeText('Đã chặn người dùng.'));
+        } catch (error) {
+            console.error('[ConversationInfo] Block action failed:', error);
+            notifyError(localizeText('Không thể chặn người dùng.'));
+        } finally {
+            setIsBlockLoading(false);
+        }
     };
 
     const handleUnblock = async () => {
@@ -283,7 +295,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                     </button>
                                 ) : (
                                     <button
-                                        onClick={() => void handleBlock()}
+                                        onClick={() => setIsBlockConfirmOpen(true)}
                                         className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-destructive/10 text-destructive transition-[color,background-color,border-color,box-shadow,transform,opacity] group"
                                     >
                                         <div className="p-2 bg-destructive/10 rounded-xl group-hover:bg-destructive group-hover:text-destructive-foreground transition-colors">
@@ -298,6 +310,16 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </div>
                 </div>
             </div>
+            <ConfirmDialog
+                open={isBlockConfirmOpen}
+                onOpenChange={setIsBlockConfirmOpen}
+                title={localizeText('Chặn người dùng')}
+                description={MESSENGER_COPY.conversationInfo.confirmBlock}
+                confirmLabel={localizeText('Chặn')}
+                destructive
+                loading={isBlockLoading}
+                onConfirm={handleBlock}
+            />
         </motion.div>
     );
 };
