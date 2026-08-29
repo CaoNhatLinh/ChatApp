@@ -331,7 +331,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         textareaRef.current.style.height = "auto";
       }
     } catch (error: unknown) {
-      logger.error("[MessageInput] Failed to send message:", error);
+      logger.error("[MessageInput] Failed to send message", error instanceof Error ? error.message : String(error));
       showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.sendFailure));
     } finally {
       isSendingRef.current = false;

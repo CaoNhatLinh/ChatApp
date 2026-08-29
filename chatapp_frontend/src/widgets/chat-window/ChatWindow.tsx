@@ -507,6 +507,9 @@ export const ChatWindow = () => {
                   messageToRetry.clientMessageId ?? crypto.randomUUID(),
                 attachments: messageToRetry.attachments,
                 replyToId: messageToRetry.replyTo?.messageId,
+              }).catch((error: unknown) => {
+                logger.error('[ChatWindow] Message retry failed', error instanceof Error ? error.message : String(error));
+                showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.sendFailure));
               });
             }
           }}

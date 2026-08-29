@@ -484,6 +484,20 @@ Correction in this increment:
 - Added an observed rejection boundary around opening a newly created room and
   replaced raw create-room console output with sanitized diagnostics.
 
+# Follow-up self-review (2026-08-29, send-message result increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Mutation result correctness | Pass for composer and retry | `useMessenger.sendMessage` marks the optimistic message failed and rethrows; composer and retry callers now surface the real failure | Authenticated Cassandra/idempotency browser proof remains pending | Never show “sent” after the HTTP mutation rejects |
+| Promise lifecycle | Pass | Message input awaits and catches the rejection; failed-message retry observes its own rejection | Realtime delivery reconciliation still needs clean-stack evidence | Every send entry point owns an explicit catch |
+| State integrity | Pass | Failed optimistic rows remain visibly failed and are not silently converted to success | Attachment cleanup after partial provider failure remains a provider gap | Keep the optimistic failure marker until a later explicit retry |
+| Traceability | Pass | `useMessenger.ts`, `MessageInput.tsx`, `ChatWindow.tsx` and this entry | Clean-stack authenticated browser proof remains blocked | Preserve the reject-on-failure contract |
+
+Correction in this increment:
+
+- Removed the swallowed send-message rejection that caused a false success toast;
+  retry and composer paths now receive and display the canonical failure.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

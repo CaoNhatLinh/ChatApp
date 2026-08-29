@@ -495,11 +495,11 @@ export const useMessenger = (): UseMessengerResult => {
         try {
             await sendMessageHttp(request);
         } catch (err: unknown) {
-            console.error('[useMessenger] Error sending message:', err instanceof Error ? err.message : err);
-            setError(MESSENGER_COPY.errors.sendMessageFailed);
+            logger.error('[useMessenger] Error sending message', err instanceof Error ? err.message : String(err));
             updateMessageStatus(activeConversationId, tempId, 'failed');
+            throw err;
         }
-    }, [activeConversationId, user, addMessage, upsertConversationFromMessage, updateMessageStatus, setError]);
+    }, [activeConversationId, user, addMessage, upsertConversationFromMessage, updateMessageStatus]);
 
     const editMessage = useCallback(async (messageId: string, content: string) => {
         if (!activeConversationId) return null;
