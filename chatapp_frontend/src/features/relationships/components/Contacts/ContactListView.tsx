@@ -19,6 +19,7 @@ import { ContactRequestsSection } from "./ContactRequestsSection";
 import { notifyError, notifySuccess } from "@/shared/lib/notification";
 import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { localizeText } from "@/shared/i18n";
+import { logger } from "@/shared/lib/logger";
 
 export const ContactListView = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export const ContactListView = () => {
     setSelectedUserId(targetUserId);
     setIsProfileModalOpen(true);
     setIsProfileLoading(true);
+    setUserProfile(undefined);
 
     try {
       const profile: UserDTO = await getUserProfile(targetUserId);
@@ -70,7 +72,7 @@ export const ContactListView = () => {
         lastSeen: profile.lastActive || undefined,
       });
     } catch (error) {
-      console.error("Failed to load user profile", error);
+      logger.error("[ContactListView] Failed to load user profile", error);
       notifyError(FRIEND_COPY.status.openProfileFailed);
     } finally {
       setIsProfileLoading(false);
@@ -96,7 +98,7 @@ export const ContactListView = () => {
       setActiveView("chat");
       notifySuccess(FRIEND_COPY.actions.openChatSuccess);
     } catch (error) {
-      console.error("Open conversation failed", error);
+      logger.error("[ContactListView] Open conversation failed", error);
       notifyError(FRIEND_COPY.actions.openChatFailed);
     }
   };

@@ -228,6 +228,23 @@ Corrections in this increment:
   including a success notification and disabled controls while the request runs.
 - Localized realtime/media call failure messages before they reach the call panel.
 
+# Follow-up self-review (2026-08-29, invite-manager action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for invite actions | Invite create/copy/revoke/approve/decline handlers map failures to stable localized copy | Authenticated invite journey still needs clean-stack browser proof | No clipboard or mutation promise is allowed to reject silently |
+| Concurrency/state | Pass for local controls | A single pending-action key disables conflicting invite mutations; selected revoked link is cleared | Cross-tab invite invalidation remains a realtime gap | Keep server refresh after each mutation |
+| Bilingual UI coverage | Pass | `InviteManager`, `resources.ts`, locale copy smoke (698 keys) | Invite display names and user IDs remain domain data | Translate product feedback only |
+| Traceability | Pass | `InviteManager.tsx`, invite API contract, self-review and function inventory | Invite expiry/concurrency integration proof remains | Preserve explicit active/expired/revoked states from the API |
+
+Corrections in this increment:
+
+- Added safe copy feedback and localized errors for all invite-manager mutations.
+- Added type-safe buttons and serialized pending-action state so revoke and join
+  request decisions cannot race each other in the same panel.
+- Removed a revoked selected link from the preview immediately after the server
+  confirms the revoke.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
