@@ -8,6 +8,7 @@ import { AuthProvider } from '@/app/providers/AuthProvider';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import AdminPage from '@/route-pages/AdminPage';
 import { AppI18nProvider, localizeText } from '@/shared/i18n';
+import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
 
 export default function AdminEntry() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function AdminEntry() {
       <ThemeProvider>
         <AuthProvider>
           <Toaster position="top-center" />
+          <DeviceLifecycleManager />
           <AdminPage onBackToApp={() => router.push('/app')} />
         </AuthProvider>
       </ThemeProvider>

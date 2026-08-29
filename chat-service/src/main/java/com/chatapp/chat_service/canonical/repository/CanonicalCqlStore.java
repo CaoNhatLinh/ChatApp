@@ -65,7 +65,10 @@ public class CanonicalCqlStore {
     private final PreparedStatement listRefreshTokensByUser;
     private final PreparedStatement revokeRefreshTokenByUser;
     private final PreparedStatement listDevicesByUser;
+    private final PreparedStatement loadDeviceByUser;
+    private final PreparedStatement saveDevice;
     private final PreparedStatement deactivateDevice;
+    private final PreparedStatement touchDevice;
 
     private final PreparedStatement lookupDmPair;
     private final PreparedStatement saveDmPair;
@@ -274,8 +277,23 @@ public class CanonicalCqlStore {
                        is_active, created_at, last_seen_at
                 FROM user_devices_by_user WHERE user_id = ? LIMIT ?
                 """);
+        this.loadDeviceByUser = session.prepare("""
+                SELECT device_id, platform, push_provider, device_name, app_version,
+                       is_active, created_at, last_seen_at
+                FROM user_devices_by_user WHERE user_id = ? AND device_id = ?
+                """);
+        this.saveDevice = session.prepare("""
+                INSERT INTO user_devices_by_user
+                    (user_id, device_id, platform, push_provider, push_token, device_name,
+                     app_version, is_active, created_at, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, true, ?, ?)
+                """);
         this.deactivateDevice = session.prepare("""
                 UPDATE user_devices_by_user SET is_active = false, last_seen_at = ?
+                WHERE user_id = ? AND device_id = ? IF is_active = true
+                """);
+        this.touchDevice = session.prepare("""
+                UPDATE user_devices_by_user SET last_seen_at = ?
                 WHERE user_id = ? AND device_id = ? IF is_active = true
                 """);
 
@@ -914,6 +932,29 @@ public class CanonicalCqlStore {
                         row.getInstant("created_at"),
                         row.getInstant("last_seen_at")))
                 .toList();
+    }
+
+    public DeviceSessionRow saveDevice(
+            UUID userId,
+            UUID deviceId,
+            String platform,
+            String pushProvider,
+            String pushToken,
+            String deviceName,
+            String appVersion,
+            Instant seenAt) {
+        Row existing = session.execute(loadDeviceByUser.bind(userId, deviceId)).one();
+        Instant createdAt = existing == null
+                ? seenAt
+                : java.util.Objects.requireNonNull(existing.getInstant("created_at"), "device created_at is required");
+        session.execute(saveDevice.bind(
+                userId, deviceId, platform, pushProvider, pushToken, deviceName, appVersion, createdAt, seenAt));
+        return new DeviceSessionRow(deviceId, platform, pushProvider, deviceName, appVersion,
+                true, createdAt, seenAt);
+    }
+
+    public boolean touchDevice(UUID userId, UUID deviceId, Instant seenAt) {
+        return session.execute(touchDevice.bind(seenAt, userId, deviceId)).wasApplied();
     }
 
     /**

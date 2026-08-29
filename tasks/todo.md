@@ -22,7 +22,7 @@
 ## Phase 1: Identity And App RBAC
 
 - [X] 1.1 Canonical Java/TypeScript/OpenAPI/error/event contracts for implemented slices.
-- [ ] 1.2 Authentication, refresh rotation, profiles and devices (refresh/profile paths are implemented; authenticated integration and device lifecycle remain).
+- [ ] 1.2 Authentication, refresh rotation, profiles and devices (refresh/profile paths plus canonical device registration/heartbeat are implemented; authenticated integration and refresh-token/device linkage evidence remain).
 - [ ] 1.3 App roles, permissions, sanctions and admin user controls.
 - [ ] Checkpoint 1: auth/RBAC/audit integration tests pass.
 
@@ -57,7 +57,7 @@
 ## Phase 5: Notifications, Appearance And Calls
 
 - [ ] 5.1 Discord-like global/room/quiet-hour notification precedence (canonical inbox/settings API exists; policy matrix remains).
-- [ ] 5.2 Web/mobile notification delivery, dedupe, retry and device lifecycle (provider credentials/worker remain).
+- [ ] 5.2 Web/mobile notification delivery, dedupe, retry and device lifecycle (canonical web device registration/heartbeat is implemented; provider credentials/worker and delivery retry remain).
 - [ ] 5.3 Private source-controlled chat UI/background preferences with authenticated backend sync (implementation exists; clean Cassandra and cross-account proof remain).
 - [X] 5.4 Authorized 1–1 call signalling, native SDP/ICE lifecycle and acceptance UI; group/SFU provider remains explicitly blocked.
 - [ ] Checkpoint 5: multi-device notification/theme/call tests pass.

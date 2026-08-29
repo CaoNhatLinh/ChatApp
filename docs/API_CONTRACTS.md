@@ -15,6 +15,10 @@ signalling uses `/app/call.*` commands and
 for the native 1–1 WebRTC flow. The chat service does not provide a media
 provider or TURN service.
 
+Authenticated browsers register one canonical `WEB` device with `POST /devices`
+and refresh its `lastSeenAt` using `POST /devices/{deviceId}/heartbeat`. A revoked
+device is not reactivated by heartbeat; registration is an explicit upsert.
+
 Message search is bounded to a member's conversation and accepts only the
 canonical `MessageSearchRequest` fields. There is no recipient-user filter
 because messages are conversation-scoped; reply filtering uses

@@ -70,6 +70,9 @@ http:
     - GET /notifications/latest
     - GET /notifications/settings
     - PUT /notifications/settings
+  devices:
+    - POST /devices
+    - POST /devices/{deviceId}/heartbeat
   appearance:
     - GET /preferences/chat
     - PUT /preferences/chat

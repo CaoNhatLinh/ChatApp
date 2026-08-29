@@ -1436,6 +1436,47 @@ public class CanonicalBackendService {
                 Instant.now()));
     }
 
+    public CanonicalCqlStore.DeviceSessionRow registerDevice(
+            UUID actorId, CanonicalApiContracts.DeviceRegistrationRequest request) {
+        requireAuthenticatedActor(actorId);
+        if (request == null || request.deviceId() == null) {
+            throw new BadRequestException("deviceId is required");
+        }
+        String platform = normalizeDeviceToken(request.platform(), "platform", Set.of("WEB", "IOS", "ANDROID"));
+        String pushProvider = normalizeDeviceToken(
+                request.pushProvider(), "pushProvider", Set.of("FCM", "APNS", "WEB_PUSH"));
+        String pushToken = normalizeOptionalDeviceValue(request.pushToken(), 4096, "pushToken");
+        String deviceName = normalizeOptionalDeviceValue(request.deviceName(), 120, "deviceName");
+        String appVersion = normalizeOptionalDeviceValue(request.appVersion(), 50, "appVersion");
+        return store.saveDevice(actorId, request.deviceId(), platform, pushProvider,
+                pushToken, deviceName, appVersion, Instant.now());
+    }
+
+    public void touchDevice(UUID actorId, UUID deviceId) {
+        requireAuthenticatedActor(actorId);
+        if (deviceId == null || !store.touchDevice(actorId, deviceId, Instant.now())) {
+            throw new NotFoundException("active device not found");
+        }
+    }
+
+    private String normalizeDeviceToken(String value, String field, Set<String> allowed) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (!allowed.contains(normalized)) {
+            throw new BadRequestException(field + " is invalid");
+        }
+        return normalized;
+    }
+
+    private String normalizeOptionalDeviceValue(String value, int maxLength, String field) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        if (normalized.isEmpty()) return null;
+        if (normalized.length() > maxLength) {
+            throw new BadRequestException(field + " is too long");
+        }
+        return normalized;
+    }
+
     public void updateConversationAppearancePreferences(
             UUID actorId,
             UUID conversationId,

@@ -357,6 +357,15 @@ public final class CanonicalApiContracts {
             @Size(max = 64) String timezone) {
     }
 
+    public record DeviceRegistrationRequest(
+            @NotNull UUID deviceId,
+            @NotBlank @Pattern(regexp = "WEB|IOS|ANDROID") String platform,
+            @NotBlank @Pattern(regexp = "FCM|APNS|WEB_PUSH") String pushProvider,
+            @Size(max = 4096) String pushToken,
+            @Size(max = 120) String deviceName,
+            @Size(max = 50) String appVersion) {
+    }
+
     public record ChatAppearancePreferencesRequest(
             @NotBlank @Pattern(regexp = "aurora|neon|studio|vapor") String defaultThemeId,
             @NotBlank @Pattern(regexp = "tiktok|glass|classic") String defaultBubbleStyleId) {

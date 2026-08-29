@@ -639,6 +639,18 @@ paths:
       summary: Revoke one device and its indexed sessions
       parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/DeviceId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
       responses: {'204': {description: Device revoked}}
+  /devices:
+    post:
+      tags: [Identity]
+      summary: Register or reactivate the authenticated user's device
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceRegistrationRequest'}}}}
+      responses: {'200': {description: Registered device, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceSession'}}}}}
+  /devices/{deviceId}/heartbeat:
+    post:
+      tags: [Identity]
+      summary: Update the authenticated device last-seen timestamp
+      parameters: [{$ref: '#/components/parameters/DeviceId'}]
+      responses: {'204': {description: Device heartbeat accepted}}
   /admin/users/{userId}/status:
     put:
       tags: [Admin]
@@ -686,6 +698,8 @@ components:
     AdminAccountStatusResponse: {type: object, required: [userId, username, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, accountStatus: {type: string}, updatedAt: {type: string, format: date-time}}}
     AdminSession: {type: object, required: [tokenId, issuedAt], properties: {tokenId: {type: string, format: uuid}, issuedAt: {type: string, format: uuid, description: Cassandra timeuuid}, deviceId: {type: string, format: uuid, nullable: true}, expiresAt: {type: string, format: date-time, nullable: true}, revokedAt: {type: string, format: date-time, nullable: true}, replacedByTokenId: {type: string, format: uuid, nullable: true}}}
     AdminDevice: {type: object, required: [deviceId, active], properties: {deviceId: {type: string, format: uuid}, platform: {type: string, nullable: true}, pushProvider: {type: string, nullable: true}, deviceName: {type: string, nullable: true}, appVersion: {type: string, nullable: true}, active: {type: boolean}, createdAt: {type: string, format: date-time, nullable: true}, lastSeenAt: {type: string, format: date-time, nullable: true}}}
+    DeviceRegistrationRequest: {type: object, required: [deviceId, platform, pushProvider], properties: {deviceId: {type: string, format: uuid}, platform: {type: string, enum: [WEB, IOS, ANDROID]}, pushProvider: {type: string, enum: [FCM, APNS, WEB_PUSH]}, pushToken: {type: string, maxLength: 4096, nullable: true}, deviceName: {type: string, maxLength: 120, nullable: true}, appVersion: {type: string, maxLength: 50, nullable: true}}}
+    DeviceSession: {type: object, required: [deviceId, platform, pushProvider, active, createdAt, lastSeenAt], properties: {deviceId: {type: string, format: uuid}, platform: {type: string}, pushProvider: {type: string}, deviceName: {type: string, nullable: true}, appVersion: {type: string, nullable: true}, active: {type: boolean}, createdAt: {type: string, format: date-time}, lastSeenAt: {type: string, format: date-time}}}
     AdminAnalyticsPoint: {type: object, required: [eventDay, eventType, eventShard, eventId], properties: {eventDay: {type: string, format: date}, eventType: {type: string, enum: [ROOM_CREATED, ROOM_JOINED, MESSAGE_SENT, POLLS_CREATED, POLL_VOTED, CALL_STARTED]}, eventShard: {type: integer, minimum: 0, maximum: 15}, eventId: {type: string, format: uuid}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, dimensions: {type: object, additionalProperties: {type: string}}}}
     ChatAppearancePreferencesRequest: {type: object, required: [defaultThemeId, defaultBubbleStyleId], properties: {defaultThemeId: {type: string, enum: [aurora, neon, studio, vapor]}, defaultBubbleStyleId: {type: string, enum: [tiktok, glass, classic]}}}
     ConversationAppearancePreferencesRequest: {type: object, required: [themeId], properties: {themeId: {type: string, enum: [aurora, neon, studio, vapor]}, customBackgroundUrl: {type: string, format: uri, nullable: true, maxLength: 2048}}}

@@ -78,6 +78,9 @@ class CanonicalContractManifestTest {
                 .contains("/admin/users/{userId}/status")
                 .contains("/admin/users/{userId}/sessions/{tokenId}")
                 .contains("/admin/users/{userId}/devices/{deviceId}")
+                .contains("/devices")
+                .contains("/devices/{deviceId}/heartbeat")
+                .contains("DeviceRegistrationRequest")
                 .contains("AdminAnalyticsPoint")
                 .contains("maximum: 2000, default: 200");
         assertThat(asyncApi)

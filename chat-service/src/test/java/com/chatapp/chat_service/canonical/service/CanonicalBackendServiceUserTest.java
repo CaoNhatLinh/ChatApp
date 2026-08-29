@@ -123,6 +123,63 @@ class CanonicalBackendServiceUserTest {
                 .hasMessageContaining("http(s)");
     }
 
+    @Test
+    void registerDeviceNormalizesCanonicalMetadata() {
+        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        var expected = new CanonicalCqlStore.DeviceSessionRow(
+                deviceId, "WEB", "WEB_PUSH", "Laptop", null, true,
+                java.time.Instant.now(), java.time.Instant.now());
+        when(store.saveDevice(
+                org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.eq(deviceId),
+                org.mockito.ArgumentMatchers.eq("WEB"),
+                org.mockito.ArgumentMatchers.eq("WEB_PUSH"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("Laptop"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any(java.time.Instant.class))).thenReturn(expected);
+
+        var actual = service().registerDevice(userId,
+                new CanonicalApiContracts.DeviceRegistrationRequest(
+                        deviceId, " web ", " web_push ", " ", " Laptop ", " "));
+
+        assertThat(actual).isEqualTo(expected);
+        verify(store).saveDevice(
+                org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.eq(deviceId),
+                org.mockito.ArgumentMatchers.eq("WEB"),
+                org.mockito.ArgumentMatchers.eq("WEB_PUSH"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("Laptop"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any(java.time.Instant.class));
+    }
+
+    @Test
+    void registerDeviceRejectsUnknownPlatform() {
+        assertThatThrownBy(() -> service().registerDevice(UUID.randomUUID(),
+                new CanonicalApiContracts.DeviceRegistrationRequest(
+                        UUID.randomUUID(), "DESKTOP", "WEB_PUSH", null, null, null)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("platform");
+    }
+
+    @Test
+    void heartbeatRequiresAnActiveDevice() {
+        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        when(store.touchDevice(
+                org.mockito.ArgumentMatchers.eq(userId),
+                org.mockito.ArgumentMatchers.eq(deviceId),
+                org.mockito.ArgumentMatchers.any(java.time.Instant.class)))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service().touchDevice(userId, deviceId))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.NotFoundException.class)
+                .hasMessageContaining("active device");
+    }
+
     private CanonicalBackendService service() {
         return new CanonicalBackendService(
                 store, passwordEncoder, tokenProvider, conversationRepository, authorization, eventRecorder, chatPolicy,

@@ -8,6 +8,7 @@ permission and verification evidence.
 | User outcome | UI entry | HTTP/STOMP contract | Backend owner | Verification |
 |---|---|---|---|---|
 | Authenticate | Login/Register pages | `POST /auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout` | `CanonicalAuthController`, `RefreshTokenService` | backend unit; browser pending |
+| Register the active browser device | Authenticated app/admin shell | `POST /devices`, `POST /devices/{deviceId}/heartbeat` | `CanonicalDeviceController`, `CanonicalBackendService`, `CanonicalCqlStore`, `DeviceLifecycleManager` | backend user/service test; frontend validate/build; clean Cassandra pending |
 | Find a person | Contacts/search | `GET /users/search`, `GET /users/{id}` | `CanonicalUserController` | user service tests |
 | Establish friendship | Contacts actions | `/friends/**` | `CanonicalFriendController`, `FriendshipService` | friendship tests |
 | Open a conversation | New conversation modal | `POST /conversations`, `GET /conversations`, `/dm/{id}` | `CanonicalConversationController` | conversation tests |
