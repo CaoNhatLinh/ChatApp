@@ -330,7 +330,7 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
   fetchMutualFriends: async (otherUserId: string) => {
     const requestGeneration = ++mutualRequestGeneration;
 
-    set({ loadingMutual: true, error: null });
+    set({ loadingMutual: true, error: null, mutualFriends: null });
     try {
       const response = await friendApi.getMutualFriends(otherUserId);
       if (requestGeneration !== mutualRequestGeneration) return;

@@ -731,3 +731,19 @@ Correction in this increment:
 - Added call-ID and peer-identity guards around media acquisition, WebRTC
   callbacks and asynchronous SDP/ICE handling so late results cannot revive a
   closed call or leak signaling into a replacement room session.
+
+# Follow-up self-review (2026-08-29, profile-relationship recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Session integrity | Pass for profile relationship reads | `UserProfileModal` uses a request identity and ignores late success, failure and finalization from replaced user profiles | Authenticated multi-account relationship proof remains pending | A previous profile must not change the current profile's block or friend state |
+| Failure recovery | Pass for relationship status | Failed relationship reads keep actions hidden and show localized inline retry instead of assuming an unblocked user | Live API failure/status matrix remains pending | Unknown relationship state is not treated as permission to mutate |
+| Data freshness | Pass for mutual-friend display | Mutual results are scoped by target user and cleared when a fresh request starts; stale target data is not displayed | Cross-tab store reconciliation remains pending | Do not show another user's mutual-friend list during profile navigation |
+| Bilingual and accessibility coverage | Pass for new recovery UI | Existing `localizeText` retry copy, alert semantics and keyboard-reachable button are used | Full screen-reader walkthrough remains pending | Keep recovery feedback short, localized and actionable |
+| Traceability | Pass | `UserProfileModal.tsx`, `friend.store.ts` and this entry; validate/build/browser gates pass | Authenticated profile browser evidence remains blocked | Preserve the request boundary for future profile actions |
+
+Correction in this increment:
+
+- Added stale-request protection and explicit localized recovery for profile
+  relationship reads, and scoped/cleared mutual-friend data so navigation cannot
+  display or act on a previous profile's relationship state.

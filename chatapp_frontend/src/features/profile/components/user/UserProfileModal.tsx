@@ -57,42 +57,55 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isFriend, setIsFriend] = useState(false);
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
   const [loadingRelationship, setLoadingRelationship] = useState(false);
+  const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const [relationshipRetryToken, setRelationshipRetryToken] = useState(0);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBlockConfirmOpen, setIsBlockConfirmOpen] = useState(false);
   const [isBlockLoading, setIsBlockLoading] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const relationshipRequestRef = useRef(0);
 
   const isCurrentUser = currentUser?.userId === userId;
+  const mutualForProfile = mutualFriends?.userId === userId ? mutualFriends : null;
 
   useEffect(() => {
-    if (!isOpen || !userId || isCurrentUser) return;
+    const requestId = ++relationshipRequestRef.current;
+    if (!isOpen || !userId || isCurrentUser) {
+      setLoadingRelationship(false);
+      setRelationshipError(null);
+      setBlockStatus(null);
+      setIsFriend(false);
+      return;
+    }
 
-    let isMounted = true;
     setLoadingRelationship(true);
+    setRelationshipError(null);
+    setBlockStatus(null);
+    setIsFriend(false);
 
     const fetchRelationship = async () => {
       try {
         const relationship = await friendApi.checkBlockStatus(userId);
-        if (isMounted) {
+        if (requestId === relationshipRequestRef.current) {
           setBlockStatus(relationship);
           setIsFriend(getIsFriend(userId));
         }
-        if (currentUser?.userId) {
+        if (requestId === relationshipRequestRef.current && currentUser?.userId) {
           await fetchMutualFriends(userId);
         }
       } catch (error) {
+        if (requestId !== relationshipRequestRef.current) return;
+        const message = getUserFacingErrorMessage(error, localizeText("Không thể tải dữ liệu hồ sơ liên quan."));
+        setRelationshipError(message);
         logger.error('[UserProfileModal] Failed to fetch relationship', error instanceof Error ? error.message : String(error));
-        notifyError(getUserFacingErrorMessage(error, localizeText("Không thể tải dữ liệu hồ sơ liên quan.")));
+        notifyError(message);
       } finally {
-        if (isMounted) setLoadingRelationship(false);
+        if (requestId === relationshipRequestRef.current) setLoadingRelationship(false);
       }
     };
 
     void fetchRelationship();
-    return () => {
-      isMounted = false;
-    };
-  }, [getIsFriend, currentUser?.userId, fetchMutualFriends, isCurrentUser, isOpen, userId]);
+  }, [getIsFriend, currentUser?.userId, fetchMutualFriends, isCurrentUser, isOpen, relationshipRetryToken, userId]);
 
   useEffect(() => {
     if (!isOpen) setIsReportOpen(false);
@@ -239,17 +252,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="p-3 rounded-2xl bg-background/30 border border-border/30 flex flex-col items-center gap-1">
               <User size={14} className="text-primary/60" />
               <span className="text-[9px] font-bold uppercase text-muted-foreground">{localizeText("Bạn chung")}</span>
-              <span className="text-xs font-black">{mutualFriends?.userDetails.length ?? null}</span>
+              <span className="text-xs font-black">{loadingMutual ? null : mutualForProfile?.userDetails.length ?? null}</span>
             </div>
           </motion.div>
 
-          {!loadingMutual && !isCurrentUser && (mutualFriends?.userDetails?.length ?? 0) > 0 ? (
+          {!loadingMutual && !isCurrentUser && (mutualForProfile?.userDetails?.length ?? 0) > 0 ? (
             <motion.div className="w-full mb-8 text-left" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.panelReveal}>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">
-                {localizeText("Bạn chung")} ({mutualFriends?.userDetails.length})
+                {localizeText("Bạn chung")} ({mutualForProfile?.userDetails.length})
               </h3>
               <div className="flex -space-x-2 overflow-hidden px-1">
-                {mutualFriends?.userDetails.slice(0, 5).map((friend: UserDTO) => (
+                {mutualForProfile?.userDetails.slice(0, 5).map((friend: UserDTO) => (
                 <Avatar key={friend.userId} className="h-8 w-8 border-2 border-background neo-shadow-sm" title={friend.displayName}>
                     <AvatarImage src={friend.avatarUrl} />
                     <AvatarFallback className="text-[10px]">
@@ -257,16 +270,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </AvatarFallback>
                   </Avatar>
                 ))}
-                {(mutualFriends?.userDetails.length ?? 0) > 5 && (
+                {(mutualForProfile?.userDetails.length ?? 0) > 5 && (
                   <div className="h-8 w-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-[10px] font-bold text-muted-foreground neo-shadow-sm">
-                    +{(mutualFriends?.userDetails.length ?? 0) - 5}
+                    +{(mutualForProfile?.userDetails.length ?? 0) - 5}
                   </div>
                 )}
               </div>
             </motion.div>
           ) : null}
 
-          {!isCurrentUser && !isLoading && !loadingRelationship ? (
+          {!isCurrentUser && !isLoading && !loadingRelationship && !relationshipError && blockStatus ? (
             <motion.div className="w-full space-y-3" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
               {!isBlockedBy && (
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -344,6 +357,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <motion.div className="flex items-center gap-2 text-muted-foreground" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
               <Loader2 size={16} className="animate-spin" />
               <span className="text-xs font-bold">{localizeText("Đang tải dữ liệu mối quan hệ...")}</span>
+            </motion.div>
+          )}
+          {relationshipError && !loadingRelationship && (
+            <motion.div
+              role="alert"
+              className="mt-3 flex w-full flex-col items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-center text-xs font-bold text-destructive"
+              initial={UI_MOTION_CONFIG.initialState}
+              animate={UI_MOTION_CONFIG.animateState}
+              variants={UI_MOTION_VARIANTS.rowReveal}
+            >
+              <span>{relationshipError}</span>
+              <button
+                type="button"
+                className="rounded-xl border border-destructive/30 px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-colors hover:bg-destructive/10"
+                onClick={() => setRelationshipRetryToken((value) => value + 1)}
+              >
+                {localizeText("Thử lại")}
+              </button>
             </motion.div>
           )}
         </motion.div>
