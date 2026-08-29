@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Flag, Loader2 } from 'lucide-react';
 import { listMyReports, type ReportRecord } from '@/features/moderation/api/report.api';
 import { localizeText } from '@/shared/i18n';
+import { logger } from '@/shared/lib/logger';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 
 const STATUS_LABEL_KEYS: Record<ReportRecord['status'], string> = {
   OPEN: 'Đang chờ xem xét',
@@ -24,6 +26,7 @@ export const ReportHistoryPanel = () => {
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -33,8 +36,11 @@ export const ReportHistoryPanel = () => {
       .then((result) => {
         if (active) setReports(result);
       })
-      .catch(() => {
-        if (active) setError(localizeText('Không thể tải lịch sử báo cáo. Bạn có thể thử lại sau.'));
+      .catch((loadError: unknown) => {
+        if (active) {
+          logger.warn('Report history load failed', loadError instanceof Error ? loadError.message : String(loadError));
+          setError(getUserFacingErrorMessage(loadError, localizeText('Không thể tải lịch sử báo cáo. Bạn có thể thử lại sau.')));
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -42,7 +48,7 @@ export const ReportHistoryPanel = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [retryToken]);
 
   return (
     <section className="mt-10 space-y-4" aria-labelledby="report-history-title">
@@ -57,9 +63,14 @@ export const ReportHistoryPanel = () => {
           <span className="sr-only">{localizeText('Đang tải lịch sử báo cáo')}</span>
         </div>
       ) : error ? (
-        <div className="flex items-start gap-3 rounded-3xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
-          <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
-          <span>{error}</span>
+        <div className="flex items-start justify-between gap-3 rounded-3xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
+          <div className="flex min-w-0 items-start gap-3">
+            <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+          <button type="button" onClick={() => setRetryToken((current) => current + 1)} className="focus-ring shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10">
+            {localizeText('Thử lại')}
+          </button>
         </div>
       ) : reports.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border/70 bg-card/40 p-8 text-center text-sm text-muted-foreground">

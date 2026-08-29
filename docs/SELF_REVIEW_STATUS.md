@@ -627,6 +627,21 @@ Correction in this increment:
 - Added localized, status-aware retry recovery to notification settings loading
   without introducing default or fallback settings data.
 
+# Follow-up self-review (2026-08-29, report-history-retry increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure recovery | Pass for report history | `ReportHistoryPanel` retains the explicit error state and exposes a localized retry action | Live report persistence and moderation queue proof remain pending | Do not show an empty report history after a failed read |
+| Async lifecycle | Pass | Existing active guard plus `retryToken` ignores late results after unmount and starts a fresh request on retry | Full authenticated browser proof remains pending | Keep the request owner inside the panel |
+| Data exposure | Pass | Shared status-aware mapper and bounded logger keep transport details out of the panel | Server-side structured redaction remains an operations task | Render only stable product copy |
+| Bilingual and accessibility coverage | Pass | Retry copy is localized; alert and explicit button type are present | Full screen-reader audit remains pending | Keep the recovery action keyboard reachable |
+| Traceability | Pass | `ReportHistoryPanel.tsx`, settings/report screen inventory and this entry | Authenticated service evidence remains pending | Preserve canonical `/reports/mine` ownership |
+
+Correction in this increment:
+
+- Added localized retry recovery and bounded diagnostics to the user report
+  history panel, preserving the distinction between empty and failed reads.
+
 # Follow-up self-review (2026-08-29, contacts-load-recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
