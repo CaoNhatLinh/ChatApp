@@ -88,7 +88,7 @@ class RealtimeService {
                 const destCallbacks = this.callbacks.get(destination);
                 destCallbacks?.forEach(cb => cb(payload));
             } catch (err) {
-                logger.error('Failed to parse websocket message', err instanceof Error ? err.message : err);
+                logger.error('Failed to parse websocket message', err instanceof Error ? err.message : String(err));
             }
         });
 

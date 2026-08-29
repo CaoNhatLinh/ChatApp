@@ -77,9 +77,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         setAccessToken(token);
         const user = await getCurrentUser();
         set({ user, loading: false, token });
-        logger.debug('[AuthStore] user loaded from /auth/me:', user);
+        logger.debug('[AuthStore] user loaded from /auth/me', { hasUser: Boolean(user?.userId) });
         const savedPref = user.statusPreference;
-        logger.debug('[AuthStore] savedPref extracted:', savedPref);
+        logger.debug('[AuthStore] status preference received', { hasPreference: Boolean(savedPref) });
         if (savedPref && savedPref !== 'ONLINE') {
           usePresenceStore.getState().setMyStatusFromServer(savedPref);
         }

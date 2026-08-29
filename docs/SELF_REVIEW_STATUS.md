@@ -658,6 +658,20 @@ Correction in this increment:
 - Added loading/retry recovery and unmount protection to invite management,
   while hardening the remaining revoke diagnostic log.
 
+# Follow-up self-review (2026-08-29, realtime-diagnostic-redaction increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass for active realtime/auth diagnostics | WebSocket parse/send/listener paths no longer log message bodies or arbitrary error objects; presence omits server message text; auth logs expose only booleans | Server-side structured redaction and legacy duplicate modules remain outside this increment | Keep user content, tokens, profile data and server payloads out of browser diagnostics |
+| Runtime behavior | Pass | Logging-only changes preserve STOMP subscription, publish, reconnect and auth state transitions | Clean-stack realtime authorization remains pending | Diagnostics must not become a control-flow fallback |
+| Bilingual/user-facing behavior | Pass | No user-facing copy or API contract changed; existing presence failure notification remains localized | Authenticated realtime failure matrix remains pending | Keep operator diagnostics separate from product copy |
+| Traceability | Pass | `websocketService.ts`, `realtime-service.ts`, `PresenceManager.tsx`, `auth.store.ts` and this entry | Live multi-account websocket evidence remains blocked | Apply the same redaction boundary to future transport logs |
+
+Correction in this increment:
+
+- Removed websocket payload/error-object logging from active transport paths and
+  replaced presence/auth diagnostic fields with bounded metadata.
+
 # Follow-up self-review (2026-08-29, contacts-load-recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

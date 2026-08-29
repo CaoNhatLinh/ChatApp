@@ -160,14 +160,14 @@ const bindSubscription = (destination: string): void => {
           const body = JSON.parse(message.body) as ParsedPayload;
           entry.callbacks.forEach((cb) => cb(body));
         } catch (err) {
-          logger.error('[WebSocket] Failed to parse message:', message.body, err instanceof Error ? err.message : String(err));
+          logger.error('[WebSocket] Failed to parse message', err instanceof Error ? err.message : String(err));
         }
       }
     );
     entry.subscription = subscription;
     logger.debug(`[WebSocket] Successfully subscribed to ${destination}`);
   } catch (error) {
-    logger.error('[WebSocket] Failed to subscribe to:', destination, error instanceof Error ? error.message : error);
+    logger.error('[WebSocket] Failed to subscribe to:', destination, error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -211,7 +211,7 @@ export const send = (
     });
     logger.debug(`[WebSocket] Message sent to ${destination}`);
   } catch (error) {
-    logger.error('[WebSocket] Failed to send message:', error instanceof Error ? error.message : error);
+    logger.error('[WebSocket] Failed to send message:', error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -320,7 +320,7 @@ export const sendWithConnectionWait = async (
     await waitForConnectionPromise(timeout);
     send(destination, payload, headers);
   } catch (error) {
-    logger.error('[WebSocket] Failed to send after waiting for connection:', error instanceof Error ? error.message : error);
+    logger.error('[WebSocket] Failed to send after waiting for connection:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 };
@@ -353,7 +353,7 @@ export const addConnectionListener = (callback: () => void): (() => void) => {
     try {
       callback();
     } catch (error) {
-      logger.error('[WebSocket] Error in persistent connection listener:', error instanceof Error ? error.message : error);
+      logger.error('[WebSocket] Error in persistent connection listener:', error instanceof Error ? error.message : String(error));
     }
   }
   return () => {
@@ -366,7 +366,7 @@ const notifyConnectionReady = (): void => {
     try {
       callback();
     } catch (error) {
-      logger.error('[WebSocket] Error in connection listener:', error instanceof Error ? error.message : error);
+      logger.error('[WebSocket] Error in connection listener:', error instanceof Error ? error.message : String(error));
     }
   });
   connectionListeners.clear();
@@ -375,7 +375,7 @@ const notifyConnectionReady = (): void => {
     try {
       callback();
     } catch (error) {
-      logger.error('[WebSocket] Error in persistent connection listener:', error instanceof Error ? error.message : error);
+      logger.error('[WebSocket] Error in persistent connection listener:', error instanceof Error ? error.message : String(error));
     }
   });
 };

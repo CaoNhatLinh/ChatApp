@@ -75,10 +75,9 @@ export function PresenceManager(): null {
                 },
                 (errorType, message, requestId, traceId) => {
                     logger.warn('[PresenceManager] Status sync error', {
-                        errorType,
-                        message,
-                        requestId,
-                        traceId,
+                        errorType: errorType.slice(0, 64),
+                        hasRequestId: Boolean(requestId),
+                        hasTraceId: Boolean(traceId),
                     });
                     const didRollback = usePresenceStore.getState().rollbackMyStatus(requestId, traceId);
                     if (didRollback) {
