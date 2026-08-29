@@ -829,3 +829,32 @@ Correction in this increment:
 
 - Added target-identity and mounted-state guards to report submissions so late
   responses cannot mutate or close a replaced user/message report modal.
+
+# Follow-up self-review (2026-08-29, pending-outbox-projection increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Delivery correctness | Pass for pending selection | `outbox_pending_events_by_partition` is queried directly; published rows are not filtered after a Cassandra `LIMIT` | Kafka outage/retry, DLQ and consumer integration remain unverified | Keep a pending-only query projection instead of scanning/filtering the immutable table |
+| Write consistency | Pass for projection lifecycle | Main and pending rows are inserted in one logged batch; acknowledgement updates the main row and removes pending atomically | Cassandra clean-stack consistency and repair drill remain pending | Do not expose an event as fully published before Kafka acknowledgement |
+| Retry semantics | Pass for publisher bookkeeping | Failed attempts update both projections; successful attempts increment metadata and delete only the pending index row | Maximum retry/DLQ policy and operational metrics remain incomplete | Preserve retryable pending state without duplicating authoritative event storage |
+| Schema/contract consistency | Pass | `chat_app_complete.cql`, additive migration, `CanonicalCqlStore`, infrastructure manifest test and docs all name the pending projection | Migration application on an existing cluster remains unverified | Require the additive migration before enabling the publisher |
+| Traceability | Pass | `CassandraOutboxPublisher`, `CanonicalCqlStore`, `InfrastructureManifestTest`, `DATA_MODEL.md`, backend architecture docs and this entry | Kafka consumer/replay trace remains partial | Keep event durability and downstream projection ownership explicit |
+
+Correction in this increment:
+
+- Replaced Java-side post-`LIMIT` unpublished filtering with a canonical pending
+  Cassandra projection and atomic lifecycle batches, eliminating outbox event
+  starvation while preserving the immutable event record.
+
+# Follow-up self-review (2026-08-29, outbox contract-test baseline increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Test traceability | Pass for current backend suite | `InfrastructureManifestTest` now asserts pending projection wiring; JDK 20 Maven run reports 96 tests, 0 failures, 0 errors | Clean Cassandra/Kafka integration remains unavailable | Keep the current test count synchronized with the verified report |
+| Schema consistency | Pass | Canonical schema count is 79 tables and includes the additive pending-outbox migration | Applying the migration on an existing cluster remains unverified | Require the migration before enabling the publisher against an existing keyspace |
+| Documentation consistency | Pass | `tasks/plan.md`, `tasks/todo.md`, `tasks/function-audit.md`, `AGENT_WORK_PLAN.md` and `TESTING.md` record the current 96-test evidence; historical entries remain unchanged | None for this increment | Separate historical self-review measurements from current baseline evidence |
+
+Correction in this increment:
+
+- Added a regression contract assertion for the pending-outbox projection and
+  synchronized current test-count documentation to the verified 96-test run.

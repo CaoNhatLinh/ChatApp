@@ -36,6 +36,16 @@ and descending `event_id`. It stores the immutable action, actor/resource,
 reason, outcome, and before/after snapshots required to explain operator
 mutations without scanning actor or resource partitions.
 
+Outbox durability uses two coordinated projections: `outbox_events_by_partition`
+keeps the immutable event and publish metadata, while
+`outbox_pending_events_by_partition` contains only events awaiting Kafka
+acknowledgement. The writer inserts both rows in one logged batch; a successful
+publish updates the immutable row and deletes the pending row in one logged
+batch, while a failed attempt increments both counters. This avoids Cassandra
+post-`LIMIT` filtering starvation without making Kafka authoritative. Existing
+keyspaces must apply `migrations/V_add_outbox_pending_projection.cql` before
+enabling the publisher.
+
 Redis keys (`chat:typing:*`, `chat:presence:*`, rate-limit keys) are ephemeral and
 must always have TTLs. Projection repair is a worker/replay concern, never a
 reason to expose an unbounded scan to a request.

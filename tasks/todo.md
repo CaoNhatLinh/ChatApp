@@ -5,7 +5,7 @@
 
 ## Recovery Gate: Current Broken/Inconsistent Work
 
-- [X] R.1 Fix friendship projections and run the existing Maven tests (87 tests pass).
+- [X] R.1 Fix friendship projections and run the existing Maven tests (96 tests pass at the current baseline).
 - [X] R.2 Freeze OpenAPI + AsyncAPI/STOMP contracts and add duplicate-key/path-parameter checks.
 - [ ] R.3 Complete authenticated auth -> user search -> friend -> DM -> message/read E2E flow (implementation is present; live infrastructure and two-account proof are pending).
 - [ ] R.4 Add clean-stack integration and Playwright multi-account tests (the public/deep-link smoke harness exists; Docker/Testcontainers stack is unavailable on this host).
@@ -47,7 +47,7 @@
 
 ## Phase 4: Events, Search, Polls, Moderation And Invites
 
-- [ ] 4.1 Cassandra outbox -> Kafka -> idempotent consumers/DLQ/replay (publisher path exists; clean Kafka proof pending).
+- [ ] 4.1 Cassandra outbox -> Kafka -> idempotent consumers/DLQ/replay (publisher pending-index path is implemented; consumer/DLQ/replay and clean Kafka proof remain pending).
 - [ ] 4.2 Authorized Elasticsearch room/message search with all filters (integration/configuration pending).
 - [X] 4.3 Poll create/vote/close request and UI paths; concurrency/realtime proof remains.
 - [ ] 4.4 Ban/mute/sanction/report/language moderation and audit (report queue, APP/CONVERSATION sanctions, bounded expiry worker and enforcement are implemented; language moderation, appeals and live expiry proof remain).

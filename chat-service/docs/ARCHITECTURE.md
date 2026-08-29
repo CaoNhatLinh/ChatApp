@@ -17,6 +17,12 @@
 - **Cloudinary** is the configured binary provider; Cassandra stores immutable
   attachment snapshots and lifecycle metadata.
 
+The outbox publisher reads `outbox_pending_events_by_partition`, a pending-only
+Cassandra projection, so published rows cannot starve newer events behind a
+`LIMIT`. The immutable outbox row and pending-index lifecycle are updated in
+logged batches; Kafka acknowledgement is still required before removal from
+the pending index.
+
 ## Canonical write flow
 
 `REST/STOMP command -> validation -> app/room authorization -> policy and

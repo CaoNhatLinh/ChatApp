@@ -10,9 +10,9 @@ Kết quả cuối phải chạy được bằng Docker, có API/WebSocket thậ
 
 ### Baseline đã kiểm tra
 
-- `chat_app_complete.cql` có 2 UDT và 78 bảng/query projection cho identity, social, room, message, media, poll, invite, notification, moderation, audit, call, outbox và analytics.
+- `chat_app_complete.cql` có 2 UDT và 79 bảng/query projection cho identity, social, room, message, media, poll, invite, notification, moderation, audit, call, outbox và analytics; outbox có pending-only publisher index để tránh starvation sau `LIMIT`.
 - Spring dependencies và Compose manifests cho Cassandra, Redis, Kafka, Elasticsearch, WebSocket và Cloudinary đã được thêm, nhưng Docker chưa có trong `PATH` nên clean-stack chưa được xác minh.
-- Backend canonical hiện có 100 production source và 87 test cases pass khi chạy JDK 20; clean-stack integration vẫn chưa có. JDK mặc định của host là 17 và không chạy được class test Java 20.
+- Backend canonical hiện có 100 production source và 96 test cases pass khi chạy JDK 20; clean-stack integration vẫn chưa có. JDK mặc định của host là 17 và không chạy được class test Java 20.
 - Frontend `npm run validate`, Next production build và public/deep-link Playwright smoke đều pass không warning lint; build vẫn có hai chunk vượt 500 kB.
 - Các lệch REST/STOMP trọng yếu đã được canonicalize cho conversation create/list, bucketed history, reaction/read/revision, room pin, user profile/search, notification, presence và global admin.
 - Playwright smoke đã có cho public/deep-link và unauthenticated redirect; authenticated multi-account E2E vẫn chưa có bằng chứng.

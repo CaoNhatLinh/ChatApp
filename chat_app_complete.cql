@@ -1065,6 +1065,23 @@ CREATE TABLE IF NOT EXISTS outbox_events_by_partition (
   PRIMARY KEY ((outbox_partition), event_id)
 ) WITH CLUSTERING ORDER BY (event_id ASC);
 
+/*
+ * Pending-only outbox index. Cassandra cannot filter on published_at without
+ * scanning the partition, so the publisher reads this bounded projection and
+ * removes a row only after Kafka acknowledges the event.
+ */
+CREATE TABLE IF NOT EXISTS outbox_pending_events_by_partition (
+  outbox_partition text,
+  event_id timeuuid,
+  aggregate_type text,
+  aggregate_id text,
+  event_type text,
+  payload_json text,
+  created_at timestamp,
+  publish_attempts int,
+  PRIMARY KEY ((outbox_partition), event_id)
+) WITH CLUSTERING ORDER BY (event_id ASC);
+
 CREATE TABLE IF NOT EXISTS analytics_events_by_day_type (
   event_day date,
   event_type text,                  /* ROOM_CREATED, ROOM_JOINED, MESSAGE_SENT, POLLS_CREATED, POLL_VOTED, CALL_STARTED */

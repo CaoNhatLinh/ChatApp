@@ -178,8 +178,11 @@ public class CanonicalCqlStore {
     private final PreparedStatement saveAuditByMonth;
     private final PreparedStatement listAuditByMonth;
     private final PreparedStatement saveOutboxEvent;
-    private final PreparedStatement listOutboxEvents;
+    private final PreparedStatement savePendingOutboxEvent;
+    private final PreparedStatement listPendingOutboxEvents;
     private final PreparedStatement markOutboxEvent;
+    private final PreparedStatement markPendingOutboxEvent;
+    private final PreparedStatement deletePendingOutboxEvent;
     private final PreparedStatement saveAnalytics;
     private final PreparedStatement listAnalyticsByType;
 
@@ -775,15 +778,30 @@ public class CanonicalCqlStore {
                      payload_json, created_at, publish_attempts)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 """);
-        this.listOutboxEvents = session.prepare("""
+        this.savePendingOutboxEvent = session.prepare("""
+                INSERT INTO outbox_pending_events_by_partition
+                    (outbox_partition, event_id, aggregate_type, aggregate_id, event_type,
+                     payload_json, created_at, publish_attempts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                """);
+        this.listPendingOutboxEvents = session.prepare("""
                 SELECT outbox_partition, event_id, aggregate_type, aggregate_id, event_type,
-                       payload_json, created_at, published_at, publish_attempts
-                FROM outbox_events_by_partition
+                       payload_json, created_at, publish_attempts
+                FROM outbox_pending_events_by_partition
                 WHERE outbox_partition = ? LIMIT ?
                 """);
         this.markOutboxEvent = session.prepare("""
                 UPDATE outbox_events_by_partition
                 SET published_at = ?, publish_attempts = ?
+                WHERE outbox_partition = ? AND event_id = ?
+                """);
+        this.markPendingOutboxEvent = session.prepare("""
+                UPDATE outbox_pending_events_by_partition
+                SET publish_attempts = ?
+                WHERE outbox_partition = ? AND event_id = ?
+                """);
+        this.deletePendingOutboxEvent = session.prepare("""
+                DELETE FROM outbox_pending_events_by_partition
                 WHERE outbox_partition = ? AND event_id = ?
                 """);
         this.saveAnalytics = session.prepare("""
@@ -2217,13 +2235,17 @@ public class CanonicalCqlStore {
             String eventType,
             String payloadJson,
             Instant createdAt) {
-        session.execute(saveOutboxEvent.bind(
+        BatchStatementBuilder batch = BatchStatement.builder(BatchType.LOGGED);
+        batch.addStatement(saveOutboxEvent.bind(
                 partition, eventId, aggregateType, aggregateId, eventType, payloadJson, createdAt));
+        batch.addStatement(savePendingOutboxEvent.bind(
+                partition, eventId, aggregateType, aggregateId, eventType, payloadJson, createdAt));
+        session.execute(batch.build());
     }
 
     public List<OutboxEvent> listUnpublishedOutboxEvents(String partition, int limit) {
-        return session.execute(listOutboxEvents.bind(partition, limit)).all().stream()
-                .filter(row -> row.getInstant("published_at") == null)
+        int boundedLimit = Math.max(1, Math.min(1000, limit));
+        return session.execute(listPendingOutboxEvents.bind(partition, boundedLimit)).all().stream()
                 .map(row -> new OutboxEvent(
                         row.getString("outbox_partition"),
                         row.getUuid("event_id"),
@@ -2232,18 +2254,30 @@ public class CanonicalCqlStore {
                         row.getString("event_type"),
                         row.getString("payload_json"),
                         row.getInstant("created_at"),
-                        row.getInstant("published_at"),
+                        null,
                         row.getInt("publish_attempts")))
-                .limit(limit)
                 .toList();
     }
 
     public void markOutboxPublishAttempt(OutboxEvent event, Instant publishedAt) {
-        session.execute(markOutboxEvent.bind(
+        int nextAttempts = event.publishAttempts() + 1;
+        BatchStatementBuilder batch = BatchStatement.builder(BatchType.LOGGED);
+        batch.addStatement(markOutboxEvent.bind(
                 publishedAt,
-                event.publishAttempts() + 1,
+                nextAttempts,
                 event.outboxPartition(),
                 event.eventId()));
+        if (publishedAt == null) {
+            batch.addStatement(markPendingOutboxEvent.bind(
+                    nextAttempts,
+                    event.outboxPartition(),
+                    event.eventId()));
+        } else {
+            batch.addStatement(deletePendingOutboxEvent.bind(
+                    event.outboxPartition(),
+                    event.eventId()));
+        }
+        session.execute(batch.build());
     }
 
     public record OutboxEvent(
