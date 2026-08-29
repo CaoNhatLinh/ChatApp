@@ -715,3 +715,19 @@ Correction in this increment:
 
 - Replaced ineffective local abort-controller bookkeeping with explicit
   search/mutual request-generation guards at the canonical relationship store.
+
+# Follow-up self-review (2026-08-29, WebRTC session-boundary increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Session integrity | Pass for client lifecycle boundaries | `useWebRtcCall` rejects late media, SDP, ICE and peer callbacks when the call ID or peer connection is no longer current | Two-browser media and reconnect behavior still need live approved STUN/TURN evidence | A closed call or changed room must not be resurrected by a late async result |
+| Resource cleanup | Pass for late media acquisition | Streams acquired after hang-up or room change are stopped immediately instead of being attached to a new session | Browser permission cancellation and device-loss matrix remains unverified | Keep media tracks owned by the session that requested them |
+| Signalling safety | Pass for stale callback suppression | ICE/SDP publishes and connection-state updates require both the active call ID and active `RTCPeerConnection` | Authenticated STOMP authorization and cross-device signaling remain pending | Do not publish signaling from a closed or replaced peer |
+| Failure recovery | Pass for active session | `failSession` ignores errors from replaced calls while preserving the existing localized error state for the active call | Live media failure/retry proof remains pending | Keep failure state authoritative only for the session that encountered it |
+| Traceability | Pass | `features/calls/hooks/useWebRtcCall.ts` and this entry; frontend validate/build/browser gates pass | Clean-stack two-browser call evidence remains blocked | Preserve the session identity boundary in future call changes |
+
+Correction in this increment:
+
+- Added call-ID and peer-identity guards around media acquisition, WebRTC
+  callbacks and asynchronous SDP/ICE handling so late results cannot revive a
+  closed call or leak signaling into a replacement room session.

@@ -128,6 +128,10 @@ export const useWebRtcCall = ({
     setSession(next);
   }, []);
 
+  const isCurrentSession = useCallback((activeSession: CallSession) => (
+    sessionRef.current?.callId === activeSession.callId
+  ), []);
+
   const stopMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     remoteStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -175,10 +179,11 @@ export const useWebRtcCall = ({
   }, []);
 
   const failSession = useCallback((activeSession: CallSession, message: string) => {
+    if (!isCurrentSession(activeSession)) return;
     closePeer();
     stopMedia();
     setCurrentSession({ ...activeSession, state: 'error', errorMessage: message });
-  }, [closePeer, setCurrentSession, stopMedia]);
+  }, [closePeer, isCurrentSession, setCurrentSession, stopMedia]);
 
   const flushCandidates = useCallback(async (peer: RTCPeerConnection) => {
     const pending = pendingCandidatesRef.current;
@@ -195,7 +200,12 @@ export const useWebRtcCall = ({
     const peer = new RTCPeerConnection({ iceServers: parseIceServers() });
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
     peer.onicecandidate = (event) => {
-      if (!event.candidate || !realtimeService.isConnected()) return;
+      if (
+        !event.candidate ||
+        !realtimeService.isConnected() ||
+        !isCurrentSession(activeSession) ||
+        peerRef.current !== peer
+      ) return;
       realtimeService.publish('/app/call.signal', {
         conversationId: activeSession.conversationId,
         callId: activeSession.callId,
@@ -204,6 +214,7 @@ export const useWebRtcCall = ({
       });
     };
     peer.ontrack = (event) => {
+      if (!isCurrentSession(activeSession) || peerRef.current !== peer) return;
       const [streamFromEvent] = event.streams;
       if (streamFromEvent) {
         remoteStreamRef.current = streamFromEvent;
@@ -218,20 +229,24 @@ export const useWebRtcCall = ({
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'connected') {
         const current = sessionRef.current;
-        if (current?.callId === activeSession.callId) {
+        if (current?.callId === activeSession.callId && peerRef.current === peer) {
           setCurrentSession({ ...current, state: 'connected' });
         }
       }
       if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
         const current = sessionRef.current;
-        if (current?.callId === activeSession.callId && current.state !== 'error') {
+        if (
+          current?.callId === activeSession.callId &&
+          peerRef.current === peer &&
+          current.state !== 'error'
+        ) {
           failSession(current, localizeText('Kết nối media đã thất bại. Hãy thử gọi lại.'));
         }
       }
     };
     peerRef.current = peer;
     return peer;
-  }, [failSession, setCurrentSession]);
+  }, [failSession, isCurrentSession, setCurrentSession]);
 
   const requestMedia = useCallback(async (callType: 'VOICE' | 'VIDEO') => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -278,6 +293,10 @@ export const useWebRtcCall = ({
 
     try {
       const stream = await requestMedia(callType);
+      if (!isCurrentSession(nextSession)) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       setIsCameraEnabled(callType === 'VIDEO');
@@ -292,7 +311,7 @@ export const useWebRtcCall = ({
     } catch (error) {
       failSession(nextSession, mediaErrorMessage(error));
     }
-  }, [canCall, cleanup, conversationId, createPeer, currentUserId, failSession, peerDisplayName, peerUserId, requestMedia, setCurrentSession]);
+  }, [canCall, cleanup, conversationId, createPeer, currentUserId, failSession, isCurrentSession, peerDisplayName, peerUserId, requestMedia, setCurrentSession]);
 
   const accept = useCallback(async () => {
     const incoming = sessionRef.current;
@@ -303,6 +322,10 @@ export const useWebRtcCall = ({
     }
     try {
       const stream = await requestMedia(incoming.callType);
+      if (!isCurrentSession(incoming)) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       setIsCameraEnabled(incoming.callType === 'VIDEO');
@@ -317,7 +340,7 @@ export const useWebRtcCall = ({
     } catch (error) {
       failSession(incoming, mediaErrorMessage(error));
     }
-  }, [createPeer, failSession, requestMedia, setCurrentSession]);
+  }, [createPeer, failSession, isCurrentSession, requestMedia, setCurrentSession]);
 
   const decline = useCallback(() => {
     const incoming = sessionRef.current;
@@ -390,9 +413,11 @@ export const useWebRtcCall = ({
       if (event.action === 'JOIN' && current.direction === 'outgoing') {
         void (async () => {
           try {
+            if (!isCurrentSession(current) || peerRef.current !== peer) return;
             setCurrentSession({ ...current, state: 'connecting' });
             const offer = await peer.createOffer();
             await peer.setLocalDescription(offer);
+            if (!isCurrentSession(current) || peerRef.current !== peer) return;
             realtimeService.publish('/app/call.signal', {
               conversationId,
               callId: current.callId,
@@ -411,6 +436,7 @@ export const useWebRtcCall = ({
       if (!signal) return;
       void (async () => {
         try {
+          if (!isCurrentSession(current) || peerRef.current !== peer) return;
           if (signal.kind === 'ice') {
             if (peer.remoteDescription) await peer.addIceCandidate(signal.candidate);
             else pendingCandidatesRef.current.push(signal.candidate);
@@ -422,10 +448,13 @@ export const useWebRtcCall = ({
             (current.direction === 'incoming' && signal.description.type !== 'offer')
           ) return;
           await peer.setRemoteDescription(signal.description);
+          if (!isCurrentSession(current) || peerRef.current !== peer) return;
           await flushCandidates(peer);
+          if (!isCurrentSession(current) || peerRef.current !== peer) return;
           if (signal.description.type === 'offer' && current.direction === 'incoming') {
             const answer = await peer.createAnswer();
             await peer.setLocalDescription(answer);
+            if (!isCurrentSession(current) || peerRef.current !== peer) return;
             realtimeService.publish('/app/call.signal', {
               conversationId,
               callId: current.callId,
@@ -438,7 +467,7 @@ export const useWebRtcCall = ({
         }
       })();
     });
-  }, [canCall, cleanup, conversationId, currentUserId, failSession, flushCandidates, peerDisplayName, setCurrentSession]);
+  }, [canCall, cleanup, conversationId, currentUserId, failSession, flushCandidates, isCurrentSession, peerDisplayName, setCurrentSession]);
 
   useEffect(() => {
     const active = sessionRef.current;
