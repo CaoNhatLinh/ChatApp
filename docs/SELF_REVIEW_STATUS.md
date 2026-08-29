@@ -1355,6 +1355,15 @@ Correction in this increment:
 | Network cost | Pass for normal navigation | The first page remains the common path; additional pages are fetched only for a selected room not present in the first page | A very large room directory can require multiple cursor requests for a deep link | Do not silently cap the search or return a guessed count |
 | Regression safety | Pass for available gates | Frontend type-check/lint/build and existing conversation/member browser smokes remain green | Live unread projection mutation remains pending | Preserve the authoritative projection value and cursor semantics |
 
+# Follow-up self-review (2026-08-29, conversation directory lazy loading)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Bounded directory loading | Pass at client boundary | `SidebarConversationList` keeps the server page size and observes a sentinel inside its scroll root; it requests another page only when the list overflows and the user reaches the lower window | Virtualized rendering for extremely large local lists remains a future performance task | Keep page loading tied to the visible scroll window; never fetch the complete directory on mount |
+| Recovery behavior | Pass | The explicit localized “Tải thêm cuộc trò chuyện” action remains available when the list is short, the observer is unavailable, or automatic loading cannot trigger | Live cursor ordering and reconnect proof remain externally blocked | Automatic scroll loading is progressive enhancement, not a hidden alternate data source |
+| Duplicate-request safety | Pass | A component-local in-flight guard prevents observer and button events from issuing concurrent page requests | Cross-tab duplicate navigation remains outside this UI boundary | Let the canonical store own cursor authority and keep only request de-duplication local |
+| Regression safety | Pass for available gates | `npm run validate`, `npm run build`, browser smoke and room-management smoke pass with zero console/request failures | Clean backend pagination remains pending | Treat browser evidence as UI contract proof, not provider persistence proof |
+
 # Follow-up self-review (2026-08-29, unknown DM presence disclosure)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
