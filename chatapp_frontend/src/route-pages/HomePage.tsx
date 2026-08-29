@@ -56,7 +56,7 @@ export const HomePage = () => {
             </figure>
             <div className="neo-shadow-sm absolute -bottom-5 left-5 max-w-[220px] rounded-[var(--radius-md)] border border-border bg-card px-4 py-3 sm:left-8">
               <p className="text-sm font-semibold">{localizeText("Một luồng. Mọi tín hiệu.")}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText("Online, đã đọc và tệp đính kèm cùng xuất hiện đúng chỗ.")}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText("Trạng thái trực tuyến, đã đọc và tệp đính kèm cùng xuất hiện đúng chỗ.")}</p>
             </div>
           </div>
         </div>

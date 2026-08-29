@@ -207,7 +207,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <span className="text-xs font-bold text-primary uppercase tracking-widest">@{userProfile?.username}</span>
               {userProfile?.role === "admin" ? (
                 <div className="flex items-center gap-1 bg-yellow-400/10 text-yellow-500 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter">
-                  <Crown size={10} /> Admin
+                  <Crown size={10} /> {localizeText("Quản trị viên")}
                 </div>
               ) : null}
             </div>
