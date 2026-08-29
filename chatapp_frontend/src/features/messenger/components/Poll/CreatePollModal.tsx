@@ -45,7 +45,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
     const handleSubmit = () => {
         const validOptions = options.filter(o => o.trim());
-        if (!question.trim() || validOptions.length < 2) return;
+        if (!question.trim() || validOptions.length < 2 || (hasDeadline && !deadlineDate)) return;
 
         let expiresAt: string | undefined;
         if (hasDeadline && deadlineDate) {
@@ -72,17 +72,22 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
         onClose();
     };
 
-    const isValid = question.trim().length > 0 && options.filter(o => o.trim()).length >= 2;
+    const isValid = question.trim().length > 0
+        && options.filter(o => o.trim()).length >= 2
+        && (!hasDeadline || Boolean(deadlineDate));
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
             {/* Modal */}
             <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="create-poll-title"
                 className="relative w-full max-w-lg mx-4 bg-card border border-border/60 rounded-3xl neo-shadow overflow-hidden"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
@@ -95,12 +100,14 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             <BarChart3 size={20} className="text-primary" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-black tracking-tight">{localizeText('Tạo bình chọn')}</h3>
+                            <h3 id="create-poll-title" className="text-lg font-black tracking-tight">{localizeText('Tạo bình chọn')}</h3>
                             <p className="text-xs text-muted-foreground">{localizeText('Tạo khảo sát để lấy ý kiến nhóm')}</p>
                         </div>
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
+                        aria-label={localizeText('Đóng cửa sổ tạo bình chọn')}
                         className="p-2 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-foreground transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                     >
                         <X size={20} />
@@ -111,10 +118,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
                     {/* Question */}
                     <div>
-                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                        <label htmlFor="poll-question" className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
                             {localizeText('Câu hỏi')}
                         </label>
                         <textarea
+                            id="poll-question"
                             value={question}
                             onChange={(e) => setQuestion(e.target.value)}
                             placeholder={localizeText('Nhập câu hỏi bình chọn...')}
@@ -127,9 +135,9 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                     {/* Options */}
                     <div>
-                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
                             {localizeText('Các lựa chọn')} ({options.length}/10)
-                        </label>
+                        </p>
                         <div className="space-y-2">
                             {options.map((option, index) => (
                                 <div key={index} className="flex items-center gap-2 group">
@@ -137,7 +145,9 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                         {index + 1}
                                     </span>
                                     <input
+                                        id={`poll-option-${index}`}
                                         type="text"
+                                        aria-label={`${localizeText('Lựa chọn')} ${index + 1}`}
                                         value={option}
                                         onChange={(e) => updateOption(index, e.target.value)}
                                         placeholder={localizeText('Lựa chọn') + ` ${index + 1}`}
@@ -146,6 +156,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                     />
                                     {options.length > 2 && (
                                         <button
+                                            type="button"
                                             onClick={() => removeOption(index)}
                                             className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-[color,background-color,border-color,box-shadow,transform,opacity] opacity-0 group-hover:opacity-100"
                                         >
@@ -158,6 +169,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                         {options.length < 10 && (
                             <button
+                                type="button"
                                 onClick={addOption}
                                 className="mt-2 flex items-center gap-2 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] w-full justify-center border border-dashed border-primary/30"
                             >
@@ -169,12 +181,14 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                     {/* Settings */}
                     <div className="space-y-3">
-                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
                             {localizeText('Cài đặt')}
-                        </label>
+                        </p>
 
                         {/* Multiple choice toggle */}
                         <button
+                            type="button"
+                            aria-pressed={isMultipleChoice}
                             onClick={() => setIsMultipleChoice(!isMultipleChoice)}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
                         >
@@ -191,6 +205,8 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                         {/* Anonymous poll toggle */}
                         <button
+                            type="button"
+                            aria-pressed={isAnonymous}
                             onClick={() => setIsAnonymous(!isAnonymous)}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
                         >
@@ -207,6 +223,8 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                         {/* Deadline toggle */}
                         <button
+                            type="button"
+                            aria-pressed={hasDeadline}
                             onClick={() => setHasDeadline(!hasDeadline)}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
                         >
@@ -225,12 +243,13 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                         {/* Deadline datetime inputs */}
                         {hasDeadline && (
                             <motion.div
-                                className="flex gap-2 pl-9"
+                                className="flex flex-wrap gap-2 pl-9"
                                 initial={UI_MOTION_CONFIG.initialState}
                                 animate={UI_MOTION_CONFIG.animateState}
                                 variants={UI_MOTION_VARIANTS.slideInFromTop}
                             >
                                 <input
+                                    aria-label={localizeText('Ngày kết thúc')}
                                     type="date"
                                     value={deadlineDate}
                                     onChange={(e) => setDeadlineDate(e.target.value)}
@@ -238,11 +257,17 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                     className="flex-1 bg-background/60 border border-border/50 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 ring-primary/20 outline-none"
                                 />
                                 <input
+                                    aria-label={localizeText('Giờ kết thúc')}
                                     type="time"
                                     value={deadlineTime}
                                     onChange={(e) => setDeadlineTime(e.target.value)}
                                     className="w-28 bg-background/60 border border-border/50 rounded-xl px-3 py-2 text-xs font-medium focus:ring-2 ring-primary/20 outline-none"
                                 />
+                                {!deadlineDate && (
+                                    <p role="alert" className="basis-full text-xs text-destructive">
+                                        {localizeText('Vui lòng chọn ngày kết thúc.')}
+                                    </p>
+                                )}
                             </motion.div>
                         )}
                     </div>
@@ -251,12 +276,14 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 {/* Footer */}
                 <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/40 bg-background/30">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                     >
                         {localizeText('Hủy')}
                     </button>
                     <button
+                        type="button"
                         onClick={handleSubmit}
                         disabled={!isValid}
                         className="px-6 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl neo-shadow hover:translate-x-[1px] hover:translate-y-[1px] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-none"

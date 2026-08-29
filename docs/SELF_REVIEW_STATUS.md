@@ -1135,3 +1135,19 @@ Correction in this increment:
 - Corrected `weeklyCount` to a rolling seven-day value and documented all
   notification response shapes, including the `hasNext`/`hasContent` page flags
   and unread count response.
+
+# Follow-up self-review (2026-08-29, poll deadline and dialog semantics increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | `CreatePollModal` now requires an explicit `deadlineDate` whenever the deadline toggle is enabled; `expiresAt` is never silently omitted in that state | Live backend deadline validation and timezone behavior remain unverified | Keep the UI state and request payload aligned; do not rely on a backend default when the user selected a deadline |
+| Accessibility | Pass for audited controls | Create-poll modal has dialog naming, modal semantics, labeled question/options/date/time fields, pressed toggle states, and localized missing-date alert; `PollCard` option/voter/close controls expose state and names | Full keyboard focus trap, Escape handling, and screen-reader walkthrough remain pending | Treat modal and poll controls as interactive stateful controls, not decorative buttons |
+| Bilingual copy | Pass | Four new deadline/dialog strings are registered in `resources.ts`; `npm run test:i18n:copy` reports 770 checked keys with none missing | Full authenticated locale walkthrough remains pending | Keep validation and accessibility feedback short and translated in the shared registry |
+| Regression safety | Pass | Frontend type-check/lint, production build, i18n-copy and error-copy gates pass after the poll changes | Authenticated realtime poll and concurrency browser proof remain blocked | Preserve the explicit poll gaps in the function inventory rather than claiming E2E completion |
+| Traceability | Pass | Poll modal/card, shared resources, function audit, and this entry describe the same deadline and accessibility behavior | Policy/concurrency/realtime/audit evidence still requires a clean backend stack | Record the UI correction without inventing provider or legacy compatibility behavior |
+
+Correction in this increment:
+
+- Prevented a deadline-enabled poll from submitting without a selected end
+  date, added bilingual feedback, and completed dialog/control semantics for
+  poll creation, voting, voter details, and poll-close actions.

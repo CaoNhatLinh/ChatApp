@@ -214,6 +214,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             key={option.option}
                             onClick={() => toggleOption(option.option)}
                             disabled={isClosed}
+                            aria-pressed={isSelected}
                             className={cn(
                                 "w-full relative overflow-hidden rounded-lg transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 text-left border",
                                 isClosed ? "cursor-default" : "cursor-pointer active:scale-[0.99]",
@@ -290,6 +291,8 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                         <button
                             type="button"
                             onClick={() => setShowVoters(!showVoters)}
+                            aria-expanded={showVoters}
+                            aria-controls={`poll-voters-${localPoll.pollId}`}
                             className="text-[8px] font-black text-primary/70 hover:text-primary uppercase tracking-tighter"
                         >
                             {localizeText(showVoters ? 'Ẩn' : 'Chi tiết')}
@@ -303,6 +306,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             type="button"
                             onClick={() => void handleRemoveVote()}
                             disabled={isVoting}
+                            aria-label={localizeText('Hủy phiếu')}
                             className="p-1 hover:bg-destructive/5 rounded transition-colors text-destructive/40 hover:text-destructive"
                             title={localizeText('Hủy phiếu')}
                         >
@@ -323,7 +327,9 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                     {isCreator && !isClosed && (
                         <button
+                            type="button"
                             onClick={() => void handleClosePoll()}
+                            aria-label={localizeText('Đóng bình chọn')}
                             className="p-1 hover:bg-amber-500/5 rounded transition-colors text-amber-500/60 hover:text-amber-500"
                             title={localizeText('Đóng bình chọn')}
                         >
@@ -336,6 +342,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             {/* Voter Details Area */}
             {showVoters && (
                 <motion.div
+                    id={`poll-voters-${localPoll.pollId}`}
                     className="px-4 pb-3"
                     initial={UI_MOTION_CONFIG.initialState}
                     animate={UI_MOTION_CONFIG.animateState}
