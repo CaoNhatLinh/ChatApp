@@ -925,3 +925,18 @@ Correction in this increment:
 - Localized every global-admin feedback path and extended the copy contract to
   include AdminPage; fixed public shell actions/nav and locale-dependent media
   previews, including the previously cached empty preview.
+
+# Follow-up self-review (2026-08-29, responsive public navigation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Mobile navigation reachability | Pass | Public header exposes an explicit open/close menu at mobile widths with Home, About, Help, Sign in, and Create account links | Authenticated mobile shell still needs a seeded realtime browser walkthrough | Keep every public destination reachable without relying on hidden desktop navigation |
+| Accessibility | Pass | Menu control has native button semantics, `aria-expanded`, `aria-controls`, localized accessible names, and keyboard-reachable links | Full automated screen-reader tree remains pending | Treat the menu state as an explicit interactive state, not a CSS-only reveal |
+| Locale behavior | Pass | Locale smoke opens the menu at 390px and asserts all five English labels after VI→EN persistence | Vietnamese mobile mutation journey remains bounded to the same route fixture | Resolve labels at render time so locale changes never freeze menu copy |
+| Responsive quality | Pass | UI-quality smoke remains clean at 320px and 1440px; mobile menu does not introduce overflow | Authenticated responsive workspace evidence remains pending | Preserve compact header actions while keeping the full public route set available |
+| Traceability | Pass | `PublicShellHeader.tsx`, `locale-smoke.mjs`, `resources.ts`, `TESTING.md`, function audit and this entry are synchronized | Clean-stack integration remains blocked by unavailable providers | Keep the responsive navigation contract executable in CI |
+
+Correction in this increment:
+
+- Added the missing mobile public navigation state and verified its localized
+  links and accessibility attributes at a real 390px browser viewport.

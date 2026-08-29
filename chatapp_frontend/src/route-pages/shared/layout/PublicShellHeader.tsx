@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+import { useState } from "react";
 import { ThemeToggle } from "@/features/settings/ui/ThemeToggle";
 import { cn } from "@/shared/lib/cn";
 import { type ReactNode } from "react";
@@ -22,6 +24,7 @@ const PublicShellHeader = ({
   actions,
 }: PublicShellHeaderProps) => {
   const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useAppLocale();
   const defaultActions = (
     <>
@@ -74,6 +77,16 @@ const PublicShellHeader = ({
         <div className="flex items-center gap-2 sm:gap-3">
           <LanguageToggle />
           <ThemeToggle />
+          <button
+            type="button"
+            className="focus-ring inline-flex items-center justify-center rounded-[var(--radius-md)] border border-border p-2 text-muted-foreground hover:border-primary hover:text-primary md:hidden"
+            aria-expanded={mobileNavOpen}
+            aria-controls="public-mobile-navigation"
+            aria-label={localizeText(mobileNavOpen ? "Đóng menu điều hướng" : "Mở menu điều hướng")}
+            onClick={() => setMobileNavOpen((current) => !current)}
+          >
+            {mobileNavOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+          </button>
           <div className="hidden flex-wrap justify-end gap-2 sm:flex">
             {actions ?? defaultActions}
           </div>
@@ -82,6 +95,33 @@ const PublicShellHeader = ({
           </Link>
         </div>
       </div>
+      {mobileNavOpen ? (
+        <div id="public-mobile-navigation" className="border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur md:hidden">
+          <nav aria-label={localizeText("Điều hướng công khai trên thiết bị di động")} className="layout-shell grid gap-1">
+            {primaryNavItems.map((item) => (
+              <Link
+                key={item.to}
+                href={item.to}
+                onClick={() => setMobileNavOpen(false)}
+                className={cn(
+                  "focus-ring rounded-[var(--radius-sm)] px-3 py-2.5 text-sm font-semibold",
+                  pathname === item.to ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                {localizeText(item.label)}
+              </Link>
+            ))}
+            <div className="mt-2 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
+              <Link href="/login" onClick={() => setMobileNavOpen(false)} className="focus-ring rounded-[var(--radius-md)] border border-border px-3 py-2.5 text-center text-sm font-semibold hover:border-primary hover:text-primary">
+                {localizeText(UI_COPY.shell.publicActions.login)}
+              </Link>
+              <Link href="/register" onClick={() => setMobileNavOpen(false)} className="focus-ring rounded-[var(--radius-md)] bg-primary px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground">
+                {localizeText(UI_COPY.shell.publicActions.register)}
+              </Link>
+            </div>
+          </nav>
+        </div>
+      ) : null}
     </header>
   );
 };

@@ -25,6 +25,13 @@ const home = {
   navigation: await page.locator('header a').allTextContents(),
 };
 
+await page.setViewportSize({ width: 390, height: 844 });
+await page.reload({ waitUntil: 'networkidle' });
+await page.getByRole('heading', { name: 'Say what matters. Keep what matters.', exact: true }).waitFor();
+await page.getByRole('button', { name: 'Open navigation menu' }).click();
+home.mobileNavigation = await page.locator('#public-mobile-navigation a').allTextContents();
+await page.getByRole('button', { name: 'Close navigation menu' }).waitFor();
+
 await page.goto(`${baseUrl}/does-not-exist`, { waitUntil: 'networkidle' });
 const notFound = {
   lang: await page.locator('html').getAttribute('lang'),
@@ -63,6 +70,11 @@ if (
   !home.navigation.includes('Help') ||
   !home.navigation.includes('Sign in') ||
   !home.navigation.includes('Create account') ||
+  !home.mobileNavigation.includes('Home') ||
+  !home.mobileNavigation.includes('About') ||
+  !home.mobileNavigation.includes('Help') ||
+  !home.mobileNavigation.includes('Sign in') ||
+  !home.mobileNavigation.includes('Create account') ||
   notFound.lang !== 'en' ||
   !notFound.hasHomeRecovery ||
   !notFound.hasWorkspaceRecovery ||

@@ -23,9 +23,9 @@ with seeded users, STOMP reconnect/read/reaction assertions, accessibility tree
 checks, and performance trace budgets.
 
 `npm run test:e2e:locale` verifies the persisted VI→EN switch, English landing
-copy, English `html[lang]`, and 404 recovery links. The expected document 404
-response is recorded separately; unexpected console errors and request failures
-still fail the script.
+copy, desktop navigation, the 390px mobile navigation menu, English `html[lang]`,
+and 404 recovery links. The expected document 404 response is recorded
+separately; unexpected console errors and request failures still fail the script.
 
 `npm run test:e2e:notifications` loads the authenticated notification-settings
 page with an explicit HTTP-boundary fixture, toggles push delivery, verifies the
