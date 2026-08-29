@@ -552,6 +552,20 @@ Correction in this increment:
 - Replaced remaining raw boundary/policy/theme console logging in active runtime
   paths with the shared logger and bounded error details.
 
+# Follow-up self-review (2026-08-29, notification session race increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Session isolation | Pass for inbox initialization | Generation guard ignores stale notification responses after a newer init or reset; logout reset invalidates all in-flight reads | Multi-tab identity switching still needs live browser proof | Never allow a previous session's read to commit into the current store |
+| Async consistency | Pass | Both success and failure paths check the captured generation before committing state | Provider latency/retry behavior remains externally unverified | Keep the newest request authoritative |
+| State integrity | Pass | Reset invalidates pending work before clearing realtime/store state | Realtime event ordering across reconnect remains an integration gap | Separate request lifecycle from socket lifecycle |
+| Traceability | Pass | `notification.store.ts`, sidebar inbox recovery UI and this entry | Clean-stack authenticated browser proof remains blocked | Preserve the generation boundary in future store reads |
+
+Correction in this increment:
+
+- Added session/request generation isolation to notification initialization so
+  stale responses cannot repopulate a newer or logged-out session.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

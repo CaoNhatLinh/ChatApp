@@ -43,6 +43,7 @@ interface NotificationStore {
 
 let notificationRealtimeUnsubscribers: Array<() => void> = [];
 let reconnectHandle: RealtimeHandle | null = null;
+let notificationInitGeneration = 0;
 
 type NotificationReadEvent =
   | { action: 'MARK_ALL_READ' }
@@ -149,12 +150,14 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   realtimeUserId: null,
 
   initNotifications: async () => {
+    const generation = ++notificationInitGeneration;
     set({ loading: true, error: null });
     try {
       const [page, unreadCount] = await Promise.all([
         getAllNotifications(0, 50),
         getUnreadCount(),
       ]);
+      if (generation !== notificationInitGeneration) return;
       set({
         notifications: page.content,
         hasNext: page.hasNext,
@@ -162,6 +165,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         loading: false,
       });
     } catch (error: unknown) {
+      if (generation !== notificationInitGeneration) return;
       logger.warn('Notification initialization failed', error instanceof Error ? error.message : String(error));
       set({
         loading: false,
@@ -251,6 +255,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
   },
 
   resetState: () => {
+    notificationInitGeneration += 1;
     get().disconnectRealtime();
     set({
       notifications: [],
