@@ -11,6 +11,8 @@ import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
+import { notifyError } from '@/shared/lib/notification';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -106,10 +108,13 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             });
 
             hoistConversation(newRoom);
-            void selectConversation(newRoom.conversationId);
+            void selectConversation(newRoom.conversationId).catch((error: unknown) => {
+                logger.error('[CreateRoomModal] Failed to open newly created room', error instanceof Error ? error.message : String(error));
+                notifyError(getUserFacingErrorMessage(error, localizeText('Không thể mở phòng mới. Vui lòng thử lại.')));
+            });
             onClose();
-        } catch (error) {
-            console.error("Failed to create room", error);
+        } catch (error: unknown) {
+            logger.error('[CreateRoomModal] Failed to create room', error instanceof Error ? error.message : String(error));
             setErrorMessage(getUserFacingErrorMessage(error, localizeText("Không thể tạo phòng. Kiểm tra dữ liệu và thử lại.")));
         } finally {
             setIsCreating(false);

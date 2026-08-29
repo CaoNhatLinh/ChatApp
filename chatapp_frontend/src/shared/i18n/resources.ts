@@ -40,6 +40,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Không thể tải thành viên phòng. Vui lòng thử lại.': 'Unable to load room members. Try again.',
   'Không thể tải thông báo. Vui lòng thử lại.': 'Unable to load notifications. Try again.',
   'Đang tải thông báo...': 'Loading notifications…',
+  'Không thể mở phòng mới. Vui lòng thử lại.': 'Unable to open the new room. Try again.',
   'Không thể lưu giao diện phòng. Vui lòng thử lại.': 'Unable to save the room appearance. Try again.',
   'Đã ghi nhận bình chọn.': 'Vote recorded.',
   'Đã hủy bình chọn.': 'Vote removed.',

@@ -470,6 +470,20 @@ Correction in this increment:
 - Hardened profile relationship actions with status-aware failure copy and a
   shared loading lock for block/unblock, preventing duplicate unblock requests.
 
+# Follow-up self-review (2026-08-29, create-room navigation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Promise lifecycle | Pass for room creation handoff | Newly created room selection is explicitly observed and reports failures; room creation failures remain inline in the modal | Authenticated create/open browser proof remains pending | No fire-and-forget navigation promise may reject unobserved |
+| State integrity | Pass | The canonical room is hoisted only after create succeeds; opening it is a separate, observable step | Cross-tab projection/realtime proof remains pending | Distinguish persisted creation from selected-view loading |
+| Bilingual UI coverage | Pass | Create/open failure copy is localized; locale smoke (714 keys) | Room names/descriptions remain user-authored data | Translate product feedback only |
+| Traceability | Pass | `CreateRoomModal.tsx`, messenger selection API and this entry | Clean-stack authenticated browser proof remains blocked | Preserve explicit post-create navigation failure handling |
+
+Correction in this increment:
+
+- Added an observed rejection boundary around opening a newly created room and
+  replaced raw create-room console output with sanitized diagnostics.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
