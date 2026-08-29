@@ -796,3 +796,20 @@ Correction in this increment:
 - Replaced the shared browser device key with an account-namespaced canonical
   key and keyed the lifecycle effect by authenticated user identity, removing
   cross-account heartbeat risk without retaining a legacy fallback.
+
+# Follow-up self-review (2026-08-29, notification-save lifecycle increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Component lifecycle | Pass | `NotificationSettingsPanel` invalidates save requests on unmount and ignores late success/error state | Full tab-switch browser proof remains pending | A save cannot update or notify a panel that is no longer mounted |
+| Mutation integrity | Pass | A request identity prevents an older save from winning a later save | Cross-device concurrent edits remain unverified | Keep the newest local mutation authoritative |
+| Data exposure | Pass | Save diagnostics contain only bounded native error text; server payloads are not rendered | Server-side structured redaction remains an operations task | Keep transport details out of user-facing settings |
+| Failure recovery | Pass | Active save failures keep the existing draft and show localized retry guidance | Provider retry behavior remains pending | Do not replace a failed draft with guessed/default settings |
+| Bilingual and accessibility coverage | Pass | Existing localized success/error copy and disabled/loading button semantics remain unchanged | Full screen-reader settings walkthrough remains pending | Preserve keyboard-reachable save feedback |
+| Traceability | Pass | `NotificationSettingsPanel.tsx` and this entry; validate/build/browser gates pass | Authenticated persistence remains blocked | Keep save ownership inside the mounted panel |
+
+Correction in this increment:
+
+- Added mounted/request identity guards to notification settings saves and
+  bounded diagnostics, preventing late saves from mutating or notifying an
+  unmounted settings panel.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Bell, Check } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
@@ -59,6 +59,13 @@ export function NotificationSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+  const mountedRef = useRef(true);
+  const saveRequestRef = useRef(0);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    saveRequestRef.current += 1;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +103,7 @@ export function NotificationSettingsPanel() {
 
   const handleSave = async () => {
     if (!settings || !draft || !isDirty) return;
+    const requestId = ++saveRequestRef.current;
     setSaving(true);
     try {
       const normalizedDraft: NotificationDraft = {
@@ -109,13 +117,16 @@ export function NotificationSettingsPanel() {
         quietHoursStart: normalizedDraft.quietHoursStart || null,
         quietHoursEnd: normalizedDraft.quietHoursEnd || null,
       });
+      if (!mountedRef.current || requestId !== saveRequestRef.current) return;
       setSettings({ ...settings, ...normalizedDraft, quietHoursStart: normalizedDraft.quietHoursStart || null, quietHoursEnd: normalizedDraft.quietHoursEnd || null });
       setDraft(normalizedDraft);
       notifySuccess(localizeText('Đã lưu cài đặt thông báo.'));
-    } catch {
+    } catch (saveError: unknown) {
+      if (!mountedRef.current || requestId !== saveRequestRef.current) return;
+      logger.warn('Notification settings save failed', saveError instanceof Error ? saveError.message : String(saveError));
       notifyError(localizeText('Không thể lưu cài đặt thông báo. Vui lòng thử lại.'));
     } finally {
-      setSaving(false);
+      if (mountedRef.current && requestId === saveRequestRef.current) setSaving(false);
     }
   };
 
