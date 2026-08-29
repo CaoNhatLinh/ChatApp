@@ -58,15 +58,15 @@ interface RoomManagementPanelProps {
 function RoomMemberPresence({ userId, conversationId }: { userId: string; conversationId: string }) {
     const presenceRef = useTrackPresenceInViewport<HTMLSpanElement>([userId], conversationId);
     const { presence } = usePresence(userId);
-    return (
+    return presence ? (
         <span ref={presenceRef} className="inline-flex shrink-0">
             <StatusDot
-                status={presence?.status ?? 'OFFLINE'}
-                isOnline={presence?.isOnline ?? false}
+                status={presence.status}
+                isOnline={presence.isOnline}
                 size="sm"
             />
         </span>
-    );
+    ) : <span ref={presenceRef} className="inline-flex h-2.5 w-2.5 shrink-0" aria-hidden="true" />;
 }
 
 export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) {

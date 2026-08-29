@@ -50,8 +50,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const { presence } = usePresence(userId);
   const canViewPresence = presenceConversationId !== undefined;
   useTrackPresence(canViewPresence && isOpen ? [userId] : [], presenceConversationId ?? null);
-  const isOnline = presence?.isOnline ?? false;
-  const status = presence?.status ?? "OFFLINE";
   const { blockFriend, unblockFriend, mutualFriends, fetchMutualFriends, loadingMutual } = useFriendStore();
 
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
@@ -198,10 +196,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 )
               )}
             </div>
-            {!isLoading && canViewPresence ? (
+            {!isLoading && canViewPresence && presence ? (
               <StatusDot
-                status={status}
-                isOnline={isOnline}
+                status={presence.status}
+                isOnline={presence.isOnline}
                 size="lg"
                 className="absolute -bottom-1 right-2 border-4 border-background"
               />
@@ -220,9 +218,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               ) : null}
             </div>
-            {canViewPresence ? (
+            {canViewPresence && presence ? (
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
-                {isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
+                {presence.isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
               </p>
             ) : null}
           </motion.div>

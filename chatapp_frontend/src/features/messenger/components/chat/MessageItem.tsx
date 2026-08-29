@@ -59,8 +59,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     );
     const isPoll = message.type === 'POLL' && message.poll;
     const { presence } = usePresence(message.sender.userId);
-    const isOnline = presence?.isOnline ?? false;
-    const status = presence?.status ?? 'OFFLINE';
     const isFailed = message.status === 'failed';
     const latestSeenAt = React.useMemo(() => {
         if (!isOwn || !message.readReceipts || message.readReceipts.length === 0) {
@@ -107,12 +105,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                     {message.sender.displayName?.charAt(0)}
                                 </AvatarFallback>
                             </Avatar>
-                            <StatusDot
-                                status={status}
-                                isOnline={isOnline}
-                                size="sm"
-                                className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
-                            />
+                            {presence ? (
+                                <StatusDot
+                                    status={presence.status}
+                                    isOnline={presence.isOnline}
+                                    size="sm"
+                                    className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
+                                />
+                            ) : null}
                         </>
                     )}
                 </div>

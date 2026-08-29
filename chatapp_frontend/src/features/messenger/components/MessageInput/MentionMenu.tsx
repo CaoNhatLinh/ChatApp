@@ -292,8 +292,6 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                     {filteredItems.map((member, index) => {
                         const isAll = member.userId === 'all';
                         const presence = presences[member.userId] ?? null;
-                        const isOnline = presence?.isOnline ?? false;
-                        const status = presence?.status ?? 'OFFLINE';
                         return (
                             <button
                                 key={member.userId}
@@ -337,9 +335,9 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                                 </div>
 
                                 {/* Online indicator */}
-                                {!isAll && (
-                                    <StatusDot status={status} isOnline={isOnline} size="sm" className="flex-shrink-0" />
-                                )}
+                                {!isAll && presence ? (
+                                    <StatusDot status={presence.status} isOnline={presence.isOnline} size="sm" className="flex-shrink-0" />
+                                ) : null}
                             </button>
                         );
                     })}

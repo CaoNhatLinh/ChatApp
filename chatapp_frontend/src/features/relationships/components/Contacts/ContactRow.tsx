@@ -27,8 +27,6 @@ export const ContactRow: FC<ContactRowProps> = memo(({
   presenceScope,
 }) => {
   const { presence } = usePresence(userId);
-  const isOnline = presence?.isOnline ?? false;
-  const status = presence?.status ?? "OFFLINE";
   const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
     presenceScope === undefined ? [] : [userId],
     presenceScope ?? null,
@@ -45,10 +43,10 @@ export const ContactRow: FC<ContactRowProps> = memo(({
           <div className="h-12 w-12 overflow-hidden rounded-[var(--radius-md)] bg-primary/10 border border-primary/20 flex items-center justify-center font-semibold text-primary text-lg">
             {avatarUrl ? <img src={avatarUrl} alt={localizeText("Ảnh đại diện")} className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
           </div>
-          {presenceScope !== undefined ? (
+          {presenceScope !== undefined && presence ? (
             <StatusDot
-              status={status}
-              isOnline={isOnline}
+              status={presence.status}
+              isOnline={presence.isOnline}
               size="md"
               className="absolute bottom-[-1px] right-[-1px] border-2 border-background"
             />
