@@ -57,8 +57,8 @@ const createInitialState = (): FriendStoreState => ({
 
 const initialState = createInitialState();
 
-let searchAbortController: AbortController | null = null;
-let mutualAbortController: AbortController | null = null;
+let searchRequestGeneration = 0;
+let mutualRequestGeneration = 0;
 
 export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set, get) => ({
   ...initialState,
@@ -109,21 +109,21 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
     }
   },
   searchUsers: async (username: string) => {
+    const requestGeneration = ++searchRequestGeneration;
     if (username.length < 3) {
       set({
         searchResults: [],
         loadingSearch: false,
+        error: null,
       });
       return;
     }
-
-    if (searchAbortController) searchAbortController.abort();
-    searchAbortController = new AbortController();
 
     set({ loadingSearch: true, error: null });
 
     try {
       const results = await searchUsersApi(username);
+      if (requestGeneration !== searchRequestGeneration) return;
       const currentState = get();
       const acceptedFriendIds = new Set(currentState.friends?.userDetails?.map(friend => friend.userId) ?? []);
       const pendingFriendIds = new Set(currentState.pendingRequests?.userDetails?.map(friend => friend.userId) ?? []);
@@ -137,12 +137,12 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         error: null,
       });
     } catch (err: unknown) {
-      if ((err as Error).name === 'AbortError') return;
+      if (requestGeneration !== searchRequestGeneration) return;
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể tải người dùng.');
       set({ error: errorMessage });
       logger.error('Error searching users', err instanceof Error ? err.message : String(err));
     } finally {
-      set({ loadingSearch: false });
+      if (requestGeneration === searchRequestGeneration) set({ loadingSearch: false });
     }
   },
 
@@ -328,12 +328,12 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
   },
 
   fetchMutualFriends: async (otherUserId: string) => {
-    if (mutualAbortController) mutualAbortController.abort();
-    mutualAbortController = new AbortController();
+    const requestGeneration = ++mutualRequestGeneration;
 
     set({ loadingMutual: true, error: null });
     try {
       const response = await friendApi.getMutualFriends(otherUserId);
+      if (requestGeneration !== mutualRequestGeneration) return;
       set({
         mutualFriends: {
           userId: otherUserId,
@@ -343,12 +343,12 @@ export const useFriendStore = create<FriendStoreState & FriendStoreActions>((set
         error: null,
       });
     } catch (err: unknown) {
-      if ((err as Error).name === 'AbortError') return;
+      if (requestGeneration !== mutualRequestGeneration) return;
       const errorMessage = getUserFacingErrorMessage(err, 'Không thể tải bạn chung.');
       set({ error: errorMessage });
       logger.error('Error fetching mutual friends', err instanceof Error ? err.message : String(err));
     } finally {
-      set({ loadingMutual: false });
+      if (requestGeneration === mutualRequestGeneration) set({ loadingMutual: false });
     }
   },
 

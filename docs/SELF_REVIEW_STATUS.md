@@ -700,3 +700,18 @@ Correction in this increment:
 
 - Surfaced relationship read failures in the canonical Contacts page and added
   an active-tab retry action, avoiding a false empty-list success state.
+
+# Follow-up self-review (2026-08-29, relationship-search-race increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| State integrity | Pass for search and mutual-friends reads | Store generation counters allow only the newest keyword/target request to commit results or loading/error state | Live network latency and multi-account proof remain pending | Do not let an older response replace the current search/profile context |
+| Cancellation semantics | Pass for the actual client contract | Removed local abort controllers that were never passed to the HTTP adapter; stale responses are now rejected at the store boundary | Transport-level cancellation can be added only when the canonical client accepts an AbortSignal | Avoid claiming cancellation when the request cannot be canceled |
+| Failure recovery | Pass | Current request errors still use shared status-aware copy; stale failures are ignored | Authenticated relationship failure matrix remains pending | Preserve a real error only for the active request |
+| Bilingual/data exposure | Pass | Existing localized error copy remains; no user content or server payload is logged | Full locale/browser relationship walkthrough remains pending | Translate product feedback, not search result data |
+| Traceability | Pass | `friend.store.ts`, Contacts retry path and this entry | Clean-stack friendship persistence remains pending | Keep read request ownership in the store |
+
+Correction in this increment:
+
+- Replaced ineffective local abort-controller bookkeeping with explicit
+  search/mutual request-generation guards at the canonical relationship store.
