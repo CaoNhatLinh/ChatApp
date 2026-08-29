@@ -14,6 +14,8 @@
   keyboard focus containment.
 - Report-user and report-message dialogs use the same Escape/focus containment
   contract and restore focus to the triggering control after close.
+- The profile dialog pauses its focus boundary while a nested report or confirm
+  dialog is open, so only the topmost layer receives keyboard focus.
 - Test at 320, 768, 1024 and 1440px, in light and dark themes, with reduced
   motion enabled.
 - Browser evidence must include console/request failure checks and an

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Crown, Flag, Loader2, MessageCircle, Shield, ShieldOff, User, UserMinus, UserPlus, X } from "lucide-react";
 import { useAuthStore } from "@/features/auth/model/auth.store";
@@ -16,6 +16,7 @@ import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-moti
 import { ReportUserModal } from "./ReportUserModal";
 import { localizeText } from '@/shared/i18n';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBlockConfirmOpen, setIsBlockConfirmOpen] = useState(false);
   const [isBlockLoading, setIsBlockLoading] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const isCurrentUser = currentUser?.userId === userId;
 
@@ -94,14 +96,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (!isOpen) setIsReportOpen(false);
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  useFocusTrap(isOpen && !isReportOpen && !isBlockConfirmOpen, dialogRef, onClose);
 
   const handleBlock = useCallback(async () => {
     try {
@@ -152,6 +147,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       />
 
       <motion.div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-profile-title"

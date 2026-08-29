@@ -192,6 +192,10 @@ Corrections in this increment:
 | Runtime/contract safety | Pass | Only UI event handling changed; report API payloads and status-aware error mapping unchanged | Authenticated report submission still needs live backend proof | Do not alter moderation API semantics |
 | Traceability | Pass | `ACCESSIBILITY.md`, shared hook, report modal sources | Full axe/screen-reader review remains pending | Keep keyboard assertions in the release checklist |
 
+The profile dialog now disables its own focus boundary while a nested report or
+Radix confirm dialog is open, preventing two modal layers from competing for
+Tab/Escape events.
+
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

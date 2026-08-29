@@ -23,6 +23,8 @@ export const useFocusTrap = (
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const initialFocus = containerRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    if (initialFocus && !containerRef.current?.contains(document.activeElement)) initialFocus.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (!escapeDisabledRef.current) onEscapeRef.current?.();
