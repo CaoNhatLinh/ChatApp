@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, Crown, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, UserMinus } from 'lucide-react';
+import { ChevronDown, Crown, Pencil, Plus, RefreshCw, ScrollText, ShieldCheck, Trash2, UserMinus } from 'lucide-react';
 import type { Conversation, ConversationMember } from '@/features/messenger/types/messenger.types';
 import {
     assignConversationRoles,
@@ -31,6 +31,7 @@ import { cn } from '@/shared/lib/cn';
 import { RoomRoleForm, type RoomRoleFormValue } from './RoomRoleForm';
 import { RoomChatPolicyForm } from './RoomChatPolicyForm';
 import { RoomMemberPolicyForm, type RoomMemberPolicyValue } from './RoomMemberPolicyForm';
+import { RoomAuditTimeline } from './RoomAuditTimeline';
 
 const EMPTY_ROLE: RoomRoleFormValue = {
     displayName: '',
@@ -65,6 +66,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
     const [showRoleForm, setShowRoleForm] = React.useState(false);
     const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null);
+    const [auditOpen, setAuditOpen] = React.useState(false);
     const requestRef = React.useRef(0);
 
     const load = React.useCallback(async () => {
@@ -295,6 +297,24 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                             onSubmit={(value) => void saveRoomChatPolicy(value)}
                         />
                     </div>
+                </details>
+            ) : null}
+
+            {can('ROOM_AUDIT_READ') ? (
+                <details
+                    className="group rounded-2xl border border-border/70"
+                    onToggle={(event) => setAuditOpen(event.currentTarget.open)}
+                >
+                    <summary className="flex cursor-pointer list-none items-center gap-2 p-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <ScrollText className="h-4 w-4 text-primary" />
+                        <span className="flex-1">{localizeText('Nhật ký phòng')}</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+                    {auditOpen ? (
+                        <div className="border-t border-border/60 p-3">
+                            <RoomAuditTimeline conversationId={conversation.conversationId} />
+                        </div>
+                    ) : null}
                 </details>
             ) : null}
 

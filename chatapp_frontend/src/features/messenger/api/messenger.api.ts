@@ -192,6 +192,24 @@ export interface ConversationPermissionsView {
     owner: boolean;
 }
 
+export interface RoomAuditEvent {
+    eventId: string;
+    eventType: string;
+    actorId: string | null;
+    targetUserId: string | null;
+    messageBucket: string | null;
+    messageId: string | null;
+    reasonCode: string | null;
+    metadata: Record<string, string>;
+    createdAt: string;
+}
+
+export interface RoomAuditPage {
+    content: RoomAuditEvent[];
+    nextCursor: string | null;
+    hasNext: boolean;
+}
+
 export interface ConversationRoleCreateRequest {
     roleCode: string;
     displayName: string;
@@ -648,6 +666,18 @@ export const getConversationPermissions = async (
     conversationId: string,
 ): Promise<ConversationPermissionsView> => {
     const response = await apiClient.get<ConversationPermissionsView>(`/conversations/${conversationId}/permissions`);
+    return response.data;
+};
+
+export const listRoomAuditEvents = async (
+    conversationId: string,
+    month: string,
+    beforeEventId?: string,
+    limit = 25,
+): Promise<RoomAuditPage> => {
+    const response = await apiClient.get<RoomAuditPage>(`/conversations/${conversationId}/audit`, {
+        params: { month, beforeEventId, limit },
+    });
     return response.data;
 };
 

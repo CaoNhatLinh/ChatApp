@@ -6,6 +6,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalCon
 import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.canonical.service.ConversationRoleService;
+import com.chatapp.chat_service.canonical.service.RoomAuditService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,16 +31,19 @@ public class CanonicalConversationController {
     private final CanonicalBackendService backend;
     private final ConversationRoleService roles;
     private final ConversationAuthorizationService authorization;
+    private final RoomAuditService roomAudit;
     private final SecurityContextHelper securityContext;
 
     public CanonicalConversationController(
             CanonicalBackendService backend,
             ConversationRoleService roles,
             ConversationAuthorizationService authorization,
+            RoomAuditService roomAudit,
             SecurityContextHelper securityContext) {
         this.backend = backend;
         this.roles = roles;
         this.authorization = authorization;
+        this.roomAudit = roomAudit;
         this.securityContext = securityContext;
     }
 
@@ -120,6 +124,15 @@ public class CanonicalConversationController {
     public CanonicalApiContracts.ConversationPermissionsView permissions(
             @PathVariable UUID conversationId) {
         return roles.permissions(actorId(), conversationId);
+    }
+
+    @GetMapping("/{conversationId}/audit")
+    public CanonicalApiContracts.RoomAuditPage audit(
+            @PathVariable UUID conversationId,
+            @RequestParam String month,
+            @RequestParam(required = false) UUID beforeEventId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return roomAudit.list(actorId(), conversationId, month, beforeEventId, limit);
     }
 
     @PostMapping("/{conversationId}/roles")

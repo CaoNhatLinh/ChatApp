@@ -190,6 +190,24 @@ public final class CanonicalApiContracts {
     public record ConversationRoleAssignmentRequest(@NotNull Set<UUID> roleIds) {
     }
 
+    public record RoomAuditEventView(
+            UUID eventId,
+            String eventType,
+            UUID actorId,
+            UUID targetUserId,
+            String messageBucket,
+            UUID messageId,
+            String reasonCode,
+            Map<String, String> metadata,
+            Instant createdAt) {
+    }
+
+    public record RoomAuditPage(
+            List<RoomAuditEventView> content,
+            UUID nextCursor,
+            boolean hasNext) {
+    }
+
     public record MessageSendRequest(
             @NotNull UUID clientMessageId,
             String messageType,

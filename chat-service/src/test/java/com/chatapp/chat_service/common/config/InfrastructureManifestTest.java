@@ -163,7 +163,7 @@ class InfrastructureManifestTest {
                 .contains("VALUES (?, ?, ?, now(), ?, ?, ?, ?)")
                 .contains("WHERE event_day = ? AND event_type = ? AND event_shard = ? LIMIT ?")
                 .contains("event.createdAt().atZone(ZoneOffset.UTC).toLocalDate()")
-                .contains("(byte) Math.floorMod(event.actorId().hashCode(), 16)")
+                .contains("event.actorId() == null ? event.eventId() : event.actorId()")
                 .contains("(int) row.getByte(\"event_shard\")")
                 .contains("case \"CONVERSATION_CREATE\" -> \"ROOM_CREATED\";")
                 .contains("case \"MESSAGE_SEND\" -> \"MESSAGE_SENT\";")

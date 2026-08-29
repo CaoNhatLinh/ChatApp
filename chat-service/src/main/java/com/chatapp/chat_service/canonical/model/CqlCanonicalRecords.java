@@ -227,6 +227,20 @@ public final class CqlCanonicalRecords {
             Instant createdAt) {
     }
 
+    public record CanonicalRoomEvent(
+            UUID conversationId,
+            String eventMonth,
+            UUID eventId,
+            String eventType,
+            UUID actorId,
+            UUID targetUserId,
+            String messageBucket,
+            UUID messageId,
+            String reasonCode,
+            Map<String, String> metadata,
+            Instant createdAt) {
+    }
+
     public record CanonicalCallSession(
             UUID conversationId,
             Instant startedAt,

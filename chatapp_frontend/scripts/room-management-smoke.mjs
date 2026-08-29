@@ -78,6 +78,7 @@ const roomPolicies = [];
 const memberPolicies = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.setDefaultTimeout(10_000);
 const consoleErrors = [];
 const requestFailures = [];
 const apiRequests = [];
@@ -114,7 +115,24 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') return json(members);
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
-    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE'], owner: true });
+    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE', 'ROOM_AUDIT_READ'], owner: true });
+  }
+  if (path.endsWith(`/conversations/${conversationId}/audit`) && method === 'GET') {
+    return json({
+      content: [{
+        eventId: 'c8a4f8b0-65df-11f1-8000-000000000001',
+        eventType: 'ROLE_UPDATED',
+        actorId: ownerId,
+        targetUserId: null,
+        messageBucket: null,
+        messageId: null,
+        reasonCode: null,
+        metadata: { displayName: 'Product lead' },
+        createdAt: now,
+      }],
+      nextCursor: null,
+      hasNext: false,
+    });
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'POST') {
     const payload = request.postDataJSON();
@@ -183,6 +201,9 @@ await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 
+await page.getByText('Nhật ký phòng', { exact: true }).click();
+await page.getByText('Đã cập nhật vai trò', { exact: true }).waitFor();
+
 const chatPolicyLabel = page.getByText('Chính sách chat', { exact: true });
 const chatPolicySection = chatPolicyLabel.locator('..').locator('..');
 await chatPolicyLabel.click();
@@ -217,6 +238,8 @@ await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).waitFor(
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Members & roles' }).waitFor();
+await page.getByText('Room audit log', { exact: true }).click();
+await page.getByText('Role updated', { exact: true }).waitFor();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

@@ -14,6 +14,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNot
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotificationSettings;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalPoll;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomAuditEvent;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomEvent;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.datastax.oss.driver.api.core.CqlSession;
@@ -193,6 +194,8 @@ public class CanonicalCqlStore {
     private final PreparedStatement upsertNotification;
 
     private final PreparedStatement saveRoomEvent;
+    private final PreparedStatement listRoomEvents;
+    private final PreparedStatement listRoomEventsBefore;
     private final PreparedStatement saveAuditByActor;
     private final PreparedStatement saveAuditByResource;
     private final PreparedStatement saveAuditByMonth;
@@ -855,6 +858,18 @@ public class CanonicalCqlStore {
                     (conversation_id, event_month, event_id, event_type, actor_id, target_user_id,
                      message_bucket, message_id, reason_code, metadata, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.listRoomEvents = session.prepare("""
+                SELECT conversation_id, event_month, event_id, event_type, actor_id, target_user_id,
+                       message_bucket, message_id, reason_code, metadata, created_at
+                FROM room_events_by_conversation
+                WHERE conversation_id = ? AND event_month = ? LIMIT ?
+                """);
+        this.listRoomEventsBefore = session.prepare("""
+                SELECT conversation_id, event_month, event_id, event_type, actor_id, target_user_id,
+                       message_bucket, message_id, reason_code, metadata, created_at
+                FROM room_events_by_conversation
+                WHERE conversation_id = ? AND event_month = ? AND event_id < ? LIMIT ?
                 """);
         this.saveAuditByActor = session.prepare("""
                 INSERT INTO audit_events_by_actor
@@ -2564,7 +2579,7 @@ public class CanonicalCqlStore {
                 null,
                 null,
                 event.reasonCode(),
-                event.beforeState(),
+                roomEventMetadata(event.beforeState(), event.afterState()),
                 event.createdAt()
         ));
         String metricType = analyticsEventType(event.action());
@@ -2572,13 +2587,49 @@ public class CanonicalCqlStore {
             session.execute(saveAnalytics.bind(
                     event.createdAt().atZone(ZoneOffset.UTC).toLocalDate(),
                     metricType,
-                    (byte) Math.floorMod(event.actorId().hashCode(), 16),
+                    (byte) Math.floorMod(
+                            (event.actorId() == null ? event.eventId() : event.actorId()).hashCode(), 16),
                     event.eventId(),
                     event.actorId(),
                     event.conversationId(),
                     event.beforeState() == null ? Map.of() : event.beforeState()
             ));
         }
+    }
+
+    private Map<String, String> roomEventMetadata(
+            Map<String, String> beforeState,
+            Map<String, String> afterState) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        if (beforeState != null) {
+            beforeState.forEach((key, value) -> metadata.put("before." + key, value));
+        }
+        if (afterState != null) {
+            afterState.forEach((key, value) -> metadata.put("after." + key, value));
+        }
+        return Map.copyOf(metadata);
+    }
+
+    public List<CanonicalRoomEvent> listRoomEvents(
+            UUID conversationId,
+            String eventMonth,
+            UUID beforeEventId,
+            int limit) {
+        var statement = beforeEventId == null
+                ? listRoomEvents.bind(conversationId, eventMonth, limit)
+                : listRoomEventsBefore.bind(conversationId, eventMonth, beforeEventId, limit);
+        return session.execute(statement).all().stream().map(row -> new CanonicalRoomEvent(
+                row.getUuid("conversation_id"),
+                row.getString("event_month"),
+                row.getUuid("event_id"),
+                row.getString("event_type"),
+                row.getUuid("actor_id"),
+                row.getUuid("target_user_id"),
+                row.getString("message_bucket"),
+                row.getUuid("message_id"),
+                row.getString("reason_code"),
+                row.getMap("metadata", String.class, String.class),
+                row.getInstant("created_at"))).toList();
     }
 
     /**
