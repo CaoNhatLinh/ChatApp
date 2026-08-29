@@ -35,6 +35,7 @@ const rawFriendCopy = {
   },
   actions: {
     openChat: UI_COPY.friends.actions.openChat,
+    unfriend: UI_COPY.friends.actions.unfriend,
     unfriendConfirm: UI_COPY.friends.actions.unfriendConfirm,
     accept: UI_COPY.friends.actions.accept,
     reject: UI_COPY.friends.actions.reject,

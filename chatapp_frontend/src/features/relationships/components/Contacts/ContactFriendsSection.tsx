@@ -74,26 +74,28 @@ export const ContactFriendsSection = ({
               actions={
                 <div className="flex gap-2 sm:opacity-100">
                   <button
+                    type="button"
                     className="rounded-xl border border-border/50 bg-background px-4 py-2 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                     title={FRIEND_COPY.actions.openChat}
+                    aria-label={FRIEND_COPY.actions.openChat}
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenChat(friend.userId);
                     }}
-                    type="button"
                   >
-                    <MessageCircle size={16} />
+                    <MessageCircle size={16} aria-hidden="true" />
                   </button>
                   <button
+                    type="button"
                     className="rounded-xl border border-border/50 bg-background px-4 py-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    title={FRIEND_COPY.actions.unfriendConfirm}
+                    title={FRIEND_COPY.actions.unfriend}
+                    aria-label={FRIEND_COPY.actions.unfriend}
                     onClick={(event) => {
                       event.stopPropagation();
                       onUnfriend(friend.userId);
                     }}
-                    type="button"
                   >
-                    <X size={16} />
+                    <X size={16} aria-hidden="true" />
                   </button>
                 </div>
               }

@@ -1181,3 +1181,18 @@ Correction in this increment:
 - Centralized language/theme control copy through the reactive i18n hook,
   removed the orphaned English alias, and added browser assertions for the
   translated accessible control contract.
+
+# Follow-up self-review (2026-08-29, Contacts control semantics increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Stateful control semantics | Pass | The Contacts mode selector is a named control group and each option exposes `aria-pressed`; the browser smoke verifies Friends is selected in VI/EN and Requests becomes selected after interaction | Arrow-key tab semantics are intentionally not claimed because this is a native button group, not an ARIA tab widget | Model the implemented segmented control exactly instead of assigning unsupported tab behavior |
+| Icon action naming | Pass for audited actions | Friend message/remove icon buttons have matching localized `title` and `aria-label` values, with decorative icons hidden from the accessibility tree | Populated multi-user screen-reader testing remains pending | Do not make icon recognition the only way to understand an action |
+| Scope and contract discipline | Pass | No friend API, store, presence, modal, or navigation behavior changed; no mock/fallback/legacy branch was added | Live two-account friendship journey remains blocked by the integration stack | Keep accessibility correction independent from friendship data contracts |
+| Regression safety | Pass for available gates | Type-check/lint, production build, i18n-copy gate, and mock-authenticated Contacts browser smoke pass with zero console/request failures | Clean Cassandra and realtime multi-account proof remains pending | Treat HTTP-boundary browser coverage as UI-contract evidence only |
+
+Correction in this increment:
+
+- Exposed the selected state of the Contacts segmented control, named its
+  icon-only row actions, and added browser regression assertions for VI/EN
+  selection behavior.

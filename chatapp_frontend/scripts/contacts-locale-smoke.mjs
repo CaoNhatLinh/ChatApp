@@ -89,19 +89,26 @@ await page.goto(`${baseUrl}/friends`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Danh sách', exact: true }).waitFor();
 const viTabs = await page.locator('header button').allTextContents();
 const viShellNav = await page.locator('header a').allTextContents();
+const viSelectedTab = await page.getByRole('button', { name: 'Bạn bè', exact: true }).getAttribute('aria-pressed');
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Friends list', exact: true }).waitFor();
 const enTabs = await page.locator('header button').allTextContents();
 const enShellNav = await page.locator('header a').allTextContents();
+const enSelectedTab = await page.getByRole('button', { name: 'Friends', exact: true }).getAttribute('aria-pressed');
+await page.getByRole('button', { name: 'Requests', exact: true }).click();
+const enRequestsSelected = await page.getByRole('button', { name: 'Requests', exact: true }).getAttribute('aria-pressed');
 
 const report = {
   baseUrl,
   language: await page.locator('html').getAttribute('lang'),
   viTabs,
   viShellNav,
+  viSelectedTab,
   enTabs,
   enShellNav,
+  enSelectedTab,
+  enRequestsSelected,
   realtimeFailures,
   consoleErrors,
   requestFailures,
@@ -113,6 +120,9 @@ if (
   consoleErrors.length
   || requestFailures.length
   || report.language !== 'en'
+  || viSelectedTab !== 'true'
+  || enSelectedTab !== 'true'
+  || enRequestsSelected !== 'true'
   || !viTabs.includes('Bạn bè')
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')

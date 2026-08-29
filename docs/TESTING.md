@@ -40,9 +40,11 @@ required conversation context.
 
 `npm run test:e2e:contacts` loads the authenticated Contacts route with an
 explicit HTTP-boundary fixture, verifies the VI→EN tab and empty-state copy, and
-confirms the shared app-shell navigation stays translated in both locales, and
-confirms that an unavailable realtime transport does not block the REST-backed
-screen. Realtime transport failures are reported separately because the local
+confirms the shared app-shell navigation stays translated in both locales. It
+also verifies that the Friends/Requests segmented control exposes its selected
+state before and after a tab change. An unavailable realtime transport does not
+block the REST-backed screen. Realtime transport failures are reported
+separately because the local
 integration stack is intentionally absent.
 
 `npm run test:e2e:profile` loads the authenticated profile route with an explicit

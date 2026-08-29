@@ -31,17 +31,22 @@ export const ContactListHeader = ({
       <div className="flex min-w-0 flex-col gap-2 sm:gap-4 sm:flex-row sm:items-center sm:flex-nowrap">
         <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">{FRIEND_COPY.sectionTitle.friendsHeader}</h2>
         <div className="hidden sm:block h-6 w-px bg-border/50 mx-2" />
-        <div className="flex gap-2 overflow-x-auto pb-0.5">
+        <div
+          role="group"
+          aria-label={FRIEND_COPY.sectionTitle.friends}
+          className="flex gap-2 overflow-x-auto pb-0.5"
+        >
           {tabs.map((tab) => (
             <button
               key={tab.key}
+              type="button"
               onClick={() => onTabChange(tab.key)}
+              aria-pressed={activeTab === tab.key}
               className={`rounded-md px-3 py-2 sm:px-4 sm:py-2 font-medium text-xs transition-[color,background-color,border-color,box-shadow,transform,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 activeTab === tab.key
                   ? "bg-primary text-primary-foreground"
                   : "bg-transparent text-muted-foreground hover:bg-primary/10 hover:text-foreground"
               }`}
-              type="button"
             >
               {tab.label}
               {tab.key === "requests" && requestCount > 0 ? (

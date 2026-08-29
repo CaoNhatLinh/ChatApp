@@ -66,6 +66,7 @@ const rawUICopy = {
     },
     actions: {
       openChat: "Nhắn tin",
+      unfriend: "Hủy kết bạn",
       unfriendConfirm: "Bạn có chắc muốn hủy kết bạn với người này?",
       accept: "Chấp nhận",
       reject: "Từ chối",
