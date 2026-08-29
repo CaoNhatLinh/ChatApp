@@ -129,6 +129,8 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   JOIN_BY_INVITE: "Tham gia bằng lời mời",
   INVITE_REVOKE: "Thu hồi lời mời",
   INVITE_DECLINE: "Từ chối lời mời",
+  JOIN_REQUEST_APPROVE: "Duyệt yêu cầu tham gia",
+  JOIN_REQUEST_DECLINE: "Từ chối yêu cầu tham gia",
   ROLE_CREATED: "Tạo vai trò room",
   ROLE_DELETED: "Xóa vai trò room",
   ROLES_ASSIGNED: "Gán vai trò room",

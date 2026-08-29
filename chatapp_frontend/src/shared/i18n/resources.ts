@@ -604,6 +604,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Tham gia bằng lời mời': 'Join by invite',
   'Thu hồi lời mời': 'Revoke invite',
   'Từ chối lời mời': 'Decline invite',
+  'Duyệt yêu cầu tham gia': 'Approve join request',
+  'Từ chối yêu cầu tham gia': 'Decline join request',
   'Tạo vai trò room': 'Create room role',
   'Xóa vai trò room': 'Delete room role',
   'Gán vai trò room': 'Assign room role',
