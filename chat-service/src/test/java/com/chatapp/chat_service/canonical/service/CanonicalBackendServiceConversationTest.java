@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.time.Instant;
 import java.util.Set;
 import java.util.Map;
+import java.util.List;
 
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -277,6 +278,183 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
+    void communityDirectoryHydratesCanonicalStateAndMembershipWithoutReturningArchivedRooms() {
+        UUID actorId = UUID.randomUUID();
+        UUID joinedId = UUID.randomUUID();
+        UUID archivedId = UUID.randomUUID();
+        when(store.listCommunityDirectory(
+                "language:vi:category:cong-nghe", "nova", null, null, 25))
+                .thenReturn(List.of(
+                        new CanonicalCqlStore.CommunityDirectoryKey("nova builders", joinedId),
+                        new CanonicalCqlStore.CommunityDirectoryKey("nova old", archivedId)));
+        CanonicalConversation joined = community(joinedId, false);
+        when(store.findConversation(joinedId)).thenReturn(joined);
+        when(store.findConversation(archivedId)).thenReturn(community(archivedId, true));
+        when(store.findConversationMember(joinedId, actorId)).thenReturn(member(joinedId, actorId));
+
+        CanonicalApiContracts.CommunityPage page = service.listCommunities(
+                actorId, "vi", "Công nghệ", null, "Nova", null, 24);
+
+        assertThat(page.content()).singleElement().satisfies(item -> {
+            assertThat(item.conversationId()).isEqualTo(joinedId);
+            assertThat(item.membershipStatus()).isEqualTo("JOINED");
+            assertThat(item.memberCount()).isEqualTo(1);
+        });
+        assertThat(page.hasNext()).isFalse();
+    }
+
+    @Test
+    void communityDirectoryMapsInternalRequestStatesToThePublicContract() {
+        UUID actorId = UUID.randomUUID();
+        UUID approvingId = UUID.randomUUID();
+        UUID declinedId = UUID.randomUUID();
+        when(store.listCommunityDirectory("language:vi:all", "", null, null, 25))
+                .thenReturn(List.of(
+                        new CanonicalCqlStore.CommunityDirectoryKey("approving", approvingId),
+                        new CanonicalCqlStore.CommunityDirectoryKey("declined", declinedId)));
+        when(store.findConversation(approvingId)).thenReturn(community(approvingId, false));
+        when(store.findConversation(declinedId)).thenReturn(community(declinedId, false));
+        when(store.findCommunityJoinStatus(approvingId, actorId)).thenReturn("APPROVING");
+        when(store.findCommunityJoinStatus(declinedId, actorId)).thenReturn("DECLINED");
+
+        CanonicalApiContracts.CommunityPage page = service.listCommunities(
+                actorId, "vi", null, null, null, null, 24);
+
+        assertThat(page.content()).extracting(CanonicalApiContracts.CommunitySummary::membershipStatus)
+                .containsExactly("PENDING", "AVAILABLE");
+    }
+
+    @Test
+    void communityCursorCannotBeReusedWithDifferentFilters() {
+        UUID actorId = UUID.randomUUID();
+        UUID firstId = UUID.randomUUID();
+        UUID secondId = UUID.randomUUID();
+        when(store.listCommunityDirectory("language:vi:all", "nova", null, null, 2))
+                .thenReturn(List.of(
+                        new CanonicalCqlStore.CommunityDirectoryKey("nova alpha", firstId),
+                        new CanonicalCqlStore.CommunityDirectoryKey("nova beta", secondId)));
+        when(store.findConversation(firstId)).thenReturn(community(firstId, false));
+
+        CanonicalApiContracts.CommunityPage firstPage = service.listCommunities(
+                actorId, "vi", null, null, "Nova", null, 1);
+
+        assertThat(firstPage.nextCursor()).isNotBlank();
+        assertThatThrownBy(() -> service.listCommunities(
+                actorId, "vi", null, null, "Other", firstPage.nextCursor(), 1))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.BadRequestException.class)
+                .hasMessageContaining("does not match");
+    }
+
+    @Test
+    void approvalCommunityJoinCreatesOnePendingRequestWithoutMutatingMembership() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalConversation community = community(UUID.randomUUID(), false, "REQUEST_APPROVAL");
+        when(store.findConversation(community.conversationId())).thenReturn(community);
+        when(store.requestCommunityApproval(community.conversationId(), actorId))
+                .thenReturn(new CanonicalCqlStore.CommunityJoinClaim("PENDING", true));
+
+        CanonicalApiContracts.CommunityJoinResponse response = service.joinCommunity(
+                actorId, community.conversationId());
+
+        assertThat(response.status()).isEqualTo("PENDING");
+        verify(store, never()).tryAddConversationMember(any());
+        verify(eventRecorder).record(
+                eq(actorId), eq(community.conversationId()), eq("COMMUNITY_JOIN_REQUEST"),
+                eq("conversation"), eq(community.conversationId().toString()), eq(actorId),
+                any(), any(), any());
+    }
+
+    @Test
+    void directCommunityJoinClaimsMembershipAndRepairsEveryProjection() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalConversation community = community(UUID.randomUUID(), false, "DIRECT_JOIN");
+        when(store.findConversation(community.conversationId())).thenReturn(community);
+        when(store.tryAddConversationMember(any()))
+                .thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
+
+        CanonicalApiContracts.CommunityJoinResponse response = service.joinCommunity(
+                actorId, community.conversationId());
+
+        assertThat(response.status()).isEqualTo("JOINED");
+        verify(store).addConversationMembershipProjection(eq(actorId), eq(community), any());
+        verify(adminConversationDirectory).index(community);
+        verify(store).indexCommunityConversation(community);
+    }
+
+    @Test
+    void roomManagerCanApproveACommunityRequestWithoutAnInviteLink() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        CanonicalCqlStore.CommunityJoinRequestRow requestRow =
+                new CanonicalCqlStore.CommunityJoinRequestRow(
+                        conversationId, userId, requestId, requestedAt,
+                        "PENDING", null, null, null, null);
+        when(store.findCommunityJoinRequest(conversationId, userId)).thenReturn(requestRow);
+        when(store.claimCommunityJoinResolution(
+                conversationId, userId, requestId, actorId, "APPROVE")).thenReturn(true);
+        when(store.requireMembershipState(conversationId)).thenReturn(new CanonicalCqlStore.MembershipState(1, 10));
+        when(store.tryAddConversationMember(any())).thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
+        when(store.findConversation(conversationId)).thenReturn(community(conversationId, false));
+
+        service.resolveJoinRequest(
+                actorId, conversationId, requestId,
+                new CanonicalApiContracts.JoinRequestDecisionRequest(requestedAt, userId, "APPROVE", null));
+
+        verify(store).finishCommunityJoinResolution(conversationId, userId, requestId, "APPROVED", actorId);
+        verify(store, never()).reserveInviteUse(any());
+        verify(store, never()).markInviteJoinAccepted(any(), any());
+    }
+
+    @Test
+    void roomManagerCanResumeItsInterruptedCommunityApproval() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        CanonicalCqlStore.CommunityJoinRequestRow claimedRequest =
+                new CanonicalCqlStore.CommunityJoinRequestRow(
+                        conversationId, userId, requestId, requestedAt,
+                        "APPROVING", null, "APPROVE", actorId, Instant.now());
+        when(store.findCommunityJoinRequest(conversationId, userId)).thenReturn(claimedRequest);
+        when(store.findConversationMember(conversationId, userId)).thenReturn(member(conversationId, userId));
+        when(store.findConversation(conversationId)).thenReturn(community(conversationId, false));
+
+        service.resolveJoinRequest(
+                actorId, conversationId, requestId,
+                new CanonicalApiContracts.JoinRequestDecisionRequest(requestedAt, userId, "APPROVE", null));
+
+        verify(store, never()).claimCommunityJoinResolution(any(), any(), any(), any(), any());
+        verify(store).finishCommunityJoinResolution(conversationId, userId, requestId, "APPROVED", actorId);
+        verify(store).addConversationMembershipProjection(eq(userId), any(), any());
+    }
+
+    @Test
+    void interruptedCommunityResolutionCannotResumeWithADifferentDecision() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        when(store.findCommunityJoinRequest(conversationId, userId)).thenReturn(
+                new CanonicalCqlStore.CommunityJoinRequestRow(
+                        conversationId, userId, requestId, requestedAt,
+                        "APPROVING", null, "APPROVE", actorId, Instant.now()));
+
+        assertThatThrownBy(() -> service.resolveJoinRequest(
+                actorId, conversationId, requestId,
+                new CanonicalApiContracts.JoinRequestDecisionRequest(
+                        requestedAt, userId, "DECLINE", null)))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class);
+
+        verify(store, never()).finishCommunityJoinResolution(any(), any(), any(), any(), any());
+        verify(store, never()).tryAddConversationMember(any());
+    }
+
+    @Test
     void directInviteReleasesItsUseWhenCapacityIsReachedDuringTheMembershipClaim() {
         UUID actorId = UUID.randomUUID();
         CanonicalInviteLink invite = invite(UUID.randomUUID());
@@ -324,6 +502,20 @@ class CanonicalBackendServiceConversationTest {
                 conversationId, "GROUP", "PRIVATE", "INVITE_ONLY", "Room", "room", null, null, null,
                 ownerId, ownerId, now, now, false, null, "OPEN", 0, null, defaultNotificationLevel,
                 null, Set.of(), "vi", 10, 1, false, now);
+    }
+
+    private CanonicalConversation community(UUID conversationId, boolean archived) {
+        return community(conversationId, archived, "REQUEST_APPROVAL");
+    }
+
+    private CanonicalConversation community(UUID conversationId, boolean archived, String joinPolicy) {
+        Instant now = Instant.now();
+        return new CanonicalConversation(
+                conversationId, "CHANNEL", "COMMUNITY", joinPolicy, "Nova Builders",
+                "nova builders", "Cộng đồng sản phẩm", "https://example.com/community.png", null,
+                UUID.randomUUID(), UUID.randomUUID(), now, now, archived, archived ? now : null,
+                "OPEN", 0, null, "ALL", "cong-nghe", Set.of("product"), "vi",
+                1000, 1, false, now);
     }
 
     private CanonicalInviteLink invite(UUID conversationId) {

@@ -2,7 +2,7 @@
 
 Public: `/`, `/about`, `/help`, `/privacy`, `/terms`, `/join/:token`.
 
-Authenticated: `/app` (messenger), `/friends`, `/settings`, `/search`,
+Authenticated: `/app` (messenger), `/communities` (public-room discovery), `/friends`, `/settings`, `/search`,
 `/profile`, `/admin` (server-authorized admin workspace).
 The global `/admin` surface is a native App Router route with a client feature
 island. Supported public/authenticated routes use the same native entry pattern;

@@ -420,30 +420,45 @@ CREATE TABLE IF NOT EXISTS pinned_conversation_slots_by_user (
   PRIMARY KEY ((user_id), pin_slot)
 );
 
-/* Only COMMUNITY rooms are written here, by a normalized discovery bucket. */
-CREATE TABLE IF NOT EXISTS community_conversations_by_bucket (
-  discovery_bucket text,            /* e.g. language/category prefix */
+/* COMMUNITY-only lookup keys. Canonical room metadata is hydrated by id. */
+CREATE TABLE IF NOT EXISTS community_directory_by_filter (
+  discovery_filter text,            /* language + all/category/tag */
+  discovery_shard tinyint,           /* stable 00..15 shard from conversation id */
   name_normalized text,
   conversation_id uuid,
-  name text,
-  description text,
-  avatar_asset_id uuid,
-  member_count int,
   last_activity_at timestamp,
-  PRIMARY KEY ((discovery_bucket), name_normalized, conversation_id)
+  PRIMARY KEY ((discovery_filter, discovery_shard), name_normalized, conversation_id)
 ) WITH CLUSTERING ORDER BY (name_normalized ASC, conversation_id ASC);
 
-CREATE TABLE IF NOT EXISTS community_conversations_by_tag (
-  tag text,
-  tag_bucket text,                  /* stable hash shard, e.g. 00..15 */
-  last_activity_at timeuuid,
+/* Authoritative single active public-community request per user and room. */
+CREATE TABLE IF NOT EXISTS community_join_request_by_user (
   conversation_id uuid,
-  name text,
-  description text,
-  avatar_url text,
-  member_count int,
-  PRIMARY KEY ((tag, tag_bucket), last_activity_at, conversation_id)
-) WITH CLUSTERING ORDER BY (last_activity_at DESC, conversation_id ASC);
+  user_id uuid,
+  request_id uuid,
+  status text,
+  requested_at timeuuid,
+  reason text,
+  resolution_decision text,
+  resolved_by uuid,
+  resolved_at timestamp,
+  updated_at timestamp,
+  PRIMARY KEY ((conversation_id), user_id)
+);
+
+/* Ordered operator/history projection; authority stays in the per-user row. */
+CREATE TABLE IF NOT EXISTS community_join_requests_by_conversation (
+  conversation_id uuid,
+  requested_at timeuuid,
+  request_id uuid,
+  user_id uuid,
+  status text,
+  reason text,
+  resolution_decision text,
+  resolved_by uuid,
+  resolved_at timestamp,
+  updated_at timestamp,
+  PRIMARY KEY ((conversation_id), requested_at, request_id)
+) WITH CLUSTERING ORDER BY (requested_at DESC, request_id ASC);
 
 /*
  * Per-conversation custom role catalogue. Built-in OWNER remains a protected

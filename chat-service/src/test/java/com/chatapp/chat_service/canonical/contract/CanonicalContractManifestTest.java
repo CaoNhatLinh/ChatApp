@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.contract;
 
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,6 +56,14 @@ class CanonicalContractManifestTest {
     void publishedApiContractsExistAndDescribeTheRealtimeSurface() throws IOException {
         String openApi = Files.readString(WORKSPACE.resolve("docs/api/openapi.yaml"));
         String asyncApi = Files.readString(WORKSPACE.resolve("docs/api/asyncapi.yaml"));
+        String compactApi = Files.readString(WORKSPACE.resolve("docs/contracts/canonical-api.yaml"));
+
+        Object parsedOpenApi = new Yaml().load(openApi);
+        Object parsedAsyncApi = new Yaml().load(asyncApi);
+        Object parsedCompactApi = new Yaml().load(compactApi);
+        assertThat(parsedOpenApi).isInstanceOf(java.util.Map.class);
+        assertThat(parsedAsyncApi).isInstanceOf(java.util.Map.class);
+        assertThat(parsedCompactApi).isInstanceOf(java.util.Map.class);
 
         assertThat(openApi)
                 .contains("openapi: 3.1.0")
@@ -80,6 +89,7 @@ class CanonicalContractManifestTest {
                 .contains("/admin/users/{userId}/devices/{deviceId}")
                 .contains("/devices")
                 .contains("/devices/{deviceId}/heartbeat")
+                .contains("/communities/{conversationId}/join")
                 .contains("DeviceRegistrationRequest")
                 .contains("AdminAnalyticsPoint")
                 .contains("maximum: 2000, default: 200");

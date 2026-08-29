@@ -23,6 +23,7 @@ const rawUICopy = {
     navApp: [
       { to: "/app", label: "Chat", icon: "MessageCircle" },
       { to: "/friends", label: "Bạn bè", icon: "Users" },
+      { to: "/communities", label: "Cộng đồng", icon: "Compass" },
       { to: "/search", label: "Tìm kiếm", icon: "Search" },
       { to: "/profile", label: "Hồ sơ", icon: "UserRound" },
       { to: "/settings", label: "Cài đặt", icon: "Settings" },

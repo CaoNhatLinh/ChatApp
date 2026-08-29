@@ -5,6 +5,7 @@
 | Landing | sign in, register, public links | loading, keyboard focus, responsive |
 | Auth form | submit credentials | field error, server error, pending, success redirect |
 | Messenger shell | select/search/create conversation | empty list, loading, offline/reconnect banner, reconnect |
+| Community directory | search/filter public communities, direct join, request approval, open joined room, paginate | loading, empty, error, available, approval pending, joined, full capacity |
 | Chat window | send/edit/delete/react/read/pin/upload/poll | optimistic pending, retry, deleted, attachment failure |
 | Search | search routes and authorized messages with sender/reply/mention/type/date/attachment/pin filters | loading, no results, missing conversation context, invalid UUID/date input, request error |
 | Contacts | search, request, accept/reject/block, open profile, report profile | loading, load error with retry, no results, duplicate request, forbidden, report validation/error/success |

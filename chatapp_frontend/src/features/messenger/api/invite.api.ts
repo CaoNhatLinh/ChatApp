@@ -44,7 +44,7 @@ export interface JoinRequestView {
     requestedAt: string;
     requestId: string;
     userId: string;
-    linkId: string;
+    linkId?: string | null;
     status: string;
     resolvedBy?: string | null;
     resolvedAt?: string | null;
@@ -93,7 +93,7 @@ export const resolveJoinRequest = async (
 ): Promise<JoinRequestView> => {
     const response = await apiClient.post<JoinRequestView>(
         `/invites/conversation/${request.conversationId}/requests/${request.requestId}/resolve`,
-        { requestedAt: request.requestedAt, decision },
+        { requestedAt: request.requestedAt, userId: request.userId, decision },
     );
     return response.data;
 };

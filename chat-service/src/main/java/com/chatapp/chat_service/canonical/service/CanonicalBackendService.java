@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.service;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
+import com.chatapp.chat_service.canonical.community.CommunityDirectoryFilter;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
@@ -39,6 +40,7 @@ import org.springframework.util.StringUtils;
 import java.security.SecureRandom;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -423,6 +425,7 @@ public class CanonicalBackendService {
         initialMembers.forEach(member ->
                 store.addConversationMembershipProjection(member.userId(), conversation, member));
         adminConversationDirectory.index(conversation);
+        store.indexCommunityConversation(conversation);
 
         appendAudit(actorId, conversationId, "CONVERSATION_CREATE", "conversation", conversationId.toString(), null, null);
         return conversation;
@@ -434,6 +437,112 @@ public class CanonicalBackendService {
             throw new NotFoundException("conversation not found");
         }
         return conv;
+    }
+
+    public CanonicalApiContracts.CommunityPage listCommunities(
+            UUID actorId,
+            String languageCode,
+            String categoryId,
+            String tag,
+            String query,
+            String cursor,
+            int requestedLimit) {
+        requireUser(actorId);
+        if (StringUtils.hasText(categoryId) && StringUtils.hasText(tag)) {
+            throw new BadRequestException("categoryId and tag cannot be combined");
+        }
+        int limit = Math.max(1, Math.min(50, requestedLimit));
+        String filter = CommunityDirectoryFilter.selected(
+                normalize(languageCode, "vi"), categoryId, tag);
+        String namePrefix = normalize(query);
+        CommunityCursor after = decodeCommunityCursor(cursor);
+        if (after != null
+                && (!filter.equals(after.discoveryFilter()) || !namePrefix.equals(after.namePrefix()))) {
+            throw new BadRequestException("community cursor does not match the active filters");
+        }
+        List<CanonicalCqlStore.CommunityDirectoryKey> keys = store.listCommunityDirectory(
+                filter,
+                namePrefix,
+                after == null ? null : after.nameNormalized(),
+                after == null ? null : after.conversationId(),
+                limit + 1);
+        boolean hasNext = keys.size() > limit;
+        List<CanonicalCqlStore.CommunityDirectoryKey> pageKeys = keys.stream().limit(limit).toList();
+        List<CanonicalApiContracts.CommunitySummary> content = new ArrayList<>(pageKeys.size());
+        for (CanonicalCqlStore.CommunityDirectoryKey key : pageKeys) {
+            CanonicalConversation conversation = store.findConversation(key.conversationId());
+            if (conversation == null
+                    || Boolean.TRUE.equals(conversation.isDeleted())
+                    || !"COMMUNITY".equals(conversation.visibility())) {
+                continue;
+            }
+            boolean joined = store.findConversationMember(conversation.conversationId(), actorId) != null;
+            String membershipStatus = joined
+                    ? "JOINED"
+                    : publicCommunityMembershipStatus(
+                            store.findCommunityJoinStatus(conversation.conversationId(), actorId));
+            content.add(new CanonicalApiContracts.CommunitySummary(
+                    conversation.conversationId(), conversation.name(), conversation.description(),
+                    conversation.avatarUrl(), conversation.categoryId(), conversation.communityTags(),
+                    conversation.languageCode(), conversation.joinPolicy(), conversation.memberCount(),
+                    conversation.maxMembers(), conversation.lastActivityAt(), membershipStatus));
+        }
+        String nextCursor = hasNext && !pageKeys.isEmpty()
+                ? encodeCommunityCursor(filter, namePrefix, pageKeys.get(pageKeys.size() - 1))
+                : null;
+        return new CanonicalApiContracts.CommunityPage(content, nextCursor, hasNext);
+    }
+
+    public CanonicalApiContracts.CommunityJoinResponse joinCommunity(UUID actorId, UUID conversationId) {
+        requireUser(actorId);
+        CanonicalConversation conversation = getConversation(conversationId);
+        if (!"COMMUNITY".equals(conversation.visibility())) {
+            throw new BadRequestException("conversation is not a public community");
+        }
+        if (Boolean.TRUE.equals(conversation.isDeleted())) {
+            throw new ConflictException("archived communities cannot accept members");
+        }
+        CanonicalConversationMember existing = store.findConversationMember(conversationId, actorId);
+        if (existing != null) {
+            repairMembershipProjections(existing);
+            return new CanonicalApiContracts.CommunityJoinResponse("JOINED", conversationId);
+        }
+        if ("REQUEST_APPROVAL".equals(conversation.joinPolicy())) {
+            CanonicalCqlStore.CommunityJoinClaim claim = store.requestCommunityApproval(conversationId, actorId);
+            if (claim.created()) {
+                appendAudit(actorId, conversationId, "COMMUNITY_JOIN_REQUEST", "conversation",
+                        conversationId.toString(), actorId, null);
+            }
+            String publicStatus = switch (claim.status()) {
+                case "PENDING", "APPROVING" -> "PENDING";
+                case "RETRY_REQUIRED" -> "RETRY_REQUIRED";
+                default -> throw new IllegalStateException(
+                        "unsupported community join claim status: " + claim.status());
+            };
+            return new CanonicalApiContracts.CommunityJoinResponse(publicStatus, conversationId);
+        }
+        if (!"DIRECT_JOIN".equals(conversation.joinPolicy())) {
+            throw new ConflictException("community is not accepting public joins");
+        }
+        CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
+                conversationId, actorId, defaultConversationRoleIds(conversationId), Instant.now(), null,
+                null, null, "INHERIT", null, Instant.now());
+        CanonicalCqlStore.MembershipMutationResult result = store.tryAddConversationMember(member);
+        if (result == CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED) {
+            return new CanonicalApiContracts.CommunityJoinResponse("CAPACITY_REACHED", conversationId);
+        }
+        CanonicalConversationMember currentMember = result == CanonicalCqlStore.MembershipMutationResult.ADDED
+                ? member
+                : store.findConversationMember(conversationId, actorId);
+        if (currentMember == null) {
+            throw new IllegalStateException("conversation member is missing after membership claim");
+        }
+        repairMembershipProjections(currentMember);
+        if (result == CanonicalCqlStore.MembershipMutationResult.ADDED) {
+            appendAudit(actorId, conversationId, "COMMUNITY_JOIN", "conversation",
+                    conversationId.toString(), actorId, null);
+        }
+        return new CanonicalApiContracts.CommunityJoinResponse("JOINED", conversationId);
     }
 
     public CanonicalApiContracts.ConversationNotificationPolicyView getConversationNotificationPolicy(
@@ -1301,7 +1410,16 @@ public class CanonicalBackendService {
     public List<CanonicalApiContracts.JoinRequestView> listJoinRequests(
             UUID actorId, UUID conversationId, int limit) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.INVITE_MANAGE);
-        return store.listJoinRequests(conversationId, Math.max(1, Math.min(100, limit)));
+        int boundedLimit = Math.max(1, Math.min(100, limit));
+        List<CanonicalApiContracts.JoinRequestView> requests = new ArrayList<>();
+        requests.addAll(store.listJoinRequests(conversationId, boundedLimit));
+        requests.addAll(store.listCommunityJoinRequests(conversationId, boundedLimit));
+        return requests.stream()
+                .sorted(Comparator.comparingLong(
+                        (CanonicalApiContracts.JoinRequestView item) -> Uuids.unixTimestamp(item.requestedAt()))
+                        .reversed())
+                .limit(boundedLimit)
+                .toList();
     }
 
     public CanonicalApiContracts.JoinRequestView resolveJoinRequest(
@@ -1322,7 +1440,7 @@ public class CanonicalBackendService {
         }
         var row = store.findJoinRequest(conversationId, request.requestedAt(), requestId);
         if (row == null) {
-            throw new NotFoundException("join request not found");
+            return resolveCommunityJoinRequest(actorId, conversationId, requestId, request);
         }
         if (!"PENDING".equals(row.getString("status"))) {
             throw new ConflictException("join request is no longer pending");
@@ -1331,8 +1449,7 @@ public class CanonicalBackendService {
             throw new ConflictException("join request was resolved concurrently");
         }
         UUID userId = row.getUuid("user_id");
-        String token = row.getString("link_token");
-        CanonicalInviteLink invite = store.findInviteByToken(token);
+        CanonicalInviteLink invite = store.findInviteByToken(row.getString("link_token"));
         if ("DECLINE".equals(decision)) {
             store.finishJoinRequestResolution(
                     conversationId, request.requestedAt(), requestId, "DECLINED", actorId);
@@ -1391,6 +1508,93 @@ public class CanonicalBackendService {
         appendAudit(actorId, conversationId, "JOIN_REQUEST_APPROVE", "join_request",
                 requestId.toString(), userId, request.reason());
         return resolvedJoinRequest(conversationId, request.requestedAt(), requestId);
+    }
+
+    private CanonicalApiContracts.JoinRequestView resolveCommunityJoinRequest(
+            UUID actorId,
+            UUID conversationId,
+            UUID requestId,
+            CanonicalApiContracts.JoinRequestDecisionRequest request) {
+        if (request.userId() == null) {
+            throw new NotFoundException("join request not found");
+        }
+        CanonicalCqlStore.CommunityJoinRequestRow joinRequest =
+                store.findCommunityJoinRequest(conversationId, request.userId());
+        if (joinRequest == null
+                || !requestId.equals(joinRequest.requestId())
+                || !request.requestedAt().equals(joinRequest.requestedAt())) {
+            throw new NotFoundException("join request not found");
+        }
+        String decision = request.decision().trim().toUpperCase(Locale.ROOT);
+        boolean continuingOwnClaim = "APPROVING".equals(joinRequest.status())
+                && actorId.equals(joinRequest.resolvedBy())
+                && decision.equals(joinRequest.resolutionDecision());
+        if (!"PENDING".equals(joinRequest.status()) && !continuingOwnClaim) {
+            throw new ConflictException("join request is no longer pending");
+        }
+        if (!continuingOwnClaim && !store.claimCommunityJoinResolution(
+                conversationId, request.userId(), requestId, actorId, decision)) {
+            throw new ConflictException("join request was resolved concurrently");
+        }
+        if ("DECLINE".equals(decision)) {
+            store.finishCommunityJoinResolution(
+                    conversationId, request.userId(), requestId, "DECLINED", actorId);
+            appendAudit(actorId, conversationId, "JOIN_REQUEST_DECLINE", "community_join_request",
+                    requestId.toString(), request.userId(), request.reason());
+            return store.findCommunityJoinRequest(conversationId, request.userId()).toView();
+        }
+        CanonicalConversation conversation = getConversation(conversationId);
+        if (!"COMMUNITY".equals(conversation.visibility()) || Boolean.TRUE.equals(conversation.isDeleted())) {
+            store.finishCommunityJoinResolution(
+                    conversationId, request.userId(), requestId, "FAILED", actorId);
+            throw new ConflictException("community is no longer accepting requests");
+        }
+        CanonicalConversationMember existingMember =
+                store.findConversationMember(conversationId, request.userId());
+        if (existingMember == null) {
+            CanonicalCqlStore.MembershipState membership = store.requireMembershipState(conversationId);
+            if (membership.memberCount() >= membership.maxMembers()) {
+                store.finishCommunityJoinResolution(
+                        conversationId, request.userId(), requestId, "FAILED", actorId);
+                throw new ConflictException("conversation capacity has been reached");
+            }
+            CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
+                    conversationId, request.userId(), defaultConversationRoleIds(conversationId), Instant.now(), actorId,
+                    null, null, "INHERIT", null, Instant.now());
+            CanonicalCqlStore.MembershipMutationResult result = store.tryAddConversationMember(member);
+            if (result == CanonicalCqlStore.MembershipMutationResult.CAPACITY_REACHED) {
+                store.finishCommunityJoinResolution(
+                        conversationId, request.userId(), requestId, "FAILED", actorId);
+                throw new ConflictException("conversation capacity has been reached");
+            }
+            CanonicalConversationMember currentMember = result == CanonicalCqlStore.MembershipMutationResult.ADDED
+                    ? member
+                    : store.findConversationMember(conversationId, request.userId());
+            if (currentMember == null) {
+                throw new IllegalStateException("conversation member is missing after membership claim");
+            }
+            repairMembershipProjections(currentMember);
+        } else {
+            repairMembershipProjections(existingMember);
+        }
+        store.finishCommunityJoinResolution(
+                conversationId, request.userId(), requestId, "APPROVED", actorId);
+        appendAudit(actorId, conversationId, "JOIN_REQUEST_APPROVE", "community_join_request",
+                requestId.toString(), request.userId(), request.reason());
+        return store.findCommunityJoinRequest(conversationId, request.userId()).toView();
+    }
+
+    private String publicCommunityMembershipStatus(String storedStatus) {
+        if (storedStatus == null || Set.of("DECLINED", "FAILED").contains(storedStatus)) {
+            return "AVAILABLE";
+        }
+        if (Set.of("PENDING", "APPROVING").contains(storedStatus)) {
+            return "PENDING";
+        }
+        if ("APPROVED".equals(storedStatus)) {
+            return "AVAILABLE";
+        }
+        throw new IllegalStateException("unsupported community membership status: " + storedStatus);
     }
 
     private CanonicalApiContracts.JoinRequestView resolvedJoinRequest(
@@ -1696,6 +1900,67 @@ public class CanonicalBackendService {
         CanonicalConversation conversation = getConversation(member.conversationId());
         store.addConversationMembershipProjection(member.userId(), conversation, member);
         adminConversationDirectory.index(conversation);
+        store.indexCommunityConversation(conversation);
+    }
+
+    private String encodeCommunityCursor(
+            String discoveryFilter,
+            String namePrefix,
+            CanonicalCqlStore.CommunityDirectoryKey key) {
+        byte[] filter = discoveryFilter.getBytes(StandardCharsets.UTF_8);
+        byte[] prefix = namePrefix.getBytes(StandardCharsets.UTF_8);
+        byte[] name = key.nameNormalized().getBytes(StandardCharsets.UTF_8);
+        ByteBuffer buffer = ByteBuffer.allocate(
+                Integer.BYTES * 3 + filter.length + prefix.length + name.length + Long.BYTES * 2);
+        buffer.putInt(filter.length);
+        buffer.put(filter);
+        buffer.putInt(prefix.length);
+        buffer.put(prefix);
+        buffer.putInt(name.length);
+        buffer.put(name);
+        buffer.putLong(key.conversationId().getMostSignificantBits());
+        buffer.putLong(key.conversationId().getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer.array());
+    }
+
+    private CommunityCursor decodeCommunityCursor(String cursor) {
+        if (!StringUtils.hasText(cursor)) {
+            return null;
+        }
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(cursor);
+            if (decoded.length > 8192) {
+                throw new IllegalArgumentException("cursor is too large");
+            }
+            ByteBuffer buffer = ByteBuffer.wrap(decoded);
+            String discoveryFilter = readCursorString(buffer);
+            String namePrefix = readCursorString(buffer);
+            String name = readCursorString(buffer);
+            UUID conversationId = new UUID(buffer.getLong(), buffer.getLong());
+            if (buffer.hasRemaining()) {
+                throw new IllegalArgumentException("unexpected cursor data");
+            }
+            return new CommunityCursor(discoveryFilter, namePrefix, name, conversationId);
+        } catch (IllegalArgumentException | java.nio.BufferUnderflowException ex) {
+            throw new BadRequestException("community cursor is invalid");
+        }
+    }
+
+    private String readCursorString(ByteBuffer buffer) {
+        int length = buffer.getInt();
+        if (length < 0 || length > buffer.remaining() - Long.BYTES * 2) {
+            throw new IllegalArgumentException("invalid cursor string length");
+        }
+        byte[] value = new byte[length];
+        buffer.get(value);
+        return new String(value, StandardCharsets.UTF_8);
+    }
+
+    private record CommunityCursor(
+            String discoveryFilter,
+            String namePrefix,
+            String nameNormalized,
+            UUID conversationId) {
     }
 
     private void requireMemberOfAnyConversation(UUID userId) {
@@ -1864,7 +2129,7 @@ public class CanonicalBackendService {
     }
 
     private String normalize(String input) {
-        return StringUtils.hasText(input) ? input.trim().toLowerCase() : "";
+        return StringUtils.hasText(input) ? input.trim().toLowerCase(Locale.ROOT) : "";
     }
 
     private String normalize(String input, String defaultValue) {

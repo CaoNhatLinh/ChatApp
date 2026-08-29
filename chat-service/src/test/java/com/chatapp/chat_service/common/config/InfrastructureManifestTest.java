@@ -36,11 +36,11 @@ class InfrastructureManifestTest {
     void canonicalCqlRetainsRequiredProductionContracts() throws IOException {
         String cql = Files.readString(Path.of("..", "chat_app_complete.cql"));
 
-        // The canonical schema currently defines 79 named access-pattern tables,
+        // The canonical schema currently defines 80 named access-pattern tables,
         // including the bounded global-admin room directory, sanction-expiry and
         // pending-outbox projections.
         // Keep this exact so an accidental deletion or an undocumented table addition fails the guard.
-        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(79);
+        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(80);
         assertThat(cql).contains("CREATE TABLE IF NOT EXISTS audit_events_by_month");
         assertThat(cql.lines().filter(line -> line.startsWith("CREATE TYPE")).count()).isEqualTo(2);
         assertThat(cql).contains(
@@ -56,6 +56,9 @@ class InfrastructureManifestTest {
                 "CREATE TABLE IF NOT EXISTS message_buckets_by_conversation",
                 "CREATE TABLE IF NOT EXISTS app_role_members_by_role",
                 "CREATE TABLE IF NOT EXISTS conversation_roles_by_conversation",
+                "CREATE TABLE IF NOT EXISTS community_directory_by_filter",
+                "CREATE TABLE IF NOT EXISTS community_join_request_by_user",
+                "CREATE TABLE IF NOT EXISTS community_join_requests_by_conversation",
                 "CREATE TABLE IF NOT EXISTS admin_conversations_by_month",
                 "CREATE TABLE IF NOT EXISTS reports_by_reporter",
                 "CREATE TABLE IF NOT EXISTS user_sanctions_by_expiry_day",
@@ -83,6 +86,23 @@ class InfrastructureManifestTest {
                 .contains("IF EXISTS")
                 .contains("MembershipMutationResult.CAPACITY_REACHED")
                 .contains("BatchStatement.builder(BatchType.LOGGED)");
+    }
+
+    @Test
+    void communityDiscoveryUsesAFilterAndShardPartitionWithoutFiltering() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        String store = Files.readString(Path.of(
+                "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
+                "repository", "CanonicalCqlStore.java"));
+
+        assertThat(schema)
+                .contains("CREATE TABLE IF NOT EXISTS community_directory_by_filter")
+                .contains("PRIMARY KEY ((discovery_filter, discovery_shard), name_normalized, conversation_id)")
+                .contains("PRIMARY KEY ((conversation_id), requested_at, request_id)")
+                .contains("WITH CLUSTERING ORDER BY (requested_at DESC, request_id ASC)");
+        assertThat(store)
+                .contains("listCommunityDirectory")
+                .doesNotContain("ALLOW FILTERING");
     }
 
     @Test

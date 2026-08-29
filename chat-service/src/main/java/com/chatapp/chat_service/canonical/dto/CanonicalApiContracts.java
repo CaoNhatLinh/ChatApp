@@ -106,6 +106,30 @@ public final class CanonicalApiContracts {
             LastMessageSummary lastMessage) {
     }
 
+    public record CommunitySummary(
+            UUID conversationId,
+            String name,
+            String description,
+            String avatarUrl,
+            String categoryId,
+            Set<String> communityTags,
+            String languageCode,
+            String joinPolicy,
+            Integer memberCount,
+            Integer maxMembers,
+            Instant lastActivityAt,
+            String membershipStatus) {
+    }
+
+    public record CommunityPage(
+            List<CommunitySummary> content,
+            String nextCursor,
+            boolean hasNext) {
+    }
+
+    public record CommunityJoinResponse(String status, UUID conversationId) {
+    }
+
     public record ConversationNotificationPolicyView(
             String defaultNotificationLevel,
             String notificationOverride) {
@@ -279,7 +303,7 @@ public final class CanonicalApiContracts {
             Instant resolvedAt) {
     }
 
-    public record JoinRequestDecisionRequest(UUID requestedAt, String decision, String reason) {
+    public record JoinRequestDecisionRequest(UUID requestedAt, UUID userId, String decision, String reason) {
     }
 
     public record FriendRequestCreateRequest(

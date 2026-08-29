@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity, invite compensation, and infrastructure manifests (110 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity, community discovery/approval recovery, invite compensation, and infrastructure manifests (119 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -56,6 +56,12 @@ community channel with approval-required membership, and asserts the canonical
 `CHANNEL` + `COMMUNITY` + `REQUEST_APPROVAL` request payload. It then opens the
 new empty room and fails on unstable store snapshots, console errors, or request
 failures.
+
+`npm run test:e2e:communities` loads the production `/communities` route with an
+explicit HTTP-boundary fixture, verifies approval-request submission, debounced
+name search, retained filter state during VI→EN switching, translated app-shell
+navigation and a 390px no-overflow layout. Unexpected console and request
+failures fail the script; live Cassandra persistence remains a separate gate.
 
 `npm run test:e2e:profile` loads the authenticated profile route with an explicit
 HTTP-boundary fixture and verifies the profile quick-link title and all link

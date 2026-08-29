@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageCircle, Search, Settings, UserRound, Users } from "lucide-react";
+import { Compass, MessageCircle, Search, Settings, UserRound, Users } from "lucide-react";
 import { ThemeToggle } from "@/features/settings/ui/ThemeToggle";
 import { cn } from "@/shared/lib/cn";
 import { type ReactNode } from "react";
@@ -17,9 +17,10 @@ interface AppShellHeaderProps {
 const appShellNavItems = [
   { to: "/app", label: UI_COPY.shell.navApp[0].label, icon: MessageCircle },
   { to: "/friends", label: UI_COPY.shell.navApp[1].label, icon: Users },
-  { to: "/search", label: UI_COPY.shell.navApp[2].label, icon: Search },
-  { to: "/profile", label: UI_COPY.shell.navApp[3].label, icon: UserRound },
-  { to: "/settings", label: UI_COPY.shell.navApp[4].label, icon: Settings },
+  { to: "/communities", label: UI_COPY.shell.navApp[2].label, icon: Compass },
+  { to: "/search", label: UI_COPY.shell.navApp[3].label, icon: Search },
+  { to: "/profile", label: UI_COPY.shell.navApp[4].label, icon: UserRound },
+  { to: "/settings", label: UI_COPY.shell.navApp[5].label, icon: Settings },
 ];
 
 export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeaderProps) => {

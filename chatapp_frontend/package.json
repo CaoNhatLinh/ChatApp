@@ -16,6 +16,7 @@
     "test:e2e:locale": "node scripts/locale-smoke.mjs",
     "test:e2e:contacts": "node scripts/contacts-locale-smoke.mjs",
     "test:e2e:room-create": "node scripts/room-create-smoke.mjs",
+    "test:e2e:communities": "node scripts/community-discovery-smoke.mjs",
     "test:e2e:profile": "node scripts/profile-locale-smoke.mjs",
     "test:e2e:presence": "node scripts/presence-status-smoke.mjs",
     "test:e2e:search": "node scripts/search-filter-smoke.mjs",

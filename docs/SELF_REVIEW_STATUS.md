@@ -1261,3 +1261,19 @@ Correction in this increment:
 - Replaced stale room-level membership counts with partition-local atomic state,
   added capacity and invite-race handling, made projection retries repairable,
   and documented the hard consistency boundary without compatibility fallback.
+
+# Follow-up self-review (2026-08-29, public community discovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Query boundedness | Pass at implementation boundary | One canonical filter projection uses 16 stable shards, ordered cursor merge and canonical hydration; manifest rejects `ALLOW FILTERING` and removed discovery tables | Clean Cassandra paging/load proof remains pending | Keep discovery lookup rows minimal and never scan room metadata |
+| Admission consistency | Pass at unit level | Direct join uses the atomic membership claim; approval uses one room/user request, LWT operator-and-decision claim and matching retry after interruption | Live multi-operator contention remains pending | Expose only AVAILABLE/PENDING/JOINED while keeping recovery and completed-request states internal |
+| UI and localization | Pass for production browser evidence | `/communities` covers search, category/topic filters, policy, count/capacity, pending/joined/full/error/empty states; language changes no longer remount and erase active UI state; 807 copy keys pass | Screen-reader and live service journeys remain pending | Locale changes must preserve user input, filters and open interaction state |
+| Contract discipline | Pass | Controller, OpenAPI, compact manifest, TypeScript client, UI, migration, ADR and traceability use the same two community routes and join states | Clean migration rehearsal remains pending | No legacy endpoint, data fallback or fabricated room metadata was added |
+| Regression safety | Pass for available gates | Java 20 suite reports 119 tests; frontend validate/build, copy/error gates, public smoke and community smoke pass with zero unexpected console/request failures | Full integration stack is not running locally | Treat HTTP-boundary browser coverage as UI-contract evidence, not persistence proof |
+
+Correction in this increment:
+
+- Added bounded canonical community discovery and admission, production bilingual
+  UI, state-preserving language switching, concurrency recovery and matching
+  contract/test/documentation evidence without retaining the obsolete designs.

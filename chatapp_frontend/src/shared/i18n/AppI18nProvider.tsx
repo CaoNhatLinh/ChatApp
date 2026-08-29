@@ -31,7 +31,7 @@ export function AppI18nProvider({ children }: { children: ReactNode }) {
 
   return (
     <LocaleContext.Provider value={value}>
-      <I18nextProvider i18n={i18n} defaultNS="translation" key={locale}>
+      <I18nextProvider i18n={i18n} defaultNS="translation">
         {children}
       </I18nextProvider>
     </LocaleContext.Provider>

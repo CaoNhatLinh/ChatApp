@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.repository;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
+import com.chatapp.chat_service.canonical.community.CommunityDirectoryFilter;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
@@ -78,6 +79,16 @@ public class CanonicalCqlStore {
     private final PreparedStatement updateConversationNotificationPolicy;
     private final PreparedStatement updateConversationLastMessage;
     private final PreparedStatement loadConversation;
+    private final PreparedStatement saveCommunityDirectoryEntry;
+    private final PreparedStatement listCommunityDirectory;
+    private final PreparedStatement listCommunityDirectoryAfter;
+    private final PreparedStatement claimCommunityJoinRequest;
+    private final PreparedStatement loadCommunityJoinClaim;
+    private final PreparedStatement saveCommunityJoinRequestProjection;
+    private final PreparedStatement listCommunityJoinRequests;
+    private final PreparedStatement replaceCommunityJoinRequest;
+    private final PreparedStatement claimCommunityJoinResolution;
+    private final PreparedStatement updateCommunityJoinClaim;
     private final PreparedStatement saveConversationMember;
     private final PreparedStatement insertConversationMemberIfAbsent;
     private final PreparedStatement initializeConversationMembership;
@@ -321,6 +332,55 @@ public class CanonicalCqlStore {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """);
         this.loadConversation = session.prepare("SELECT * FROM conversations_by_id WHERE conversation_id = ?");
+        this.saveCommunityDirectoryEntry = session.prepare("""
+                INSERT INTO community_directory_by_filter
+                    (discovery_filter, discovery_shard, name_normalized, conversation_id, last_activity_at)
+                VALUES (?, ?, ?, ?, ?)
+                """);
+        this.listCommunityDirectory = session.prepare("""
+                SELECT name_normalized, conversation_id FROM community_directory_by_filter
+                WHERE discovery_filter = ? AND discovery_shard = ? AND name_normalized >= ? LIMIT ?
+                """);
+        this.listCommunityDirectoryAfter = session.prepare("""
+                SELECT name_normalized, conversation_id FROM community_directory_by_filter
+                WHERE discovery_filter = ? AND discovery_shard = ?
+                  AND (name_normalized, conversation_id) > (?, ?) LIMIT ?
+                """);
+        this.claimCommunityJoinRequest = session.prepare("""
+                INSERT INTO community_join_request_by_user
+                    (conversation_id, user_id, request_id, status, requested_at, reason, updated_at)
+                VALUES (?, ?, ?, 'PENDING', ?, ?, ?) IF NOT EXISTS
+                """);
+        this.loadCommunityJoinClaim = session.prepare("""
+                SELECT * FROM community_join_request_by_user
+                WHERE conversation_id = ? AND user_id = ?
+                """);
+        this.saveCommunityJoinRequestProjection = session.prepare("""
+                INSERT INTO community_join_requests_by_conversation
+                    (conversation_id, requested_at, request_id, user_id, status, reason,
+                     resolution_decision, resolved_by, resolved_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.listCommunityJoinRequests = session.prepare("""
+                SELECT * FROM community_join_requests_by_conversation
+                WHERE conversation_id = ? LIMIT ?
+                """);
+        this.replaceCommunityJoinRequest = session.prepare("""
+                UPDATE community_join_request_by_user
+                SET request_id = ?, status = 'PENDING', requested_at = ?, reason = ?,
+                    resolution_decision = null, resolved_by = null, resolved_at = null, updated_at = ?
+                WHERE conversation_id = ? AND user_id = ? IF request_id = ?
+                """);
+        this.claimCommunityJoinResolution = session.prepare("""
+                UPDATE community_join_request_by_user
+                SET status = 'APPROVING', resolution_decision = ?, resolved_by = ?, resolved_at = ?, updated_at = ?
+                WHERE conversation_id = ? AND user_id = ? IF request_id = ? AND status = 'PENDING'
+                """);
+        this.updateCommunityJoinClaim = session.prepare("""
+                UPDATE community_join_request_by_user
+                SET status = ?, resolved_by = ?, resolved_at = ?, updated_at = ?
+                WHERE conversation_id = ? AND user_id = ? IF request_id = ? AND status = 'APPROVING'
+                """);
         this.updateConversationOwner = session.prepare("""
                 UPDATE conversations_by_id SET owner_id = ?, updated_at = ? WHERE conversation_id = ?
                 """);
@@ -1137,6 +1197,135 @@ public class CanonicalCqlStore {
             return null;
         }
         return mapConversation(row, requireMembershipState(conversationId));
+    }
+
+    public void indexCommunityConversation(CanonicalConversation conversation) {
+        if (!"COMMUNITY".equals(conversation.visibility()) || Boolean.TRUE.equals(conversation.isDeleted())) {
+            return;
+        }
+        String language = CommunityDirectoryFilter.segment(conversation.languageCode(), "und");
+        var filters = new java.util.LinkedHashSet<String>();
+        filters.add(CommunityDirectoryFilter.selected(language, null, null));
+        filters.add(CommunityDirectoryFilter.selected(language, conversation.categoryId(), null));
+        conversation.communityTags().forEach(tag ->
+                filters.add(CommunityDirectoryFilter.selected(language, null, tag)));
+        byte shard = (byte) ((conversation.conversationId().hashCode() & Integer.MAX_VALUE) % 16);
+        filters.forEach(filter -> session.execute(saveCommunityDirectoryEntry.bind(
+                filter, shard, conversation.nameNormalized(), conversation.conversationId(),
+                conversation.lastActivityAt())));
+    }
+
+    public List<CommunityDirectoryKey> listCommunityDirectory(
+            String discoveryFilter,
+            String namePrefix,
+            String afterName,
+            UUID afterConversationId,
+            int requestedLimit) {
+        if ((afterName == null) != (afterConversationId == null)) {
+            throw new IllegalArgumentException("community cursor requires both name and conversation id");
+        }
+        int limit = Math.max(1, Math.min(51, requestedLimit));
+        List<CommunityDirectoryKey> rows = new ArrayList<>(limit * 16);
+        for (byte shard = 0; shard < 16; shard++) {
+            var result = afterName == null
+                    ? session.execute(listCommunityDirectory.bind(discoveryFilter, shard, namePrefix, limit))
+                    : session.execute(listCommunityDirectoryAfter.bind(
+                            discoveryFilter, shard, afterName, afterConversationId, limit));
+            result.all().stream()
+                    .map(row -> new CommunityDirectoryKey(
+                            row.getString("name_normalized"), row.getUuid("conversation_id")))
+                    .filter(row -> row.nameNormalized().startsWith(namePrefix))
+                    .forEach(rows::add);
+        }
+        return rows.stream()
+                .sorted(Comparator.comparing(CommunityDirectoryKey::nameNormalized)
+                        .thenComparing(CommunityDirectoryKey::conversationId))
+                .limit(limit)
+                .toList();
+    }
+
+    public CommunityJoinClaim requestCommunityApproval(UUID conversationId, UUID userId) {
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = Uuids.timeBased();
+        Instant now = Instant.now();
+        if (!session.execute(claimCommunityJoinRequest.bind(
+                conversationId, userId, requestId, requestedAt, null, now)).wasApplied()) {
+            Row current = session.execute(loadCommunityJoinClaim.bind(conversationId, userId)).one();
+            if (current == null) {
+                return new CommunityJoinClaim("RETRY_REQUIRED", false);
+            }
+            String status = current.getString("status");
+            if (Set.of("APPROVED", "DECLINED", "FAILED").contains(status)) {
+                if (session.execute(replaceCommunityJoinRequest.bind(
+                        requestId, requestedAt, null, now, conversationId, userId,
+                        current.getUuid("request_id"))).wasApplied()) {
+                    saveCommunityJoinRequestProjection(new CommunityJoinRequestRow(
+                            conversationId, userId, requestId, requestedAt,
+                            "PENDING", null, null, null, null), now);
+                    return new CommunityJoinClaim("PENDING", true);
+                }
+                return new CommunityJoinClaim("RETRY_REQUIRED", false);
+            }
+            saveCommunityJoinRequestProjection(mapCommunityJoinRequest(current), now);
+            return new CommunityJoinClaim(status, false);
+        }
+        saveCommunityJoinRequestProjection(new CommunityJoinRequestRow(
+                conversationId, userId, requestId, requestedAt,
+                "PENDING", null, null, null, null), now);
+        return new CommunityJoinClaim("PENDING", true);
+    }
+
+    public String findCommunityJoinStatus(UUID conversationId, UUID userId) {
+        Row row = session.execute(loadCommunityJoinClaim.bind(conversationId, userId)).one();
+        return row == null ? null : row.getString("status");
+    }
+
+    public CommunityJoinRequestRow findCommunityJoinRequest(UUID conversationId, UUID userId) {
+        Row row = session.execute(loadCommunityJoinClaim.bind(conversationId, userId)).one();
+        return row == null ? null : mapCommunityJoinRequest(row);
+    }
+
+    public List<CanonicalApiContracts.JoinRequestView> listCommunityJoinRequests(UUID conversationId, int limit) {
+        return session.execute(listCommunityJoinRequests.bind(conversationId, limit)).all().stream()
+                .map(this::mapCommunityJoinRequest)
+                .map(CommunityJoinRequestRow::toView)
+                .toList();
+    }
+
+    public boolean claimCommunityJoinResolution(
+            UUID conversationId, UUID userId, UUID requestId, UUID actorId, String decision) {
+        Instant now = Instant.now();
+        boolean applied = session.execute(claimCommunityJoinResolution.bind(
+                decision, actorId, now, now, conversationId, userId, requestId)).wasApplied();
+        if (applied) {
+            CommunityJoinRequestRow claimed = findCommunityJoinRequest(conversationId, userId);
+            if (claimed == null) {
+                throw new IllegalStateException("claimed community join request is missing");
+            }
+            saveCommunityJoinRequestProjection(claimed, now);
+        }
+        return applied;
+    }
+
+    public void finishCommunityJoinResolution(
+            UUID conversationId, UUID userId, UUID requestId, String status, UUID actorId) {
+        Instant now = Instant.now();
+        if (!session.execute(updateCommunityJoinClaim.bind(
+                status, actorId, now, now, conversationId, userId, requestId)).wasApplied()) {
+            throw new IllegalStateException("community join request changed concurrently");
+        }
+        CommunityJoinRequestRow finished = findCommunityJoinRequest(conversationId, userId);
+        if (finished == null) {
+            throw new IllegalStateException("finished community join request is missing");
+        }
+        saveCommunityJoinRequestProjection(finished, now);
+    }
+
+    private void saveCommunityJoinRequestProjection(CommunityJoinRequestRow request, Instant updatedAt) {
+        session.execute(saveCommunityJoinRequestProjection.bind(
+                request.conversationId(), request.requestedAt(), request.requestId(), request.userId(),
+                request.status(), request.reason(), request.resolutionDecision(), request.resolvedBy(),
+                request.resolvedAt(), updatedAt));
     }
 
     public void updateConversationOwner(UUID conversationId, UUID ownerId, Instant updatedAt) {
@@ -2702,6 +2891,13 @@ public class CanonicalCqlStore {
         );
     }
 
+    private CommunityJoinRequestRow mapCommunityJoinRequest(Row row) {
+        return new CommunityJoinRequestRow(
+                row.getUuid("conversation_id"), row.getUuid("user_id"), row.getUuid("request_id"),
+                row.getUuid("requested_at"), row.getString("status"), row.getString("reason"),
+                row.getString("resolution_decision"), row.getUuid("resolved_by"), row.getInstant("resolved_at"));
+    }
+
     public record UserDirectoryRow(
             String usernameNormalized,
             UUID userId,
@@ -2740,6 +2936,28 @@ public class CanonicalCqlStore {
     }
 
     public record MessageBucketRow(Instant bucketHour, String messageBucket) {
+    }
+
+    public record CommunityDirectoryKey(String nameNormalized, UUID conversationId) {
+    }
+
+    public record CommunityJoinClaim(String status, boolean created) {
+    }
+
+    public record CommunityJoinRequestRow(
+            UUID conversationId,
+            UUID userId,
+            UUID requestId,
+            UUID requestedAt,
+            String status,
+            String reason,
+            String resolutionDecision,
+            UUID resolvedBy,
+            Instant resolvedAt) {
+        public CanonicalApiContracts.JoinRequestView toView() {
+            return new CanonicalApiContracts.JoinRequestView(
+                    conversationId, requestedAt, requestId, userId, null, status, resolvedBy, resolvedAt);
+        }
     }
 
     public record ConversationProjectionRow(

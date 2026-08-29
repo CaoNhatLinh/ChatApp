@@ -43,6 +43,9 @@ http:
     - DELETE /conversations/{conversationId}/pin
     - PUT /conversations/{conversationId}/notification-policy
     - PUT /conversations/{conversationId}/members/{userId}/notification-policy
+  communities:
+    - GET /communities
+    - POST /communities/{conversationId}/join
   messages:
     - GET /conversations/{conversationId}/messages
     - POST /conversations/{conversationId}/messages
@@ -91,6 +94,7 @@ http:
     - DELETE /invites/{token}
     - POST /invites/{token}/decline
     - GET /invites/conversation/{conversationId}/requests
+    - PUT /invites/conversation/{conversationId}/requests/{requestId}
   admin:
     - GET /admin/overview
     - GET /admin/audit

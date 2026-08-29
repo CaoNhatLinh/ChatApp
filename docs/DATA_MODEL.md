@@ -21,6 +21,18 @@ membership state is rejected instead of inferred. Existing keyspaces must apply
 `migrations/V_add_conversation_membership_state.cql`; see
 `docs/adr/0005-partition-local-membership-capacity.md`.
 
+Public community discovery uses `community_directory_by_filter`, a derived
+16-shard projection keyed by one canonical language/category/tag filter and
+ordered by normalized name plus conversation ID. Directory reads fan out only
+across those bounded shards, merge a stable order, and hydrate each result from
+the canonical room and membership partitions. Approval requests are
+authoritative in `community_join_request_by_user`, one row per room and user;
+`community_join_requests_by_conversation` is its newest-first operator/history
+projection. Resolution uses a conditional `PENDING` → `APPROVING` claim; the claiming
+operator can safely resume an interrupted approval before completing it. No
+request path reads the removed bucket/tag discovery tables. Existing keyspaces
+must apply `migrations/V_add_community_directory.cql`; see ADR 0006.
+
 Moderation reports use `reports_by_status_day` for bounded operator queues and
 `reports_by_reporter` for a caller's own history. The reporter projection keeps
 target type, reason, and description so the user-facing history does not need an
