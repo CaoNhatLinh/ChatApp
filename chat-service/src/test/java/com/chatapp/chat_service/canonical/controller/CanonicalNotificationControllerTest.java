@@ -10,6 +10,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,6 +50,26 @@ class CanonicalNotificationControllerTest {
                 .containsExactly(second.notificationId().toString());
         assertThat(result.hasContent()).isTrue();
         assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    void reportsRollingSevenDayCountSeparatelyFromTotalCount() {
+        UUID actorId = UUID.randomUUID();
+        Instant now = Instant.now();
+        CanonicalNotification recent = notification("MESSAGE", now.minusSeconds(2 * 24 * 60 * 60L));
+        CanonicalNotification older = notification("MESSAGE", now.minusSeconds(8 * 24 * 60 * 60L));
+        when(securityContext.getCurrentUserId()).thenReturn(actorId);
+        when(backend.notifications(org.mockito.ArgumentMatchers.eq(actorId), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(200)))
+                .thenAnswer(invocation -> YearMonth.now(ZoneOffset.UTC).toString().equals(invocation.getArgument(1))
+                        ? List.of(recent, older)
+                        : List.of());
+
+        CanonicalNotificationController controller = new CanonicalNotificationController(backend, securityContext, messaging);
+
+        CanonicalNotificationController.NotificationStats result = controller.stats();
+
+        assertThat(result.totalCount()).isEqualTo(2);
+        assertThat(result.weeklyCount()).isEqualTo(1);
     }
 
     private static CanonicalNotification notification(String type, Instant createdAt) {

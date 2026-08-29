@@ -388,15 +388,15 @@ paths:
     get:
       tags: [Notifications]
       parameters: [{$ref: '#/components/parameters/Limit'}, {name: page, in: query, schema: {type: integer, minimum: 0}}]
-      responses: {'200': {description: Notifications from the latest 12 monthly partitions}}
+      responses: {'200': {description: Notifications from the latest 12 monthly partitions, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationPage'}}}}}
   /notifications/unread:
     get:
       tags: [Notifications]
-      responses: {'200': {description: Unread notifications}}
+      responses: {'200': {description: Unread notifications, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/NotificationView'}}}}}}
   /notifications/unread/count:
     get:
       tags: [Notifications]
-      responses: {'200': {description: Unread count}}
+      responses: {'200': {description: Unread count, content: {application/json: {schema: {$ref: '#/components/schemas/UnreadNotificationCount'}}}}}
   /notifications/{notificationId}/read:
     put:
       tags: [Notifications]
@@ -423,16 +423,16 @@ paths:
   /notifications/stats:
     get:
       tags: [Notifications]
-      responses: {'200': {description: Notification statistics}}
+      responses: {'200': {description: Notification statistics over the latest 12 monthly partitions; weeklyCount covers the rolling seven days, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationStats'}}}}}
   /notifications/type/{type}:
     get:
       tags: [Notifications]
       parameters: [{name: type, in: path, required: true, schema: {type: string}}, {$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {description: Notifications filtered by type}}
+      responses: {'200': {description: Notifications filtered by type, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationPage'}}}}}
   /notifications/latest:
     get:
       tags: [Notifications]
-      responses: {'200': {description: Latest notification}}
+      responses: {'200': {description: Latest notification, content: {application/json: {schema: {$ref: '#/components/schemas/NotificationView', nullable: true}}}}}
   /notifications/settings:
     get:
       tags: [Notifications]
@@ -728,5 +728,9 @@ components:
     JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}
     AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
     MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid}, mentionUserId: {type: string, format: uuid}, messageType: {type: string}, fromAt: {type: string, format: date-time}, toAt: {type: string, format: date-time}, hasAttachment: {type: boolean}, isPinned: {type: boolean}, pageCursor: {type: string}, limit: {type: integer, minimum: 1, maximum: 100}}}
+    NotificationPage: {type: object, required: [content, hasNext, hasContent], properties: {content: {type: array, items: {$ref: '#/components/schemas/NotificationView'}}, hasNext: {type: boolean}, hasContent: {type: boolean}}}
+    NotificationView: {type: object, required: [notificationId, userId, type, title, body, isRead, createdAt], properties: {notificationId: {type: string, format: uuid}, userId: {type: string, format: uuid}, type: {type: string}, title: {type: string}, body: {type: string}, isRead: {type: boolean}, createdAt: {type: string, format: date-time}, metadata: {type: object, additionalProperties: {type: string}}}}
+    UnreadNotificationCount: {type: object, required: [count], properties: {count: {type: integer, minimum: 0}}}
+    NotificationStats: {type: object, required: [userId, totalCount, unreadCount, readCount, weeklyCount, typeStats, lastUpdated], properties: {userId: {type: string, format: uuid}, totalCount: {type: integer, minimum: 0}, unreadCount: {type: integer, minimum: 0}, readCount: {type: integer, minimum: 0}, weeklyCount: {type: integer, minimum: 0, description: Notifications created in the rolling seven days}, typeStats: {type: object, additionalProperties: {type: integer, minimum: 0}}, lastUpdated: {type: string, format: date-time}}}
     NotificationSettingRequest: {type: object, required: [globalLevel, pushEnabled, emailEnabled, desktopEnabled, soundEnabled], properties: {globalLevel: {type: string, enum: [ALL, MENTIONS, DIRECT_ONLY, NONE]}, pushEnabled: {type: boolean}, emailEnabled: {type: boolean}, desktopEnabled: {type: boolean}, soundEnabled: {type: boolean}, quietHoursStart: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, quietHoursEnd: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, timezone: {type: string, nullable: true, maxLength: 64}}}
     NotificationSettings: {type: object, required: [userId, globalLevel, pushEnabled, emailEnabled, desktopEnabled, soundEnabled, timezone, updatedAt], properties: {userId: {type: string, format: uuid}, globalLevel: {type: string, enum: [ALL, MENTIONS, DIRECT_ONLY, NONE]}, pushEnabled: {type: boolean}, emailEnabled: {type: boolean}, desktopEnabled: {type: boolean}, soundEnabled: {type: boolean}, quietHoursStart: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, quietHoursEnd: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, timezone: {type: string}, updatedAt: {type: string, format: date-time}}}

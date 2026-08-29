@@ -1119,3 +1119,19 @@ Correction in this increment:
 - Removed the non-persisted nickname field from profile types, Settings UI, and
   update payloads; corrected the bilingual profile descriptions to match the
   actual canonical backend contract.
+
+# Follow-up self-review (2026-08-29, notification statistics contract increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Metric correctness | Pass | `CanonicalNotificationController.stats` now calculates `weeklyCount` from notifications created in the rolling seven days, independently of total unread/read counts; regression test covers an eight-day-old record | Cassandra month traversal and production clock/zone behavior remain unverified | Define the metric explicitly as a rolling UTC-time window and keep the 12-month source bound |
+| API documentation | Pass | Notification page/view/count/stats schemas and response references are now present in OpenAPI and match the controller records | Generated client/schema comparison remains a release-gate task | Document the actual wire shape rather than leaving generic response descriptions |
+| Bilingual/UI impact | Pass | This correction is backend and contract-only; existing notification UI copy is unchanged and the current copy gate remains green | Provider delivery and full notification settings browser journey remain pending | Avoid adding UI labels for metrics that no screen consumes |
+| Regression safety | Pass | Java 20 Maven suite reports 99 tests, 0 failures, 0 errors; frontend validation and existing notification smoke remain the baseline | Clean Cassandra notification query proof remains blocked | Treat the unit test as metric logic evidence, not persistence evidence |
+| Traceability | Pass | Controller, regression test, OpenAPI, API contract notes, function audit, and this entry are synchronized | Push/mobile delivery, dedupe, and retry workers remain incomplete | Keep delivery gaps explicit instead of claiming a complete notification pipeline |
+
+Correction in this increment:
+
+- Corrected `weeklyCount` to a rolling seven-day value and documented all
+  notification response shapes, including the `hasNext`/`hasContent` page flags
+  and unread count response.

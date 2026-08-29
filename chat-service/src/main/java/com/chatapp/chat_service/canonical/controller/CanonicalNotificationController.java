@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -130,8 +131,12 @@ public class CanonicalNotificationController {
         Map<String, Integer> byType = new LinkedHashMap<>();
         notifications.forEach(notification -> byType.merge(notification.notificationType(), 1, Integer::sum));
         int unread = (int) notifications.stream().filter(item -> !Boolean.TRUE.equals(item.isRead())).count();
+        Instant weekStart = Instant.now().minus(7, ChronoUnit.DAYS);
+        int weekly = (int) notifications.stream()
+                .filter(item -> item.createdAt() != null && !item.createdAt().isBefore(weekStart))
+                .count();
         return new NotificationStats(actorId(), notifications.size(), unread, notifications.size() - unread,
-                notifications.size(), byType, Instant.now());
+                weekly, byType, Instant.now());
     }
 
     @GetMapping("/type/{type}")
