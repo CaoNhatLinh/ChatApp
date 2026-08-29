@@ -67,6 +67,17 @@ const baseRoles = [
 const members = [
   { userId: ownerId, conversationId, role: 'owner', roleIds: [ownerRoleId], joinedAt: now, username: 'owner', displayName: 'Room Owner', mutedUntil: null, messageIntervalSeconds: null },
   { userId: memberId, conversationId, role: 'member', roleIds: [], joinedAt: now, username: 'linh', displayName: 'Linh Tran', mutedUntil: null, messageIntervalSeconds: null },
+  ...Array.from({ length: 20 }, (_, index) => ({
+    userId: `00000000-0000-0000-0000-0000000001${String(index).padStart(2, '0')}`,
+    conversationId,
+    role: 'member',
+    roleIds: [],
+    joinedAt: now,
+    username: `member-${index}`,
+    displayName: `Member ${index}`,
+    mutedUntil: null,
+    messageIntervalSeconds: null,
+  })),
 ];
 
 let roles = [...baseRoles];
@@ -116,7 +127,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     const afterUserId = new URL(request.url()).searchParams.get('afterUserId');
     return afterUserId
       ? json({ content: [members[1]], nextCursor: null, hasNext: false })
-      : json({ content: [members[0]], nextCursor: ownerId, hasNext: true });
+      : json({ content: [members[0], ...members.slice(2)], nextCursor: ownerId, hasNext: true });
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
@@ -205,8 +216,9 @@ await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
 await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
-await page.getByRole('button', { name: 'Tải thêm thành viên' }).click();
+await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Linh Tran', { exact: true }).waitFor();
+const memberPageRequestsAfterLazyLoad = apiRequests.filter((request) => request === `GET /api/conversations/${conversationId}/members`).length;
 
 await page.getByText('Nhật ký phòng', { exact: true }).click();
 await page.getByText('Đã cập nhật vai trò', { exact: true }).waitFor();
@@ -250,10 +262,11 @@ await page.getByText('Role updated', { exact: true }).waitFor();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+const memberPageRequests = apiRequests.filter((request) => request === `GET /api/conversations/${conversationId}/members`).length;
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -271,6 +284,7 @@ if (
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
   || overflow
+  || memberPageRequestsAfterLazyLoad < 2
   || consoleErrors.length
   || requestFailures.length
 ) process.exitCode = 1;

@@ -1337,3 +1337,12 @@ Correction in this increment:
 | Presence truthfulness | Pass for rendered rows | Contact, profile, message, mention and room-member UI render a status indicator only after an authoritative presence snapshot exists | Live reconnect/expiry proof remains externally blocked | Treat `unknown` as neutral; never display guessed `OFFLINE` |
 | Accessibility | Pass at component/browser boundary | Disclosure uses native `<details>/<summary>` keyboard semantics; admin smoke opens the collapsed audit panel before exporting | Full axe/screen-reader walkthrough remains pending | Keep disclosure state browser-native and test the interaction path |
 | Regression safety | Pass for available gates | `npm run validate`, `npm run build`, `npm run test:e2e:admin`, and `npm run test:e2e:ui-quality` pass with zero console/request failures | Authenticated live-stack evidence remains pending | Update browser coverage when a default-open state changes |
+
+# Follow-up self-review (2026-08-29, room member lazy loading)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Bounded directory loading | Pass at browser boundary | Room-management smoke uses a long first page, scrolls to the sentinel, observes a second member request, and reports `memberPageRequestsAfterLazyLoad=2` | Clean Cassandra cursor ordering remains pending | Keep a bounded scroll root so a visible sentinel cannot eagerly drain every page |
+| Stale response safety | Pass at client boundary | Member-page request captures the room generation and ignores late responses after `requestRef` changes | Mutation cancellation across room switches remains a separate audit | Never append a page from a previous room |
+| UX density | Pass for member panel | Primary member rows remain compact; expanded controls stay per-row and the member list scrolls independently | Full long-directory accessibility review remains pending | Load more on intentional scroll, keep the explicit button as a recovery action |
+| Regression safety | Pass for available gates | `npm run validate`, `npm run build`, and `npm run test:e2e:room-management` pass with zero console/request failures and `overflow=false` | Live multi-user/member persistence remains pending | Treat browser paging evidence as contract proof, not Cassandra proof |

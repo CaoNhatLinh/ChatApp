@@ -174,13 +174,13 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     React.useEffect(() => {
         const root = membersScrollRef.current;
         const sentinel = loadMoreSentinelRef.current;
-        if (!root || !sentinel || !hasMoreMembers || typeof IntersectionObserver === 'undefined') return;
+        if (!root || !sentinel || !hasMoreMembers || root.scrollHeight <= root.clientHeight || typeof IntersectionObserver === 'undefined') return;
         const observer = new IntersectionObserver((entries) => {
             if (entries.some((entry) => entry.isIntersecting)) void loadMoreMembers();
         }, { root, rootMargin: '240px 0px' });
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [hasMoreMembers, loadMoreMembers]);
+    }, [hasMoreMembers, loadMoreMembers, members.length]);
 
     const createRole = async (value: RoomRoleFormValue) => {
         if (!value.displayName || !/^[A-Z][A-Z0-9_]{1,31}$/.test(value.roleCode) || !/^#[0-9A-F]{6}$/.test(value.colorHex)) {

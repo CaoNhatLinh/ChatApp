@@ -69,6 +69,9 @@ Client rows use an Intersection Observer window rather than subscribing an
 entire loaded directory. Conversation lists now use an opaque cursor page, and
 mention lookup requests additional member pages only when the compact result
 set needs them.
+Room-management member pages use a bounded scroll container and an
+IntersectionObserver sentinel, while stale requests are discarded when the
+selected room changes.
 Typing now follows the same boundary: commands contain only canonical command
 fields, and server-emitted user summaries use `username` plus required
 `displayName`.
