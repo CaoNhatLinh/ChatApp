@@ -87,10 +87,13 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null);
     const [auditOpen, setAuditOpen] = React.useState(false);
     const requestRef = React.useRef(0);
+    const membersScrollRef = React.useRef<HTMLDivElement>(null);
+    const loadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
 
     const load = React.useCallback(async () => {
         const requestId = ++requestRef.current;
         setLoading(true);
+        setBusyKey(null);
         setLoadError(false);
         try {
             const [memberPage, nextRoles, nextAccess] = await Promise.all([
@@ -146,21 +149,38 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         }
     };
 
-    const loadMoreMembers = async () => {
-        if (!memberCursor || !hasMoreMembers) return;
+    const loadMoreMembers = React.useCallback(async () => {
+        if (!memberCursor || !hasMoreMembers || busyKey !== null) return;
+        const requestId = requestRef.current;
         setBusyKey('load-more-members');
         try {
             const page = await getConversationMembers(conversation.conversationId, memberCursor);
-            setMembers((current) => [...current, ...page.content]);
+            if (requestId !== requestRef.current) return;
+            setMembers((current) => {
+                const existingIds = new Set(current.map((member) => member.userId));
+                return [...current, ...page.content.filter((member) => !existingIds.has(member.userId))];
+            });
             setMemberCursor(page.nextCursor);
             setHasMoreMembers(page.hasNext);
         } catch (error) {
+            if (requestId !== requestRef.current) return;
             logger.error('[RoomManagementPanel] Member page load failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể tải thêm thành viên.')));
         } finally {
-            setBusyKey(null);
+            if (requestId === requestRef.current) setBusyKey(null);
         }
-    };
+    }, [busyKey, conversation.conversationId, hasMoreMembers, memberCursor]);
+
+    React.useEffect(() => {
+        const root = membersScrollRef.current;
+        const sentinel = loadMoreSentinelRef.current;
+        if (!root || !sentinel || !hasMoreMembers || typeof IntersectionObserver === 'undefined') return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) void loadMoreMembers();
+        }, { root, rootMargin: '240px 0px' });
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMoreMembers, loadMoreMembers]);
 
     const createRole = async (value: RoomRoleFormValue) => {
         if (!value.displayName || !/^[A-Z][A-Z0-9_]{1,31}$/.test(value.roleCode) || !/^#[0-9A-F]{6}$/.test(value.colorHex)) {
@@ -355,7 +375,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 </details>
             ) : null}
 
-            <div className="space-y-2">
+            <div ref={membersScrollRef} className="max-h-[min(70vh,36rem)] space-y-2 overflow-y-auto pr-1">
                 {members.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
                         {localizeText('Phòng chưa có thành viên.')}
@@ -452,17 +472,20 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                     );
                 })}
                 {hasMoreMembers ? (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        loading={busyKey === 'load-more-members'}
-                        disabled={busyKey !== null}
-                        onClick={() => void loadMoreMembers()}
-                    >
-                        {localizeText('Tải thêm thành viên')}
-                    </Button>
+                    <>
+                        <div ref={loadMoreSentinelRef} className="h-px" aria-hidden="true" />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            loading={busyKey === 'load-more-members'}
+                            disabled={busyKey !== null}
+                            onClick={() => void loadMoreMembers()}
+                        >
+                            {localizeText('Tải thêm thành viên')}
+                        </Button>
+                    </>
                 ) : null}
             </div>
 
