@@ -103,17 +103,18 @@ paths:
   /friends/requests/received:
     get:
       tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Incoming requests, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
   /friends/requests/sent:
     get:
       tags: [Friends]
+      parameters: [{$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Outgoing requests, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
   /friends/status/{status}:
     get:
       tags: [Friends]
       parameters:
         - {name: status, in: path, required: true, schema: {type: string}}
-        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
         - {$ref: '#/components/parameters/Limit'}
       responses: {'200': {description: Filtered friendship status, content: {application/json: {schema: {$ref: '#/components/schemas/FriendshipStatus'}}}}}
   /friends/accept:
@@ -154,10 +155,7 @@ paths:
   /friends/mutual/{userId}:
     get:
       tags: [Friends]
-      parameters:
-        - {$ref: '#/components/parameters/UserId'}
-        - {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
-        - {$ref: '#/components/parameters/Limit'}
+      parameters: [{$ref: '#/components/parameters/UserId'}, {$ref: '#/components/parameters/Limit'}]
       responses: {'200': {description: Mutual friends}}
   /conversations:
     get:

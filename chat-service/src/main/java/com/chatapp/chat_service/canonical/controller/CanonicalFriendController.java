@@ -39,24 +39,21 @@ public class CanonicalFriendController {
 
     @GetMapping("/requests/received")
     public CanonicalApiContracts.FriendshipStatusResponse getReceivedRequests(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return friendshipService.listIncomingRequests(actorId(), Math.min(200, Math.max(1, size)));
+            @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        return friendshipService.listIncomingRequests(actorId(), Math.min(200, Math.max(1, limit)));
     }
 
     @GetMapping("/requests/sent")
     public CanonicalApiContracts.FriendshipStatusResponse getSentRequests(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return friendshipService.listStatus(actorId(), "PENDING", Math.min(200, Math.max(1, size)));
+            @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        return friendshipService.listStatus(actorId(), "PENDING", Math.min(200, Math.max(1, limit)));
     }
 
     @GetMapping("/status/{status}")
     public CanonicalApiContracts.FriendshipStatusResponse getStatus(
             @PathVariable String status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return friendshipService.listStatus(actorId(), status, Math.min(200, Math.max(1, size)));
+            @RequestParam(name = "limit", defaultValue = "50") int limit) {
+        return friendshipService.listStatus(actorId(), status, Math.min(200, Math.max(1, limit)));
     }
 
     @GetMapping
@@ -107,9 +104,8 @@ public class CanonicalFriendController {
     @GetMapping("/mutual/{userId}")
     public List<CanonicalApiContracts.FriendUserSummary> mutual(
             @PathVariable UUID userId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-        return friendshipService.listMutualFriends(actorId(), userId, Math.min(200, Math.max(1, size)));
+            @RequestParam(name = "limit", defaultValue = "100") int limit) {
+        return friendshipService.listMutualFriends(actorId(), userId, Math.min(200, Math.max(1, limit)));
     }
 
     private UUID actorId() {

@@ -53,7 +53,7 @@ export const getReceivedRequests = async (limit = 30): Promise<FriendshipStatusR
         userId: string;
         status: FriendshipStatus;
         userDetails: CanonicalFriendUserSummary[];
-    }>('/friends/requests/received', { params: { size: limit } });
+    }>('/friends/requests/received', { params: { limit } });
     return toFriendshipStatus(response.data);
 };
 
@@ -62,7 +62,7 @@ export const getSentRequests = async (limit = 30): Promise<FriendshipStatusRespo
         userId: string;
         status: FriendshipStatus;
         userDetails: CanonicalFriendUserSummary[];
-    }>('/friends/requests/sent', { params: { size: limit } });
+    }>('/friends/requests/sent', { params: { limit } });
     return toFriendshipStatus(response.data);
 };
 
@@ -91,7 +91,7 @@ export const getUsersByStatus = async (
         status: FriendshipStatus;
         userDetails: CanonicalFriendUserSummary[];
     }>(`/friends/status/${status}`, {
-        params: { size: limit },
+        params: { limit },
     });
     return toFriendshipStatus(response.data);
 };
@@ -101,7 +101,7 @@ export const getMutualFriends = async (
     limit = 30,
 ): Promise<UserDTO[]> => {
     const response = await apiClient.get<CanonicalFriendUserSummary[]>(`/friends/mutual/${otherUserId}`, {
-        params: { size: limit },
+        params: { limit },
     });
     return response.data.map(toUserDto);
 };

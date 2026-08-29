@@ -1044,3 +1044,17 @@ Correction in this increment:
 - Replaced the undocumented notification `size` query with canonical `limit`
   in backend and frontend clients, documented `page` for type filtering, and
   fixed the endpoint to honor requested pagination and `hasNext`.
+
+# Follow-up self-review (2026-08-29, friendship list contract cleanup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contract truthfulness | Pass | Friends request/status/mutual controllers and frontend adapters now use the documented bounded `limit` query; ignored `page` parameters were removed | Friendship responses still intentionally return bounded lists without cursor metadata | Do not expose pagination controls that the service cannot honor |
+| Legacy/compatibility discipline | Pass | No `size` alias or ignored page argument remains in the canonical Friends client/controller surface | Existing external callers must migrate to the canonical contract | Keep one exact query name and avoid compatibility shims |
+| Regression safety | Pass | Frontend validation and the existing Contacts browser smoke remain green after the client query rename; backend source compiles in the 98-test suite | Live two-account request/accept/list proof remains blocked by infrastructure | Keep the bounded service limit authoritative |
+| Traceability | Pass | `CanonicalFriendController`, `friends.api.ts`, OpenAPI, function audit, and this entry agree on supported list parameters | Full friendship cursor contract requires a separately specified response shape | Record unsupported pagination rather than faking `hasNext` |
+
+Correction in this increment:
+
+- Removed ignored Friends `page` parameters and undocumented `size` client
+  queries; all canonical Friends list routes now use the bounded `limit` input.
