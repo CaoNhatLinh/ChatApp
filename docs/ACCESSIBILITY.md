@@ -6,7 +6,9 @@
 - Labels are explicit and placed above inputs. Errors and helper text remain in
   the accessibility tree. Icon-only controls include `aria-label`.
 - Focus indicators are visible in keyboard navigation. Hover is never the only
-  way to discover an action.
+  way to discover an action. Native disclosure summaries remain
+  keyboard-toggleable and expose expanded state through the browser's `open`
+  semantics.
 - Online, typing, unread, loading, empty and error states include text or an
   icon with a meaningful accessible name, not color alone.
 - The Create Room flow is a semantic modal with an accessible name, explicit

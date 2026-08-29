@@ -896,11 +896,11 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
           </>}
         </SurfacePanel>
 
-        <SurfacePanel title={localizeText("Audit timeline toàn ứng dụng")}>
+        <SurfacePanel title={localizeText("Audit timeline toàn ứng dụng")} collapsible defaultOpen={false}>
               {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Audit chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Tháng audit (UTC)")}</label><Input className="mt-1" type="month" value={auditMonth} onChange={(event) => setAuditMonth(event.target.value)} /></div><Button size="sm" variant="outline" onClick={() => void handleAuditExport()} loading={auditExporting}><Download size={15} />{localizeText("Xuất CSV audit")}</Button><p className="pb-2 text-xs text-muted-foreground">{localizeText("Chỉ đọc tối đa 50 event trong partition tháng.")}</p></div>{auditLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : auditEvents.length ? <div className="mt-4 max-h-[360px] space-y-2 overflow-auto pr-1" aria-live="polite">{auditEvents.map((event) => <div key={event.eventId} className="rounded-xl border border-border/60 bg-background/45 px-3 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><ScrollText size={15} className="text-primary" /><span className="text-sm font-semibold">{auditActionLabel(event.action)}</span><Badge variant={event.outcome === "SUCCESS" ? "outline" : "destructive"}>{auditOutcomeLabel(event.outcome)}</Badge></div><span className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">{event.resourceType}:{event.resourceId}{event.actorId ? ` · ${localizeText("người thao tác")} ${event.actorId.slice(0, 8)}…` : ""}</p>{event.reasonCode ? <p className="mt-1 text-xs leading-5">{localizeText("Lý do:")} {event.reasonCode}</p> : null}</div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có audit event trong tháng này.")}</p>}</>}
         </SurfacePanel>
 
-        <SurfacePanel title={localizeText("Điều tra tin nhắn") }>
+        <SurfacePanel title={localizeText("Điều tra tin nhắn") } collapsible defaultOpen={false}>
           {!canReadAudit ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có AUDIT_READ. Nội dung tin nhắn chỉ hiển thị cho người vận hành được cấp quyền điều tra.")}</p> : <>
             <p className="text-sm leading-6 text-muted-foreground">{localizeText("Đọc một tin nhắn cụ thể bằng ID cuộc trò chuyện, bucket và ID tin nhắn. Mỗi lượt xem phải có lý do và được ghi vào audit; không quét toàn bộ lịch sử.")}</p>
             <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={handleMessageInspection}>
@@ -914,11 +914,11 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
           </>}
         </SurfacePanel>
 
-        <SurfacePanel title={localizeText("Analytics vận hành")}>
+        <SurfacePanel title={localizeText("Analytics vận hành")} collapsible defaultOpen={false}>
           {!canReadAnalytics ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có ANALYTICS_READ. Dữ liệu tổng hợp chỉ dành cho người vận hành được cấp quyền.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Từ ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsFrom} onChange={(event) => setAnalyticsFrom(event.target.value)} /></div><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Đến ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsTo} onChange={(event) => setAnalyticsTo(event.target.value)} /></div><div className="min-w-[180px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Loại event")}</label><select value={analyticsType} onChange={(event) => setAnalyticsType(event.target.value)} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm">{ANALYTICS_EVENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{localizeText(option.label)}</option>)}</select></div><p className="pb-2 text-xs text-muted-foreground">{localizeText("Tối đa 31 ngày / 200 điểm được hiển thị.")}</p></div>{analyticsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : analyticsPoints.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(analyticsPoints.reduce<Record<string, number>>((counts, point) => { counts[point.eventType] = (counts[point.eventType] ?? 0) + 1; return counts; }, {})).map(([type, count]) => <div key={type} className="rounded-xl border border-border/60 bg-background/45 p-3"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-xs font-semibold"><BarChart3 size={15} className="text-primary" />{analyticsEventLabel(type)}</span><span className="text-lg font-black">{count}</span></div><p className="mt-1 text-xs text-muted-foreground">{localizeText("event tổng hợp trong khoảng đã chọn")}</p></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có analytics trong khoảng này.")}</p>}</>}
         </SurfacePanel>
 
-        <SurfacePanel title={localizeText("Báo cáo & chế tài")}>
+        <SurfacePanel title={localizeText("Báo cáo & chế tài")} collapsible defaultOpen>
           {!canManageReports ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có REPORT_MANAGE. Quyết định kiểm duyệt chỉ dành cho người vận hành an toàn.")}</p> : <>
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-[170px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Ngày report (UTC)")}</label><Input className="mt-1" type="date" value={reportDay} onChange={(event) => setReportDay(event.target.value)} /></div>
@@ -934,14 +934,14 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         </SurfacePanel>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)]">
-          <SurfacePanel title={localizeText("Quyền quản trị hiện tại")}>
+          <SurfacePanel title={localizeText("Quyền quản trị hiện tại")} collapsible defaultOpen={false}>
             <div className="flex flex-wrap gap-2">{overview.roles.map((role) => <Badge key={role} variant={roleBadgeVariant(role)}>{role}</Badge>)}</div>
             <p className="mt-5 text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Quyền")}</p>
             <div className="mt-3 flex max-h-44 flex-wrap gap-2 overflow-auto">{overview.permissions.map((permission) => <Badge key={permission} variant="outline">{permission}</Badge>)}</div>
             {health ? <p className="mt-5 text-xs text-muted-foreground">{localizeText("Cassandra:")} <span className="font-semibold text-foreground">{health.cassandra}</span> · {localizeText("kiểm tra lúc")} {formatDate(health.timestamp)}</p> : <p className="mt-5 text-xs text-muted-foreground">{localizeText("Health endpoint chưa phản hồi; số liệu trên không được thay bằng dữ liệu giả.")}</p>}
           </SurfacePanel>
 
-          <SurfacePanel title={localizeText("Tìm người dùng")}>
+          <SurfacePanel title={localizeText("Tìm người dùng")} collapsible defaultOpen>
             {!canReadUsers ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại không có USER_READ. Khu vực này chỉ hiển thị cho người vận hành được cấp quyền đọc người dùng.")}</p> : null}
             {canReadUsers ? <>
             <form className="flex gap-2" onSubmit={handleSearch}>
@@ -956,7 +956,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
           </SurfacePanel>
         </div>
 
-        {selectedUser && canReadUsers ? <SurfacePanel title={`${localizeText("Quản lý vai trò")} · @${selectedUser.userName}`}>
+        {selectedUser && canReadUsers ? <SurfacePanel title={`${localizeText("Quản lý vai trò")} · @${selectedUser.userName}`} collapsible defaultOpen>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
             <div>
               <div className="rounded-xl border border-border/60 bg-background/55 p-4"><p className="font-semibold">{selectedUser.displayName}</p><p className="mt-1 text-xs text-muted-foreground">{selectedUser.userId} · {localizeText("Trạng thái")}: {accountStatusLabel(selectedUser.status === "BANNED" ? "BANNED" : selectedUser.status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE")}</p></div>

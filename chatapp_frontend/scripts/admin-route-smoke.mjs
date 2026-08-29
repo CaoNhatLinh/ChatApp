@@ -71,6 +71,7 @@ await page.getByRole('heading', { name: 'Global operations', exact: true }).wait
 await page.getByLabel('Search admin users').fill('x');
 await page.getByRole('button', { name: 'Search', exact: true }).click();
 await page.getByText('Enter at least 2 characters to search for a user.', { exact: true }).waitFor();
+await page.locator('summary').filter({ hasText: 'Global audit timeline' }).click();
 const [download] = await Promise.all([
   page.waitForEvent('download'),
   page.getByRole('button', { name: /Export audit CSV/ }).click(),

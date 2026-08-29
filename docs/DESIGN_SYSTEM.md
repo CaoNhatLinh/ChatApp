@@ -56,6 +56,12 @@ Every data surface exposes loading, empty, error and success/updated states.
 Interactive controls expose keyboard focus, hover, active, disabled and pending
 states. Realtime state uses text and icons in addition to color.
 
+Dense operator or detail surfaces use progressive disclosure: keep the primary
+task visible and collapse secondary audit, investigation, analytics or policy
+details with the native `SurfacePanel` disclosure. Never turn an unavailable
+or not-yet-synced value into a guessed status; `unknown` remains visually
+neutral until an authoritative snapshot arrives.
+
 ## Language
 
 The product supports Vietnamese (`vi`, canonical copy) and English (`en`). The

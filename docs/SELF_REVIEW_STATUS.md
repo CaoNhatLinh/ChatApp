@@ -1328,3 +1328,12 @@ Correction in this increment:
 | Directory network cost | Pass for mention interaction | `MentionMenu` requests 100-member pages and fetches another page only when a query cannot fill the eight-item compact result | A dedicated server-side prefix index is still a future optimization for very large rooms | Keep page size bounded and reveal only the compact result set |
 | UI information density | Pass for changed presence surfaces | Rows show a dot/short status; device and last-active details remain in existing profile/tooltip surfaces | Full admin and long-directory density audit remains pending | Prefer progressive disclosure over repeated explanatory copy |
 | Regression safety | Pass for available gates | Java suite 146 tests/0 failures; frontend type-check/lint pass after scoped protocol changes | Live Redis/STOMP multi-node proof remains external | Keep live-stack gaps explicitly documented |
+
+# Follow-up self-review (2026-08-29, progressive admin disclosure and unknown presence)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Information density | Pass for admin surface | Audit, investigation, analytics, permission and selected-user details are native `SurfacePanel` disclosures; room overview and primary moderation remain visible | Full operator task-frequency review remains pending | Keep the primary task open and collapse secondary detail by default |
+| Presence truthfulness | Pass for rendered rows | Contact, profile, message, mention and room-member UI render a status indicator only after an authoritative presence snapshot exists | Live reconnect/expiry proof remains externally blocked | Treat `unknown` as neutral; never display guessed `OFFLINE` |
+| Accessibility | Pass at component/browser boundary | Disclosure uses native `<details>/<summary>` keyboard semantics; admin smoke opens the collapsed audit panel before exporting | Full axe/screen-reader walkthrough remains pending | Keep disclosure state browser-native and test the interaction path |
+| Regression safety | Pass for available gates | `npm run validate`, `npm run build`, `npm run test:e2e:admin`, and `npm run test:e2e:ui-quality` pass with zero console/request failures | Authenticated live-stack evidence remains pending | Update browser coverage when a default-open state changes |
