@@ -111,6 +111,9 @@ export const SearchPage = () => {
   }, [query, scope, searchTargets]);
 
   useEffect(() => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!canSearchMessages) {
       setMessageSearchResults([]);
       setIsSearching(false);
@@ -211,8 +214,6 @@ export const SearchPage = () => {
       filter.conversationId = conversationId;
     }
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
     const controller = new AbortController();
 
     setIsSearching(true);

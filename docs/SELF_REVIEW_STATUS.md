@@ -747,3 +747,19 @@ Correction in this increment:
 - Added stale-request protection and explicit localized recovery for profile
   relationship reads, and scoped/cleared mutual-friend data so navigation cannot
   display or act on a previous profile's relationship state.
+
+# Follow-up self-review (2026-08-29, message-search invalidation increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Search state integrity | Pass for filter transitions | `SearchPage` advances its request generation before every eligibility/validation branch, not only before a network call | Live Elasticsearch latency and index consistency remain unverified | Any filter or scope change invalidates the prior response immediately |
+| Cancellation semantics | Pass for current client contract | Abort remains best-effort while generation checks own result commits even when a transport ignores abort | Transport adapter cancellation coverage remains limited to its current `AbortSignal` contract | Do not claim cancellation; reject stale results at the page boundary |
+| Validation recovery | Pass | Invalid UUID/date/scope states cannot be overwritten by a previous successful search response | Full authenticated filter matrix remains pending | Keep validation state authoritative until the user supplies a valid filter |
+| Bilingual and accessibility coverage | Pass | Existing localized validation/error copy and labeled controls are unchanged; no fallback result is introduced | Full screen-reader search walkthrough remains pending | Preserve explicit validation feedback and canonical filter labels |
+| Traceability | Pass | `SearchPage.tsx` and this entry; validate/build/browser gates pass | Live authorized Elasticsearch search evidence remains blocked | Keep search result ownership with the newest page generation |
+
+Correction in this increment:
+
+- Advanced message-search request generation at the start of every filter
+  effect, preventing late network responses from repopulating results after a
+  scope change or validation failure.
