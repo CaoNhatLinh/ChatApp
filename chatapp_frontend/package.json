@@ -14,7 +14,8 @@
     "test:e2e:smoke": "node scripts/browser-smoke.mjs",
     "test:e2e:admin": "node scripts/admin-route-smoke.mjs",
     "test:e2e:locale": "node scripts/locale-smoke.mjs",
-    "test:e2e:notifications": "node scripts/notification-settings-smoke.mjs"
+    "test:e2e:notifications": "node scripts/notification-settings-smoke.mjs",
+    "test:i18n:copy": "node scripts/locale-copy-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

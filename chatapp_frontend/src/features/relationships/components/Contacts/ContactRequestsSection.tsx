@@ -35,7 +35,7 @@ export const ContactRequestsSection = ({
     >
       <SectionHeader
         title={FRIEND_COPY.sectionTitle.requests}
-        description={`${requests.length} ${FRIEND_COPY.filters.requestCountSuffix}`}
+        description={`${requests.length}${FRIEND_COPY.filters.requestCountSuffix}`}
       />
 
       {requests.length === 0 ? (
