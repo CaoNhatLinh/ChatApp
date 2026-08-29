@@ -74,8 +74,6 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const otherUser = conversation.otherParticipant;
   const isPinned = conversation.isPinned;
   const { presence: otherPresence } = usePresence(otherUser?.userId);
-  const isOtherOnline = otherPresence?.isOnline ?? false;
-  const otherStatus = otherPresence?.status ?? 'OFFLINE';
   const presenceRef = useTrackPresenceInViewport<HTMLDivElement>(
     isDM && otherUser?.userId ? [otherUser.userId] : [],
     isDM ? conversation.conversationId : null,
@@ -89,14 +87,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     ? 'bg-primary/10 border-primary/30 text-foreground'
     : 'border-transparent hover:bg-background/60';
 
-  const presenceTooltip = isDM && otherUser?.userId
+  const presenceTooltip = isDM && otherUser?.userId && otherPresence
     ? getPresenceTitle(
-      otherStatus,
-      isOtherOnline,
-      otherPresence?.device,
-      otherPresence?.lastActiveAgo,
+      otherPresence.status,
+      otherPresence.isOnline,
+      otherPresence.device,
+      otherPresence.lastActiveAgo,
     )
-    : '';
+    : undefined;
 
   const handlePinClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -147,10 +145,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
         </div>
 
-        {isDM ? (
+        {isDM && otherPresence ? (
           <StatusDot
-            status={otherStatus}
-            isOnline={isOtherOnline}
+            status={otherPresence.status}
+            isOnline={otherPresence.isOnline}
             size="md"
             className={cn('absolute -right-0.5 -bottom-0.5 border-2 border-background')}
             title={presenceTooltip}

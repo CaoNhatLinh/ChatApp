@@ -1354,3 +1354,12 @@ Correction in this increment:
 | Data correctness | Pass at client contract boundary | `getConversationUnreadCount` searches the canonical conversation projection with its opaque cursor until the requested room is found; no fixed first-page assumption remains | Live multi-page Cassandra projection proof remains pending | Keep exact lookup bounded per request and out of the rendered directory |
 | Network cost | Pass for normal navigation | The first page remains the common path; additional pages are fetched only for a selected room not present in the first page | A very large room directory can require multiple cursor requests for a deep link | Do not silently cap the search or return a guessed count |
 | Regression safety | Pass for available gates | Frontend type-check/lint/build and existing conversation/member browser smokes remain green | Live unread projection mutation remains pending | Preserve the authoritative projection value and cursor semantics |
+
+# Follow-up self-review (2026-08-29, unknown DM presence disclosure)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Presence truthfulness | Pass at rendered-surface boundary | DM sidebar avatars and conversation headers no longer coerce a missing snapshot to `OFFLINE`; the short status line and status dot stay hidden until `usePresence` has an authoritative snapshot | Live reconnect, expiry and multi-device browser proof remains externally blocked | Treat `unknown` as a neutral loading/absence state; never imply that an unobserved user is offline |
+| UI density | Pass for changed surfaces | Known DM state keeps one compact status line; unknown state removes the redundant line instead of adding explanatory placeholder text | Full authenticated density review across all routes remains pending | Reveal status detail only when it is actionable and authoritative |
+| Contract consistency | Pass | `ConversationItem`, `ChatWindow` and `ConversationHeader` share nullable presence semantics; `rg` finds no remaining `OFFLINE` fallback in frontend source | Live backend event ordering remains pending | Keep the presence snapshot as the sole source of truth |
+| Regression safety | Pass for available gates | `npm run validate` passes after the change | Clean Redis/STOMP integration remains unavailable locally | Add browser evidence when the authenticated live stack is available |

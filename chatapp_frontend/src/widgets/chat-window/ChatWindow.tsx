@@ -162,8 +162,6 @@ export const ChatWindow = () => {
   );
 
   const { presence: otherPresence } = usePresence(otherUserId);
-  const isOtherOnline = otherPresence?.isOnline ?? false;
-  const otherStatus = otherPresence?.status ?? "OFFLINE";
   const roomThemeSettings = useRoomThemeState(activeConversationId, currentUser?.userId ?? null);
   const canCall = activeConversation?.type === "dm" && Boolean(otherUserId);
   const callControls = useWebRtcCall({
@@ -389,16 +387,17 @@ export const ChatWindow = () => {
     setIsProfileModalOpen(false);
   };
 
-  const statusLabel =
-    activeConversation?.type === "dm"
+  const statusLabel = activeConversation?.type === "dm"
+    ? otherPresence
       ? `${
-          otherStatus === "DND"
+          otherPresence.status === "DND"
             ? MESSENGER_COPY.chatWindow.status.dnd
-            : isOtherOnline
+            : otherPresence.isOnline
               ? MESSENGER_COPY.chatWindow.status.online
               : MESSENGER_COPY.chatWindow.status.offline
-        }${otherPresence?.device ? `${MESSENGER_COPY.presence.deviceSeparator}${formatPresenceDevice(otherPresence.device)}` : ""}`
-        : `${activeConversation?.memberCount ?? 0} ${MESSENGER_COPY.chatWindow.status.groupMemberSuffix}`;
+        }${otherPresence.device ? `${MESSENGER_COPY.presence.deviceSeparator}${formatPresenceDevice(otherPresence.device)}` : ""}`
+      : null
+    : `${activeConversation?.memberCount ?? 0} ${MESSENGER_COPY.chatWindow.status.groupMemberSuffix}`;
 
   if (!activeConversation) {
     return (
@@ -421,7 +420,7 @@ export const ChatWindow = () => {
         <ConversationHeader
           conversation={activeConversation}
           isInfoOpen={isInfoOpen}
-          isOtherOnline={isOtherOnline}
+          isOtherOnline={otherPresence?.isOnline ?? null}
           otherStatusLabel={statusLabel}
           canGoBack
           onBack={() => setSidebarOpen(true)}

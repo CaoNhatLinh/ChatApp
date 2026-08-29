@@ -7,8 +7,8 @@ import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 interface ConversationHeaderProps {
   conversation: Conversation;
   isInfoOpen: boolean;
-  isOtherOnline: boolean;
-  otherStatusLabel: string;
+  isOtherOnline: boolean | null;
+  otherStatusLabel: string | null;
   canGoBack: boolean;
   onSearch: () => void;
   onBack: () => void;
@@ -39,7 +39,7 @@ export const ConversationHeader = ({
   const title = conversation.name;
 
   const statusLabel = isGroup ? `${conversation.memberCount} ${MESSENGER_COPY.chatWindow.status.groupMemberSuffix}` : otherStatusLabel;
-  const statusClassName = isGroup || !isOtherOnline ? "text-muted-foreground" : "text-primary";
+  const statusClassName = isGroup || isOtherOnline !== true ? "text-muted-foreground" : "text-primary";
 
   return (
     <SurfacePanel className="rounded-none border-x-0 border-t-0 shadow-none">
@@ -59,9 +59,9 @@ export const ConversationHeader = ({
 
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>
-            <p className={`text-xs font-medium ${statusClassName}`}>
+            {statusLabel ? <p className={`text-xs font-medium ${statusClassName}`}>
               {statusLabel}
-            </p>
+            </p> : null}
           </div>
         </div>
 
