@@ -84,6 +84,22 @@ const accountStatusLabel = (status: "ACTIVE" | "SUSPENDED" | "BANNED") => ({
   BANNED: localizeText("Bị cấm"),
 }[status]);
 
+const ANALYTICS_EVENT_OPTIONS = [
+  { value: "ALL", label: "Tất cả sự kiện" },
+  { value: "ROOM_CREATED", label: "Tạo room" },
+  { value: "ROOM_JOINED", label: "Tham gia room" },
+  { value: "MESSAGE_SENT", label: "Gửi tin nhắn" },
+  { value: "POLLS_CREATED", label: "Đã tạo bình chọn" },
+  { value: "POLL_VOTED", label: "Đã bình chọn" },
+  { value: "CALL_STARTED", label: "Bắt đầu cuộc gọi" },
+] as const;
+
+const analyticsEventLabel = (eventType: string): string => {
+  const option = ANALYTICS_EVENT_OPTIONS.find((candidate) => candidate.value === eventType);
+  if (!option) throw new Error(`Unsupported analytics event type: ${eventType}`);
+  return localizeText(option.label);
+};
+
 interface AdminPageProps {
   onBackToApp?: () => void;
 }
@@ -719,7 +735,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Analytics vận hành")}>
-          {!canReadAnalytics ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có ANALYTICS_READ. Dữ liệu tổng hợp chỉ dành cho người vận hành được cấp quyền.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Từ ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsFrom} onChange={(event) => setAnalyticsFrom(event.target.value)} /></div><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Đến ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsTo} onChange={(event) => setAnalyticsTo(event.target.value)} /></div><div className="min-w-[180px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Loại event")}</label><select value={analyticsType} onChange={(event) => setAnalyticsType(event.target.value)} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm"><option value="ALL">ALL</option><option value="ROOM_CREATED">ROOM_CREATED</option><option value="ROOM_JOINED">ROOM_JOINED</option><option value="MESSAGE_SENT">MESSAGE_SENT</option><option value="POLLS_CREATED">POLLS_CREATED</option><option value="POLL_VOTED">POLL_VOTED</option><option value="CALL_STARTED">CALL_STARTED</option></select></div><p className="pb-2 text-xs text-muted-foreground">{localizeText("Tối đa 31 ngày / 200 điểm được hiển thị.")}</p></div>{analyticsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : analyticsPoints.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(analyticsPoints.reduce<Record<string, number>>((counts, point) => { counts[point.eventType] = (counts[point.eventType] ?? 0) + 1; return counts; }, {})).map(([type, count]) => <div key={type} className="rounded-xl border border-border/60 bg-background/45 p-3"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-xs font-semibold"><BarChart3 size={15} className="text-primary" />{type}</span><span className="text-lg font-black">{count}</span></div><p className="mt-1 text-xs text-muted-foreground">{localizeText("event tổng hợp trong khoảng đã chọn")}</p></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có analytics trong khoảng này.")}</p>}</>}
+          {!canReadAnalytics ? <p className="text-sm leading-6 text-muted-foreground">{localizeText("Vai trò hiện tại chưa có ANALYTICS_READ. Dữ liệu tổng hợp chỉ dành cho người vận hành được cấp quyền.")}</p> : <><div className="flex flex-wrap items-end gap-3"><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Từ ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsFrom} onChange={(event) => setAnalyticsFrom(event.target.value)} /></div><div className="min-w-[150px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Đến ngày (UTC)")}</label><Input className="mt-1" type="date" value={analyticsTo} onChange={(event) => setAnalyticsTo(event.target.value)} /></div><div className="min-w-[180px] flex-1"><label className="block text-xs font-semibold text-muted-foreground">{localizeText("Loại event")}</label><select value={analyticsType} onChange={(event) => setAnalyticsType(event.target.value)} className="mt-1 h-10 w-full rounded-[0.85rem] border border-border/70 bg-background px-3 text-sm">{ANALYTICS_EVENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{localizeText(option.label)}</option>)}</select></div><p className="pb-2 text-xs text-muted-foreground">{localizeText("Tối đa 31 ngày / 200 điểm được hiển thị.")}</p></div>{analyticsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : analyticsPoints.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{Object.entries(analyticsPoints.reduce<Record<string, number>>((counts, point) => { counts[point.eventType] = (counts[point.eventType] ?? 0) + 1; return counts; }, {})).map(([type, count]) => <div key={type} className="rounded-xl border border-border/60 bg-background/45 p-3"><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-xs font-semibold"><BarChart3 size={15} className="text-primary" />{analyticsEventLabel(type)}</span><span className="text-lg font-black">{count}</span></div><p className="mt-1 text-xs text-muted-foreground">{localizeText("event tổng hợp trong khoảng đã chọn")}</p></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Chưa có analytics trong khoảng này.")}</p>}</>}
         </SurfacePanel>
 
         <SurfacePanel title={localizeText("Báo cáo & chế tài")}>
