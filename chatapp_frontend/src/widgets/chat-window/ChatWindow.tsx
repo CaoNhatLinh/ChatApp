@@ -33,7 +33,9 @@ import { RoomThemePanel } from "./components/RoomThemePanel";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { useWebRtcCall } from "@/features/calls/hooks/useWebRtcCall";
 import { CallSessionPanel } from "./components/CallSessionPanel";
-import { getLocale } from '@/shared/i18n';
+import { getLocale, localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
 import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
@@ -291,19 +293,24 @@ export const ChatWindow = () => {
       setHighlightMessageId(null);
       return;
     }
-    void jumpToMessage(messageIdFromQuery);
-  }, [activeConversationId, jumpToMessage, messageIdFromQuery]);
+    void jumpToMessage(messageIdFromQuery).catch((error: unknown) => {
+      logger.error('[ChatWindow] Failed to jump to message from URL:', error);
+      showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.chatWindow.messageAction.actionFailed));
+    });
+  }, [activeConversationId, jumpToMessage, messageIdFromQuery, showToast]);
 
   const handleUserClick = async (userId: string) => {
     setSelectedUserId(userId);
     setIsProfileModalOpen(true);
     setIsProfileLoading(true);
+    setSelectedUserProfile(undefined);
 
     try {
       const profile = await fetchUserProfile(userId);
       setSelectedUserProfile(mapUserProfile(profile));
     } catch (error) {
-      console.error("Failed to fetch user profile:", error);
+      logger.error("[ChatWindow] Failed to fetch user profile:", error);
+      showToast(getUserFacingErrorMessage(error, localizeText("Không thể tải thông tin người dùng.")));
     } finally {
       setIsProfileLoading(false);
     }
@@ -311,57 +318,62 @@ export const ChatWindow = () => {
 
   const handleMessageAction = useCallback(
     async (action: string, message: Message) => {
-      switch (action) {
-        case "reply":
-          setEditingMessage(null);
-          setReplyingTo(message);
-          return;
-        case "copy":
-          await navigator.clipboard.writeText(message.content);
-          showToast(MESSENGER_COPY.chatWindow.messageAction.copySuccess);
-          return;
-        case "edit":
-          setReplyingTo(null);
-          setEditingMessage(message);
-          return;
-        case "delete":
-          await deleteMessageAction(message.messageId);
-          setEditingMessage((current) =>
-            current?.messageId === message.messageId ? null : current,
-          );
-          showToast(MESSENGER_COPY.chatWindow.messageAction.deleteSuccess);
-          return;
-        case "pin":
-          await pinMessageAction(message.messageId);
-          showToast(MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
-          return;
-        case "report":
-          setReportingMessage(message);
-          return;
-        case "view-history": {
-          const revisions = await loadMessageRevisionsAction(message.messageId);
-          setMessageHistory(mapMessageHistory(revisions));
-          setIsHistoryOpen(true);
-          return;
-        }
-        case "view-seen": {
-          const latestSeen = latestReadReceipt(message);
-          if (latestSeen) {
-            showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(
-              new Date(latestSeen.readAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN'),
-            ));
+      try {
+        switch (action) {
+          case "reply":
+            setEditingMessage(null);
+            setReplyingTo(message);
+            return;
+          case "copy":
+            await navigator.clipboard.writeText(message.content);
+            showToast(MESSENGER_COPY.chatWindow.messageAction.copySuccess);
+            return;
+          case "edit":
+            setReplyingTo(null);
+            setEditingMessage(message);
+            return;
+          case "delete":
+            await deleteMessageAction(message.messageId);
+            setEditingMessage((current) =>
+              current?.messageId === message.messageId ? null : current,
+            );
+            showToast(MESSENGER_COPY.chatWindow.messageAction.deleteSuccess);
+            return;
+          case "pin":
+            await pinMessageAction(message.messageId);
+            showToast(MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
+            return;
+          case "report":
+            setReportingMessage(message);
+            return;
+          case "view-history": {
+            const revisions = await loadMessageRevisionsAction(message.messageId);
+            setMessageHistory(mapMessageHistory(revisions));
+            setIsHistoryOpen(true);
+            return;
           }
-          return;
-        }
-        case "jump-reply":
-          if (message.replyTo?.messageId) {
-            void jumpToMessage(message.replyTo.messageId);
-          } else {
-            showToast(MESSENGER_COPY.chatWindow.messageAction.noReplyTarget);
+          case "view-seen": {
+            const latestSeen = latestReadReceipt(message);
+            if (latestSeen) {
+              showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(
+                new Date(latestSeen.readAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN'),
+              ));
+            }
+            return;
           }
-          return;
-        default:
-          throw new Error(`Unsupported message action: ${action}`);
+          case "jump-reply":
+            if (message.replyTo?.messageId) {
+              await jumpToMessage(message.replyTo.messageId);
+            } else {
+              showToast(MESSENGER_COPY.chatWindow.messageAction.noReplyTarget);
+            }
+            return;
+          default:
+            throw new Error(`Unsupported message action: ${action}`);
+        }
+      } catch (error) {
+        logger.error(`[ChatWindow] Message action failed: ${action}`, error);
+        showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.chatWindow.messageAction.actionFailed));
       }
     },
     [
@@ -534,7 +546,7 @@ export const ChatWindow = () => {
       <ReportMessageModal
         message={reportingMessage}
         onClose={() => setReportingMessage(null)}
-        onSubmitted={() => showToast("Đã gửi báo cáo. Cảm ơn bạn đã giúp giữ NovaChat an toàn.")}
+        onSubmitted={() => showToast(localizeText("Đã gửi báo cáo. Cảm ơn bạn đã giúp giữ NovaChat an toàn."))}
       />
 
       <div

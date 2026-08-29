@@ -209,6 +209,7 @@ const rawMessengerCopy = {
       copySuccess: "Đã sao chép tin nhắn.",
       deleteSuccess: "Tin nhắn đã được xóa.",
       pinSuccess: "Cập nhật trạng thái ghim.",
+      actionFailed: "Không thể hoàn tất thao tác với tin nhắn.",
       seenAt: (timestamp: string) => `Đã xem lúc ${timestamp}`,
       noReplyTarget: "Không có tin nhắn reply.",
       noMessageFoundInHistory: "Không tìm thấy tin nhắn trong lịch sử đã tải.",

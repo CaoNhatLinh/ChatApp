@@ -154,7 +154,7 @@ Corrections in this increment:
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | Failure safety | Pass for audited surfaces | `getUserFacingErrorMessage`, localized WebRTC errors, sanitized report/presence errors, `npm run test:errors:copy` | Other authenticated provider failures still need live-stack browser proof | Never render native exception or server response text; keep raw detail in operator logs only |
-| Bilingual UI coverage | Pass for new error copy | `resources.ts`, all static `localizeText(...)` calls, locale copy smoke (683 static keys) | Live server/provider-generated content remains domain data rather than UI copy | Add each new product message to the explicit VI→EN map |
+| Bilingual UI coverage | Pass for new error copy | `resources.ts`, all static `localizeText(...)` calls, locale copy smoke (687 static keys) | Live server/provider-generated content remains domain data rather than UI copy | Add each new product message to the explicit VI→EN map |
 | Code-doc consistency | Pass | `TESTING.md`, package script, affected feature sources | None in this increment | Keep the guard scoped to user-facing error surfaces |
 | Runtime verification | Partial | `npm run validate`, `npm run build`, `npm run test:errors:copy` | Authenticated backend and media errors need clean-stack/browser proof | Preserve the deterministic failure path and do not add fallback success behavior |
 
@@ -166,7 +166,7 @@ Corrections in this increment:
   leak protocol or implementation text into the UI.
 - Added `test:errors:copy` as a regression check for the audited error surfaces.
 - Expanded the locale guard to every static `localizeText(...)` call under
-  `src/`; 683 keys currently have explicit English translations.
+  `src/`; 687 keys currently have explicit English translations.
 
 # Follow-up self-review (2026-08-29, create-room modal increment)
 
@@ -195,6 +195,22 @@ Corrections in this increment:
 The profile dialog now disables its own focus boundary while a nested report or
 Radix confirm dialog is open, preventing two modal layers from competing for
 Tab/Escape events.
+
+# Follow-up self-review (2026-08-29, message-action failure increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for ChatWindow actions | `getUserFacingErrorMessage`, guarded async action boundary, sanitized profile-load failure | Authenticated provider failure still needs clean-stack browser proof | Keep diagnostics in operator logs; show only stable localized copy |
+| Bilingual UI coverage | Pass | `MESSENGER_COPY`, `resources.ts`, `test:i18n:copy` (687 keys) | Domain content remains untranslated by design | Translate every product status/error and keep message content verbatim |
+| Promise lifecycle | Pass for audited actions | Delete, pin, history, clipboard and reply-jump failures are caught before event handlers return | Other feature-specific action handlers still need the same audit | No unhandled UI action rejection is acceptable |
+| Traceability | Pass | `ChatWindow.tsx`, `messengerCopy.ts`, `resources.ts`, `TESTING.md` checks | Full authenticated browser journey remains pending | Preserve this guard when adding new message actions |
+
+Corrections in this increment:
+
+- Wrapped all ChatWindow message actions in a single status-aware error boundary;
+  reply jumps are awaited so pagination failures reach the same user-facing path.
+- Added localized feedback for profile-load failures and report submission, and
+  cleared stale profile data before opening a new profile.
 
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 
