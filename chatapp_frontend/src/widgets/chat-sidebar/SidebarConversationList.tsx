@@ -1,5 +1,4 @@
 import { MessageSquare } from "lucide-react";
-import * as React from "react";
 import { ConversationItem } from "./ConversationItem";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
 import { EmptyState } from "@/shared/ui/EmptyState";
@@ -13,7 +12,6 @@ interface SidebarConversationListProps {
   onSelectConversation: (conversationId: string) => void;
   onPinConversation: (conversationId: string) => void;
   onUnpinConversation: (conversationId: string) => void;
-  sentinelRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const SidebarConversationList = ({
@@ -24,7 +22,6 @@ export const SidebarConversationList = ({
   onSelectConversation,
   onPinConversation,
   onUnpinConversation,
-  sentinelRef,
 }: SidebarConversationListProps) => {
   if (conversations.length === 0) {
     return (
@@ -53,7 +50,6 @@ export const SidebarConversationList = ({
             onUnpin={onUnpinConversation}
           />
         ))}
-        <div ref={sentinelRef} className="h-4 w-full" />
       </div>
 
       {loading ? (

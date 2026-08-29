@@ -292,16 +292,11 @@ export const mapToMessage = (dto: BackendMessage): Message => {
 
 /* --- Conversation API --- */
 
-export const getConversations = async (page = 0, size = 30): Promise<PaginatedResponse<Conversation>> => {
+export const getConversations = async (limit = 30): Promise<Conversation[]> => {
     const response = await apiClient.get<CanonicalConversationListItem[]>('/conversations', {
-        params: { limit: Math.min(100, Math.max(size, (page + 1) * size)) }
+        params: { limit: Math.min(100, Math.max(10, limit)) }
     });
-    return {
-        content: response.data.map(mapConversationListItem),
-        hasNext: false,
-        number: page,
-        size: response.data.length,
-    };
+    return response.data.map(mapConversationListItem);
 };
 
 export const getConversationById = async (id: string): Promise<Conversation> => {
@@ -496,8 +491,8 @@ export const getConversationUnreadCount = async (conversationId: string): Promis
     if (!conversationId) {
         return 0;
     }
-    const response = await getConversations(0, 200);
-    const matched = response.content.find((conversation) => conversation.conversationId === conversationId);
+    const conversations = await getConversations(200);
+    const matched = conversations.find((conversation) => conversation.conversationId === conversationId);
     return matched?.unreadCount ?? 0;
 };
 

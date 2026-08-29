@@ -69,48 +69,25 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
     activeConversationId: null,
     isInitialized: false,
     friendRequestCount: 0,
-    conversationsHasNext: false,
-    conversationsPage: 0,
-    _loadedConversationIds: new Set(),
 
     setActiveView: (view) => set({ activeView: view }, false, 'setActiveView'),
 
-    setConversations: (conversations, hasNext = false, page = 0) => {
+    setConversations: (conversations) => {
         const merged = mergeConversations([], conversations);
-        const ids = new Set(merged.map((c) => c.conversationId));
         set({
             conversations: merged,
-            conversationsHasNext: hasNext,
-            conversationsPage: page,
-            _loadedConversationIds: ids,
             isInitialized: true,
         }, false, 'setConversations');
     },
 
-    appendConversations: (newConvs, hasNext, page) => set((state) => {
-        const merged = mergeConversations(state.conversations, newConvs);
-        const updatedIds = new Set(state._loadedConversationIds);
-        newConvs.forEach(c => updatedIds.add(c.conversationId));
-        return {
-            conversations: merged,
-            conversationsHasNext: hasNext,
-            conversationsPage: page,
-            _loadedConversationIds: updatedIds
-        };
-    }, false, 'appendConversations'),
-
     setActiveConversation: (id) => set({ activeConversationId: id, activeView: 'chat' }, false, 'setActiveConversation'),
 
     hoistConversation: (conversation: Conversation) => set((state) => {
-        const updatedIds = new Set(state._loadedConversationIds);
-        updatedIds.add(conversation.conversationId);
-
         return {
             conversations: sortConversations([
                 ...state.conversations.filter((item) => item.conversationId !== conversation.conversationId),
                 conversation
-            ]),
-            _loadedConversationIds: updatedIds
+            ])
         };
     }, false, 'hoistConversation'),
 
@@ -184,9 +161,6 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         conversations: [],
         activeConversationId: null,
         friendRequestCount: 0,
-        conversationsHasNext: false,
-        conversationsPage: 0,
-        _loadedConversationIds: new Set(),
         isInitialized: false,
         messages: {},
         messagesPagination: {},

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
@@ -24,8 +24,6 @@ export const ChatSidebar = () => {
     activeConversationId,
     setActiveView,
     activeView,
-    loadMoreConversations,
-    conversationsHasNext,
     loading,
     pinConversation,
     unpinConversation,
@@ -68,7 +66,6 @@ export const ChatSidebar = () => {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState<SettingsTab>('profile');
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const filteredConversations = useMemo(
     () =>
@@ -115,23 +112,6 @@ export const ChatSidebar = () => {
   const closeNotificationPanel = useCallback(() => {
     setIsNotificationPanelOpen(false);
   }, []);
-
-  useEffect(() => {
-    if (!conversationsHasNext || loading || searchTerm) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        void loadMoreConversations();
-      }
-    }, { threshold: 0.1 });
-
-    const sentinel = sentinelRef.current;
-    if (sentinel) observer.observe(sentinel);
-
-    return () => {
-      if (sentinel) observer.unobserve(sentinel);
-    };
-  }, [conversationsHasNext, loadMoreConversations, loading, searchTerm]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -185,7 +165,6 @@ export const ChatSidebar = () => {
           onSelectConversation={handleSelectConversation}
           onPinConversation={pinConversation}
           onUnpinConversation={unpinConversation}
-          sentinelRef={sentinelRef}
         />
       </div>
 

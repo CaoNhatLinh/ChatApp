@@ -61,7 +61,6 @@ const clearInitSubscriptions = (key: string): void => {
 interface UseMessengerResult {
     initMessenger: () => Promise<void>;
     selectConversation: (conversationId: string | null) => Promise<void>;
-    loadMoreConversations: () => Promise<void>;
     loadMoreMessages: (conversationId: string) => Promise<void>;
     sendMessage: (content: string, type?: MessageType, options?: Partial<SendMessageRequest>) => Promise<void>;
     editMessage: (messageId: string, content: string) => Promise<Message | null>;
@@ -74,7 +73,6 @@ interface UseMessengerResult {
     error: string | null;
     isSidebarOpen: boolean;
     conversations: Conversation[];
-    conversationsHasNext: boolean;
     activeView: ConversationSlice['activeView'];
     activeConversationId: string | null;
     messagesPagination: MessageSlice['messagesPagination'];
@@ -136,9 +134,7 @@ export const useMessenger = (): UseMessengerResult => {
         error,
         isSidebarOpen,
         conversations,
-        conversationsHasNext,
         messagesPagination,
-        appendConversations,
         prependMessages,
         typingUsers,
         friendRequestCount
@@ -149,9 +145,7 @@ export const useMessenger = (): UseMessengerResult => {
         error: state.error,
         isSidebarOpen: state.isSidebarOpen,
         conversations: state.conversations,
-        conversationsHasNext: state.conversationsHasNext,
         messagesPagination: state.messagesPagination,
-        appendConversations: state.appendConversations,
         prependMessages: state.prependMessages,
         friendRequestCount: state.friendRequestCount,
         typingUsers: state.activeConversationId ? (state.typingUsers[state.activeConversationId] || EMPTY_TYPING) : EMPTY_TYPING
@@ -166,7 +160,6 @@ export const useMessenger = (): UseMessengerResult => {
 
     const refreshConversationSeqRef = useRef<Map<string, number>>(new Map());
     const loadMoreInFlightRef = useRef<Set<string>>(new Set());
-    const loadMoreConversationsInFlightRef = useRef(false);
     const conversationLoadRequestRef = useRef(0);
 
     const refreshConversationSummary = useCallback(async (conversationId: string) => {
@@ -222,11 +215,11 @@ export const useMessenger = (): UseMessengerResult => {
 
             try {
                 const [convResponse, requestResponse] = await Promise.all([
-                    getConversations(0, CONVERSATION_PAGE_SIZE),
+                    getConversations(CONVERSATION_PAGE_SIZE),
                     user?.userId ? getReceivedRequests(100) : Promise.resolve<FriendshipStatusResponse | null>(null)
                 ]);
 
-                setConversations(convResponse.content, convResponse.hasNext, convResponse.number);
+                setConversations(convResponse);
 
                 if (requestResponse) {
                     setFriendRequestCount(requestResponse.userDetails.length);
@@ -412,27 +405,6 @@ export const useMessenger = (): UseMessengerResult => {
         user?.userId,
     ]);
 
-    const loadMoreConversations = useCallback(async () => {
-        if (loadMoreConversationsInFlightRef.current) return;
-        loadMoreConversationsInFlightRef.current = true;
-
-        try {
-            const state = useMessengerStore.getState();
-            if (state.loading || !state.conversationsHasNext) {
-                return;
-            }
-
-            const nextPage = state.conversationsPage + 1;
-            const response = await getConversations(nextPage, CONVERSATION_PAGE_SIZE);
-            appendConversations(response.content, response.hasNext, response.number);
-        } catch (err: unknown) {
-            logger.error('[useMessenger] Error loading more conversations', err instanceof Error ? err.message : String(err));
-            notifyError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadConversationsFailed));
-        } finally {
-            loadMoreConversationsInFlightRef.current = false;
-        }
-    }, [appendConversations]);
-
         const loadMoreMessages = useCallback(async (conversationId: string) => {
         if (loadMoreInFlightRef.current.has(conversationId)) {
             return;
@@ -579,7 +551,6 @@ export const useMessenger = (): UseMessengerResult => {
     return {
         initMessenger,
         selectConversation,
-        loadMoreConversations,
         loadMoreMessages,
         sendMessage,
         editMessage,
@@ -592,7 +563,6 @@ export const useMessenger = (): UseMessengerResult => {
         error,
         isSidebarOpen,
         conversations,
-        conversationsHasNext,
         activeView,
         activeConversationId,
         messagesPagination,

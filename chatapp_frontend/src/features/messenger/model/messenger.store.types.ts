@@ -12,14 +12,10 @@ export interface ConversationSlice {
     activeConversationId: string | null;
     isInitialized: boolean;
     friendRequestCount: number;
-    conversationsHasNext: boolean;
-    conversationsPage: number;
-    _loadedConversationIds: Set<string>;
     resetState: () => void;
 
     setActiveView: (view: 'chat' | 'contacts') => void;
-    setConversations: (conversations: Conversation[], hasNext?: boolean, page?: number) => void;
-    appendConversations: (conversations: Conversation[], hasNext: boolean, page: number) => void;
+    setConversations: (conversations: Conversation[]) => void;
     setActiveConversation: (id: string | null) => void;
     hoistConversation: (conversation: Conversation) => void;
     setFriendRequestCount: (count: number) => void;

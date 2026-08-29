@@ -1071,3 +1071,19 @@ Correction in this increment:
 
 - Added the missing `limit` parameter references for room-member and global
   admin room-detail reads in the canonical OpenAPI document.
+
+# Follow-up self-review (2026-08-29, conversation list pagination cleanup)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Runtime truthfulness | Pass | Backend `GET /conversations` returns a bounded array; frontend no longer fabricates `hasNext/page` metadata or invokes an unreachable load-more callback | Cursor pagination for very large room sets remains a specified but unimplemented capability | Show the bounded list that the API actually returns |
+| Dead-code discipline | Pass | Removed `loadMoreConversations`, conversation pagination state, IntersectionObserver sentinel, and unused `_loadedConversationIds` state; message cursor pagination remains intact | No compatibility wrapper is kept for the deleted fake path | Delete state and UI affordances that cannot be backed by the current contract |
+| Failure safety | Pass | Initial room load still uses the existing HTTP error boundary and loading state; no empty-list fallback was introduced | Live Cassandra projection and large-room performance proof remain pending | Keep provider failures visible rather than presenting a false second page |
+| Regression safety | Pass | Next production build, type-check, lint, public/deep-link smoke, Contacts locale smoke, and responsive UI smoke pass after cleanup | Authenticated multi-account room loading remains blocked by infrastructure | Preserve build/browser gates for the canonical shell |
+| Traceability | Pass | `messenger.api.ts`, `useMessenger`, conversation slice/types, Sidebar components, function audit, and this entry now state bounded room listing plus the explicit cursor gap | Implementing cursor pagination requires a separately specified response cursor and Cassandra paging-state boundary | Record the missing feature instead of retaining fake pagination |
+
+Correction in this increment:
+
+- Removed the non-functional conversation load-more path end to end. The
+  sidebar now consumes the bounded canonical room list directly, while message
+  history keeps its real cursor pagination contract.
