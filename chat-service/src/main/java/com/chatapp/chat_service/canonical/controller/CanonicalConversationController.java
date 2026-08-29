@@ -135,6 +135,14 @@ public class CanonicalConversationController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{conversationId}/roles/{roleId}")
+    public ConversationRole updateRole(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID roleId,
+            @Valid @RequestBody CanonicalApiContracts.ConversationRoleUpdateRequest request) {
+        return roles.update(actorId(), conversationId, roleId, request);
+    }
+
     @PostMapping("/{conversationId}/members/{userId}/roles")
     public ResponseEntity<Void> assignRoles(
             @PathVariable UUID conversationId,

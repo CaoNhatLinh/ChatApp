@@ -173,6 +173,15 @@ public final class CanonicalApiContracts {
             Integer rolePosition) {
     }
 
+    public record ConversationRoleUpdateRequest(
+            @NotBlank String displayName,
+            @NotBlank String colorHex,
+            @NotNull Set<String> permissionCodes,
+            @NotNull Boolean isDefault,
+            @NotNull Integer rolePosition,
+            @NotNull Instant expectedUpdatedAt) {
+    }
+
     public record ConversationRoleAssignmentRequest(@NotNull Set<UUID> roleIds) {
     }
 

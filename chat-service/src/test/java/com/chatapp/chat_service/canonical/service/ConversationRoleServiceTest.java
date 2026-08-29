@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.service;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleCreateRequest;
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleUpdateRequest;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.same;
 
 class ConversationRoleServiceTest {
 
@@ -107,6 +109,108 @@ class ConversationRoleServiceTest {
                 .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
                 .hasMessageContaining("already exists");
 
+        verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updatesAnEditableRoleBehindTheMembershipRevisionBarrier() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        Instant originalUpdatedAt = Instant.parse("2026-08-29T08:00:00Z");
+        ConversationRole original = new ConversationRole(
+                conversationId, 200, UUID.randomUUID(), "HELPER", "Helper", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.parse("2026-08-28T08:00:00Z"), originalUpdatedAt);
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(original));
+        when(authorization.effectivePermissions(conversationId, actorId))
+                .thenReturn(EnumSet.allOf(ConversationPermission.class));
+        when(repository.markRoleUpdating(original, originalUpdatedAt)).thenReturn(true);
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(9L);
+        when(store.advanceConversationRoleRevision(conversationId, 9L)).thenReturn(true);
+        when(repository.updateRoleAndActivate(any())).thenReturn(true);
+
+        ConversationRole updated = service.update(actorId, conversationId, original.roleId(),
+                new ConversationRoleUpdateRequest(
+                        "Community helpers", "#22C55E", Set.of("MEMBER_KICK"), true, 350,
+                        originalUpdatedAt));
+
+        assertThat(updated.displayName()).isEqualTo("Community helpers");
+        assertThat(updated.colorHex()).isEqualTo("#22C55E");
+        assertThat(updated.permissions()).containsExactly(ConversationPermission.MEMBER_KICK);
+        assertThat(updated.isDefault()).isTrue();
+        assertThat(updated.rolePosition()).isEqualTo(350);
+        verify(repository).updateRoleAndActivate(same(updated));
+        verify(repository, never()).restoreUpdatingRole(original);
+        verify(events).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void refusesToUpdateProtectedSystemRole() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        ConversationRole owner = role(conversationId, UUID.randomUUID(), "OWNER", false, true);
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(owner));
+
+        assertThatThrownBy(() -> service.update(actorId, conversationId, owner.roleId(),
+                new ConversationRoleUpdateRequest(
+                        "Owner", "#F97316", Set.of("MESSAGE_SEND"), false, 10_000, owner.updatedAt())))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("system roles");
+
+        verify(repository, never()).markRoleUpdating(any(), any());
+    }
+
+    @Test
+    void refusesToAddPermissionsTheRoleEditorDoesNotHave() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        ConversationRole original = new ConversationRole(
+                conversationId, 200, UUID.randomUUID(), "HELPER", "Helper", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.now(), Instant.now());
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(original));
+        when(authorization.effectivePermissions(conversationId, actorId))
+                .thenReturn(Set.of(ConversationPermission.MESSAGE_PIN));
+
+        assertThatThrownBy(() -> service.update(actorId, conversationId, original.roleId(),
+                new ConversationRoleUpdateRequest(
+                        "Helpers", "#22C55E", Set.of("MEMBER_KICK"), false, 250,
+                        original.updatedAt())))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("cannot grant");
+
+        verify(repository, never()).markRoleUpdating(any(), any());
+        verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void restoresAnUpdatingRoleWhenTheAuthorityRevisionChanged() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        ConversationRole original = new ConversationRole(
+                conversationId, 200, UUID.randomUUID(), "HELPER", "Helper", "#3366FF",
+                Set.of(ConversationPermission.MESSAGE_PIN), false, false,
+                actorId, Instant.now(), Instant.now());
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, "GROUP", actorId));
+        when(repository.findRoles(conversationId)).thenReturn(List.of(original));
+        when(authorization.effectivePermissions(conversationId, actorId))
+                .thenReturn(EnumSet.allOf(ConversationPermission.class));
+        when(repository.markRoleUpdating(original, original.updatedAt())).thenReturn(true);
+        when(store.requireConversationRoleRevision(conversationId)).thenReturn(4L);
+        when(store.advanceConversationRoleRevision(conversationId, 4L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.update(actorId, conversationId, original.roleId(),
+                new ConversationRoleUpdateRequest(
+                        "Helpers", "#22C55E", Set.of("MESSAGE_PIN"), false, 250,
+                        original.updatedAt())))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
+                .hasMessageContaining("changed concurrently");
+
+        verify(repository).restoreUpdatingRole(original);
+        verify(repository, never()).updateRoleAndActivate(any());
         verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 

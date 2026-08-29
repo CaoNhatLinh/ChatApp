@@ -38,6 +38,7 @@ http:
     - GET /conversations/{conversationId}/members
     - GET /conversations/{conversationId}/roles
     - POST /conversations/{conversationId}/roles
+    - PUT /conversations/{conversationId}/roles/{roleId}
     - DELETE /conversations/{conversationId}/roles/{roleId}
     - GET /conversations/{conversationId}/permissions
     - POST /conversations/{conversationId}/members

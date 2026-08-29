@@ -2,6 +2,7 @@ package com.chatapp.chat_service.canonical.service;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleCreateRequest;
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.ConversationRoleUpdateRequest;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
@@ -151,6 +152,60 @@ public class ConversationRoleService {
         }
         events.record(actorId, conversationId, "ROLE_DELETED", "conversation_role", roleId.toString(),
                 null, null, Map.of("roleCode", role.roleCode()), Map.of());
+    }
+
+    public ConversationRole update(
+            UUID actorId,
+            UUID conversationId,
+            UUID roleId,
+            ConversationRoleUpdateRequest request) {
+        authorization.requirePermission(conversationId, actorId, ConversationPermission.ROLE_UPDATE);
+        requireRoleEnabledConversation(conversationId);
+        ConversationRole original = findRole(conversationId, roleId);
+        if (original.isSystem()) {
+            throw new ConflictException("system roles cannot be updated");
+        }
+        validatePresentation(request.displayName(), request.colorHex(), request.rolePosition());
+        Set<ConversationPermission> requestedPermissions = parsePermissions(request.permissionCodes());
+        if (!authorization.effectivePermissions(conversationId, actorId).containsAll(requestedPermissions)) {
+            throw new BadRequestException("cannot grant permissions the actor does not have");
+        }
+        if (!original.updatedAt().equals(request.expectedUpdatedAt())
+                || !repository.markRoleUpdating(original, request.expectedUpdatedAt())) {
+            throw new ConflictException("conversation role changed concurrently");
+        }
+
+        Instant now = Instant.now();
+        ConversationRole updated = new ConversationRole(
+                conversationId, request.rolePosition(), original.roleId(), original.roleCode(),
+                request.displayName().trim(), request.colorHex().toUpperCase(Locale.ROOT), requestedPermissions,
+                request.isDefault(), false, original.createdBy(), original.createdAt(), now);
+        boolean saved = false;
+        try {
+            long roleRevision = store.requireConversationRoleRevision(conversationId);
+            if (!store.advanceConversationRoleRevision(conversationId, roleRevision)) {
+                throw new ConflictException("conversation role authority changed concurrently");
+            }
+            if (!repository.updateRoleAndActivate(updated)) {
+                throw new ConflictException("conversation role changed concurrently");
+            }
+            saved = true;
+        } finally {
+            if (!saved) {
+                repository.restoreUpdatingRole(original);
+            }
+        }
+        events.record(actorId, conversationId, "ROLE_UPDATED", "conversation_role", roleId.toString(),
+                null, null,
+                Map.of("displayName", original.displayName(), "colorHex", original.colorHex(),
+                        "permissions", original.permissions().toString(),
+                        "isDefault", Boolean.toString(original.isDefault()),
+                        "rolePosition", Integer.toString(original.rolePosition())),
+                Map.of("displayName", updated.displayName(), "colorHex", updated.colorHex(),
+                        "permissions", updated.permissions().toString(),
+                        "isDefault", Boolean.toString(updated.isDefault()),
+                        "rolePosition", Integer.toString(updated.rolePosition())));
+        return updated;
     }
 
     public void assign(UUID actorId, UUID conversationId, UUID targetUserId, Set<UUID> roleIds) {

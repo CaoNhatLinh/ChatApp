@@ -175,13 +175,13 @@ export interface ConversationRole {
     roleId: string;
     roleCode: string;
     displayName: string;
-    colorHex?: string;
+    colorHex: string;
     permissions: string[];
     isDefault: boolean;
     isSystem: boolean;
-    createdBy?: string;
-    createdAt?: string;
-    updatedAt?: string;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface ConversationPermissionsView {
@@ -196,6 +196,15 @@ export interface ConversationRoleCreateRequest {
     permissionCodes: string[];
     isDefault: boolean;
     rolePosition?: number;
+}
+
+export interface ConversationRoleUpdateRequest {
+    displayName: string;
+    colorHex: string;
+    permissionCodes: string[];
+    isDefault: boolean;
+    rolePosition: number;
+    expectedUpdatedAt: string;
 }
 
 export interface ConversationChatPolicyRequest {
@@ -628,6 +637,18 @@ export const createConversationRole = async (
     request: ConversationRoleCreateRequest,
 ): Promise<ConversationRole> => {
     const response = await apiClient.post<ConversationRole>(`/conversations/${conversationId}/roles`, request);
+    return response.data;
+};
+
+export const updateConversationRole = async (
+    conversationId: string,
+    roleId: string,
+    request: ConversationRoleUpdateRequest,
+): Promise<ConversationRole> => {
+    const response = await apiClient.put<ConversationRole>(
+        `/conversations/${conversationId}/roles/${roleId}`,
+        request,
+    );
     return response.data;
 };
 

@@ -40,9 +40,12 @@ const baseRoles = [
     roleCode: 'OWNER',
     displayName: 'Owner',
     colorHex: '#F59E0B',
-    permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK'],
+    permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK'],
     isDefault: false,
     isSystem: true,
+    createdBy: ownerId,
+    createdAt: now,
+    updatedAt: now,
   },
   {
     conversationId,
@@ -54,6 +57,9 @@ const baseRoles = [
     permissions: ['MEMBER_KICK'],
     isDefault: false,
     isSystem: false,
+    createdBy: ownerId,
+    createdAt: now,
+    updatedAt: now,
   },
 ];
 const members = [
@@ -65,6 +71,7 @@ let roles = [...baseRoles];
 const roleAssignments = [];
 const ownershipTransfers = [];
 const createdRoles = [];
+const updatedRoles = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const consoleErrors = [];
@@ -100,7 +107,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') return json(members);
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
-    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK'], owner: true });
+    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK'], owner: true });
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'POST') {
     const payload = request.postDataJSON();
@@ -115,9 +122,27 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       permissions: payload.permissionCodes,
       isDefault: payload.isDefault,
       isSystem: false,
+      createdBy: ownerId,
+      createdAt: now,
+      updatedAt: now,
     };
     roles = [...roles, created];
     return json(created, 201);
+  }
+  if (path.endsWith(`/conversations/${conversationId}/roles/${moderatorRoleId}`) && method === 'PUT') {
+    const payload = request.postDataJSON();
+    updatedRoles.push(payload);
+    const updated = {
+      ...roles.find((role) => role.roleId === moderatorRoleId),
+      rolePosition: payload.rolePosition,
+      displayName: payload.displayName,
+      colorHex: payload.colorHex,
+      permissions: payload.permissionCodes,
+      isDefault: payload.isDefault,
+      updatedAt: '2026-08-29T09:00:00Z',
+    };
+    roles = roles.map((role) => role.roleId === moderatorRoleId ? updated : role);
+    return json(updated);
   }
   if (path.endsWith(`/conversations/${conversationId}/members/${memberId}/roles`) && method === 'POST') {
     roleAssignments.push(request.postDataJSON());
@@ -151,10 +176,15 @@ await rolesSection.getByLabel('Mã vai trò').fill('REVIEWER');
 await rolesSection.getByText('Gửi tin nhắn', { exact: true }).click();
 await rolesSection.getByRole('button', { name: 'Tạo vai trò', exact: true }).click();
 await rolesSection.getByText('Reviewer', { exact: true }).waitFor();
+await rolesSection.getByRole('button', { name: 'Chỉnh sửa vai trò Product steward' }).click();
+await rolesSection.getByLabel('Tên vai trò').fill('Product lead');
+await rolesSection.getByText('Gửi tin nhắn', { exact: true }).click();
+await rolesSection.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click();
+await rolesSection.getByText('Product lead', { exact: true }).waitFor();
 
 const memberSection = page.locator('details').filter({ hasText: 'Linh Tran' });
 await memberSection.locator('summary').click();
-await memberSection.getByRole('button', { name: 'Product steward', exact: true }).click();
+await memberSection.getByRole('button', { name: 'Product lead', exact: true }).click();
 await memberSection.getByRole('button', { name: 'Chuyển quyền chủ phòng', exact: true }).click();
 await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).getByRole('button', { name: 'Chuyển quyền', exact: true }).click();
 await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).waitFor({ state: 'detached' });
@@ -167,13 +197,16 @@ const overflow = await page.evaluate(() => document.documentElement.scrollWidth 
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, roleAssignments, ownershipTransfers, overflow, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roleAssignments, ownershipTransfers, overflow, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
 if (
   createdRoles[0]?.roleCode !== 'REVIEWER'
   || !createdRoles[0]?.permissionCodes?.includes('MESSAGE_SEND')
+  || updatedRoles[0]?.displayName !== 'Product lead'
+  || updatedRoles[0]?.expectedUpdatedAt !== now
+  || !updatedRoles[0]?.permissionCodes?.includes('MESSAGE_SEND')
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
   || overflow

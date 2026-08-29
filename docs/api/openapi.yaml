@@ -256,6 +256,11 @@ paths:
           description: Effective room permissions for the authenticated member
           content: {application/json: {schema: {$ref: '#/components/schemas/ConversationPermissions'}}}
   /conversations/{conversationId}/roles/{roleId}:
+    put:
+      tags: [Conversations]
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: roleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationRoleUpdateRequest'}}}}
+      responses: {'200': {description: Role updated}}
     delete:
       tags: [Conversations]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: roleId, in: path, required: true, schema: {type: string, format: uuid}}]
@@ -746,6 +751,7 @@ components:
     ConversationMember: {type: object, required: [userId, conversationId, role, roleIds, joinedAt, username, displayName], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string, enum: [owner, member]}, roleIds: {type: array, items: {type: string, format: uuid}}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}}}
     ConversationPermissions: {type: object, required: [permissions, owner], properties: {permissions: {type: array, items: {type: string}}, owner: {type: boolean}}}
     ConversationRoleCreateRequest: {type: object, required: [roleCode, displayName, colorHex, permissionCodes, isDefault], properties: {roleCode: {type: string, pattern: '^[A-Z][A-Z0-9_]{1,31}$'}, displayName: {type: string, minLength: 1, maxLength: 64}, colorHex: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}, permissionCodes: {type: array, uniqueItems: true, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer, minimum: 1, maximum: 10000}}}
+    ConversationRoleUpdateRequest: {type: object, required: [displayName, colorHex, permissionCodes, isDefault, rolePosition, expectedUpdatedAt], properties: {displayName: {type: string, minLength: 1, maxLength: 64}, colorHex: {type: string, pattern: '^#[0-9A-Fa-f]{6}$'}, permissionCodes: {type: array, uniqueItems: true, items: {type: string}}, isDefault: {type: boolean}, rolePosition: {type: integer, minimum: 1, maximum: 10000}, expectedUpdatedAt: {type: string, format: date-time}}}
     ConversationChatPolicy: {type: object, required: [chatMode], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
     MemberChatPolicy: {type: object, properties: {mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}, reason: {type: string, maxLength: 500}}}
     ConversationNotificationPolicy: {type: object, required: [defaultNotificationLevel], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}}}

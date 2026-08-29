@@ -15,7 +15,7 @@ assignment to race into a deleted role.
 `conversation_roles_by_conversation` is keyed by `(conversation_id, role_code)`
 and stores a static `custom_role_count`. Creation conditionally increments the
 count and inserts the unique code in one partition-local batch. Role rows have
-an explicit `ACTIVE` or `DELETING` lifecycle.
+an explicit `ACTIVE`, `UPDATING`, or `DELETING` lifecycle.
 
 The membership partition stores a static `role_revision`. Assignment and
 ownership transfer condition their member mutation on the revision they used
@@ -25,12 +25,22 @@ assignments cannot select the deleting role. After the barrier, deletion either
 restores an assigned role or conditionally removes it and decrements the
 catalog count.
 
+Role updates use full replacement of editable presentation and permission
+fields; `role_code`, creator, and creation time are immutable. The client sends
+the `updated_at` value it read. The service conditionally marks that exact row
+`UPDATING`, advances `role_revision`, and then publishes the replacement as
+`ACTIVE`. Older assignments fail their revision CAS, while newer assignments
+cannot read the updating role. A failed update restores the original row to
+`ACTIVE` without changing its authority fields.
+
 ## Consequences
 
 - Role code uniqueness and the custom-role limit remain correct under
   concurrent creators.
 - Assignment, ownership transfer and deletion cannot commit a reference to a
   role removed by the same race.
+- Assignment cannot commit permissions from a role definition replaced by the
+  same race, and stale editors receive a conflict instead of overwriting data.
 - The two authority partitions are not presented as a cross-table transaction;
   the revision barrier makes their ordering explicit.
 - Existing role rows are not inferred or copied. Apply

@@ -26,6 +26,9 @@ public class CanonicalConversationRepository {
     private final PreparedStatement createCustomRole;
     private final PreparedStatement markRoleDeleting;
     private final PreparedStatement restoreRoleActive;
+    private final PreparedStatement markRoleUpdating;
+    private final PreparedStatement updateRoleAndActivate;
+    private final PreparedStatement restoreUpdatingRole;
     private final PreparedStatement deleteCustomRole;
 
     public CanonicalConversationRepository(CqlSession session) {
@@ -79,6 +82,22 @@ public class CanonicalConversationRepository {
         this.restoreRoleActive = session.prepare("""
                 UPDATE conversation_roles_by_conversation SET lifecycle_state = 'ACTIVE'
                 WHERE conversation_id = ? AND role_code = ? IF role_id = ? AND lifecycle_state = 'DELETING'
+                """);
+        this.markRoleUpdating = session.prepare("""
+                UPDATE conversation_roles_by_conversation SET lifecycle_state = 'UPDATING'
+                WHERE conversation_id = ? AND role_code = ?
+                IF role_id = ? AND lifecycle_state = 'ACTIVE' AND is_system = false AND updated_at = ?
+                """);
+        this.updateRoleAndActivate = session.prepare("""
+                UPDATE conversation_roles_by_conversation
+                SET role_position = ?, display_name = ?, color_hex = ?, permission_codes = ?,
+                    is_default = ?, updated_at = ?, lifecycle_state = 'ACTIVE'
+                WHERE conversation_id = ? AND role_code = ?
+                IF role_id = ? AND lifecycle_state = 'UPDATING'
+                """);
+        this.restoreUpdatingRole = session.prepare("""
+                UPDATE conversation_roles_by_conversation SET lifecycle_state = 'ACTIVE'
+                WHERE conversation_id = ? AND role_code = ? IF role_id = ? AND lifecycle_state = 'UPDATING'
                 """);
         this.deleteCustomRole = session.prepare("""
                 BEGIN BATCH
@@ -161,6 +180,26 @@ public class CanonicalConversationRepository {
         if (!session.execute(restoreRoleActive.bind(
                 role.conversationId(), role.roleCode(), role.roleId())).wasApplied()) {
             throw new IllegalStateException("conversation role deletion state changed concurrently");
+        }
+    }
+
+    public boolean markRoleUpdating(ConversationRole role, java.time.Instant expectedUpdatedAt) {
+        return session.execute(markRoleUpdating.bind(
+                role.conversationId(), role.roleCode(), role.roleId(), expectedUpdatedAt)).wasApplied();
+    }
+
+    public boolean updateRoleAndActivate(ConversationRole role) {
+        Set<String> permissions = role.permissions().stream().map(Enum::name)
+                .collect(java.util.stream.Collectors.toSet());
+        return session.execute(updateRoleAndActivate.bind(
+                role.rolePosition(), role.displayName(), role.colorHex(), permissions, role.isDefault(),
+                role.updatedAt(), role.conversationId(), role.roleCode(), role.roleId())).wasApplied();
+    }
+
+    public void restoreUpdatingRole(ConversationRole role) {
+        if (!session.execute(restoreUpdatingRole.bind(
+                role.conversationId(), role.roleCode(), role.roleId())).wasApplied()) {
+            throw new IllegalStateException("conversation role update state changed concurrently");
         }
     }
 
