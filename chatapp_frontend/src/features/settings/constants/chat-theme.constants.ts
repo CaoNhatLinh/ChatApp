@@ -127,6 +127,16 @@ export interface RoomVisualComputed {
 
 export const ROOM_THEME_STORAGE_KEY = "novachat-room-visual-settings";
 
+export const normalizeRoomBackgroundUrl = (value: string | null | undefined): string | null => {
+  if (value == null || value.trim() === '') return null;
+  const normalized = value.trim();
+  const parsed = new URL(normalized);
+  if (!parsed.hostname || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+    throw new Error('customBackgroundUrl must be an absolute http(s) URL');
+  }
+  return normalized;
+};
+
 export const getRoomVisualComputed = (
   state: RoomVisualSettingsState,
   conversationId: string | null,

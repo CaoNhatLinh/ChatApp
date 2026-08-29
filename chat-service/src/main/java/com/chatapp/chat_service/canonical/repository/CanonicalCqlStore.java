@@ -3,8 +3,10 @@ package com.chatapp.chat_service.canonical.repository;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalInviteLink;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotification;
@@ -156,6 +158,11 @@ public class CanonicalCqlStore {
 
     private final PreparedStatement getNotificationSetting;
     private final PreparedStatement saveNotificationSetting;
+    private final PreparedStatement getChatPreferences;
+    private final PreparedStatement saveChatPreferences;
+    private final PreparedStatement listConversationPreferencesByUser;
+    private final PreparedStatement saveConversationPreferences;
+    private final PreparedStatement deleteConversationPreferences;
     private final PreparedStatement listNotificationsByMonth;
     private final PreparedStatement markNotificationAsRead;
     private final PreparedStatement deleteNotification;
@@ -658,6 +665,26 @@ public class CanonicalCqlStore {
                     (user_id, global_level, push_enabled, email_enabled, desktop_enabled, sound_enabled,
                      quiet_hours_start, quiet_hours_end, timezone, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.getChatPreferences = session.prepare("SELECT * FROM user_chat_preferences WHERE user_id = ?");
+        this.saveChatPreferences = session.prepare("""
+                INSERT INTO user_chat_preferences
+                    (user_id, default_theme_id, default_bubble_style_id, default_background_asset_id, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                """);
+        this.listConversationPreferencesByUser = session.prepare("""
+                SELECT * FROM conversation_preferences_by_user
+                WHERE user_id = ? LIMIT ?
+                """);
+        this.saveConversationPreferences = session.prepare("""
+                INSERT INTO conversation_preferences_by_user
+                    (user_id, conversation_id, theme_id, bubble_style_id, background_asset_id,
+                     custom_background_url, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.deleteConversationPreferences = session.prepare("""
+                DELETE FROM conversation_preferences_by_user
+                WHERE user_id = ? AND conversation_id = ?
                 """);
         this.listNotificationsByMonth = session.prepare("""
                 SELECT * FROM notifications_by_user
@@ -2008,6 +2035,41 @@ public class CanonicalCqlStore {
         ));
     }
 
+    public CanonicalChatPreferences readChatPreferences(UUID userId) {
+        Row row = session.execute(getChatPreferences.bind(userId)).one();
+        return row == null ? null : mapChatPreferences(row);
+    }
+
+    public void saveChatPreferences(CanonicalChatPreferences preferences) {
+        session.execute(saveChatPreferences.bind(
+                preferences.userId(),
+                preferences.defaultThemeId(),
+                preferences.defaultBubbleStyleId(),
+                preferences.defaultBackgroundAssetId(),
+                preferences.updatedAt()));
+    }
+
+    public List<CanonicalConversationPreferences> listConversationPreferences(UUID userId, int limit) {
+        return session.execute(listConversationPreferencesByUser.bind(userId, limit)).all().stream()
+                .map(this::mapConversationPreferences)
+                .toList();
+    }
+
+    public void saveConversationPreferences(CanonicalConversationPreferences preferences) {
+        session.execute(saveConversationPreferences.bind(
+                preferences.userId(),
+                preferences.conversationId(),
+                preferences.themeId(),
+                preferences.bubbleStyleId(),
+                preferences.backgroundAssetId(),
+                preferences.customBackgroundUrl(),
+                preferences.updatedAt()));
+    }
+
+    public void deleteConversationPreferences(UUID userId, UUID conversationId) {
+        session.execute(deleteConversationPreferences.bind(userId, conversationId));
+    }
+
     public List<CanonicalNotification> listNotifications(UUID userId, String month, int limit) {
         return session.execute(listNotificationsByMonth.bind(userId, month, limit)).all().stream()
                 .map(this::mapNotification)
@@ -2401,6 +2463,28 @@ public class CanonicalCqlStore {
                 row.getString("quiet_hours_start"),
                 row.getString("quiet_hours_end"),
                 row.getString("timezone"),
+                row.getInstant("updated_at")
+        );
+    }
+
+    private CanonicalChatPreferences mapChatPreferences(Row row) {
+        return new CanonicalChatPreferences(
+                row.getUuid("user_id"),
+                row.getString("default_theme_id"),
+                row.getString("default_bubble_style_id"),
+                row.getString("default_background_asset_id"),
+                row.getInstant("updated_at")
+        );
+    }
+
+    private CanonicalConversationPreferences mapConversationPreferences(Row row) {
+        return new CanonicalConversationPreferences(
+                row.getUuid("user_id"),
+                row.getUuid("conversation_id"),
+                row.getString("theme_id"),
+                row.getString("bubble_style_id"),
+                row.getString("background_asset_id"),
+                row.getString("custom_background_url"),
                 row.getInstant("updated_at")
         );
     }

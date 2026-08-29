@@ -3,8 +3,10 @@ package com.chatapp.chat_service.canonical.service;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalInviteLink;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotification;
@@ -35,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1400,6 +1403,68 @@ public class CanonicalBackendService {
         ));
     }
 
+    public CanonicalChatPreferences getChatAppearancePreferences(UUID actorId) {
+        requireUser(actorId);
+        CanonicalChatPreferences preferences = store.readChatPreferences(actorId);
+        if (preferences == null) {
+            preferences = new CanonicalChatPreferences(actorId, "aurora", "tiktok", null, Instant.now());
+            store.saveChatPreferences(preferences);
+        }
+        return preferences;
+    }
+
+    public List<CanonicalConversationPreferences> listConversationAppearancePreferences(UUID actorId) {
+        requireUser(actorId);
+        return store.listConversationPreferences(actorId, 200);
+    }
+
+    public void updateChatAppearancePreferences(
+            UUID actorId,
+            CanonicalApiContracts.ChatAppearancePreferencesRequest request) {
+        requireUser(actorId);
+        if (request == null) {
+            throw new BadRequestException("chat appearance preferences are required");
+        }
+        String defaultThemeId = requireThemeId(request.defaultThemeId());
+        String defaultBubbleStyleId = requireBubbleStyleId(request.defaultBubbleStyleId());
+        CanonicalChatPreferences current = getChatAppearancePreferences(actorId);
+        store.saveChatPreferences(new CanonicalChatPreferences(
+                actorId,
+                defaultThemeId,
+                defaultBubbleStyleId,
+                current.defaultBackgroundAssetId(),
+                Instant.now()));
+    }
+
+    public void updateConversationAppearancePreferences(
+            UUID actorId,
+            UUID conversationId,
+            CanonicalApiContracts.ConversationAppearancePreferencesRequest request) {
+        requireUser(actorId);
+        if (conversationId == null || request == null) {
+            throw new BadRequestException("conversation appearance preferences are required");
+        }
+        requireMember(conversationId, actorId);
+        String customBackgroundUrl = normalizeBackgroundUrl(request.customBackgroundUrl());
+        store.saveConversationPreferences(new CanonicalConversationPreferences(
+                actorId,
+                conversationId,
+                requireThemeId(request.themeId()),
+                null,
+                null,
+                customBackgroundUrl,
+                Instant.now()));
+    }
+
+    public void deleteConversationAppearancePreferences(UUID actorId, UUID conversationId) {
+        requireUser(actorId);
+        if (conversationId == null) {
+            throw new BadRequestException("conversationId is required");
+        }
+        requireMember(conversationId, actorId);
+        store.deleteConversationPreferences(actorId, conversationId);
+    }
+
     public List<CanonicalNotification> notifications(UUID actorId, String month, int limit) {
         requireUser(actorId);
         return store.listNotifications(actorId, month, Math.max(1, Math.min(200, limit)));
@@ -1436,6 +1501,37 @@ public class CanonicalBackendService {
         if (store.findConversationMember(conversationId, userId) == null) {
             throw new ForbiddenException("not member of conversation");
         }
+    }
+
+    private String requireThemeId(String themeId) {
+        if (themeId == null || !Set.of("aurora", "neon", "studio", "vapor").contains(themeId)) {
+            throw new BadRequestException("themeId must be one of aurora, neon, studio, vapor");
+        }
+        return themeId;
+    }
+
+    private String requireBubbleStyleId(String bubbleStyleId) {
+        if (bubbleStyleId == null || !Set.of("tiktok", "glass", "classic").contains(bubbleStyleId)) {
+            throw new BadRequestException("defaultBubbleStyleId must be one of tiktok, glass, classic");
+        }
+        return bubbleStyleId;
+    }
+
+    private String normalizeBackgroundUrl(String backgroundUrl) {
+        if (backgroundUrl == null || backgroundUrl.isBlank()) {
+            return null;
+        }
+        String normalized = backgroundUrl.trim();
+        try {
+            URI uri = URI.create(normalized);
+            String scheme = uri.getScheme();
+            if (uri.getHost() == null || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))) {
+                throw new IllegalArgumentException("unsupported background URL");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("customBackgroundUrl must be an absolute http(s) URL");
+        }
+        return normalized;
     }
 
     private Set<UUID> createSystemConversationRoles(UUID conversationId, UUID actorId, Instant now) {

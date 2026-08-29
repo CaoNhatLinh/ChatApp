@@ -180,6 +180,24 @@ public final class CqlCanonicalRecords {
             Instant updatedAt) {
     }
 
+    public record CanonicalChatPreferences(
+            UUID userId,
+            String defaultThemeId,
+            String defaultBubbleStyleId,
+            String defaultBackgroundAssetId,
+            Instant updatedAt) {
+    }
+
+    public record CanonicalConversationPreferences(
+            UUID userId,
+            UUID conversationId,
+            String themeId,
+            String bubbleStyleId,
+            String backgroundAssetId,
+            String customBackgroundUrl,
+            Instant updatedAt) {
+    }
+
     public record CanonicalAnalyticsPoint(
             LocalDate eventDay,
             String eventType,

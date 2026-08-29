@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_BUBBLE_STYLE_ID,
   DEFAULT_ROOM_THEME_ID,
   getRoomVisualComputed,
+  normalizeRoomBackgroundUrl,
   type ChatBubbleStyleId,
   ROOM_THEME_PRESETS,
   ROOM_THEME_STORAGE_KEY,
@@ -10,6 +11,13 @@ import {
   type RoomVisualSettingsState,
   type RoomVisualComputed,
 } from '@/features/settings/constants/chat-theme.constants';
+import {
+  getChatAppearancePreferences,
+  resetConversationAppearancePreference,
+  saveChatAppearancePreferences,
+  saveConversationAppearancePreference,
+} from '@/features/settings/api/chat-appearance.api';
+import { logger } from '@/shared/lib/logger';
 
 const EMPTY_ROOM_VISUAL_SETTINGS: RoomVisualSettingsState = {
   defaultRoomThemeId: DEFAULT_ROOM_THEME_ID,
@@ -30,7 +38,7 @@ const normalizeThemeState = (raw: string | null): RoomVisualSettingsState => {
 
   try {
     const parsed = JSON.parse(raw) as Partial<RoomVisualSettingsState>;
-        const defaultRoomThemeId = isRoomThemeId(parsed?.defaultRoomThemeId)
+    const defaultRoomThemeId = isRoomThemeId(parsed?.defaultRoomThemeId)
       ? parsed.defaultRoomThemeId
       : DEFAULT_ROOM_THEME_ID;
     const messageBubbleStyle = isBubbleStyleId(parsed?.messageBubbleStyle)
@@ -96,12 +104,70 @@ const persistRoomVisualSettings = (storageKey: string | null, settings: RoomVisu
 
 export const useRoomThemeState = (conversationId: string | null, userId: string | null) => {
   const storageKey = useMemo(() => getRoomVisualStorageKey(userId), [userId]);
+  const hasUserInteractedRef = useRef(false);
   const [settings, setSettings] = useState<RoomVisualSettingsState>(() =>
     getPersistedRoomVisualSettings(userId),
   );
 
   useEffect(() => {
+    hasUserInteractedRef.current = false;
     setSettings(getPersistedRoomVisualSettings(userId));
+    if (!userId) return;
+
+    let active = true;
+    void getChatAppearancePreferences()
+      .then((remote) => {
+        if (!active || hasUserInteractedRef.current) return;
+        const remoteRoomThemes = remote.rooms.reduce<RoomVisualSettingsState['roomThemes']>((acc, room) => {
+          const customBackgroundImage = room.customBackgroundUrl?.trim() || undefined;
+          acc[room.conversationId] = {
+            roomThemeId: room.themeId,
+            customBackgroundImage,
+          };
+          return acc;
+        }, {});
+        const next: RoomVisualSettingsState = {
+          defaultRoomThemeId: remote.defaultThemeId,
+          messageBubbleStyle: remote.defaultBubbleStyleId,
+          roomThemes: remoteRoomThemes,
+        };
+        persistRoomVisualSettings(getRoomVisualStorageKey(userId), next);
+        setSettings(next);
+      })
+      .catch((error: unknown) => {
+        logger.warn('[RoomTheme] Failed to load server preferences', error instanceof Error ? error.message : String(error));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const syncDefaults = useCallback((next: RoomVisualSettingsState) => {
+    if (!userId) return;
+    void saveChatAppearancePreferences(next.defaultRoomThemeId, next.messageBubbleStyle).catch((error: unknown) => {
+      logger.warn('[RoomTheme] Failed to save default preferences', error instanceof Error ? error.message : String(error));
+    });
+  }, [userId]);
+
+  const syncConversation = useCallback((conversationIdToSync: string, next: RoomVisualSettingsState) => {
+    if (!userId) return;
+    const override = next.roomThemes[conversationIdToSync];
+    const themeId = override?.roomThemeId ?? next.defaultRoomThemeId;
+    void saveConversationAppearancePreference(
+      conversationIdToSync,
+      themeId,
+      override.customBackgroundImage ?? null,
+    ).catch((error: unknown) => {
+      logger.warn('[RoomTheme] Failed to save room preference', error instanceof Error ? error.message : String(error));
+    });
+  }, [userId]);
+
+  const resetSyncedConversation = useCallback((conversationIdToReset: string) => {
+    if (!userId) return;
+    void resetConversationAppearancePreference(conversationIdToReset).catch((error: unknown) => {
+      logger.warn('[RoomTheme] Failed to reset room preference', error instanceof Error ? error.message : String(error));
+    });
   }, [userId]);
 
   const computed = useMemo<RoomVisualComputed>(
@@ -119,6 +185,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     : undefined;
 
   const setDefaultRoomTheme = useCallback((themeId: RoomThemeId) => {
+    hasUserInteractedRef.current = true;
     setSettings((current) => {
       const next: RoomVisualSettingsState = {
         ...current,
@@ -126,11 +193,13 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
       };
 
       persistRoomVisualSettings(storageKey, next);
+      syncDefaults(next);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, syncDefaults]);
 
   const setRoomBubbleStyle = useCallback((bubbleStyle: ChatBubbleStyleId) => {
+    hasUserInteractedRef.current = true;
     setSettings((current) => {
       const next: RoomVisualSettingsState = {
         ...current,
@@ -138,11 +207,13 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
       };
 
       persistRoomVisualSettings(storageKey, next);
+      syncDefaults(next);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, syncDefaults]);
 
   const setConversationTheme = useCallback((conversationIdToSet: string, themeId: RoomThemeId) => {
+    hasUserInteractedRef.current = true;
     setSettings((current) => {
       const next: RoomVisualSettingsState = {
         ...current,
@@ -156,11 +227,14 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
       };
 
       persistRoomVisualSettings(storageKey, next);
+      syncConversation(conversationIdToSet, next);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, syncConversation]);
 
   const setConversationBackground = useCallback((conversationIdToSet: string, backgroundUrl: string) => {
+    hasUserInteractedRef.current = true;
+    const normalizedBackgroundUrl = normalizeRoomBackgroundUrl(backgroundUrl);
     setSettings((current) => {
       const next: RoomVisualSettingsState = {
         ...current,
@@ -168,80 +242,56 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
           ...current.roomThemes,
           [conversationIdToSet]: {
             ...current.roomThemes[conversationIdToSet],
-            customBackgroundImage: backgroundUrl,
+            customBackgroundImage: normalizedBackgroundUrl ?? undefined,
           },
         },
       };
 
       persistRoomVisualSettings(storageKey, next);
+      syncConversation(conversationIdToSet, next);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, syncConversation]);
 
   const resetConversationTheme = useCallback((conversationIdToReset: string) => {
+    hasUserInteractedRef.current = true;
     setSettings((current) => {
-      const next: RoomVisualSettingsState = {
-        ...current,
-        roomThemes: {
-          ...current.roomThemes,
-          [conversationIdToReset]: {
-            roomThemeId: undefined,
-            customBackgroundImage: undefined,
-          },
-        },
-      };
+      const roomThemes = { ...current.roomThemes };
+      delete roomThemes[conversationIdToReset];
+      const next: RoomVisualSettingsState = { ...current, roomThemes };
 
       persistRoomVisualSettings(storageKey, next);
+      resetSyncedConversation(conversationIdToReset);
       return next;
     });
-  }, [storageKey]);
+  }, [resetSyncedConversation, storageKey]);
 
   const clearConversationBackground = useCallback((conversationIdToClear: string) => {
+    hasUserInteractedRef.current = true;
     setSettings((current) => {
       const previous = current.roomThemes[conversationIdToClear];
       if (!previous?.customBackgroundImage) return current;
 
-      const next: RoomVisualSettingsState = {
-        ...current,
-        roomThemes: {
-          ...current.roomThemes,
-          [conversationIdToClear]: {
-            roomThemeId: previous.roomThemeId,
-            customBackgroundImage: undefined,
-          },
-        },
-      };
-
-      persistRoomVisualSettings(storageKey, next);
-      return next;
-    });
-  }, [storageKey]);
-
-  const clearRoomSettingsIfEmpty = useCallback((conversationIdToClean: string) => {
-    setSettings((current) => {
-      const override = current.roomThemes[conversationIdToClean];
-      if (!override) return current;
-
-      const { roomThemeId, customBackgroundImage } = override;
-      if (!roomThemeId && !customBackgroundImage) {
-        return current;
+      const roomThemes = { ...current.roomThemes };
+      if (previous.roomThemeId) {
+        roomThemes[conversationIdToClear] = {
+          roomThemeId: previous.roomThemeId,
+          customBackgroundImage: undefined,
+        };
+      } else {
+        delete roomThemes[conversationIdToClear];
       }
-
-      const next: RoomVisualSettingsState = {
-        ...current,
-        roomThemes: {
-          ...current.roomThemes,
-          [conversationIdToClean]: {
-            roomThemeId: undefined,
-            customBackgroundImage: undefined,
-          },
-        },
-      };
+      const next: RoomVisualSettingsState = { ...current, roomThemes };
 
       persistRoomVisualSettings(storageKey, next);
+      if (previous.roomThemeId) {
+        syncConversation(conversationIdToClear, next);
+      } else {
+        resetSyncedConversation(conversationIdToClear);
+      }
       return next;
     });
-  }, [storageKey]);
+  }, [resetSyncedConversation, storageKey, syncConversation]);
 
   return {
     settings,
@@ -256,6 +306,5 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     setConversationBackground,
     resetConversationTheme,
     clearConversationBackground,
-    clearRoomSettingsIfEmpty,
   };
 };

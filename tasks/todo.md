@@ -58,7 +58,7 @@
 
 - [ ] 5.1 Discord-like global/room/quiet-hour notification precedence (canonical inbox/settings API exists; policy matrix remains).
 - [ ] 5.2 Web/mobile notification delivery, dedupe, retry and device lifecycle (provider credentials/worker remain).
-- [X] 5.3 Private source-controlled chat UI/background preferences; backend preference sync remains.
+- [ ] 5.3 Private source-controlled chat UI/background preferences with authenticated backend sync (implementation exists; clean Cassandra and cross-account proof remain).
 - [X] 5.4 Authorized 1–1 call signalling, native SDP/ICE lifecycle and acceptance UI; group/SFU provider remains explicitly blocked.
 - [ ] Checkpoint 5: multi-device notification/theme/call tests pass.
 

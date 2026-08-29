@@ -357,6 +357,16 @@ public final class CanonicalApiContracts {
             @Size(max = 64) String timezone) {
     }
 
+    public record ChatAppearancePreferencesRequest(
+            @NotBlank @Pattern(regexp = "aurora|neon|studio|vapor") String defaultThemeId,
+            @NotBlank @Pattern(regexp = "tiktok|glass|classic") String defaultBubbleStyleId) {
+    }
+
+    public record ConversationAppearancePreferencesRequest(
+            @NotBlank @Pattern(regexp = "aurora|neon|studio|vapor") String themeId,
+            @Size(max = 2048) String customBackgroundUrl) {
+    }
+
     public record CallRequest(UUID conversationId, String callType, String mediaRegion, Integer maxParticipants) {
     }
 }

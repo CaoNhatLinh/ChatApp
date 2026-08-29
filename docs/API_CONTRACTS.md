@@ -26,6 +26,12 @@ Notification precedence is explicit: a conversation default accepts `ALL`,
 `ROOM_UPDATE`; a member override is writable only by that member. The effective
 pair is read from `GET /conversations/{conversationId}/notification-policy`.
 
+Private chat appearance uses the authenticated user's own preference partitions:
+`GET|PUT /preferences/chat` stores the source-controlled default theme and bubble
+style, while `PUT|DELETE /preferences/chat/rooms/{conversationId}` stores or clears
+the member's private per-room theme/background override. Room writes require current
+membership; preferences are never exposed to other users.
+
 The global admin UI uses the same frontend/backend projects: `GET /admin/overview`
 is the server-authoritative capability gate. Whole-app room operations use the
 bounded monthly `/admin/conversations` directory and its policy/archive routes;

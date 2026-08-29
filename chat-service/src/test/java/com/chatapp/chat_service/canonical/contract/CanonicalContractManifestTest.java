@@ -25,7 +25,10 @@ class CanonicalContractManifestTest {
                 .contains("GET /conversations/{conversationId}/members")
                 .contains("GET /conversations/{conversationId}/notification-policy")
                 .contains("PUT /conversations/{conversationId}/notification-policy")
-                .contains("PUT /conversations/{conversationId}/members/{userId}/notification-policy");
+                .contains("PUT /conversations/{conversationId}/members/{userId}/notification-policy")
+                .contains("GET /preferences/chat")
+                .contains("PUT /preferences/chat/rooms/{conversationId}")
+                .contains("DELETE /preferences/chat/rooms/{conversationId}");
         assertThat(frontend)
                 .contains("apiClient.post(`/conversations/${conversationId}/pin`)")
                 .contains("apiClient.delete(`/conversations/${conversationId}/pin`)")
@@ -58,6 +61,8 @@ class CanonicalContractManifestTest {
                 .contains("security:\n  - bearerAuth: []")
                 .contains("/conversations/{conversationId}/messages")
                 .contains("/notifications/unread/count")
+                .contains("/preferences/chat")
+                .contains("ChatAppearancePreferences")
                 .contains("NotificationSettingRequest")
                 .contains("DIRECT_ONLY")
                 .contains("ConversationNotificationPolicyView")
