@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import axios from "axios";
 import { useAuthStore } from "@/features/auth/model/auth.store";
@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { localizeText } from "@/shared/i18n";
 import { logger } from "@/shared/lib/logger";
 import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
+import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
 
 export const ContactListView = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -54,6 +55,19 @@ export const ContactListView = () => {
 
   const { user } = useAuthStore();
   const { selectConversation, setActiveView, setSidebarOpen } = useMessenger();
+
+  const presenceUserIds = useMemo(() => {
+    const visibleUsers = activeTab === "friends"
+      ? visibleFriends
+      : activeTab === "requests"
+        ? requests
+        : searchResults;
+    return visibleUsers
+      .map((person) => person.userId)
+      .filter((userId) => userId !== user?.userId);
+  }, [activeTab, requests, searchResults, user?.userId, visibleFriends]);
+
+  useTrackPresence(presenceUserIds);
 
   const handleAcceptAction = useFriendStore((state) => state.handleAccept);
   const handleRejectAction = useFriendStore((state) => state.handleReject);

@@ -956,3 +956,18 @@ Correction in this increment:
 - Connected the existing canonical presence status selector to the workspace
   footer and added executable bilingual browser coverage for all three status
   options without introducing mock runtime data.
+
+# Follow-up self-review (2026-08-29, contacts presence tracking increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Contact status accuracy | Pass for rendered contact lists | `ContactListView` now tracks the currently visible friend, request, or search-result IDs; `ContactRow` consumes the canonical presence store for its status dot and label | Live STOMP presence snapshots and reconnect behavior remain pending | Do not show an online indicator without subscribing to the user IDs currently on screen |
+| Scope and cleanup | Pass | Tracking is derived from the active tab and filtered list, excludes the signed-in account, and is cleaned up by `useTrackPresence` when the view changes or unmounts | Large-directory pagination still needs provider-backed load testing | Keep subscriptions bounded to visible contact rows rather than the entire directory |
+| Locale and accessibility | Pass | Existing `ContactRow` status labels and `StatusDot` accessible names remain canonical and locale-reactive through the app provider; Contacts smoke remains clean in VI and EN | Full screen-reader presence announcement audit remains pending | Preserve the visual dot plus text label and do not expose raw transport statuses |
+| Traceability | Pass | `ContactListView.tsx`, `useTrackPresence`, `ContactRow.tsx`, Contacts browser smoke, and this entry are synchronized | Clean-stack presence proof remains external | Keep online status behavior shared with room and sidebar subscriptions |
+
+Correction in this increment:
+
+- Wired the Contacts view to track only the users rendered in the active tab,
+  so friend/request/search rows receive real presence updates instead of
+  defaulting to an offline state when no room conversation is open.

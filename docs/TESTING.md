@@ -50,8 +50,10 @@ labels after switching from Vietnamese to English.
 
 `npm run test:e2e:presence` loads the authenticated workspace with an explicit
 HTTP-boundary fixture, verifies the Online/Do not disturb/Invisible status menu
-in Vietnamese and English, and keeps unavailable realtime transport separate
-from UI assertions.
+in Vietnamese and English, verifies the status control keeps an accessible name
+at 390px, and keeps unavailable realtime transport separate from UI assertions.
+The Contacts view tracks the active friend/request/search rows through the same
+presence subscription path; live STOMP snapshots remain an integration concern.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
