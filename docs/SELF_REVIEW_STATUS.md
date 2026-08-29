@@ -1151,3 +1151,17 @@ Correction in this increment:
 - Prevented a deadline-enabled poll from submitting without a selected end
   date, added bilingual feedback, and completed dialog/control semantics for
   poll creation, voting, voter details, and poll-close actions.
+
+# Follow-up self-review (2026-08-29, workspace action semantics increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Form safety | Pass for audited actions | Mention selection, invite creation, message retry and message overflow controls now declare `type="button"`, so they cannot submit an enclosing form accidentally | Full authenticated form interaction walkthrough remains pending | Keep action buttons explicit even when they currently render outside a form |
+| Accessible naming | Pass for audited icon controls | Failed-message retry and message overflow controls expose localized `aria-label` values; existing contact/invite icon actions retain localized titles | Full axe/screen-reader tree review remains pending | Do not rely on icon shape alone to communicate an action |
+| Scope discipline | Pass | Only active workspace components with concrete missing semantics were changed; no legacy/data/fallback compatibility code was added | Broader authenticated workspace audit remains | Continue with small, evidence-backed UI increments |
+| Regression safety | Pass for available gates | Frontend type-check/lint, production build, i18n-copy (771 checked keys), error-copy, and Contacts browser smoke pass after the isolated changes | Full authenticated workspace and screen-reader proof remain pending | Keep the increment complete only for the verified scope; preserve the broader accessibility gap |
+
+Correction in this increment:
+
+- Added explicit non-submit button semantics to active workspace actions and
+  localized accessible names for icon-only message actions.

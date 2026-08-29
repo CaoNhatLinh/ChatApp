@@ -235,6 +235,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                         return (
                             <button
                                 key={member.userId}
+                                type="button"
                                 className={cn(
                                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 text-left",
                                     index === selectedIndex

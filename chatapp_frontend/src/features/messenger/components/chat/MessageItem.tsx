@@ -231,7 +231,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
                     {isFailed && isOwn && (
                         <button
+                            type="button"
                             onClick={() => onRetry?.(message.messageId)}
+                            aria-label={MESSENGER_COPY.message.retryTitle}
                             className="ml-1 p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-full transition-colors flex z-10 items-center justify-center cursor-pointer"
                             title={MESSENGER_COPY.message.retryTitle}
                         >
@@ -249,7 +251,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <button className="p-1 hover:bg-primary/10 rounded-full text-muted-foreground hover:text-primary transition-colors outline-none">
+                                    <button type="button" aria-label={localizeText('Tùy chọn khác')} className="p-1 hover:bg-primary/10 rounded-full text-muted-foreground hover:text-primary transition-colors outline-none">
                                         <MoreHorizontal size={16} />
                                     </button>
                                 </DropdownMenuTrigger>

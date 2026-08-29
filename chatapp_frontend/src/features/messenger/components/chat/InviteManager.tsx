@@ -159,7 +159,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 <option value="DIRECT_JOIN">{localizeText('Tham gia ngay')}</option>
                 <option value="REQUEST_APPROVAL">{localizeText('Cần quản lý duyệt')}</option>
             </select>
-            <button onClick={() => void makeInvite()} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary p-2 text-xs font-bold text-primary-foreground disabled:opacity-50">
+            <button type="button" onClick={() => void makeInvite()} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary p-2 text-xs font-bold text-primary-foreground disabled:opacity-50">
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} {localizeText('Tạo lời mời 7 ngày')}
             </button>
 
