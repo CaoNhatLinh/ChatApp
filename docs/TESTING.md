@@ -38,6 +38,11 @@ translation key. Dynamic messages remain covered by the canonical patterns in
 `src/shared/i18n/runtime.ts`; this check does not introduce runtime fallback
 behavior.
 
+`npm run test:e2e:network` loads the public shell in a real browser, toggles the
+browser offline state, verifies the bilingual network-loss status banner, then
+restores connectivity and verifies the banner is removed. It fails on console
+errors or request failures.
+
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the
 HTTP boundary inside the test process; no runtime code contains that stub.

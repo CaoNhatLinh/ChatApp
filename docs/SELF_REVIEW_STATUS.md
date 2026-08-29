@@ -148,3 +148,15 @@ Corrections in this increment:
   localized suffix.
 - Added a repository-owned `test:i18n:copy` check so future copy registries
   cannot silently fall back to Vietnamese in English mode.
+
+# Follow-up self-review (2026-08-29, offline recovery increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Feature completeness | Partial | `NetworkStatusBanner`, `NativeRouteShell`, `test:e2e:network` | WebSocket reconnect and authenticated offline command reconciliation need live services | Added an explicit browser network-loss/recovery state without claiming message queueing |
+| Flow completeness | Partial | Real-browser offline→online run reports `offlineVisible: true`, `recovered: true` | Realtime reconnect/resynchronization still needs Redis/STOMP integration | Keep durable commands on HTTP and expose only accurate network guidance |
+| Code-doc consistency | Pass | `PAGE_COVERAGE_MATRIX.md`, `UI_SCREEN_INVENTORY.md`, `FEATURE_INVENTORY.md`, `TESTING.md` | None in affected docs | Added offline/recovery state to the canonical page and feature records |
+| Runtime consistency | Partial | Production build and `test:e2e:network` show banner lifecycle with no console/request failures | Clean-stack connectivity remains unavailable | Browser `online/offline` events own this UI state; server remains authoritative |
+| Permission coverage | Pass | Banner is non-privileged and mounted inside existing route shells | Authenticated reconnect authorization remains pending | No permission decision is made in the client banner |
+| Failure and recovery | Pass for browser network state | Offline event shows warning; online event removes it; test covers both | Dependency outage/retry policy needs live stack | Avoided false claim that unsent messages are queued |
+| Test traceability | Pass for affected increment | `npm run test:e2e:network`, `npm run validate`, `npm run build` | Multi-account realtime recovery remains pending | Added deterministic regression coverage |

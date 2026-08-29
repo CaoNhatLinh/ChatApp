@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/app/providers/ThemeProvider';
 import { AppI18nProvider, localizeText } from '@/shared/i18n';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
+import { NetworkStatusBanner } from '@/shared/ui/NetworkStatusBanner';
 import { useEffect, useState } from 'react';
 
 interface NativeRouteShellProps {
@@ -43,6 +44,7 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
           <AuthProvider>
             <PresenceManager />
             <DeviceLifecycleManager />
+            <NetworkStatusBanner />
             <Toaster position="top-center" />
             {children}
           </AuthProvider>

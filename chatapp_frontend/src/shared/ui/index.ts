@@ -9,6 +9,7 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup } from './DropdownMenu';
 export { Input } from './Input';
 export { Skeleton, SkeletonLine } from './Skeleton';
+export { NetworkStatusBanner } from './NetworkStatusBanner';
 export { LoadingSpinner } from './LoadingSpinner';
 export { SurfacePanel } from './SurfacePanel';
 export { SectionHeader } from './SectionHeader';

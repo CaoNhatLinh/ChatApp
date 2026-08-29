@@ -902,6 +902,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Cập nhật thông tin và điều hướng nhanh đến các liên kết cần thiết.': 'Update your information and jump to useful links.',
   'Chính sách sử dụng, quyền riêng tư và điều khoản trách nhiệm.': 'Usage, privacy, and liability terms.',
   'Đang tải thông tin...': 'Loading information…',
+  'Mất kết nối mạng': 'Network connection lost',
+  'Kiểm tra kết nối để tiếp tục.': 'Check your connection to continue.',
   'Điều hướng nhanh giao diện theo nhu cầu của bạn.': 'Quickly navigate to what you need.',
   'Đừng bỏ qua lời mời mới nhất hôm nay.': "Don't miss today's latest requests.",
   'Hướng dẫn vận hành, giải đáp lỗi thường gặp và mẹo tăng hiệu suất.': 'Operational guidance, common fixes, and productivity tips.',
