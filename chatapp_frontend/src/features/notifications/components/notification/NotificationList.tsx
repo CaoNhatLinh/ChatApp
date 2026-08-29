@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import type { NotificationRecord, NotificationType } from "@/features/notifications/api/notifications.api";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { getLocale, localizeText } from '@/shared/i18n';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { logger } from '@/shared/lib/logger';
+import { notifyError } from '@/shared/lib/notification';
 
 interface NotificationListProps {
   isOpen: boolean;
@@ -59,11 +62,24 @@ export const NotificationList: React.FC<NotificationListProps> = ({
 }) => {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  const reportActionError = (error: unknown, fallback: string) => {
+    logger.error('[NotificationList] Action failed:', error);
+    notifyError(getUserFacingErrorMessage(error, fallback));
+  };
+
+  const runAction = async (action: () => void | Promise<void>, fallback: string) => {
+    try {
+      await action();
+    } catch (error: unknown) {
+      reportActionError(error, fallback);
+    }
+  };
+
   const handleNotificationClick = (notification: NotificationRecord) => {
     if (!notification.isRead) {
-      void onMarkAsRead(notification.notificationId);
+      void runAction(() => onMarkAsRead(notification.notificationId), localizeText('Không thể cập nhật thông báo.'));
     }
-    void onNotificationClick(notification);
+    void runAction(() => onNotificationClick(notification), localizeText('Không thể mở thông báo.'));
   };
 
   if (!isOpen) return null;
@@ -89,7 +105,10 @@ export const NotificationList: React.FC<NotificationListProps> = ({
         <div className="flex items-center gap-2">
           {unreadCount > 0 ? (
             <button
-              onClick={onMarkAllAsRead}
+              type="button"
+              onClick={() => {
+                void runAction(onMarkAllAsRead, localizeText('Không thể cập nhật thông báo.'));
+              }}
               className="focus-ring rounded-md px-2 py-1 text-xs font-semibold text-primary hover:text-primary/80"
             >
               {localizeText('Duyệt tất cả')}
@@ -97,6 +116,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
           ) : null}
 
           <button
+            type="button"
             onClick={onClose}
             aria-label={localizeText('Đóng')}
             className="focus-ring rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -164,6 +184,7 @@ interface NotificationButtonProps {
 export const NotificationButton: React.FC<NotificationButtonProps> = ({ unreadCount, isOpen, onClick }) => {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`focus-ring relative inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-border transition-[color,background-color,border-color,box-shadow,transform,opacity] ${
         isOpen ? "bg-primary/10 text-primary border-primary/40" : "hover:bg-accent hover:text-foreground"

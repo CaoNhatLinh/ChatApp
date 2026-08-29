@@ -251,7 +251,7 @@ Corrections in this increment:
 | --- | --- | --- | --- | --- |
 | Failure safety | Pass for poll vote/remove/close | Poll mutations now map transport failures to stable error copy and expose success/failure feedback | Authenticated realtime poll reconciliation still needs clean-stack proof | Keep raw details in logs only |
 | Mutation integrity | Pass for local vote controls | Existing ref double-submit guard retained; server response updates local and central state before success notice | Cross-tab conflict and policy enforcement need integration evidence | Server response remains authoritative |
-| Bilingual UI coverage | Pass | `PollCard`, `resources.ts`, locale copy smoke (702 keys) | Poll option text is user-authored domain content | Translate labels/statuses, never user content |
+| Bilingual UI coverage | Pass | `PollCard`, `resources.ts`, locale copy smoke (705 keys) | Poll option text is user-authored domain content | Translate labels/statuses, never user content |
 | Traceability | Pass | Poll API calls, action handlers, tests and self-review entry | Poll deadline/anonymous-policy matrix remains partial in inventory | Keep explicit mutation feedback for every new poll action |
 
 Corrections in this increment:
@@ -265,7 +265,7 @@ Corrections in this increment:
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | Failure safety | Pass for appearance persistence | Remote theme/default/reset writes now map failures to localized notifications while retaining operator logs | Server preference retry/rollback needs authenticated provider evidence | Never imply a remote save succeeded when the request failed |
-| Bilingual UI coverage | Pass | `useRoomThemeState`, `resources.ts`, locale copy smoke (703 keys) | Custom background URLs and room names remain domain input | Translate only product feedback |
+| Bilingual UI coverage | Pass | `useRoomThemeState`, `resources.ts`, locale copy smoke (705 keys) | Custom background URLs and room names remain domain input | Translate only product feedback |
 | State model | Partial | Local state remains optimistic and persisted per user; remote writes are explicit | A failed write currently keeps the local optimistic value until reload; transactional rollback is a future bounded improvement | Keep the failure visible and avoid fake server success |
 | Traceability | Pass | Theme API adapters, hook, room panel, self-review entry | Clean-stack authenticated theme journey remains pending | Keep local and server preference boundaries explicit |
 
@@ -305,6 +305,20 @@ Correction in this increment:
 - Relationship mutations now have an explicit reject-on-failure contract. This
   prevents false success notifications and lets each active caller apply the
   correct localized status message.
+
+# Follow-up self-review (2026-08-29, notification-action increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Failure safety | Pass for notification actions | Shared `runAction` catches synchronous and asynchronous mark/open failures and maps stable copy | Authenticated notification provider failure still needs clean-stack browser proof | Never let a dropdown action reject silently |
+| Bilingual UI coverage | Pass | `NotificationList.tsx`, `resources.ts`, locale copy smoke (705 keys) | Server-generated notification title/body remain domain data | Translate action/status copy only |
+| Accessibility semantics | Pass for audited controls | Explicit button types and existing named notification controls | Full axe/screen-reader review remains pending | Keep notification controls keyboard-safe |
+| Traceability | Pass | Notification callbacks, API owner components, self-review and locale guard | Cross-tab read-state reconciliation remains a realtime gap | Preserve callback ownership and error boundaries |
+
+Correction in this increment:
+
+- Added one guarded runner for mark-read, mark-all-read and notification-open
+  callbacks, with localized failure feedback and no unhandled UI promise.
 
 # Follow-up self-review (2026-08-29, responsive/accessibility smoke increment)
 

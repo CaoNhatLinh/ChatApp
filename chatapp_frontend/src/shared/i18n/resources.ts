@@ -243,6 +243,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Cập nhật mới nhất': 'Latest updates',
   'Duyệt tất cả': 'Mark all as read',
   'Không có thông báo nào.': 'No notifications yet.',
+  'Không thể cập nhật thông báo.': 'Unable to update notifications.',
+  'Không thể mở thông báo.': 'Unable to open the notification.',
   'Trực tuyến': 'Online',
   'Đang hoạt động': 'Active',
   'Ngoại tuyến': 'Offline',
