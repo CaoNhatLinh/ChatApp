@@ -532,6 +532,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Không thể tải khu vực này.': 'This area could not be loaded.',
   'Hãy thử lại. Nếu lỗi tiếp tục, quay về workspace và mở lại cuộc trò chuyện.': 'Try again. If the problem continues, return to the workspace and reopen the conversation.',
   'Trang này không còn ở đây.': 'This page is no longer here.',
+  'Lỗi 404': '404 error',
   'Đường dẫn có thể đã thay đổi. Bạn có thể quay về trang chính hoặc mở workspace.': 'The link may have changed. Return home or open the workspace.',
   'Về trang chính': 'Back to home',
   'Đang tải NovaChat…': 'Loading NovaChat…',
