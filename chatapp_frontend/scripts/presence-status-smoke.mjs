@@ -74,8 +74,13 @@ const statusTriggerEn = page.getByRole('button', { name: 'Online', exact: true }
 await statusTriggerEn.waitFor();
 await statusTriggerEn.click();
 const enOptions = await page.getByRole('menuitem').allTextContents();
+await page.keyboard.press('Escape');
+await page.setViewportSize({ width: 390, height: 844 });
+const mobileStatusTrigger = page.getByRole('button', { name: 'Online', exact: true });
+await mobileStatusTrigger.waitFor();
+const mobileStatusNamed = await mobileStatusTrigger.getAttribute('aria-label');
 
-const report = { baseUrl, viOptions, enOptions, realtimeFailures, consoleErrors, requestFailures };
+const report = { baseUrl, viOptions, enOptions, mobileStatusNamed, realtimeFailures, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -88,6 +93,7 @@ if (
   || !enOptions.some((option) => option.includes('Online'))
   || !enOptions.some((option) => option.includes('Do not disturb'))
   || !enOptions.some((option) => option.includes('Invisible'))
+  || mobileStatusNamed !== 'Online'
 ) {
   process.exitCode = 1;
 }

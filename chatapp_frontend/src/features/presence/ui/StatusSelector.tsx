@@ -124,6 +124,8 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
                 </DropdownMenuTrigger>
             ) : (
                 <DropdownMenuTrigger
+                    aria-label={localizeText(currentOption.label)}
+                    title={localizeText(currentOption.label)}
                     className={cn(
                         'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm',
                         'hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
