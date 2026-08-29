@@ -8,10 +8,10 @@ browser evidence after the integrated global-admin increment.
 | Feature completeness | Partial | `docs/FEATURE_INVENTORY.md`, `docs/ADMIN_PLAN.md` | Long-range analytics/SLO, export, language moderation/appeals and provider-backed delivery are not complete | Keep remaining modules explicitly planned; do not expose fake controls |
 | Flow completeness | Partial | `docs/USER_FLOWS.md`, `docs/TRACEABILITY_MATRIX.md` | Authenticated two-account realtime/admin flows need live dependencies | Keep public/deep-link smoke as verified evidence and mark clean-stack proof pending |
 | Code-doc consistency | Pass for implemented slices | `docs/api/openapi.yaml`, `docs/contracts/canonical-api.yaml`, controllers and frontend admin API | Remaining endpoint slices still need live integration proof | Canonical contract files are the only supported API surface |
-| Runtime consistency | Partial | Next build and Playwright smoke pass; Maven 81 tests pass | Cassandra/Redis/Kafka/Elasticsearch are unavailable on this host | Report infrastructure as externally blocked, never as mock success |
+| Runtime consistency | Partial | Next build and Playwright smoke pass; Maven 87 tests pass | Cassandra/Redis/Kafka/Elasticsearch are unavailable on this host | Report infrastructure as externally blocked, never as mock success |
 | Permission coverage | Pass at implemented admin boundary | `AppAuthorizationService`, `Admin*Service`, `/api/admin/overview`, `docs/SECURITY.md` | Full analyst/support privacy matrix remains | Server remains authoritative; UI only hides controls from capability snapshot |
 | Failure and recovery | Partial | forbidden/unavailable/empty states in `AdminPage.tsx`; bounded limits in services | Provider outage, replay, backup/restore and authenticated browser recovery remain | Track under plan Phase 4–7 and keep bounded queries |
-| Test traceability | Pass for current increment | `CanonicalAuthControllerTest`, `AdminConversationServiceTest`, `AdminAuditServiceTest`, `ReportServiceTest`, `AdminModerationServiceTest`, `AppRoleAdminServiceTest`, `AdminAnalyticsServiceTest`, `SanctionExpirySchedulerTest`, `RefreshTokenServiceTest`, `ChatPolicyServiceTest`, `CanonicalBackendServiceMessageTest`, `CanonicalBackendServiceConversationTest`, `ConversationAuthorizationServiceTest`, `JwtAuthenticationFilterTest`, `CanonicalContractManifestTest`, `InfrastructureManifestTest`, `NotificationSettingsPolicyTest` | Integration and multi-account E2E remain | Maven = 81 tests; OpenAPI/AsyncAPI uniqueness = 95 REST paths / 20 STOMP destinations; browser smoke = zero console/request failures |
+| Test traceability | Pass for current increment | `CanonicalAuthControllerTest`, `AdminConversationServiceTest`, `AdminAuditServiceTest`, `ReportServiceTest`, `AdminModerationServiceTest`, `AppRoleAdminServiceTest`, `AdminAnalyticsServiceTest`, `SanctionExpirySchedulerTest`, `RefreshTokenServiceTest`, `ChatPolicyServiceTest`, `CanonicalBackendServiceMessageTest`, `CanonicalBackendServiceConversationTest`, `ConversationAuthorizationServiceTest`, `JwtAuthenticationFilterTest`, `CanonicalContractManifestTest`, `InfrastructureManifestTest`, `NotificationSettingsPolicyTest`, `NotificationPolicyEvaluatorTest` | Integration and multi-account E2E remain | Maven = 87 tests; OpenAPI/AsyncAPI uniqueness = 95 REST paths / 20 STOMP destinations; browser smoke = zero console/request failures |
 
 ## Corrections made during this review
 
@@ -86,7 +86,7 @@ browser evidence after the integrated global-admin increment.
   Group/SFU is not presented as an incomplete or fake feature.
 - Final verification after cleanup: `npm run validate`, `npm run build`, public
   Playwright smoke, admin route smoke and notification-settings payload smoke pass;
-  JDK 20 `mvnw test` passes 81 tests.
+  JDK 20 `mvnw test` passes 87 tests.
   Docker/Cassandra/Redis/Kafka/Elasticsearch and authenticated multi-account
   browser/media proof remain externally blocked on this host.
 

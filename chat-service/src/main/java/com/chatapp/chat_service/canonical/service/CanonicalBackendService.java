@@ -24,6 +24,7 @@ import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.notification.NotificationSettingsPolicy;
+import com.chatapp.chat_service.canonical.notification.NotificationPolicyEvaluator;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -126,6 +127,8 @@ public class CanonicalBackendService {
                 null
         );
         store.saveUser(user);
+        store.saveNotificationSetting(new CanonicalNotificationSettings(
+                userId, "ALL", true, true, true, true, null, null, "UTC", now));
         return toUserResponse(user);
     }
 
@@ -1559,6 +1562,8 @@ public class CanonicalBackendService {
         String senderName = sender.displayName().trim();
         String body = message.content().trim();
         String preview = body.length() > 160 ? body.substring(0, 157) + "..." : body;
+        CanonicalConversation conversation = getConversation(message.conversationId());
+        String roomDefaultLevel = NotificationSettingsPolicy.requireRoomLevel(conversation.defaultNotificationLevel());
         String month = YearMonth.now(ZoneOffset.UTC).toString();
         for (ConversationMember member : members) {
             UUID recipientId = member.userId();
@@ -1566,6 +1571,15 @@ public class CanonicalBackendService {
                 continue;
             }
             boolean mention = mentionedUserIds != null && mentionedUserIds.contains(recipientId);
+            CanonicalNotificationSettings settings = getNotificationSettings(recipientId);
+            if (!NotificationPolicyEvaluator.allows(
+                    settings.globalLevel(),
+                    roomDefaultLevel,
+                    member.notificationOverride(),
+                    conversation.conversationType(),
+                    mention)) {
+                continue;
+            }
             UUID notificationId = Uuids.timeBased();
             CanonicalNotification notification = new CanonicalNotification(
                     recipientId,

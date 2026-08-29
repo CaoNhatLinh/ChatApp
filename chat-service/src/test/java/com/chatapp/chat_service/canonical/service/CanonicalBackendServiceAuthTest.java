@@ -2,6 +2,7 @@ package com.chatapp.chat_service.canonical.service;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotificationSettings;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import com.chatapp.chat_service.canonical.admin.AdminConversationDirectoryRepository;
@@ -62,6 +63,9 @@ class CanonicalBackendServiceAuthTest {
         ArgumentCaptor<CanonicalUser> savedUser = ArgumentCaptor.forClass(CanonicalUser.class);
         verify(store).saveUser(savedUser.capture());
         assertThat(savedUser.getValue().passwordHash()).isEqualTo("encoded-password");
+        ArgumentCaptor<CanonicalNotificationSettings> savedSettings = ArgumentCaptor.forClass(CanonicalNotificationSettings.class);
+        verify(store).saveNotificationSetting(savedSettings.capture());
+        assertThat(savedSettings.getValue().globalLevel()).isEqualTo("ALL");
     }
 
     @Test

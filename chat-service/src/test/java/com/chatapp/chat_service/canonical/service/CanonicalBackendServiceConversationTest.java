@@ -109,7 +109,9 @@ class CanonicalBackendServiceConversationTest {
     void roomOwnerCanOnlyReduceTheRoomNotificationDefault() {
         UUID actorId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
-        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, actorId, "ALL"));
+        when(store.findConversation(conversationId)).thenReturn(
+                conversation(conversationId, actorId, "ALL"),
+                conversation(conversationId, actorId, "NONE"));
 
         service.updateConversationNotificationPolicy(
                 actorId,

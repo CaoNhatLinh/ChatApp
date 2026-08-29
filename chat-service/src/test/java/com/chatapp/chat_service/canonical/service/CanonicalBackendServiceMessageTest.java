@@ -4,7 +4,10 @@ import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotificationSettings;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
+import com.chatapp.chat_service.canonical.model.ConversationMember;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import com.chatapp.chat_service.canonical.admin.AdminConversationDirectoryRepository;
@@ -135,6 +138,53 @@ class CanonicalBackendServiceMessageTest {
         verify(store, never()).claimMessage(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void globalMentionsSettingSuppressesUnmentionedRoomMessage() {
+        UUID actorId = UUID.randomUUID();
+        UUID recipientId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID clientMessageId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        when(store.claimMessage(eq(actorId), eq(clientMessageId), eq(conversationId), any(), any(), any()))
+                .thenReturn(new CanonicalCqlStore.MessageClaim(
+                        UUID.randomUUID(), "2026-07-22-01:03", createdAt, true, true));
+        when(store.findUserById(actorId)).thenReturn(user(actorId));
+        when(conversationRepository.findMembers(conversationId)).thenReturn(List.of(
+                member(conversationId, actorId), member(conversationId, recipientId)));
+        when(store.readNotificationSetting(recipientId)).thenReturn(
+                new CanonicalNotificationSettings(recipientId, "MENTIONS", true, true, true, true,
+                        null, null, "UTC", createdAt));
+
+        service.sendMessage(actorId, conversationId, request(clientMessageId, "hello"));
+
+        verify(store, never()).upsertNotification(any());
+    }
+
+    @Test
+    void memberOverrideCanAllowMentionNotificationWhenRoomDefaultIsNone() {
+        UUID actorId = UUID.randomUUID();
+        UUID recipientId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID clientMessageId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        when(store.claimMessage(eq(actorId), eq(clientMessageId), eq(conversationId), any(), any(), any()))
+                .thenReturn(new CanonicalCqlStore.MessageClaim(
+                        UUID.randomUUID(), "2026-07-22-01:03", createdAt, true, true));
+        when(store.findConversation(conversationId)).thenReturn(conversationWithDefault(conversationId, "NONE"));
+        when(store.findUserById(actorId)).thenReturn(user(actorId));
+        when(conversationRepository.findMembers(conversationId)).thenReturn(List.of(
+                member(conversationId, actorId), member(conversationId, recipientId, "ALL")));
+        when(store.readNotificationSetting(recipientId)).thenReturn(
+                new CanonicalNotificationSettings(recipientId, "ALL", true, true, true, true,
+                        null, null, "UTC", createdAt));
+
+        service.sendMessage(actorId, conversationId, new CanonicalApiContracts.MessageSendRequest(
+                clientMessageId, "TEXT", "hello", "PLAIN", null, null, null, null,
+                null, null, null, List.of(), Set.of(recipientId)));
+
+        verify(store).upsertNotification(any());
+    }
+
     private static CanonicalApiContracts.MessageSendRequest request(UUID clientMessageId, String content) {
         return new CanonicalApiContracts.MessageSendRequest(
                 clientMessageId, "TEXT", content, "PLAIN", null, null, null, null,
@@ -158,5 +208,26 @@ class CanonicalBackendServiceMessageTest {
                 conversationId, "GROUP", "PRIVATE_LINK", "INVITE_ONLY", "Room", "room",
                 null, null, null, UUID.randomUUID(), UUID.randomUUID(), Instant.now(), Instant.now(),
                 deleted, deleted ? Instant.now() : null, "OPEN", 0, null, "ALL", null, Set.of(), "vi", 100, 2, false, Instant.now());
+    }
+
+    private static CanonicalConversation conversationWithDefault(UUID conversationId, String defaultLevel) {
+        return new CanonicalConversation(
+                conversationId, "GROUP", "PRIVATE_LINK", "INVITE_ONLY", "Room", "room",
+                null, null, null, UUID.randomUUID(), UUID.randomUUID(), Instant.now(), Instant.now(),
+                false, null, "OPEN", 0, null, defaultLevel, null, Set.of(), "vi", 100, 2, false, Instant.now());
+    }
+
+    private static CanonicalUser user(UUID userId) {
+        return new CanonicalUser(userId, "sender", "sender", "sender@example.com", "sender@example.com",
+                "hash", "LOCAL", null, "Sender", null, "ACTIVE", Instant.now(), Instant.now(), null);
+    }
+
+    private static ConversationMember member(UUID conversationId, UUID userId) {
+        return member(conversationId, userId, "INHERIT");
+    }
+
+    private static ConversationMember member(UUID conversationId, UUID userId, String notificationOverride) {
+        return new ConversationMember(conversationId, userId, Set.of(), Instant.now(), null, null, null,
+                notificationOverride, null, null);
     }
 }
