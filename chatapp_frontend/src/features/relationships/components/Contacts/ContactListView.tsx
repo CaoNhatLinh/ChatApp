@@ -74,7 +74,7 @@ export const ContactListView = () => {
         lastSeen: profile.lastActive || undefined,
       });
     } catch (error) {
-      logger.error("[ContactListView] Failed to load user profile", error);
+      logger.error("[ContactListView] Failed to load user profile", error instanceof Error ? error.message : String(error));
       notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.status.openProfileFailed));
     } finally {
       setIsProfileLoading(false);
@@ -103,7 +103,7 @@ export const ContactListView = () => {
       setActiveView("chat");
       notifySuccess(FRIEND_COPY.actions.openChatSuccess);
     } catch (error) {
-      logger.error("[ContactListView] Open conversation failed", error);
+      logger.error("[ContactListView] Open conversation failed", error instanceof Error ? error.message : String(error));
       notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.openChatFailed));
     }
   };

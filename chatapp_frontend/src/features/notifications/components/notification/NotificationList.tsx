@@ -69,7 +69,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const reportActionError = (error: unknown, fallback: string) => {
-    logger.error('[NotificationList] Action failed:', error);
+    logger.error('[NotificationList] Action failed', error instanceof Error ? error.message : String(error));
     notifyError(getUserFacingErrorMessage(error, fallback));
   };
 

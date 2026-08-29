@@ -108,7 +108,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             setLocalPoll(updatedPoll);
             notifySuccess(localizeText('Đã ghi nhận bình chọn.'));
         } catch (error: unknown) {
-            logger.error('[PollCard] Vote failed:', error);
+            logger.error('[PollCard] Vote failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         } finally {
             isVotingRef.current = false;
@@ -130,7 +130,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             setLocalPoll(updatedPoll);
             notifySuccess(localizeText('Đã hủy bình chọn.'));
         } catch (error: unknown) {
-            logger.error('[PollCard] Remove vote failed:', error);
+            logger.error('[PollCard] Remove vote failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         } finally {
             isVotingRef.current = false;
@@ -145,7 +145,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             setLocalPoll(updatedPoll);
             notifySuccess(localizeText('Đã đóng bình chọn.'));
         } catch (error: unknown) {
-            logger.error('[PollCard] Close poll failed:', error);
+            logger.error('[PollCard] Close poll failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
         }
     }, [localPoll.pollId, localPoll.conversationId, updatePollData]);

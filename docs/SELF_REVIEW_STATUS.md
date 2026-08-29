@@ -526,6 +526,19 @@ Correction in this increment:
 - Hardened profile-save and logout failure paths with sanitized diagnostics and
   status-aware user copy without changing the safe local logout fallback.
 
+# Follow-up self-review (2026-08-29, client diagnostic redaction increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Data exposure | Pass for active client action logs | Active auth, search, invite, poll, profile, notification, conversation and message handlers now log only bounded error text rather than arbitrary error objects | Server-side structured logging/redaction still requires operations verification | Keep user content and server payloads out of browser diagnostics |
+| User-facing behavior | Pass | Existing localized action errors and retry states are unchanged | Full authenticated failure matrix remains pending | Logging changes must not replace visible product feedback |
+| Traceability | Pass | Affected feature owners plus this self-review entry | Legacy duplicate FriendItem remains outside active route scope | Do not expand the redaction change into dead/legacy modules |
+
+Correction in this increment:
+
+- Redacted arbitrary error-object logging across active browser flows while
+  retaining the status-aware notifications already exposed to users.
+
 # Follow-up self-review (2026-08-29, offline recovery increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

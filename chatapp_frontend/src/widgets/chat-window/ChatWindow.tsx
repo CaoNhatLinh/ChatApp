@@ -294,7 +294,7 @@ export const ChatWindow = () => {
       return;
     }
     void jumpToMessage(messageIdFromQuery).catch((error: unknown) => {
-      logger.error('[ChatWindow] Failed to jump to message from URL:', error);
+      logger.error('[ChatWindow] Failed to jump to message from URL', error instanceof Error ? error.message : String(error));
       showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.chatWindow.messageAction.actionFailed));
     });
   }, [activeConversationId, jumpToMessage, messageIdFromQuery, showToast]);
@@ -309,7 +309,7 @@ export const ChatWindow = () => {
       const profile = await fetchUserProfile(userId);
       setSelectedUserProfile(mapUserProfile(profile));
     } catch (error) {
-      logger.error("[ChatWindow] Failed to fetch user profile:", error);
+      logger.error("[ChatWindow] Failed to fetch user profile", error instanceof Error ? error.message : String(error));
       showToast(getUserFacingErrorMessage(error, localizeText("Không thể tải thông tin người dùng.")));
     } finally {
       setIsProfileLoading(false);
@@ -372,7 +372,7 @@ export const ChatWindow = () => {
             throw new Error(`Unsupported message action: ${action}`);
         }
       } catch (error) {
-        logger.error(`[ChatWindow] Message action failed: ${action}`, error);
+        logger.error(`[ChatWindow] Message action failed: ${action}`, error instanceof Error ? error.message : String(error));
         showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.chatWindow.messageAction.actionFailed));
       }
     },

@@ -31,7 +31,7 @@ export const useRegister = () => {
             const message = getAuthErrorMessage(err, 'register');
             setError(message);
             notifyError(message);
-            logger.error('Registration error', err);
+            logger.error('Registration error', err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
         }

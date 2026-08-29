@@ -237,7 +237,7 @@ export const SearchPage = () => {
         if (requestId !== requestIdRef.current || isRequestCanceled(error)) {
           return;
         }
-        logger.error("[SearchPage] Failed to search messages", error);
+        logger.error("[SearchPage] Failed to search messages", error instanceof Error ? error.message : String(error));
         setMessageSearchResults([]);
         setSearchError(getUserFacingErrorMessage(error, localizeText("Không tìm thấy tin nhắn phù hợp. Vui lòng thử lại.")));
       } finally {

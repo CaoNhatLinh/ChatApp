@@ -44,7 +44,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
             })
             .catch((error: unknown) => {
                 if (!active) return;
-                logger.error('[JoinInvitePage] Failed to preview invite:', error);
+                logger.error('[JoinInvitePage] Failed to preview invite', error instanceof Error ? error.message : String(error));
                 setPreview(null);
                 setPreviewError(getUserFacingErrorMessage(error, localizeText('Không thể tải lời mời. Vui lòng thử lại.')));
             })
@@ -67,7 +67,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                 router.replace(`/app?conversationId=${response.conversationId}`);
             }
         } catch (error: unknown) {
-            logger.error('[JoinInvitePage] Failed to accept invite:', error);
+            logger.error('[JoinInvitePage] Failed to accept invite', error instanceof Error ? error.message : String(error));
             setActionError(getUserFacingErrorMessage(error, localizeText('Không thể chấp nhận lời mời. Vui lòng thử lại.')));
         } finally {
             setSubmitting(false);
@@ -82,7 +82,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                 const response = await declineInvite(token);
                 setResult(response.status);
             } catch (error: unknown) {
-                logger.error('[JoinInvitePage] Failed to decline invite:', error);
+            logger.error('[JoinInvitePage] Failed to decline invite', error instanceof Error ? error.message : String(error));
                 setActionError(getUserFacingErrorMessage(error, localizeText('Không thể từ chối lời mời. Vui lòng thử lại.')));
             } finally {
                 setSubmitting(false);

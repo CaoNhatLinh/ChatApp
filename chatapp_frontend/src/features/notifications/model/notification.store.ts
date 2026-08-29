@@ -132,7 +132,7 @@ const disconnectAllNotificationSubscriptions = () => {
     try {
       unsubscribe();
     } catch (error) {
-      logger.warn('Notification realtime unsubscribe failed', error);
+      logger.warn('Notification realtime unsubscribe failed', error instanceof Error ? error.message : String(error));
     }
   });
   notificationRealtimeUnsubscribers = [];

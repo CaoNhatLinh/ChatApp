@@ -128,7 +128,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         })
         .catch((error: unknown) => {
           if (isMounted) setBlockStatusError(true);
-          logger.error("[MessageInput] Failed to check block status", error);
+          logger.error("[MessageInput] Failed to check block status", error instanceof Error ? error.message : String(error));
         })
         .finally(() => {
           if (isMounted) setBlockStatusLoading(false);
@@ -359,7 +359,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       await createPoll(data);
       showSuccess(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreated);
     } catch (error: unknown) {
-      logger.error("[MessageInput] Failed to create poll:", error);
+      logger.error("[MessageInput] Failed to create poll", error instanceof Error ? error.message : String(error));
       showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError));
     }
   }, [showSuccess]);
@@ -437,7 +437,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       void fetchBlockedUsers();
       notifySuccess(localizeText('Đã bỏ chặn người dùng.'));
     } catch (error: unknown) {
-      logger.error('[MessageInput] Failed to unblock user:', error);
+      logger.error('[MessageInput] Failed to unblock user', error instanceof Error ? error.message : String(error));
       notifyError(getUserFacingErrorMessage(error, localizeText('Không thể bỏ chặn người dùng.')));
     } finally {
       setIsUnblocking(false);

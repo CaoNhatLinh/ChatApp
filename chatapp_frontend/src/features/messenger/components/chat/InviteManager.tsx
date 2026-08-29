@@ -60,7 +60,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             await refresh();
         } catch (inviteError: unknown) {
             const message = getUserFacingErrorMessage(inviteError, localizeText('Không thể tạo lời mời. Hãy kiểm tra quyền của bạn.'));
-            logger.error('[InviteManager] Failed to create invite:', inviteError);
+            logger.error('[InviteManager] Failed to create invite', inviteError instanceof Error ? inviteError.message : String(inviteError));
             setError(message);
             notifyError(message);
         } finally {
@@ -74,7 +74,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             await navigator.clipboard.writeText(selectedUrl);
             notifySuccess(localizeText('Đã sao chép liên kết.'));
         } catch (copyError: unknown) {
-            logger.error('[InviteManager] Failed to copy invite link:', copyError);
+            logger.error('[InviteManager] Failed to copy invite link', copyError instanceof Error ? copyError.message : String(copyError));
             notifyError(getUserFacingErrorMessage(copyError, localizeText('Không thể sao chép liên kết.')));
         }
     };
@@ -106,7 +106,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             await refresh();
             notifySuccess(localizeText(decision === 'APPROVE' ? 'Đã duyệt yêu cầu tham gia.' : 'Đã từ chối yêu cầu tham gia.'));
         } catch (resolveError: unknown) {
-            logger.error('[InviteManager] Failed to resolve join request:', resolveError);
+            logger.error('[InviteManager] Failed to resolve join request', resolveError instanceof Error ? resolveError.message : String(resolveError));
             notifyError(getUserFacingErrorMessage(resolveError, localizeText('Không thể xử lý yêu cầu tham gia.')));
         } finally {
             setPendingAction(null);

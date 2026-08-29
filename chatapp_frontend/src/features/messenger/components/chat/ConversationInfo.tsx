@@ -148,7 +148,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             })
             .catch((error: unknown) => {
                 if (!active) return;
-                logger.error('[ConversationInfo] Block check failed:', error);
+                logger.error('[ConversationInfo] Block check failed', error instanceof Error ? error.message : String(error));
                 notifyError(getUserFacingErrorMessage(error, localizeText('Không thể kiểm tra trạng thái chặn.')));
             })
             .finally(() => {
@@ -169,9 +169,9 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             setIsBlockConfirmOpen(false);
             void fetchBlockedUsers();
             notifySuccess(localizeText('Đã chặn người dùng.'));
-        } catch (error) {
-            console.error('[ConversationInfo] Block action failed:', error);
-            notifyError(localizeText('Không thể chặn người dùng.'));
+        } catch (error: unknown) {
+            logger.error('[ConversationInfo] Block action failed', error instanceof Error ? error.message : String(error));
+            notifyError(getUserFacingErrorMessage(error, localizeText('Không thể chặn người dùng.')));
         } finally {
             setIsBlockLoading(false);
         }
@@ -186,7 +186,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             void fetchBlockedUsers();
             notifySuccess(localizeText('Đã bỏ chặn người dùng.'));
         } catch (error) {
-            logger.error('[ConversationInfo] Unblock action failed:', error);
+            logger.error('[ConversationInfo] Unblock action failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể bỏ chặn người dùng.')));
         } finally {
             setIsBlockLoading(false);

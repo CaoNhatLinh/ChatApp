@@ -40,7 +40,7 @@ export const useLogin = () => {
             const message = getAuthErrorMessage(err, 'login');
             setError(message);
             notifyError(message);
-            logger.error('Login error', err);
+            logger.error('Login error', err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
         }

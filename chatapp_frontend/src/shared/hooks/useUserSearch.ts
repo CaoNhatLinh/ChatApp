@@ -36,7 +36,7 @@ export const useUserSearch = (searchTerm: string, delay: number = 500) => {
                 setSearchResults(results.filter((user) => user.userId !== currentUser?.userId));
             } catch (error: unknown) {
                 if (!active) return;
-                logger.error("[useUserSearch] Failed to search users", error);
+                logger.error("[useUserSearch] Failed to search users", error instanceof Error ? error.message : String(error));
                 setSearchResults([]);
                 setSearchError(getUserFacingErrorMessage(error, localizeText("Không thể tìm kiếm người dùng. Kiểm tra kết nối và thử lại.")));
             } finally {
