@@ -50,6 +50,7 @@ export const localizeText = (value: string): string => {
     [/^File "(.+)" không hợp lệ\.$/, (match) => `File "${match[1]}" is invalid.`],
     [/^File "(.+)" vượt quá 10MB\.$/, (match) => `File "${match[1]}" exceeds 10 MB.`],
     [/^File "(.+)" không đúng định dạng này\.$/, (match) => `File "${match[1]}" has an unsupported format.`],
+    [/^Xóa tệp (.+)$/, (match) => `Remove file ${match[1]}`],
     [/^Đã xem lúc (.+)$/, (match) => `Seen at ${match[1]}`],
     [/^Đang áp dụng cho: (.+)$/, (match) => `Applied to: ${match[1]}`],
     [/^Thu hồi session (.+) của (.+)\?$/, (match) => `Revoke session ${match[1]} for ${match[2]}?`],

@@ -163,8 +163,6 @@ const rawMessengerCopy = {
       fileTooLarge: (fileName: string) => `File "${fileName}" vượt quá 10MB.`,
       fileUnsupportedType: (fileName: string) => `File "${fileName}" không đúng định dạng này.`,
       noConversationToSend: "Vui lòng chọn cuộc trò chuyện để gửi.",
-      attachmentDisabledDuringEdit: () =>
-        "Gửi file không được áp dụng khi chỉnh sửa tin nhắn.",
     },
     draftPanel: {
       replyLabel: "Đang trả lời",

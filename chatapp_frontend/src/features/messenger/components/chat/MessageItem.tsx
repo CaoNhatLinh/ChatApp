@@ -254,7 +254,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     )}
 
                     {!isPoll && !message.isDeleted && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200">
+                        <div className="flex items-center gap-1 opacity-100 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
                             <ReactionPicker
                                 conversationId={message.conversationId}
                                 messageBucket={message.messageBucket}

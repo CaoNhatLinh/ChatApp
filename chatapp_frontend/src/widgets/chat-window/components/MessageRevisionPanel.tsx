@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/Dialog";
 import type { SafeRevision } from "./types";
-import { getLocale, localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 interface MessageRevisionPanelProps {
   isOpen: boolean;
@@ -13,9 +13,11 @@ export const MessageRevisionPanel = ({
   revisions,
   onOpenChange,
 }: MessageRevisionPanelProps) => {
+  const { locale } = useAppLocale();
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" lang={locale}>
         <DialogHeader>
           <DialogTitle>{localizeText('Lịch sử chỉnh sửa')}</DialogTitle>
           <DialogDescription>
@@ -32,7 +34,7 @@ export const MessageRevisionPanel = ({
                 <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   <span>{localizeText('Bản chỉnh sửa')} {revision.revisionNumber}</span>
                   <span>
-                    {new Date(revision.editedAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN')}
+                    {new Date(revision.editedAt).toLocaleString(locale === 'en' ? 'en-US' : 'vi-VN')}
                   </span>
                 </div>
                 <p className="mt-2 whitespace-pre-wrap text-sm font-medium">

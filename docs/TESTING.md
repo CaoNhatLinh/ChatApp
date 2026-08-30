@@ -113,6 +113,12 @@ destructive confirmation, asserts the exact bucket-scoped `DELETE` request and
 checks that a deliberately content-bearing server tombstone renders only the
 localized deleted state with no remaining action menu.
 
+`npm run test:e2e:message-edit` preserves an existing unsent draft while edit
+mode owns the composer, proves cancellation sends no mutation, switches the
+active edit controls from Vietnamese to English, asserts the exact bucket-scoped
+`PUT` payload, restores the draft after success and verifies the canonical
+`editedAt` marker plus the bucket-scoped revision-history request.
+
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
 `localizeText(...)` call under `src/` (including the global admin feedback

@@ -92,6 +92,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const latestTextRef = useRef(text);
+  const latestSelectedFilesRef = useRef(selectedFiles);
+  const draftBeforeEditRef = useRef<{ text: string; selectedFiles: File[] } | null>(null);
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSendingRef = useRef(false);
@@ -99,9 +102,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const user = useAuthStore((state) => state.user);
   const unblockFriend = useFriendStore((state) => state.unblockFriend);
 
+  latestTextRef.current = text;
+  latestSelectedFilesRef.current = selectedFiles;
+
   useEffect(() => {
     if (editingMessage) {
+      if (!draftBeforeEditRef.current) {
+        draftBeforeEditRef.current = {
+          text: latestTextRef.current,
+          selectedFiles: latestSelectedFilesRef.current,
+        };
+      }
       setText(editingMessage.content);
+      setSelectedFiles([]);
+      textareaRef.current?.focus();
+      return;
+    }
+
+    if (draftBeforeEditRef.current) {
+      const draft = draftBeforeEditRef.current;
+      draftBeforeEditRef.current = null;
+      setText(draft.text);
+      setSelectedFiles(draft.selectedFiles);
     }
   }, [editingMessage]);
 
@@ -302,8 +324,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         }
 
         attachments = uploadedAttachments;
-      } else if (editingMessage && hasFiles) {
-        showWarning(MESSENGER_COPY.messageInput.actionError.attachmentDisabledDuringEdit());
       }
 
       if (editingMessage) {
@@ -520,6 +540,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             canShowVoice={canStartCall}
             onSend={() => void handleSend()}
             canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
+            isEditing={Boolean(editingMessage)}
           />
 
           <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />

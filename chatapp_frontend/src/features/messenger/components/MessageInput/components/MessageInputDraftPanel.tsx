@@ -1,6 +1,7 @@
 import { X, FileText } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { localizeText, useAppLocale } from "@/shared/i18n";
 
 interface MessageInputDraftPanelProps {
   replyingTo?: { content: string } | null;
@@ -19,12 +20,14 @@ export const MessageInputDraftPanel = ({
   onCancelEdit,
   onRemoveFile,
 }: MessageInputDraftPanelProps) => {
+  const { locale } = useAppLocale();
+
   if (!replyingTo && !editingMessage && selectedFiles.length === 0) {
     return null;
   }
 
   return (
-    <div className="space-y-2 px-2 sm:px-3">
+    <div className="space-y-2 px-2 sm:px-3" lang={locale}>
       {replyingTo && !editingMessage ? (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
@@ -41,6 +44,7 @@ export const MessageInputDraftPanel = ({
               variant="ghost"
               size="sm"
               onClick={onCancelReply}
+              aria-label={localizeText("Hủy trả lời")}
               className="text-muted-foreground hover:text-primary"
             >
               <X size={14} />
@@ -52,12 +56,9 @@ export const MessageInputDraftPanel = ({
       {editingMessage ? (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
                 {MESSENGER_COPY.messageInput.draftPanel.editLabel}
-              </p>
-              <p className="line-clamp-2 text-xs font-semibold text-foreground/80">
-                {editingMessage.content}
               </p>
             </div>
             <Button
@@ -65,6 +66,7 @@ export const MessageInputDraftPanel = ({
               variant="ghost"
               size="sm"
               onClick={onCancelEdit}
+              aria-label={localizeText("Hủy chỉnh sửa")}
               className="text-muted-foreground hover:text-primary"
             >
               <X size={14} />
@@ -87,6 +89,7 @@ export const MessageInputDraftPanel = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onRemoveFile(index)}
+                aria-label={localizeText(`Xóa tệp ${file.name}`)}
                 className="h-6 px-1 text-muted-foreground hover:text-destructive"
               >
                 <X size={12} />
