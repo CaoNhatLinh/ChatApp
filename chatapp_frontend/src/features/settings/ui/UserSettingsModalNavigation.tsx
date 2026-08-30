@@ -60,7 +60,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
 
   const mobileNav = (
     <motion.div
-      className="w-full border-b border-border/50 bg-background/35 sm:hidden"
+      className="flex h-full w-full flex-col bg-background/95 sm:hidden"
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={UI_MOTION_VARIANTS.fadeIn}
@@ -69,13 +69,13 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
         <h2 className="text-lg font-semibold tracking-tight">{localizeText('Cài đặt')}</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 px-4 sm:grid-cols-4">
+      <div className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {navigationItems.map((item) => (
           <button
             key={item.key}
             type="button"
             onClick={() => onTabChange(item.key)}
-            className={tabClassName(activeTab === item.key)}
+            className={`${tabClassName(activeTab === item.key)} justify-start`}
             aria-pressed={activeTab === item.key}
           >
             {item.icon}
@@ -86,7 +86,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
         ))}
       </div>
 
-      <div className="p-4 pt-3 border-t border-border/50 mt-3">
+      <div className="mt-auto border-t border-border/50 p-4">
         <button
           type="button"
           onClick={() => onLogout()}
@@ -102,7 +102,7 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
   return (
     <>
       <motion.div
-        className="w-64 border-r border-border/50 bg-background/30 flex-col hidden sm:flex"
+        className="hidden h-full w-64 shrink-0 flex-col border-r border-border/50 bg-background/30 sm:flex"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.fadeIn}

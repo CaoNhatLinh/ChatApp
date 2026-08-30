@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { FC } from 'react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
@@ -25,6 +25,7 @@ import { NotificationSettingsPanel } from '@/features/notifications/components/N
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { cn } from '@/shared/lib/cn';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [draftThemePreference, setDraftThemePreference] = useState<ThemePreference>('system');
   const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>('system');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const appearanceOpenRef = useRef(false);
   const settingsDialogRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +71,12 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMobileNavOpen(!isPageMode);
+    }
+  }, [isOpen, isPageMode]);
 
   useEffect(() => {
     if (isOpen && !appearanceOpenRef.current) {
@@ -159,6 +167,11 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     previewThemePreference(nextTheme);
   };
 
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    setMobileNavOpen(false);
+  };
+
   const handleSaveAppearance = () => {
     if (draftThemePreference === savedThemePreference) {
       notifyWarning(UI_COPY.settings.saveProfileNoChanges);
@@ -189,8 +202,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     <motion.div
       className={
         isPageMode
-          ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
-          : 'settings-surface relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
+          ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07]'
+          : 'settings-surface relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 sm:h-[85vh] sm:max-h-[850px] sm:max-w-4xl sm:rounded-[1.5rem] sm:border'
       }
       ref={isPageMode ? undefined : settingsDialogRef}
       initial={UI_MOTION_CONFIG.initialState}
@@ -200,52 +213,88 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       aria-modal={isPageMode ? undefined : true}
       aria-labelledby={isPageMode ? undefined : 'user-settings-title'}
     >
-      <UserSettingsModalNavigation
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onLogout={handleLogout}
-      />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleClose}
+        className="absolute right-3 top-3 z-30 sm:hidden"
+        aria-label={localizeText('Đóng cài đặt')}
+        disabled={isWorking}
+      >
+        <X size={22} />
+      </Button>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-white/[0.07] bg-white/[0.025] px-6">
-          <h2 id="user-settings-title" className="hidden text-lg font-semibold tracking-tight sm:block">
-            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'language' ? localizeText('Ngôn ngữ') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
-          </h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClose}
-            className="ml-auto"
-            aria-label={localizeText('Đóng cài đặt')}
-            disabled={isWorking}
-          >
-            <X size={24} />
-          </Button>
+      <div className="relative flex min-h-0 flex-1 flex-col sm:flex-row">
+        <div
+          className={cn(
+            'absolute inset-0 z-20 sm:static sm:z-auto sm:flex sm:w-64 sm:shrink-0',
+            mobileNavOpen ? 'block' : 'hidden sm:flex',
+          )}
+        >
+          <UserSettingsModalNavigation
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            onLogout={handleLogout}
+          />
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-8">
-          <div className="max-w-xl mx-auto">
-            {activeTab === 'profile' ? (
-              user ? <UserSettingsProfilePanel
-                userName={user.userName}
-                displayName={displayName}
-                avatarUrl={avatarUrl}
-                isSaving={isSaving}
-                canSave={!isProfileUnchanged}
-                onDisplayNameChange={setDisplayName}
-                onAvatarChange={setAvatarUrl}
-                onSave={handleSaveProfile}
-              /> : null
-            ) : activeTab === 'appearance' ? (
-              <UserSettingsAppearancePanel
-                themePreference={draftThemePreference}
-                onThemeChange={handleThemePreview}
-                canSave={draftThemePreference !== savedThemePreference}
-                onSave={handleSaveAppearance}
-              />
-            ) : activeTab === 'language' ? (
-              <UserSettingsLanguagePanel locale={locale} onLocaleChange={setLocale} />
-            ) : activeTab === 'notifications' ? <NotificationSettingsPanel /> : <ReportHistoryPanel />}
+        <div
+          className={cn(
+            'relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden',
+            mobileNavOpen && 'pointer-events-none invisible sm:pointer-events-auto sm:visible',
+          )}
+        >
+          <div className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-white/[0.07] bg-white/[0.025] px-4 sm:px-6">
+            {!mobileNavOpen ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileNavOpen(true)}
+                className="sm:hidden"
+                aria-label={localizeText('Quay lại')}
+              >
+                <ChevronLeft size={22} />
+              </Button>
+            ) : null}
+            <h2 id="user-settings-title" className="text-lg font-semibold tracking-tight">
+              {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'language' ? localizeText('Ngôn ngữ') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClose}
+              className="ml-auto hidden sm:inline-flex"
+              aria-label={localizeText('Đóng cài đặt')}
+              disabled={isWorking}
+            >
+              <X size={24} />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 sm:p-8">
+            <div className="mx-auto max-w-xl">
+              {activeTab === 'profile' ? (
+                user ? <UserSettingsProfilePanel
+                  userName={user.userName}
+                  displayName={displayName}
+                  avatarUrl={avatarUrl}
+                  isSaving={isSaving}
+                  canSave={!isProfileUnchanged}
+                  onDisplayNameChange={setDisplayName}
+                  onAvatarChange={setAvatarUrl}
+                  onSave={handleSaveProfile}
+                /> : null
+              ) : activeTab === 'appearance' ? (
+                <UserSettingsAppearancePanel
+                  themePreference={draftThemePreference}
+                  onThemeChange={handleThemePreview}
+                  canSave={draftThemePreference !== savedThemePreference}
+                  onSave={handleSaveAppearance}
+                />
+              ) : activeTab === 'language' ? (
+                <UserSettingsLanguagePanel locale={locale} onLocaleChange={setLocale} />
+              ) : activeTab === 'notifications' ? <NotificationSettingsPanel /> : <ReportHistoryPanel />}
+            </div>
           </div>
         </div>
       </div>
@@ -257,9 +306,9 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
       <motion.div
-        className="absolute inset-0 bg-background/40 backdrop-blur-md"
+        className="absolute inset-0 bg-black/10 backdrop-blur-[1px]"
         onClick={handleClose}
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}

@@ -43,7 +43,7 @@ export const MessengerLayoutShell = ({
 
       <div className="relative flex h-full w-full">
         {navigationRail}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="hidden h-16 shrink-0 items-center border-b border-white/10 bg-[#0b141c]/95 px-5 backdrop-blur md:flex" aria-label={localizeText("Thanh điều hướng chung")}>
             <div className="ml-auto">
               <Button

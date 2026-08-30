@@ -8,7 +8,7 @@ export function AppToaster() {
       position="top-center"
       reverseOrder={false}
       gutter={8}
-      containerStyle={{ top: 12, left: 12, right: 12 }}
+      containerStyle={{ top: 12, left: 12, right: 12, zIndex: 90 }}
       toastOptions={{
         duration: 3200,
         style: {

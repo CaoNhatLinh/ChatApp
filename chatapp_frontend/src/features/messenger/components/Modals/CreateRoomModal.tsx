@@ -130,11 +130,11 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     if (!isOpen) return null;
 
     const modalContent = (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4">
             {/* Backdrop */}
             <motion.button
                 type="button"
-                className="absolute inset-0 bg-background/40 backdrop-blur-md"
+                className="absolute inset-0 bg-black/10 backdrop-blur-[1px]"
                 onClick={isCreating ? undefined : onClose}
                 aria-label={localizeText('Đóng cửa sổ tạo phòng')}
                 initial={UI_MOTION_CONFIG.initialState}
@@ -151,7 +151,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                 aria-describedby={errorMessage ? 'create-room-error' : undefined}
                 aria-busy={isCreating}
                 tabIndex={-1}
-                className="relative w-full max-w-2xl h-[80vh] max-h-[700px] bg-card/60 glass rounded-[2.5rem] neo-shadow flex flex-col overflow-hidden z-10"
+                className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden border-0 bg-card/60 glass neo-shadow sm:h-[80vh] sm:max-h-[700px] sm:max-w-2xl sm:rounded-[2.5rem]"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.zoomReveal}

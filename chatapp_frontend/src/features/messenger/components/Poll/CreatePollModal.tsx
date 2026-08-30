@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, BarChart3, Clock, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
 import { motion } from 'framer-motion';
@@ -6,6 +7,7 @@ import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-moti
 import type { CreatePollRequest } from '../../types/messenger.types';
 import { localizeText } from '@/shared/i18n';
 import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
+import { dismissFeedback } from '@/shared/lib/notification';
 
 interface CreatePollModalProps {
     conversationId: string;
@@ -31,6 +33,10 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const dialogRef = useRef<HTMLDivElement>(null);
     useFocusTrap(isOpen, dialogRef, onClose, isSubmitting);
+
+    useEffect(() => {
+        if (isOpen) dismissFeedback();
+    }, [isOpen]);
 
     const addOption = () => {
         if (options.length >= 10) return;
@@ -98,10 +104,10 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
     if (!isOpen) return null;
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+    const modalContent = (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+            <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px]" onClick={onClose} aria-hidden="true" />
 
             {/* Modal */}
             <motion.div
@@ -109,7 +115,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="create-poll-title"
-                className="relative mx-4 w-full max-w-lg overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#101720] text-slate-100 shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
+                className="relative flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden border-0 bg-[#101720] text-slate-100 shadow-[0_24px_80px_rgba(0,0,0,0.42)] sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-[1.5rem] sm:border sm:border-white/10"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.zoomReveal}
@@ -133,7 +139,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="max-h-[65vh] space-y-5 overflow-y-auto p-6">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6 sm:max-h-[65vh] sm:flex-none">
                     {/* Question */}
                     <div>
                         <label htmlFor="poll-question" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -315,5 +321,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
             </motion.div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 

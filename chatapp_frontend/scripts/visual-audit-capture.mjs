@@ -33,7 +33,6 @@ const captures = [
   { slug: 'notification-inbox', path: '/app?notifications=1', authenticated: true, verifyNotificationClose: true },
   { slug: 'friends-empty', path: '/friends', authenticated: true },
   { slug: 'communities', path: '/communities', authenticated: true },
-  { slug: 'search-empty', path: '/search', authenticated: true },
   { slug: 'profile', path: '/profile', authenticated: true },
   { slug: 'settings-profile', path: '/settings', authenticated: true },
   { slug: 'settings-appearance', path: '/settings?tab=appearance', authenticated: true },
@@ -294,10 +293,21 @@ const captureRoute = async (browser, viewport, capture) => {
   let settingsModalClosed = null;
   let settingsModalFocusContained = null;
   let settingsModalScrollLocked = null;
+  let settingsMobileLayers = null;
   if (capture.openSettingsModal) {
     const dialog = page.getByRole('dialog');
     settingsModalScrollLocked = await page.evaluate(() => document.body.style.overflow === 'hidden');
-    const focusable = dialog.locator('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])');
+    if (viewport.name === 'mobile') {
+      const appearanceTab = dialog.locator('button:visible').filter({ hasText: 'Giao diện' }).first();
+      await appearanceTab.click();
+      const backButton = dialog.getByRole('button', { name: 'Quay lại', exact: true });
+      await backButton.waitFor({ state: 'visible' });
+      await page.screenshot({ path: `${outputDirectory}/settings-modal-detail-mobile.png`, fullPage: true });
+      await backButton.click();
+      await appearanceTab.waitFor({ state: 'visible' });
+      settingsMobileLayers = true;
+    }
+    const focusable = dialog.locator('button:not([disabled]):visible, input:not([disabled]):visible, textarea:not([disabled]):visible, select:not([disabled]):visible, [href]:visible, [tabindex]:not([tabindex="-1"]):visible');
     const first = focusable.first();
     const last = focusable.last();
     await first.focus();
@@ -329,6 +339,7 @@ const captureRoute = async (browser, viewport, capture) => {
     settingsModalClosed,
     settingsModalFocusContained,
     settingsModalScrollLocked,
+    settingsMobileLayers,
     notificationPanelClosed,
   };
   await context.close();

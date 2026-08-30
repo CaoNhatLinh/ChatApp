@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { submitUserReport } from '@/features/moderation/api/report.api';
@@ -80,12 +81,12 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[125] flex items-center justify-center p-4" role="presentation">
+  const modalContent = (
+    <div className="fixed inset-0 z-[125] flex items-center justify-center p-0 sm:p-4" role="presentation">
       <button
         type="button"
         aria-label={localizeText('Đóng báo cáo hồ sơ')}
-        className="absolute inset-0 bg-background/60 backdrop-blur-md"
+        className="absolute inset-0 bg-black/10 backdrop-blur-[1px]"
         onClick={isSubmitting ? undefined : onClose}
       />
       <motion.div
@@ -93,7 +94,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-user-title"
-        className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-border/60 bg-card/95 neo-shadow"
+        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden border-0 bg-card/95 neo-shadow sm:h-auto sm:max-h-[85vh] sm:max-w-md sm:rounded-3xl sm:border sm:border-border/60"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.zoomReveal}
@@ -119,7 +120,7 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
           </button>
         </div>
 
-        <div className="space-y-5 p-6">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
           <div className="rounded-2xl border border-border/50 bg-background/40 p-3 text-sm">
             <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">{localizeText('Hồ sơ được chọn')}</p>
             <p className="truncate font-semibold text-foreground/80">{displayName}</p>
@@ -164,4 +165,6 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
       </motion.div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

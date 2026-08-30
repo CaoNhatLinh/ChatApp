@@ -20,8 +20,13 @@
   dialog is open, so only the topmost layer receives keyboard focus.
 - The global Settings dialog opened from the application rail uses the same
   Escape/Tab containment contract, restores focus to the triggering control,
-  and locks background scrolling while open. The `/settings` route remains a
-  direct deep-link surface but is not used by the rail action.
+  and locks background scrolling while open. On mobile, its navigation is a
+  full-viewport layer above the detail panel; selecting a category replaces the
+  layer with the detail view and exposes a labelled back control. The `/settings`
+  route remains a direct deep-link surface but is not used by the rail action.
+- Mobile dialogs use the full viewport with a light, transparent backdrop so
+  content stays readable and touch targets are not squeezed into a desktop-sized
+  card. Desktop dialogs retain bounded width and centered presentation.
 - Test at 320, 768, 1024 and 1440px, in light and dark themes, with reduced
   motion enabled.
 - Browser evidence must include console/request failure checks and an

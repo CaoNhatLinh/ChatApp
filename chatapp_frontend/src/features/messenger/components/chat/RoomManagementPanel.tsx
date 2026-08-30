@@ -80,6 +80,8 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null);
     const [auditOpen, setAuditOpen] = React.useState(false);
     const requestRef = React.useRef(0);
+    const initialLoadConversationRef = React.useRef<string | null>(null);
+    const memberPageRequestRef = React.useRef<string | null>(null);
 
     const load = React.useCallback(async () => {
         const requestId = ++requestRef.current;
@@ -108,11 +110,10 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     }, [conversation.conversationId]);
 
     React.useEffect(() => {
+        if (initialLoadConversationRef.current === conversation.conversationId) return;
+        initialLoadConversationRef.current = conversation.conversationId;
         void load();
-        return () => {
-            requestRef.current += 1;
-        };
-    }, [load]);
+    }, [conversation.conversationId, load]);
 
     const can = React.useCallback((permission: string) => (
         access?.permissions.includes(permission) ?? false
@@ -144,10 +145,13 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
 
     const loadMoreMembers = React.useCallback(async () => {
         if (!memberCursor || !hasMoreMembers || busyKey !== null) return;
+        if (memberPageRequestRef.current === memberCursor) return;
         const requestId = requestRef.current;
+        const cursor = memberCursor;
+        memberPageRequestRef.current = cursor;
         setBusyKey('load-more-members');
         try {
-            const page = await getConversationMembers(conversation.conversationId, memberCursor, ROOM_MEMBER_PAGE_SIZE);
+            const page = await getConversationMembers(conversation.conversationId, cursor, ROOM_MEMBER_PAGE_SIZE);
             if (requestId !== requestRef.current) return;
             setMembers((current) => {
                 const existingIds = new Set(current.map((member) => member.userId));
@@ -160,6 +164,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
             logger.error('[RoomManagementPanel] Member page load failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể tải thêm thành viên.')));
         } finally {
+            if (memberPageRequestRef.current === cursor) memberPageRequestRef.current = null;
             if (requestId === requestRef.current) setBusyKey(null);
         }
     }, [busyKey, conversation.conversationId, hasMoreMembers, memberCursor]);

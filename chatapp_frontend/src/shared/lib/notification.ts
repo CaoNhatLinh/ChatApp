@@ -19,3 +19,7 @@ export const notifyWarning = (message: string, options?: ToastOptions): void => 
     icon: '\u26A0',
   });
 };
+
+export const dismissFeedback = (): void => {
+  toast.remove(FEEDBACK_TOAST_ID);
+};
