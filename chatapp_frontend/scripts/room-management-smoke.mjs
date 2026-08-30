@@ -202,7 +202,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
-    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE', 'ROOM_AUDIT_READ'], owner: true });
+    return json({ permissions: ['MESSAGE_SEND', 'ROLE_CREATE', 'ROLE_UPDATE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'MEMBER_KICK', 'MEMBER_MUTE', 'ROOM_UPDATE', 'ROOM_AUDIT_READ', 'INVITE_MANAGE'], owner: true });
   }
   if (path.endsWith(`/conversations/${conversationId}/audit`) && method === 'GET') {
     return json({

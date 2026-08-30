@@ -10,6 +10,7 @@ import {
     type InviteLinkRecord,
     type JoinRequestView,
 } from '../../api/invite.api';
+import { getConversationPermissions } from '../../api/messenger.api';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
@@ -36,12 +37,23 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     const [loading, setLoading] = useState(true);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [canManageInvites, setCanManageInvites] = useState<boolean | null>(null);
     const managerIdentityRef = useRef<object>({});
 
     const refresh = async (identity: object = managerIdentityRef.current) => {
         if (identity !== managerIdentityRef.current) return;
         setLoading(true);
         try {
+            const access = await getConversationPermissions(conversationId);
+            if (identity !== managerIdentityRef.current) return;
+            const nextCanManageInvites = access.permissions.includes('INVITE_MANAGE');
+            setCanManageInvites(nextCanManageInvites);
+            if (!nextCanManageInvites) {
+                setLinks([]);
+                setRequests([]);
+                return;
+            }
+
             const [nextLinks, nextRequests] = await Promise.all([
                 listInvites(conversationId),
                 listJoinRequests(conversationId),
@@ -58,6 +70,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
         const identity = {};
         managerIdentityRef.current = identity;
         setError(null);
+        setCanManageInvites(null);
         void refresh(identity).catch((refreshError: unknown) => {
             if (identity !== managerIdentityRef.current) return;
             logger.error('[InviteManager] Failed to load invite data', refreshError instanceof Error ? refreshError.message : String(refreshError));
@@ -155,6 +168,8 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             setPendingAction(null);
         }
     };
+
+    if (canManageInvites === false) return null;
 
     if (loading && links.length === 0 && requests.length === 0) {
         return <div className="rounded-xl border border-border/50 p-3 text-xs text-muted-foreground" role="status">{localizeText('Đang tải danh sách lời mời...')}</div>;
