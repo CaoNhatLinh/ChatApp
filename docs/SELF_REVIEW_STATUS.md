@@ -1364,6 +1364,15 @@ Correction in this increment:
 | Duplicate-request safety | Pass | A component-local in-flight guard prevents observer and button events from issuing concurrent page requests | Cross-tab duplicate navigation remains outside this UI boundary | Let the canonical store own cursor authority and keep only request de-duplication local |
 | Regression safety | Pass for available gates | `npm run validate`, `npm run build`, browser smoke and room-management smoke pass with zero console/request failures | Clean backend pagination remains pending | Treat browser evidence as UI contract proof, not provider persistence proof |
 
+# Follow-up self-review (2026-08-30, progressive search filters)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Information density | Pass for search surface | Primary query/scope remain visible; eight advanced message fields are collapsed in a native disclosure and an active-filter badge preserves awareness | Authenticated usability testing with a large result set remains pending | Keep the frequent action visible and reveal specialized filters on demand |
+| Locale correctness | Pass | `SearchPage` now subscribes to `useAppLocale`; the browser journey switches an open, stateful filter form from VI to EN without another incidental state update | Full authenticated route-by-route locale walkthrough remains broader work | Any component calling runtime localization directly must subscribe to locale context |
+| Accessibility | Pass at component boundary | Native `<details>/<summary>` supplies keyboard disclosure semantics; summary has a visible label and active-filter count | Screen-reader announcement wording still needs manual audit | Prefer semantic browser controls over a custom disclosure state machine |
+| Regression safety | Pass for available gates | `npm run validate`, `npm run test:i18n:copy`, `npm run build`, `npm run test:e2e:search`, and `npm run test:e2e:ui-quality` pass; search smoke asserts collapsed default, open interaction, cursor request, VI→EN rendering, and no missing-conversation request | Live Elasticsearch authorization/index behavior remains pending | Keep filter-wire assertions independent from provider availability |
+
 # Follow-up self-review (2026-08-29, unknown DM presence disclosure)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

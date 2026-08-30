@@ -791,6 +791,8 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'UUID người gửi không hợp lệ.': 'Invalid sender UUID.',
   'UUID người gửi trong tin nhắn reply không hợp lệ.': 'Invalid reply sender UUID.',
   'Bộ lọc tin nhắn': 'Message filters',
+  'Mở rộng': 'Expand',
+  'Số bộ lọc đang bật': 'Active filter count',
   'Không tìm thấy tin nhắn phù hợp.': 'No matching messages found.',
   'Tin nhắn trong cuộc trò chuyện': 'Message in conversation',
   'UUID người nhắc đến không hợp lệ.': 'Invalid mentioned-user UUID.',

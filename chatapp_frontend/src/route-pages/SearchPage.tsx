@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
@@ -10,7 +10,7 @@ import SearchResultSkeleton from "@/route-pages/search/components/SearchResultSk
 import { searchMessages, type MessageSearchFilters } from "@/features/messenger/api/messenger.api";
 import { motion } from "framer-motion";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
-import { localizeText } from "@/shared/i18n";
+import { localizeText, useAppLocale } from "@/shared/i18n";
 import { logger } from "@/shared/lib/logger";
 import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 
@@ -54,6 +54,7 @@ const isValidUuid = (value: string) => {
 };
 
 export const SearchPage = () => {
+  useAppLocale();
   const scopeFilters: ReadonlyArray<{ value: SearchScope; label: string }> = SEARCH_COPY.scopes;
   const searchTargets: SearchData[] = useMemo(() => SEARCH_COPY.targets.map((target): SearchData => ({
     ...target,
@@ -95,6 +96,16 @@ export const SearchPage = () => {
       attachmentFilter !== "all" ||
       pinnedFilter !== "all"
   );
+  const messageFilterCount = [
+    senderId.trim(),
+    replyToSenderId.trim(),
+    messageType,
+    fromDate.trim(),
+    toDate.trim(),
+    mentionedUserId.trim(),
+    attachmentFilter !== "all" ? attachmentFilter : "",
+    pinnedFilter !== "all" ? pinnedFilter : "",
+  ].filter(Boolean).length;
 
   const isMessageScopeEnabled = scope === "chat" || scope === "all";
   const canSearchMessages =
@@ -421,11 +432,26 @@ export const SearchPage = () => {
           </div>
 
           {isMessageScopeEnabled && (
-            <div className="space-y-3 rounded-lg border border-border/50 bg-background p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                {localizeText("Bộ lọc tin nhắn")}
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
+            <details className="group rounded-lg border border-border/50 bg-background">
+              <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground marker:hidden">
+                <span className="inline-flex items-center gap-2">
+                  <SlidersHorizontal size={14} aria-hidden="true" />
+                  {localizeText("Bộ lọc tin nhắn")}
+                  {messageFilterCount > 0 ? (
+                    <span
+                      className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold normal-case tracking-normal text-primary"
+                      aria-label={localizeText("Số bộ lọc đang bật")}
+                    >
+                      {messageFilterCount}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="text-[10px] normal-case tracking-normal text-muted-foreground/70 group-open:hidden">
+                  {localizeText("Mở rộng")}
+                </span>
+              </summary>
+              <div className="space-y-3 border-t border-border/40 p-3">
+                <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1.5 text-xs">
                   <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.senderIdPlaceholder}</span>
                   <input
@@ -513,21 +539,22 @@ export const SearchPage = () => {
                     className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </label>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={clearMessageFilters}
-                  className="rounded-md border border-border/50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] hover:bg-muted"
-                >
-                  {SEARCH_COPY.messageFilter.clearLabel}
-                </button>
-              </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearMessageFilters}
+                    className="rounded-md border border-border/50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] hover:bg-muted"
+                  >
+                    {SEARCH_COPY.messageFilter.clearLabel}
+                  </button>
+                </div>
 
-              {isMessageScopeEnabled && hasMessageFilter && !hasConversationId ? (
-                <p className="text-xs text-destructive">{SEARCH_COPY.messageFilter.disabledHint}</p>
-              ) : null}
-            </div>
+                {isMessageScopeEnabled && hasMessageFilter && !hasConversationId ? (
+                  <p className="text-xs text-destructive">{SEARCH_COPY.messageFilter.disabledHint}</p>
+                ) : null}
+              </div>
+            </details>
           )}
         </SurfacePanel>
 

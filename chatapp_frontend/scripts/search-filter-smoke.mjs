@@ -101,6 +101,15 @@ await page.addInitScript(() => {
 await page.goto(`${baseUrl}/search?conversationId=${conversationId}`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Tìm kiếm nhanh' }).waitFor();
 
+const messageFilterDisclosure = page.locator('details').filter({ hasText: 'Bộ lọc tin nhắn' });
+if (await messageFilterDisclosure.getAttribute('open') !== null) {
+  throw new Error('Message filters must be collapsed by default');
+}
+await page.getByText('Bộ lọc tin nhắn', { exact: true }).click();
+if (await messageFilterDisclosure.getAttribute('open') === null) {
+  throw new Error('Message filters did not open from the disclosure control');
+}
+
 const selects = page.locator('select');
 const selectCount = await selects.count();
 if (selectCount !== 3) {
@@ -137,11 +146,12 @@ await page.goto(`${baseUrl}/search`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Quick search' }).waitFor();
 const requestCountBeforeMissingConversation = searchRequests.length;
 await page.locator('input').first().fill('chat');
-await page.getByText('Open a conversation to use advanced message search.', { exact: true }).first().waitFor();
+await page.locator('li').filter({ hasText: 'Open a conversation to use advanced message search.' }).waitFor();
 await page.waitForTimeout(450);
 
 const report = {
   baseUrl,
+  messageFiltersCollapsedByDefault: true,
   selectCount,
   typeRequest,
   loadMoreRequest,
