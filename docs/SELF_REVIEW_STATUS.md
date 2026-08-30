@@ -1373,6 +1373,16 @@ Correction in this increment:
 | Accessibility | Pass at component boundary | Native `<details>/<summary>` supplies keyboard disclosure semantics; summary has a visible label and active-filter count | Screen-reader announcement wording still needs manual audit | Prefer semantic browser controls over a custom disclosure state machine |
 | Regression safety | Pass for available gates | `npm run validate`, `npm run test:i18n:copy`, `npm run build`, `npm run test:e2e:search`, and `npm run test:e2e:ui-quality` pass; search smoke asserts collapsed default, open interaction, cursor request, VI→EN rendering, and no missing-conversation request | Live Elasticsearch authorization/index behavior remains pending | Keep filter-wire assertions independent from provider availability |
 
+# Follow-up self-review (2026-08-30, presence and directory flow audit)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Flow completeness | Partial | `flows/presence-and-large-directory.md` records actors, authorization, heartbeat, multi-device aggregation, TTL/sweep, Pub/Sub fan-out, viewport subscribe/unsubscribe, cursor loading, duplicate/stale guards and recovery | Distributed subscription invalidation after friendship/membership revocation and live Redis reconnect remain unimplemented/unverified | Document the gap explicitly; do not present near-real-time presence as absolute truth |
+| Code-doc consistency | Pass for audited flows | Diagrams were checked against `PresenceService`, `PresenceController`, `presenceWsService`, `useTrackPresenceInViewport`, member API/store and sidebar/member list implementations | Other feature flows still need the same bidirectional audit | Keep durable directory data and ephemeral presence as separate authorities |
+| Permission coverage | Partial | Conversation scope verifies watcher and every target membership; unscoped targets require accepted friendship; room member page requires membership | A successful subscription is not reauthorized on later relationship revocation | Add a distributed revocation signal; per-event Cassandra reauthorization was rejected because it amplifies one status event into an unbounded read burst |
+| Failure and recovery | Pass for documented current behavior | Unknown UI state, strict event validation, disconnect cleanup, expiry sweep, reconnect batch, stale-page discard and manual pagination recovery are recorded | Live dependency failure behavior still needs clean-stack evidence | Preserve honest unknown/error states rather than inventing offline or complete-list fallbacks |
+| Test traceability | Partial | Java 20 suite reports 146 tests/0 failures/0 errors; `PresenceServiceTest`, frontend validation and `test:e2e:room-management` are linked to the exact flow branches they cover | Sidebar auto-pagination browser evidence and live multi-node presence evidence remain pending | Add targeted browser/integration proof instead of broadening current claims |
+
 # Follow-up self-review (2026-08-29, unknown DM presence disclosure)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

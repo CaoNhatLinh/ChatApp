@@ -10,3 +10,9 @@ paths, state changes, data stores/topics, observability signals and test
 evidence. Keep diagrams aligned with the actual Spring, Cassandra, Redis,
 Kafka, Elasticsearch, Cloudinary and browser boundaries; never draw a system
 that the implementation does not use.
+
+Current detailed flows:
+
+- [`FLOW-REALTIME-001` and `FLOW-DIRECTORY-001`](presence-and-large-directory.md):
+  authorized viewport presence, multi-device expiry, reconnect boundaries and
+  bounded room/conversation directory loading.

@@ -31,6 +31,9 @@ membership/permission failures are never hidden as empty success states. A
 report cannot target the reporter's own account, and operator mutations require
 an explicit audit reason.
 
+Detailed realtime and large-list behavior is defined in
+[`FLOW-REALTIME-001` and `FLOW-DIRECTORY-001`](flows/presence-and-large-directory.md).
+
 ## FLOW-ADMIN-001 — operator session/device control
 
 Linked feature: `ID-ADMIN-001` (global admin workspace).
