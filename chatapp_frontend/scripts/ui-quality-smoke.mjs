@@ -4,6 +4,9 @@ const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const paths = ['/', '/about', '/help', '/privacy', '/terms', '/login', '/register', '/403'];
 const viewports = [
   { width: 320, height: 780 },
+  { width: 390, height: 844 },
+  { width: 768, height: 900 },
+  { width: 1024, height: 900 },
   { width: 1440, height: 900 },
 ];
 
