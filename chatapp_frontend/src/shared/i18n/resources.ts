@@ -425,6 +425,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Thử lại với từ khóa khác hoặc kiểm tra bộ lọc ở phía trên.': 'Try another keyword or check the filter above.',
   'Nhập username khác để thử lại.': 'Enter another username to try again.',
   'Nhập tối thiểu 2 ký tự để tìm người dùng.': 'Enter at least 2 characters to search.',
+  'Tin nhắn không được vượt quá 20.000 ký tự.': 'Messages cannot exceed 20,000 characters.',
   'Nhập username để tìm...': 'Enter a username to search…',
   'Tìm bạn và bắt đầu trò chuyện': 'Find people and start chatting',
   'Tìm kiếm bạn bè theo tên đăng nhập...': 'Search friends by username…',

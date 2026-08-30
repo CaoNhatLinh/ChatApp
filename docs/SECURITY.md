@@ -9,6 +9,13 @@
 - Access JWTs exist only in frontend memory. `novachat_session=1` is a readable,
   non-authorizing session hint that avoids refresh requests for anonymous users;
   the backend never treats it as authentication or authorization evidence.
+- Unsent message text is device-local product data, never authorization state.
+  Browser storage keys are separated by authenticated user and conversation,
+  retain at most 50 drafts for 30 days, accept only the current strict schema,
+  and are cleared per room only after a successful send. Attachments and edit
+  content are not persisted. Users should still treat a shared unlocked browser
+  profile as access to their local data; server-side encrypted draft sync is not
+  implemented.
 - HTTP CORS and STOMP origins are configuration-driven (`CORS_ALLOWED_ORIGIN_PATTERNS`
   and `WEBSOCKET_ALLOWED_ORIGIN_PATTERNS`); production deployments must replace
   the localhost defaults with an explicit allow-list.

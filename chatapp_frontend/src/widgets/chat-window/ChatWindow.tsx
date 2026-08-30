@@ -189,6 +189,11 @@ export const ChatWindow = () => {
   }, [currentUser?.userId, fetchBlockedUsers]);
 
   useEffect(() => {
+    setReplyingTo(null);
+    setEditingMessage(null);
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTo({
         top: messagesRef.current.scrollHeight,
@@ -534,6 +539,7 @@ export const ChatWindow = () => {
 
         <div className="p-6">
           <MessageInput
+            key={`${currentUser?.userId ?? 'anonymous'}:${activeConversationId}`}
             replyingTo={replyingTo}
             editingMessage={editingMessage}
             onCancelReply={() => setReplyingTo(null)}

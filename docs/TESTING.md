@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence scope/fan-out/expiry, conversation cursor pagination, bounded message interaction hydration, and infrastructure manifests (147 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence scope/fan-out/expiry, conversation cursor pagination, bounded message interaction hydration, poll concurrency, invite viewer-state recovery, and infrastructure manifests (155 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -118,6 +118,14 @@ mode owns the composer, proves cancellation sends no mutation, switches the
 active edit controls from Vietnamese to English, asserts the exact bucket-scoped
 `PUT` payload, restores the draft after success and verifies the canonical
 `editedAt` marker plus the bucket-scoped revision-history request.
+
+`npm run test:e2e:message-drafts` keeps independent text drafts for two rooms,
+restores them after a full reload, preserves the active draft after an expected
+503 send failure, removes only the successfully sent room draft, and proves a
+second account in the same browser cannot render the first account's draft. It
+also removes an invalid schema instead of interpreting old shapes, checks the
+20,000-character composer contract, 390px overflow and unexpected console or
+network failures.
 
 `npm run test:e2e:message-interactions` starts with a populated server-side
 interaction projection, verifies compact reaction and seen rendering, asserts

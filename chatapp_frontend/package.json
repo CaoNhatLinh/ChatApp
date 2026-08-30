@@ -20,6 +20,7 @@
     "test:e2e:invites": "node scripts/invite-join-smoke.mjs",
     "test:e2e:message-delete": "node scripts/message-delete-smoke.mjs",
     "test:e2e:message-edit": "node scripts/message-edit-smoke.mjs",
+    "test:e2e:message-drafts": "node scripts/message-draft-smoke.mjs",
     "test:e2e:message-interactions": "node scripts/message-interactions-smoke.mjs",
     "test:e2e:polls": "node scripts/poll-flow-smoke.mjs",
     "test:e2e:communities": "node scripts/community-discovery-smoke.mjs",

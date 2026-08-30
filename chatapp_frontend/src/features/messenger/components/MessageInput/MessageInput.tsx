@@ -23,6 +23,8 @@ import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-moti
 import { localizeText } from "@/shared/i18n";
 import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 import { logger } from "@/shared/lib/logger";
+import { MAX_MESSAGE_CONTENT_LENGTH } from "@/features/messenger/constants/messageLimits";
+import { useMessageComposerText } from "@/features/messenger/hooks/useMessageComposerText";
 
 interface MessageInputProps {
   replyingTo?: Message | null;
@@ -75,7 +77,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onStartCall,
   canStartCall,
 }) => {
-  const [text, setText] = useState("");
+  const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
+  const user = useAuthStore((state) => state.user);
+  const {
+    text,
+    draftText,
+    updateText,
+    clearDraft,
+    clearEditingText,
+  } = useMessageComposerText({
+    userId: user?.userId,
+    conversationId: activeConversationId ?? undefined,
+    editingContent: editingMessage?.content,
+  });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -87,44 +101,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isUnblocking, setIsUnblocking] = useState(false);
 
-  const { sendMessage, sendTyping, activeConversationId, editMessage, uploadMessageFiles } = useMessenger();
   const fetchBlockedUsers = useFriendStore((state) => state.fetchBlockedUsers);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
-  const latestTextRef = useRef(text);
-  const latestSelectedFilesRef = useRef(selectedFiles);
-  const draftBeforeEditRef = useRef<{ text: string; selectedFiles: File[] } | null>(null);
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSendingRef = useRef(false);
   const conversationsFromStore = useMessengerStore((state) => state.conversations);
-  const user = useAuthStore((state) => state.user);
   const unblockFriend = useFriendStore((state) => state.unblockFriend);
 
-  latestTextRef.current = text;
-  latestSelectedFilesRef.current = selectedFiles;
-
   useEffect(() => {
-    if (editingMessage) {
-      if (!draftBeforeEditRef.current) {
-        draftBeforeEditRef.current = {
-          text: latestTextRef.current,
-          selectedFiles: latestSelectedFilesRef.current,
-        };
-      }
-      setText(editingMessage.content);
-      setSelectedFiles([]);
-      textareaRef.current?.focus();
-      return;
-    }
-
-    if (draftBeforeEditRef.current) {
-      const draft = draftBeforeEditRef.current;
-      draftBeforeEditRef.current = null;
-      setText(draft.text);
-      setSelectedFiles(draft.selectedFiles);
-    }
+    if (!editingMessage) return;
+    textareaRef.current?.focus();
   }, [editingMessage]);
 
   useEffect(() => {
@@ -166,9 +155,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setBlockStatusError(false);
   }, [activeConversationId, blockStatusRetry, conversationsFromStore]);
 
+  const updateComposerText = useCallback((nextText: string): boolean => {
+    if (nextText.length > MAX_MESSAGE_CONTENT_LENGTH) {
+      notifyWarning(MESSENGER_COPY.messageInput.actionError.messageTooLong);
+      return false;
+    }
+    return updateText(nextText);
+  }, [updateText]);
+
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextText = event.target.value;
-    setText(nextText);
+    if (!updateComposerText(nextText)) return;
     const cursorPos = event.target.selectionStart ?? nextText.length;
     setMentionQuery(getMentionQuery(nextText, cursorPos));
   };
@@ -179,7 +176,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       const cursorPos = textarea?.selectionStart ?? text.length;
       const { newContent, newCursorPos } = insertMention(text, cursorPos, userId, displayName);
 
-      setText(newContent);
+      if (!updateComposerText(newContent)) return;
       setMentionQuery(null);
 
       requestAnimationFrame(() => {
@@ -188,7 +185,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       });
     },
-    [text],
+    [text, updateComposerText],
   );
 
   const handleMentionClose = useCallback(() => {
@@ -236,7 +233,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [validateFile]);
 
   useEffect(() => {
-    if (text.length > 0) {
+    if (!editingMessage && draftText.length > 0) {
       if (!isTypingRef.current) {
         isTypingRef.current = true;
         sendTyping(true);
@@ -264,7 +261,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [text, sendTyping]);
+  }, [draftText, editingMessage, sendTyping]);
 
   const showSuccess = useCallback((message: string) => notifySuccess(message), []);
   const showError = useCallback((message: string) => notifyError(message), []);
@@ -329,6 +326,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       if (editingMessage) {
         await editMessage(editingMessage.messageId, trimmedText);
         onCancelEdit?.();
+        clearEditingText();
         showSuccess(MESSENGER_COPY.messageInput.actionSuccess.editSuccess);
       } else {
         const hasImageOrVideo = attachments.some((attachment) => {
@@ -341,11 +339,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           attachments,
         });
         onCancelReply?.();
+        clearDraft();
+        setSelectedFiles([]);
         showSuccess(MESSENGER_COPY.messageInput.actionSuccess.sendSuccess);
       }
 
-      setText("");
-      setSelectedFiles([]);
       setShowEmojiPicker(false);
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -373,6 +371,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     showError,
     showSuccess,
     showWarning,
+    clearDraft,
+    clearEditingText,
   ]);
 
   const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
@@ -445,7 +445,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
-    setText((current) => current + emojiData.emoji);
+    updateComposerText(`${text}${emojiData.emoji}`);
   };
 
   const handleUnblock = async () => {
@@ -525,7 +525,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <MessageInputDraftPanel
           replyingTo={replyingTo}
           editingMessage={editingMessage}
-          selectedFiles={selectedFiles}
+          selectedFiles={editingMessage ? [] : selectedFiles}
           onCancelReply={onCancelReply}
           onCancelEdit={onCancelEdit}
           onRemoveFile={removeSelectedFile}
@@ -562,6 +562,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
               placeholder={MESSENGER_COPY.messageInput.placeholder}
+              maxLength={MAX_MESSAGE_CONTENT_LENGTH}
               rows={1}
               className="border-0 bg-transparent p-0 py-3 text-sm font-medium placeholder:text-muted-foreground/40 outline-none custom-scrollbar max-h-32"
               style={{ height: "auto" }}

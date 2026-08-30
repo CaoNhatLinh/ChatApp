@@ -163,6 +163,7 @@ const rawMessengerCopy = {
       fileTooLarge: (fileName: string) => `File "${fileName}" vượt quá 10MB.`,
       fileUnsupportedType: (fileName: string) => `File "${fileName}" không đúng định dạng này.`,
       noConversationToSend: "Vui lòng chọn cuộc trò chuyện để gửi.",
+      messageTooLong: "Tin nhắn không được vượt quá 20.000 ký tự.",
     },
     draftPanel: {
       replyLabel: "Đang trả lời",

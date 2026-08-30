@@ -50,7 +50,7 @@
     delete-versus-assign/transfer races now use catalog CAS plus a membership
     revision barrier. Clean Cassandra verification remains pending.
 
-Current evidence (2026-08-30): backend Java 20 `./mvnw test` = 147 tests, 0 failures, 0 errors
+Current evidence (2026-08-30): backend Java 20 `./mvnw test` = 155 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and
@@ -60,6 +60,11 @@ smoke passes without console or request failures.
 The canonical message UI mapping rejects incompatible payload shapes instead of
 silently translating legacy aliases or inventing sender/attachment metadata.
 Message edit/delete browser journeys preserve drafts and content privacy. The
+composer now stores bounded text drafts per authenticated user and conversation,
+restores them after room changes/reload, preserves them on failed sends and
+deletes only the successfully sent room entry. Edit text and attachment choices
+never enter persisted draft storage. `test:e2e:message-drafts` covers account
+isolation, invalid-schema deletion, the canonical length and 390px layout. The
 required message-page interaction projection now restores reactions and latest
 read state after refresh with bucket-bounded queries; pin/unpin applies the
 canonical response immediately. `test:e2e:message-edit`,

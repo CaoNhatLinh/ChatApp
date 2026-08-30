@@ -13,6 +13,12 @@ that the implementation does not use.
 
 Current detailed flows:
 
+- [`FLOW-MESSAGE-001`](message-drafts.md): per-user/per-conversation browser
+  draft ownership, edit isolation, reload, failed-send preservation and
+  successful-send cleanup.
+- [`FLOW-MESSAGE-002`](message-interactions.md): refresh-safe reactions, reads,
+  pins and revision inspection.
+- [`FLOW-POLL-001`](polls.md): poll creation, voting, close and recovery.
 - [`FLOW-REALTIME-001` and `FLOW-DIRECTORY-001`](presence-and-large-directory.md):
   authorized viewport presence, multi-device expiry, reconnect boundaries and
   bounded room/conversation directory loading.
