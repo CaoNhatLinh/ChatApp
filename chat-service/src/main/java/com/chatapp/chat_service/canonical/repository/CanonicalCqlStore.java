@@ -161,13 +161,17 @@ public class CanonicalCqlStore {
     private final PreparedStatement savePoll;
     private final PreparedStatement savePollByConversation;
     private final PreparedStatement loadPollById;
-    private final PreparedStatement claimPollVote;
+    private final PreparedStatement loadPollsById;
+    private final PreparedStatement initializePollState;
+    private final PreparedStatement loadPollAggregate;
+    private final PreparedStatement loadPollAggregates;
     private final PreparedStatement loadPollVote;
-    private final PreparedStatement listPollVotes;
-    private final PreparedStatement updatePollVote;
-    private final PreparedStatement deletePollVote;
-    private final PreparedStatement incPollCounter;
-    private final PreparedStatement listPollCounters;
+    private final PreparedStatement loadPollVotes;
+    private final PreparedStatement createPollVote;
+    private final PreparedStatement replacePollVote;
+    private final PreparedStatement removePollVote;
+    private final PreparedStatement replacePollAggregate;
+    private final PreparedStatement closePollState;
     private final PreparedStatement closePoll;
     private final PreparedStatement closePollProjection;
 
@@ -736,31 +740,48 @@ public class CanonicalCqlStore {
                 VALUES (?, ?, ?, ?, ?, ?)
                 """);
         this.loadPollById = session.prepare("SELECT * FROM polls_by_id WHERE poll_id = ?");
-        this.claimPollVote = session.prepare("""
-                INSERT INTO poll_votes_by_poll (poll_id, voter_id, selected_option_indexes, voted_at)
-                VALUES (?, ?, ?, ?) IF NOT EXISTS
+        this.loadPollsById = session.prepare("SELECT * FROM polls_by_id WHERE poll_id IN ?");
+        this.initializePollState = session.prepare("""
+                INSERT INTO poll_state_by_poll
+                    (poll_id, voter_id, selected_option_indexes, voted_at,
+                     option_counts, total_voters, aggregate_version, is_closed)
+                VALUES (?, ?, ?, ?, ?, 0, 0, false)
+                """);
+        this.loadPollAggregate = session.prepare("""
+                SELECT DISTINCT poll_id, option_counts, total_voters, aggregate_version, is_closed
+                FROM poll_state_by_poll WHERE poll_id = ?
+                """);
+        this.loadPollAggregates = session.prepare("""
+                SELECT DISTINCT poll_id, option_counts, total_voters, aggregate_version, is_closed
+                FROM poll_state_by_poll WHERE poll_id IN ?
                 """);
         this.loadPollVote = session.prepare("""
-                SELECT selected_option_indexes FROM poll_votes_by_poll WHERE poll_id = ? AND voter_id = ?
+                SELECT selected_option_indexes FROM poll_state_by_poll WHERE poll_id = ? AND voter_id = ?
                 """);
-        this.listPollVotes = session.prepare("""
-                SELECT voter_id, selected_option_indexes FROM poll_votes_by_poll WHERE poll_id = ?
+        this.loadPollVotes = session.prepare("""
+                SELECT poll_id, selected_option_indexes FROM poll_state_by_poll
+                WHERE poll_id IN ? AND voter_id = ?
                 """);
-        this.updatePollVote = session.prepare("""
-                UPDATE poll_votes_by_poll SET selected_option_indexes = ?, voted_at = ?
+        this.createPollVote = session.prepare("""
+                INSERT INTO poll_state_by_poll (poll_id, voter_id, selected_option_indexes, voted_at)
+                VALUES (?, ?, ?, ?) IF NOT EXISTS
+                """);
+        this.replacePollVote = session.prepare("""
+                UPDATE poll_state_by_poll SET selected_option_indexes = ?, voted_at = ?
                 WHERE poll_id = ? AND voter_id = ? IF selected_option_indexes = ?
                 """);
-        this.deletePollVote = session.prepare("""
-                DELETE FROM poll_votes_by_poll WHERE poll_id = ? AND voter_id = ?
+        this.removePollVote = session.prepare("""
+                DELETE FROM poll_state_by_poll WHERE poll_id = ? AND voter_id = ?
                 IF selected_option_indexes = ?
                 """);
-        this.incPollCounter = session.prepare("""
-                UPDATE poll_option_counts_by_poll
-                    SET vote_count = vote_count + ?
-                WHERE poll_id = ? AND option_index = ?
+        this.replacePollAggregate = session.prepare("""
+                UPDATE poll_state_by_poll
+                SET option_counts = ?, total_voters = ?, aggregate_version = ?
+                WHERE poll_id = ? IF aggregate_version = ? AND is_closed = false
                 """);
-        this.listPollCounters = session.prepare("""
-                SELECT option_index, vote_count FROM poll_option_counts_by_poll WHERE poll_id = ?
+        this.closePollState = session.prepare("""
+                UPDATE poll_state_by_poll SET is_closed = true
+                WHERE poll_id = ? IF is_closed = false
                 """);
         this.closePoll = session.prepare("""
                 UPDATE polls_by_id SET is_closed = true, closed_by = ?, closed_at = ?
@@ -2262,7 +2283,8 @@ public class CanonicalCqlStore {
 
     // -------- polls --------
     public void createPoll(CanonicalPoll poll) {
-        session.execute(savePoll.bind(
+        BatchStatementBuilder batch = BatchStatement.builder(BatchType.LOGGED);
+        batch.addStatement(savePoll.bind(
                 poll.pollId(),
                 poll.conversationId(),
                 poll.messageBucket(),
@@ -2278,7 +2300,7 @@ public class CanonicalCqlStore {
                 poll.closedBy(),
                 poll.closedAt()
         ));
-        session.execute(savePollByConversation.bind(
+        batch.addStatement(savePollByConversation.bind(
                 poll.conversationId(),
                 Uuids.startOf(poll.createdAt().toEpochMilli()),
                 poll.pollId(),
@@ -2286,6 +2308,17 @@ public class CanonicalCqlStore {
                 poll.messageId(),
                 poll.isClosed()
         ));
+        batch.addStatement(initializePollState.bind(
+                poll.pollId(), new UUID(0L, 0L), Set.of(), poll.createdAt(), emptyPollCounts(poll.options().size())));
+        session.execute(batch.build());
+    }
+
+    private Map<Integer, Long> emptyPollCounts(int optionCount) {
+        Map<Integer, Long> counts = new LinkedHashMap<>();
+        for (int index = 0; index < optionCount; index++) {
+            counts.put(index, 0L);
+        }
+        return Map.copyOf(counts);
     }
 
     public CanonicalPoll findPollById(UUID pollId) {
@@ -2293,32 +2326,41 @@ public class CanonicalCqlStore {
         return row == null ? null : mapPoll(row);
     }
 
+    public List<CanonicalPoll> findPollsByIds(List<UUID> pollIds) {
+        if (pollIds.isEmpty()) {
+            return List.of();
+        }
+        List<CanonicalPoll> polls = new ArrayList<>();
+        for (Row row : session.execute(loadPollsById.bind(pollIds))) {
+            polls.add(mapPoll(row));
+        }
+        return List.copyOf(polls);
+    }
+
     public VoteResult votePoll(UUID pollId, UUID voterId, Set<Integer> selectedOptionIndexes) {
         if (selectedOptionIndexes == null || selectedOptionIndexes.isEmpty()) {
             return VoteResult.CONFLICT;
         }
-        var claim = session.execute(claimPollVote.bind(
-                pollId, voterId, selectedOptionIndexes, Instant.now()));
-        if (claim.wasApplied()) {
-            for (Integer idx : selectedOptionIndexes) {
-                session.execute(incPollCounter.bind(1L, pollId, idx));
-            }
-            return VoteResult.CREATED;
-        }
         for (int attempt = 0; attempt < 3; attempt++) {
-            Row existing = session.execute(loadPollVote.bind(pollId, voterId)).one();
-            Set<Integer> prior = existing == null ? Set.of() : existing.getSet("selected_option_indexes", Integer.class);
+            PollAggregate aggregate = loadPollAggregate(pollId);
+            if (aggregate.isClosed()) {
+                return VoteResult.CLOSED;
+            }
+            Row voteRow = session.execute(loadPollVote.bind(pollId, voterId)).one();
+            Set<Integer> prior = voteRow == null
+                    ? Set.of()
+                    : Set.copyOf(voteRow.getSet("selected_option_indexes", Integer.class));
             if (selectedOptionIndexes.equals(prior)) {
                 return VoteResult.IDEMPOTENT;
             }
-            if (existing == null) {
-                continue;
-            }
-            var changed = session.execute(updatePollVote.bind(
-                    selectedOptionIndexes, Instant.now(), pollId, voterId, prior));
-            if (changed.wasApplied()) {
-                adjustPollCounters(pollId, prior, selectedOptionIndexes);
-                return VoteResult.UPDATED;
+            Map<Integer, Long> counts = adjustPollCounts(aggregate.optionCounts(), prior, selectedOptionIndexes);
+            long totalVoters = aggregate.totalVoters() + (voteRow == null ? 1 : 0);
+            BatchStatementBuilder batch = pollAggregateBatch(pollId, aggregate, counts, totalVoters);
+            batch.addStatement(voteRow == null
+                    ? createPollVote.bind(pollId, voterId, selectedOptionIndexes, Instant.now())
+                    : replacePollVote.bind(selectedOptionIndexes, Instant.now(), pollId, voterId, prior));
+            if (session.execute(batch.build()).wasApplied()) {
+                return voteRow == null ? VoteResult.CREATED : VoteResult.UPDATED;
             }
         }
         return VoteResult.CONFLICT;
@@ -2326,63 +2368,121 @@ public class CanonicalCqlStore {
 
     public VoteResult removePollVote(UUID pollId, UUID voterId) {
         for (int attempt = 0; attempt < 3; attempt++) {
-            Row existing = session.execute(loadPollVote.bind(pollId, voterId)).one();
-            if (existing == null) {
+            PollAggregate aggregate = loadPollAggregate(pollId);
+            if (aggregate.isClosed()) {
+                return VoteResult.CLOSED;
+            }
+            Row voteRow = session.execute(loadPollVote.bind(pollId, voterId)).one();
+            if (voteRow == null) {
                 return VoteResult.IDEMPOTENT;
             }
-            Set<Integer> prior = existing.getSet("selected_option_indexes", Integer.class);
-            if (session.execute(deletePollVote.bind(pollId, voterId, prior)).wasApplied()) {
-                adjustPollCounters(pollId, prior, Set.of());
+            if (aggregate.totalVoters() < 1) {
+                throw new IllegalStateException("poll voter total is inconsistent");
+            }
+            Set<Integer> prior = Set.copyOf(voteRow.getSet("selected_option_indexes", Integer.class));
+            Map<Integer, Long> counts = adjustPollCounts(aggregate.optionCounts(), prior, Set.of());
+            BatchStatementBuilder batch = pollAggregateBatch(
+                    pollId, aggregate, counts, aggregate.totalVoters() - 1);
+            batch.addStatement(removePollVote.bind(pollId, voterId, prior));
+            if (session.execute(batch.build()).wasApplied()) {
                 return VoteResult.REMOVED;
             }
         }
         return VoteResult.CONFLICT;
     }
 
-    private void adjustPollCounters(UUID pollId, Set<Integer> prior, Set<Integer> selected) {
+    private Map<Integer, Long> adjustPollCounts(
+            Map<Integer, Long> current,
+            Set<Integer> prior,
+            Set<Integer> selected) {
+        Map<Integer, Long> counts = new LinkedHashMap<>(current);
         for (Integer removed : prior) {
             if (!selected.contains(removed)) {
-                session.execute(incPollCounter.bind(-1L, pollId, removed));
+                Long count = counts.get(removed);
+                if (count == null || count < 1) {
+                    throw new IllegalStateException("poll option count is inconsistent");
+                }
+                counts.put(removed, count - 1);
             }
         }
         for (Integer added : selected) {
             if (!prior.contains(added)) {
-                session.execute(incPollCounter.bind(1L, pollId, added));
+                counts.merge(added, 1L, Long::sum);
             }
         }
+        return Map.copyOf(counts);
     }
 
-    public Map<Integer, Long> getPollOptionCounts(UUID pollId) {
-        Map<Integer, Long> result = new LinkedHashMap<>();
-        for (Row row : session.execute(listPollCounters.bind(pollId))) {
-            result.put(row.getInt("option_index"), Math.max(0L, row.getLong("vote_count")));
+    private BatchStatementBuilder pollAggregateBatch(
+            UUID pollId,
+            PollAggregate aggregate,
+            Map<Integer, Long> counts,
+            long totalVoters) {
+        return BatchStatement.builder(BatchType.LOGGED).addStatement(replacePollAggregate.bind(
+                counts, totalVoters, aggregate.version() + 1, pollId, aggregate.version()));
+    }
+
+    public Map<UUID, PollState> listPollStates(List<UUID> pollIds, UUID voterId) {
+        if (pollIds.isEmpty()) {
+            return Map.of();
         }
-        return result;
-    }
-
-    public Set<Integer> getPollVote(UUID pollId, UUID voterId) {
-        Row row = session.execute(loadPollVote.bind(pollId, voterId)).one();
-        return row == null ? Set.of() : Set.copyOf(row.getSet("selected_option_indexes", Integer.class));
-    }
-
-    public Map<UUID, Set<Integer>> listPollVotes(UUID pollId) {
-        Map<UUID, Set<Integer>> result = new LinkedHashMap<>();
-        for (Row row : session.execute(listPollVotes.bind(pollId))) {
-            result.put(row.getUuid("voter_id"), Set.copyOf(row.getSet("selected_option_indexes", Integer.class)));
+        Map<UUID, PollState> states = new LinkedHashMap<>();
+        for (Row row : session.execute(loadPollAggregates.bind(pollIds))) {
+            UUID pollId = row.getUuid("poll_id");
+            states.put(pollId, new PollState(readPollCounts(row), Set.of(), row.getLong("total_voters")));
         }
-        return result;
+        for (Row row : session.execute(loadPollVotes.bind(pollIds, voterId))) {
+            UUID pollId = row.getUuid("poll_id");
+            PollState state = states.get(pollId);
+            if (state != null) {
+                states.put(pollId, new PollState(
+                        state.optionCounts(),
+                        Set.copyOf(row.getSet("selected_option_indexes", Integer.class)),
+                        state.totalVoters()));
+            }
+        }
+        return Map.copyOf(states);
+    }
+
+    private PollAggregate loadPollAggregate(UUID pollId) {
+        Row row = session.execute(loadPollAggregate.bind(pollId)).one();
+        if (row == null) {
+            throw new IllegalStateException("poll aggregate is missing");
+        }
+        return new PollAggregate(
+                readPollCounts(row), row.getLong("total_voters"), row.getLong("aggregate_version"),
+                row.getBoolean("is_closed"));
+    }
+
+    private Map<Integer, Long> readPollCounts(Row row) {
+        Map<Integer, Long> counts = row.getMap("option_counts", Integer.class, Long.class);
+        if (counts == null) {
+            throw new IllegalStateException("poll option counts are missing");
+        }
+        return Map.copyOf(counts);
+    }
+
+    private record PollAggregate(
+            Map<Integer, Long> optionCounts,
+            long totalVoters,
+            long version,
+            boolean isClosed) {
+    }
+
+    public record PollState(Map<Integer, Long> optionCounts, Set<Integer> currentUserOptionIndexes, long totalVoters) {
     }
 
     public boolean closePoll(CanonicalPoll poll, UUID actorId, Instant closedAt) {
-        var result = session.execute(closePoll.bind(actorId, closedAt, poll.pollId()));
-        if (result.wasApplied()) {
+        boolean stateClosed = session.execute(closePollState.bind(poll.pollId())).wasApplied();
+        boolean metadataClosed = session.execute(closePoll.bind(actorId, closedAt, poll.pollId())).wasApplied();
+        if (metadataClosed) {
             session.execute(closePollProjection.bind(
                     poll.conversationId(), Uuids.startOf(poll.createdAt().toEpochMilli()), poll.pollId()));
         }
-        return result.wasApplied();
+        return stateClosed || metadataClosed;
     }
 
-    public enum VoteResult { CREATED, UPDATED, REMOVED, IDEMPOTENT, CONFLICT }
+    public enum VoteResult { CREATED, UPDATED, REMOVED, IDEMPOTENT, CLOSED, CONFLICT }
 
     // -------- invites --------
     public void createInvite(CanonicalInviteLink invite) {
@@ -3040,8 +3140,7 @@ public class CanonicalCqlStore {
                 row.getInstant("created_at"),
                 row.getInstant("closes_at"),
                 row.getUuid("closed_by"),
-                row.getInstant("closed_at"),
-                Map.of()
+                row.getInstant("closed_at")
         );
     }
 

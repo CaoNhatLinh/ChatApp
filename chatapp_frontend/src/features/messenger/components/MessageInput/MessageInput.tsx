@@ -267,7 +267,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [text, sendTyping]);
 
   const showSuccess = useCallback((message: string) => notifySuccess(message), []);
-  const showError = (message: string) => notifyError(message);
+  const showError = useCallback((message: string) => notifyError(message), []);
   const showWarning = useCallback((message: string, options?: Parameters<typeof notifyWarning>[1]) => notifyWarning(message, options), []);
 
   const clearTypingState = useCallback(() => {
@@ -370,6 +370,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     text,
     buildValidFiles,
     uploadMessageFiles,
+    showError,
     showSuccess,
     showWarning,
   ]);
@@ -381,8 +382,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     } catch (error: unknown) {
       logger.error("[MessageInput] Failed to create poll", error instanceof Error ? error.message : String(error));
       showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError));
+      throw error;
     }
-  }, [showSuccess]);
+  }, [showError, showSuccess]);
 
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);

@@ -16,7 +16,7 @@ sequenceDiagram
     N->>S: GET bounded message cursor page
     S->>C: Read bounded canonical messages
     S->>P: Read reactions + latest-read for page IDs per represented bucket
-    S-->>N: MessagePage(content, cursor, interactions)
+    S-->>N: MessagePage(content, cursor, interactions, polls)
     N-->>U: Render messages, reaction badges, pin and seen state
     U->>N: React or toggle pin
     N->>S: Bucket-scoped command

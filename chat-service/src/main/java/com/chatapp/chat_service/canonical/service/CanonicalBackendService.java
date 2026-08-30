@@ -1165,8 +1165,14 @@ public class CanonicalBackendService {
                 .flatMap(entry -> store.listMessageInteractions(
                         conversationId, entry.getKey(), entry.getValue(), actorId).stream())
                 .toList();
+        List<UUID> pollIds = content.stream()
+                .map(CanonicalMessage::pollId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<CanonicalApiContracts.PollView> polls = pollViews(actorId, pollIds);
         return new CanonicalApiContracts.MessagePage(
-                content, nextCursor, hasNext && nextCursor != null, interactions);
+                content, nextCursor, hasNext && nextCursor != null, interactions, polls);
     }
 
     private String encodeMessageCursor(CanonicalMessage message) {
@@ -1257,11 +1263,19 @@ public class CanonicalBackendService {
         if (req.closesAt() != null && !req.closesAt().isAfter(Instant.now())) {
             throw new BadRequestException("poll closesAt must be in the future");
         }
-        UUID pollId = UUID.randomUUID();
+        UUID pollId = UUID.nameUUIDFromBytes(
+                (actorId + "|poll|" + req.clientMessageId()).getBytes(StandardCharsets.UTF_8));
         CanonicalMessage pollMessage = sendMessage(actorId, req.conversationId(),
                 new CanonicalApiContracts.MessageSendRequest(
                         req.clientMessageId(), "POLL", req.question().trim(), "PLAIN",
                         null, null, null, pollId, null, null, null, List.of(), Set.of()));
+        CanonicalPoll existing = store.findPollById(pollId);
+        if (existing != null) {
+            if (!pollRequestMatches(existing, req)) {
+                throw new ConflictException("clientMessageId is already bound to another poll payload");
+            }
+            return pollView(actorId, existing);
+        }
         CanonicalPoll poll = new CqlCanonicalRecords.CanonicalPoll(
                 pollId,
                 req.conversationId(),
@@ -1276,17 +1290,29 @@ public class CanonicalBackendService {
                 Instant.now(),
                 req.closesAt(),
                 null,
-                null,
-                Map.of()
+                null
         );
         store.createPoll(poll);
         appendAudit(actorId, req.conversationId(), "POLL_CREATE", "poll", poll.pollId().toString(), null, null);
-        return pollView(actorId, poll);
+        CanonicalApiContracts.PollView view = pollView(actorId, poll);
+        publishPollAggregate(view);
+        return view;
+    }
+
+    private boolean pollRequestMatches(CanonicalPoll poll, CanonicalApiContracts.PollCreateRequest request) {
+        return poll.conversationId().equals(request.conversationId())
+                && poll.question().equals(request.question().trim())
+                && poll.options().equals(request.options().stream().map(String::trim).toList())
+                && poll.isMultipleChoice().equals(Boolean.TRUE.equals(request.isMultipleChoice()))
+                && poll.isAnonymous().equals(Boolean.TRUE.equals(request.isAnonymous()))
+                && Objects.equals(poll.closesAt(), request.closesAt());
     }
 
     public CanonicalApiContracts.PollView getPoll(UUID actorId, UUID pollId) {
         CanonicalPoll poll = requirePoll(actorId, pollId);
-        return pollView(actorId, poll);
+        CanonicalApiContracts.PollView view = pollView(actorId, poll);
+        publishPollAggregate(view);
+        return view;
     }
 
     public CanonicalApiContracts.PollView votePoll(
@@ -1303,6 +1329,9 @@ public class CanonicalBackendService {
             throw new BadRequestException("poll option index is out of range");
         }
         var result = store.votePoll(pollId, actorId, selected);
+        if (result == CanonicalCqlStore.VoteResult.CLOSED) {
+            throw new ConflictException("poll is closed");
+        }
         if (result == CanonicalCqlStore.VoteResult.CONFLICT) {
             throw new ConflictException("vote changed concurrently; reload the poll and retry");
         }
@@ -1311,12 +1340,17 @@ public class CanonicalBackendService {
                     result == CanonicalCqlStore.VoteResult.CREATED ? "POLL_VOTE" : "POLL_VOTE_CHANGE",
                     "poll", pollId.toString(), actorId, null);
         }
-        return pollView(actorId, poll);
+        CanonicalApiContracts.PollView view = pollView(actorId, poll);
+        publishPollAggregate(view);
+        return view;
     }
 
     public CanonicalApiContracts.PollView removePollVote(UUID actorId, UUID pollId) {
         CanonicalPoll poll = requireOpenPoll(actorId, pollId);
         var result = store.removePollVote(pollId, actorId);
+        if (result == CanonicalCqlStore.VoteResult.CLOSED) {
+            throw new ConflictException("poll is closed");
+        }
         if (result == CanonicalCqlStore.VoteResult.CONFLICT) {
             throw new ConflictException("vote changed concurrently; reload the poll and retry");
         }
@@ -1336,7 +1370,9 @@ public class CanonicalBackendService {
         if (!Boolean.TRUE.equals(poll.isClosed()) && store.closePoll(poll, actorId, Instant.now())) {
             appendAudit(actorId, poll.conversationId(), "POLL_CLOSE", "poll", pollId.toString(), null, null);
         }
-        return pollView(actorId, requirePoll(actorId, pollId));
+        CanonicalApiContracts.PollView view = pollView(actorId, requirePoll(actorId, pollId));
+        publishPollAggregate(view);
+        return view;
     }
 
     private CanonicalPoll requirePoll(UUID actorId, UUID pollId) {
@@ -1358,21 +1394,40 @@ public class CanonicalBackendService {
     }
 
     private CanonicalApiContracts.PollView pollView(UUID actorId, CanonicalPoll poll) {
-        Map<UUID, Set<Integer>> votes = store.listPollVotes(poll.pollId());
-        Map<Integer, Set<UUID>> votersByOption = new LinkedHashMap<>();
-        if (!Boolean.TRUE.equals(poll.isAnonymous())) {
-            for (int index = 0; index < poll.options().size(); index++) {
-                votersByOption.put(index, new HashSet<>());
-            }
-            votes.forEach((voterId, indexes) -> indexes.forEach(index ->
-                    votersByOption.computeIfAbsent(index, ignored -> new HashSet<>()).add(voterId)));
+        CanonicalCqlStore.PollState state = store.listPollStates(List.of(poll.pollId()), actorId)
+                .get(poll.pollId());
+        if (state == null) {
+            throw new IllegalStateException("poll state is missing");
         }
         return new CanonicalApiContracts.PollView(
                 poll,
-                store.getPollOptionCounts(poll.pollId()),
-                votes.getOrDefault(actorId, Set.of()),
-                votes.size(),
-                votersByOption);
+                state.optionCounts(),
+                state.currentUserOptionIndexes(),
+                state.totalVoters());
+    }
+
+    private List<CanonicalApiContracts.PollView> pollViews(UUID actorId, List<UUID> pollIds) {
+        if (pollIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, CanonicalPoll> pollsById = store.findPollsByIds(pollIds).stream()
+                .collect(Collectors.toMap(CanonicalPoll::pollId, poll -> poll));
+        Map<UUID, CanonicalCqlStore.PollState> statesById = store.listPollStates(pollIds, actorId);
+        return pollIds.stream().map(pollId -> {
+            CanonicalPoll poll = pollsById.get(pollId);
+            CanonicalCqlStore.PollState state = statesById.get(pollId);
+            if (poll == null || state == null) {
+                throw new IllegalStateException("poll projection is incomplete");
+            }
+            return new CanonicalApiContracts.PollView(
+                    poll, state.optionCounts(), state.currentUserOptionIndexes(), state.totalVoters());
+        }).toList();
+    }
+
+    private void publishPollAggregate(CanonicalApiContracts.PollView view) {
+        publishConversationEvent(view.poll().conversationId(), "/polls",
+                new CanonicalApiContracts.PollAggregateView(
+                        view.poll(), view.optionCounts(), view.totalVoters()));
     }
 
     @Value("${app.public-base-url:http://localhost:5173}")

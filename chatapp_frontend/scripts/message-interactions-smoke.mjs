@@ -91,6 +91,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       nextCursor: null,
       hasNext: false,
       interactions: [{ messageId, reactions, latestReadAt }],
+      polls: [],
     });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}/pin`)) {

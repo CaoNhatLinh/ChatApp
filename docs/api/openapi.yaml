@@ -368,27 +368,27 @@ paths:
     post:
       tags: [Polls]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/PollCreate'}}}}
-      responses: {'201': {description: Poll created}}
+      responses: {'201': {description: Poll created, content: {application/json: {schema: {$ref: '#/components/schemas/PollView'}}}}}
   /polls/{pollId}:
     get:
       tags: [Polls]
       parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
-      responses: {'200': {description: Poll view}}
+      responses: {'200': {description: Poll view for the authenticated member, content: {application/json: {schema: {$ref: '#/components/schemas/PollView'}}}}}
   /polls/{pollId}/votes:
     post:
       tags: [Polls]
       parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {content: {application/json: {schema: {type: object, properties: {selectedOptionIndexes: {type: array, items: {type: integer}}}}}}}
-      responses: {'200': {description: Vote recorded}}
+      responses: {'200': {description: Vote recorded, content: {application/json: {schema: {$ref: '#/components/schemas/PollView'}}}}}
     delete:
       tags: [Polls]
       parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
-      responses: {'200': {description: Vote removed}}
+      responses: {'200': {description: Vote removed, content: {application/json: {schema: {$ref: '#/components/schemas/PollView'}}}}}
   /polls/{pollId}/close:
     post:
       tags: [Polls]
       parameters: [{name: pollId, in: path, required: true, schema: {type: string, format: uuid}}]
-      responses: {'200': {description: Poll closed}}
+      responses: {'200': {description: Poll closed, content: {application/json: {schema: {$ref: '#/components/schemas/PollView'}}}}}
   /invites:
     post:
       tags: [Invites]
@@ -777,10 +777,12 @@ components:
     Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
     MessageReactionView: {type: object, required: [emoji, count, reactedByCurrentUser], properties: {emoji: {type: string}, count: {type: integer, format: int64, minimum: 1}, reactedByCurrentUser: {type: boolean}}}
     MessageInteractionView: {type: object, required: [messageId, reactions], properties: {messageId: {type: string, format: uuid}, reactions: {type: array, items: {$ref: '#/components/schemas/MessageReactionView'}}, latestReadAt: {type: string, format: date-time, nullable: true}}}
-    MessagePage: {type: object, required: [content, hasNext, interactions], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}, interactions: {type: array, description: Bounded reaction and latest-read projection for messages in this page, items: {$ref: '#/components/schemas/MessageInteractionView'}}}}
+    MessagePage: {type: object, required: [content, hasNext, interactions, polls], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}, interactions: {type: array, description: Bounded reaction and latest-read projection for messages in this page, items: {$ref: '#/components/schemas/MessageInteractionView'}}, polls: {type: array, description: Viewer-specific poll state only for poll messages in this page, items: {$ref: '#/components/schemas/PollView'}}}}
     MessageSearchPage: {type: object, required: [content], properties: {content: {type: array, items: {$ref: '#/components/schemas/MessageSearchResult'}}, nextCursor: {type: string, nullable: true}}}
     MessageSearchResult: {type: object, required: [messageId, conversationId, messageBucket, senderId, content], properties: {messageId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageBucket: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid, nullable: true}, mentionedUserIds: {type: array, items: {type: string, format: uuid}, nullable: true}, messageType: {type: string}, content: {type: string}, hasAttachments: {type: boolean}, isPinned: {type: boolean}, isDeleted: {type: boolean}, createdAt: {type: string, format: date-time}}}
-    PollCreate: {type: object, required: [conversationId, clientMessageId, question, options], properties: {conversationId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid}, question: {type: string}, options: {type: array, minItems: 2, maxItems: 10, items: {type: string}}}}
+    PollCreate: {type: object, required: [conversationId, clientMessageId, question, options, isMultipleChoice, isAnonymous], properties: {conversationId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid}, question: {type: string, minLength: 1, maxLength: 500}, options: {type: array, minItems: 2, maxItems: 10, uniqueItems: true, items: {type: string, minLength: 1, maxLength: 200}}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, closesAt: {type: string, format: date-time, nullable: true, description: Must be in the future}}}
+    Poll: {type: object, required: [pollId, conversationId, messageId, question, options, isMultipleChoice, isAnonymous, isClosed, createdBy, createdAt], properties: {pollId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageId: {type: string, format: uuid}, question: {type: string, maxLength: 500}, options: {type: array, minItems: 2, maxItems: 10, items: {type: string, maxLength: 200}}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, isClosed: {type: boolean}, createdBy: {type: string, format: uuid}, createdAt: {type: string, format: date-time}, closesAt: {type: string, format: date-time, nullable: true}}}
+    PollView: {type: object, required: [poll, optionCounts, currentUserOptionIndexes, totalVoters], properties: {poll: {$ref: '#/components/schemas/Poll'}, optionCounts: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}, currentUserOptionIndexes: {type: array, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 9}}, totalVoters: {type: integer, format: int64, minimum: 0}}}
     InviteCreate: {type: object, required: [conversationId], properties: {conversationId: {type: string, format: uuid}, inviteKind: {type: string, enum: [LINK, QR]}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL]}, maxUses: {type: integer}, expiresAt: {type: string, format: date-time}}}
     InviteConsume: {type: object, required: [linkToken], properties: {linkToken: {type: string}}}
     JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, userId: {type: string, format: uuid, description: Required for a public-community request}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}

@@ -162,14 +162,10 @@ export interface MentionTag {
 
 /* --- Poll Types --- */
 
-export type PollType = 'single' | 'multiple';
-
 export interface PollOptionData {
     option: string;
     voteCount: number;
     percentage: number;
-    voterIds: string[];
-    voterNames?: string[];
 }
 
 export interface PollData {
@@ -180,20 +176,18 @@ export interface PollData {
     options: PollOptionData[];
     isClosed: boolean;
     isMultipleChoice: boolean;
-    isAnonymous: boolean;
-    createdBy: string;
-    createdByUsername?: string;
-    createdAt: string;
+      isAnonymous: boolean;
+      createdBy: string;
+      createdAt: string;
     expiresAt?: string;
-    totalVotes: number;
-    currentUserVotes?: string[] | null;
-    targetUserId?: string | null;
+      totalVotes: number;
+      currentUserVotes?: string[];
 }
 
-export interface CreatePollRequest {
-    conversationId: string;
-    messageId?: string;
-    question: string;
+  export interface CreatePollRequest {
+      conversationId: string;
+      clientMessageId: string;
+      question: string;
     options: string[];
     isMultipleChoice: boolean;
     isAnonymous: boolean;

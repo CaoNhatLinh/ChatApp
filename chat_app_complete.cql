@@ -701,20 +701,16 @@ CREATE TABLE IF NOT EXISTS polls_by_conversation (
   PRIMARY KEY ((conversation_id), created_at, poll_id)
 ) WITH CLUSTERING ORDER BY (created_at DESC, poll_id ASC);
 
-CREATE TABLE IF NOT EXISTS poll_votes_by_poll (
+CREATE TABLE IF NOT EXISTS poll_state_by_poll (
   poll_id uuid,
   voter_id uuid,
   selected_option_indexes set<int>,
   voted_at timestamp,
+  option_counts map<int, bigint> static,
+  total_voters bigint static,
+  aggregate_version bigint static,
+  is_closed boolean static,
   PRIMARY KEY ((poll_id), voter_id)
-);
-
-/* Fast realtime result projection. Reconcile from poll_votes_by_poll on worker failure. */
-CREATE TABLE IF NOT EXISTS poll_option_counts_by_poll (
-  poll_id uuid,
-  option_index int,
-  vote_count counter,
-  PRIMARY KEY ((poll_id), option_index)
 );
 
 /* =========================== Assets, themes, stickers ==================== */

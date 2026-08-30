@@ -1,5 +1,6 @@
 ﻿import apiClient from '@/shared/api/apiClient';
 import { localizeText } from '@/shared/i18n';
+import { mapCanonicalPollView, type CanonicalPollView } from './poll.api';
 import type {
     Conversation,
     ConversationMember,
@@ -349,6 +350,7 @@ interface CanonicalMessagePage {
         }>;
         latestReadAt?: string;
     }>;
+    polls: CanonicalPollView[];
 }
 
 /**
@@ -436,7 +438,8 @@ export const getMessages = async (
         params: { limit: params.size ?? 50, cursor: params.before }
     });
     const data = response.data;
-    if (!Array.isArray(data.interactions)
+    if (!Array.isArray(data.polls)
+        || !Array.isArray(data.interactions)
         || data.interactions.some((interaction) =>
             typeof interaction.messageId !== 'string'
             || !Array.isArray(interaction.reactions)
@@ -450,19 +453,23 @@ export const getMessages = async (
     const interactionsByMessageId = new Map(
         data.interactions.map((interaction) => [interaction.messageId, interaction] as const),
     );
+    const pollsByMessageId = new Map(
+        data.polls.map(mapCanonicalPollView).map((poll) => [poll.messageId, poll] as const),
+    );
 
     return {
         content: data.content.map((messageDto) => {
             const message = mapToMessage(messageDto);
             const interaction = interactionsByMessageId.get(message.messageId);
-            return interaction ? {
+            return {
                 ...message,
-                reactions: interaction.reactions.map((reaction) => ({
+                poll: pollsByMessageId.get(message.messageId),
+                reactions: interaction?.reactions.map((reaction) => ({
                     ...reaction,
                     latestUserNames: [],
                 })),
-                latestReadAt: interaction.latestReadAt,
-            } : message;
+                latestReadAt: interaction?.latestReadAt,
+            };
         }),
         hasNext: data.hasNext,
         number: params.page ?? 0,

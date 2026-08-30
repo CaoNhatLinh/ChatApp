@@ -127,8 +127,7 @@ public final class CqlCanonicalRecords {
             Instant createdAt,
             Instant closesAt,
             UUID closedBy,
-            Instant closedAt,
-            Map<Integer, Integer> optionCounts) {
+            Instant closedAt) {
     }
 
     public record CanonicalInviteLink(

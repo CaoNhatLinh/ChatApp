@@ -26,6 +26,9 @@ channels:
   conversationPins:
     address: /topic/conversation/{conversationId}/pins
     messages: {pin: {$ref: '#/components/messages/PinEvent'}}
+  conversationPolls:
+    address: /topic/conversation/{conversationId}/polls
+    messages: {poll: {$ref: '#/components/messages/PollAggregateEvent'}}
   conversationAttachments:
     address: /topic/conversation/{conversationId}/attachments
     messages: {attachment: {$ref: '#/components/messages/AttachmentEvent'}}
@@ -90,6 +93,7 @@ channels:
 operations:
   receiveConversationMessage: {action: receive, channel: {$ref: '#/channels/conversationMessages'}, messages: [{$ref: '#/channels/conversationMessages/messages/message'}]}
   receiveTyping: {action: receive, channel: {$ref: '#/channels/conversationTyping'}, messages: [{$ref: '#/channels/conversationTyping/messages/typing'}]}
+  receivePollAggregate: {action: receive, channel: {$ref: '#/channels/conversationPolls'}, messages: [{$ref: '#/channels/conversationPolls/messages/poll'}]}
   receiveCall: {action: receive, channel: {$ref: '#/channels/conversationCalls'}, messages: [{$ref: '#/channels/conversationCalls/messages/call'}]}
   receiveNotification: {action: receive, channel: {$ref: '#/channels/userNotifications'}, messages: [{$ref: '#/channels/userNotifications/messages/notification'}]}
   receiveNotificationRead: {action: receive, channel: {$ref: '#/channels/userNotificationRead'}, messages: [{$ref: '#/channels/userNotificationRead/messages/read'}]}
@@ -133,6 +137,15 @@ components:
       payload: {type: object, required: [messageId, readerId, readAt], properties: {messageId: {type: string}, messageBucket: {type: string}, readerId: {type: string}, readAt: {type: string, format: date-time}}}
     PinEvent:
       payload: {type: object, required: [messageId, pinnedBy, action], properties: {messageId: {type: string}, messageBucket: {type: string}, pinnedBy: {type: string}, action: {type: string, enum: [PIN, UNPIN]}}}
+    PollAggregateEvent:
+      payload:
+        type: object
+        description: Aggregate-only poll update. It never contains a member's selected option indexes.
+        required: [poll, optionCounts, totalVoters]
+        properties:
+          poll: {type: object, required: [pollId, conversationId, messageId, question, options, isClosed, isMultipleChoice, isAnonymous, createdBy, createdAt], properties: {pollId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageId: {type: string, format: uuid}, question: {type: string}, options: {type: array, items: {type: string}}, isClosed: {type: boolean}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, createdBy: {type: string, format: uuid}, createdAt: {type: string, format: date-time}, closesAt: {type: string, format: date-time, nullable: true}}}
+          optionCounts: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
+          totalVoters: {type: integer, format: int64, minimum: 0}
     AttachmentEvent:
       payload: {type: object, required: [messageId, attachment, addedBy], properties: {messageId: {type: string}, messageBucket: {type: string}, attachment: {type: object}, addedBy: {type: string}}}
     NotificationEvent:

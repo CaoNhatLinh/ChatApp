@@ -84,7 +84,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages`) && method === 'GET') {
-    return json({ content: [message], nextCursor: null, hasNext: false, interactions: [] });
+    return json({ content: [message], nextCursor: null, hasNext: false, interactions: [], polls: [] });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}`) && method === 'DELETE') {
     deleteRequests.push({ method, bucket: requestUrl.searchParams.get('bucket') });

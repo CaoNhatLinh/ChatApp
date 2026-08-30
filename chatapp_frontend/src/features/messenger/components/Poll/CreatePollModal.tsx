@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Plus, Trash2, BarChart3, Clock, CheckSquare, Square } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
 import { motion } from 'framer-motion';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import type { CreatePollRequest } from '../../types/messenger.types';
 import { localizeText } from '@/shared/i18n';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 interface CreatePollModalProps {
     conversationId: string;
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: CreatePollRequest) => void;
+    onSubmit: (data: CreatePollRequest) => Promise<void>;
 }
 
 export const CreatePollModal: React.FC<CreatePollModalProps> = ({
@@ -26,6 +27,10 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
     const [hasDeadline, setHasDeadline] = useState(false);
     const [deadlineDate, setDeadlineDate] = useState('');
     const [deadlineTime, setDeadlineTime] = useState('23:59');
+    const [clientMessageId, setClientMessageId] = useState(() => crypto.randomUUID());
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useFocusTrap(isOpen, dialogRef, onClose, isSubmitting);
 
     const addOption = () => {
         if (options.length >= 10) return;
@@ -43,25 +48,15 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
         setOptions(newOptions);
     };
 
-    const handleSubmit = () => {
-        const validOptions = options.filter(o => o.trim());
-        if (!question.trim() || validOptions.length < 2 || (hasDeadline && !deadlineDate)) return;
+    const validOptions = options.map(option => option.trim()).filter(Boolean);
+    const hasDuplicateOptions = new Set(validOptions.map(option => option.toLocaleLowerCase())).size
+        !== validOptions.length;
+    const expiresAt = hasDeadline && deadlineDate
+        ? new Date(`${deadlineDate}T${deadlineTime}`).toISOString()
+        : undefined;
+    const deadlineIsFuture = !expiresAt || new Date(expiresAt).getTime() > Date.now();
 
-        let expiresAt: string | undefined;
-        if (hasDeadline && deadlineDate) {
-            expiresAt = new Date(`${deadlineDate}T${deadlineTime}`).toISOString();
-        }
-
-        onSubmit({
-            conversationId,
-            question: question.trim(),
-            options: validOptions,
-            isMultipleChoice,
-            isAnonymous,
-            expiresAt
-        });
-
-        // Reset form
+    const resetForm = () => {
         setQuestion('');
         setOptions(['', '']);
         setIsMultipleChoice(false);
@@ -69,12 +64,37 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
         setHasDeadline(false);
         setDeadlineDate('');
         setDeadlineTime('23:59');
-        onClose();
+        setClientMessageId(crypto.randomUUID());
+    };
+
+    const handleSubmit = async () => {
+        const validOptions = options.filter(o => o.trim());
+        if (!isValid || isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            await onSubmit({
+                conversationId,
+                clientMessageId,
+                question: question.trim(),
+                options: validOptions.map(option => option.trim()),
+                isMultipleChoice,
+                isAnonymous,
+                expiresAt,
+            });
+            resetForm();
+            onClose();
+        } catch {
+            // The caller owns user-facing error reporting; keep the draft open for recovery.
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const isValid = question.trim().length > 0
-        && options.filter(o => o.trim()).length >= 2
-        && (!hasDeadline || Boolean(deadlineDate));
+        && validOptions.length >= 2
+        && !hasDuplicateOptions
+        && (!hasDeadline || Boolean(deadlineDate))
+        && deadlineIsFuture;
 
     if (!isOpen) return null;
 
@@ -85,10 +105,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
             {/* Modal */}
             <motion.div
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="create-poll-title"
-                className="relative w-full max-w-lg mx-4 bg-card border border-border/60 rounded-3xl neo-shadow overflow-hidden"
+                className="relative mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border/60 bg-card"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.zoomReveal}
@@ -99,10 +120,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                         <div className="p-2 bg-primary/10 rounded-xl">
                             <BarChart3 size={20} className="text-primary" />
                         </div>
-                        <div>
-                            <h3 id="create-poll-title" className="text-lg font-black tracking-tight">{localizeText('Tạo bình chọn')}</h3>
-                            <p className="text-xs text-muted-foreground">{localizeText('Tạo khảo sát để lấy ý kiến nhóm')}</p>
-                        </div>
+                        <h3 id="create-poll-title" className="text-lg font-black tracking-tight">{localizeText('Tạo bình chọn')}</h3>
                     </div>
                     <button
                         type="button"
@@ -115,7 +133,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                <div className="max-h-[65vh] space-y-5 overflow-y-auto p-6">
                     {/* Question */}
                     <div>
                         <label htmlFor="poll-question" className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
@@ -158,7 +176,8 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => removeOption(index)}
-                                            className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-[color,background-color,border-color,box-shadow,transform,opacity] opacity-0 group-hover:opacity-100"
+                                            aria-label={`${localizeText('Xóa lựa chọn')} ${index + 1}`}
+                                            className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-[color,background-color,border-color,box-shadow,transform,opacity] opacity-60 hover:opacity-100 focus-visible:opacity-100"
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -166,6 +185,12 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                 </div>
                             ))}
                         </div>
+
+                        {hasDuplicateOptions && (
+                            <p role="alert" className="mt-2 text-xs text-destructive">
+                                {localizeText('Các lựa chọn không được trùng nhau.')}
+                            </p>
+                        )}
 
                         {options.length < 10 && (
                             <button
@@ -197,10 +222,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             ) : (
                                 <Square size={18} className="text-muted-foreground" />
                             )}
-                            <div className="text-left flex-1">
-                                <p className="text-sm font-bold">{localizeText('Chọn nhiều đáp án')}</p>
-                                <p className="text-[10px] text-muted-foreground">{localizeText('Cho phép chọn nhiều hơn 1 lựa chọn')}</p>
-                            </div>
+                            <span className="text-sm font-bold text-left flex-1">{localizeText('Chọn nhiều đáp án')}</span>
                         </button>
 
                         {/* Anonymous poll toggle */}
@@ -215,10 +237,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             ) : (
                                 <Square size={18} className="text-muted-foreground" />
                             )}
-                            <div className="text-left flex-1">
-                                <p className="text-sm font-bold">{localizeText('Bình chọn ẩn danh')}</p>
-                                <p className="text-[10px] text-muted-foreground">{localizeText('Không ai có thể xem bạn bầu cho phương án nào')}</p>
-                            </div>
+                            <span className="text-sm font-bold text-left flex-1">{localizeText('Bình chọn ẩn danh')}</span>
                         </button>
 
                         {/* Deadline toggle */}
@@ -233,10 +252,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             ) : (
                                 <Square size={18} className="text-muted-foreground" />
                             )}
-                            <div className="text-left flex-1">
-                                <p className="text-sm font-bold">{localizeText('Thời hạn bình chọn')}</p>
-                                <p className="text-[10px] text-muted-foreground">{localizeText('Tự động đóng poll sau thời gian quy định')}</p>
-                            </div>
+                            <span className="text-sm font-bold text-left flex-1">{localizeText('Thời hạn bình chọn')}</span>
                             <Clock size={16} className={cn("transition-colors", hasDeadline ? "text-primary" : "text-muted-foreground/40")} />
                         </button>
 
@@ -268,6 +284,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                         {localizeText('Vui lòng chọn ngày kết thúc.')}
                                     </p>
                                 )}
+                                {deadlineDate && !deadlineIsFuture && (
+                                    <p role="alert" className="basis-full text-xs text-destructive">
+                                        {localizeText('Thời hạn phải ở tương lai.')}
+                                    </p>
+                                )}
                             </motion.div>
                         )}
                     </div>
@@ -284,11 +305,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                     </button>
                     <button
                         type="button"
-                        onClick={handleSubmit}
-                        disabled={!isValid}
-                        className="px-6 py-2.5 text-sm font-bold bg-primary text-primary-foreground rounded-xl neo-shadow hover:translate-x-[1px] hover:translate-y-[1px] transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:translate-x-0 disabled:translate-y-0 disabled:shadow-none"
+                        onClick={() => void handleSubmit()}
+                        disabled={!isValid || isSubmitting}
+                        className="min-h-11 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity disabled:opacity-40"
                     >
-                        {localizeText('Tạo bình chọn')}
+                        {localizeText(isSubmitting ? 'Đang tạo...' : 'Tạo bình chọn')}
                     </button>
                 </div>
             </motion.div>

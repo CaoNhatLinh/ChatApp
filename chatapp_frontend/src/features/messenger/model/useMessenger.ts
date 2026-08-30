@@ -38,6 +38,7 @@ import { localizeText } from '@/shared/i18n';
 import { useNotificationStore } from '@/features/notifications/model/notification.store';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { mapCanonicalPollAggregate } from '../api/poll.api';
 
 const MESSAGES_TTL_MS = 60_000;
 const CONVERSATION_PAGE_SIZE = 30;
@@ -731,7 +732,8 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
         const unsubPolls = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/polls`,
-            (pollData: Message['poll']) => {
+            (payload: unknown) => {
+                const pollData = mapCanonicalPollAggregate(payload);
                 if (pollData?.createdBy && blockedUserIds.has(String(pollData.createdBy))) return;
                 updatePollData(activeConversationId, pollData);
             }

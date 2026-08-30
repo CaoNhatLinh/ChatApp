@@ -155,29 +155,14 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                 ...state.messages,
                 [conversationId]: msgs.map(m => {
                     if (m.messageId === messageId) {
-                        const currentUserId = useAuthStore.getState().user?.userId;
-                        const incomingTargetId = pollData.targetUserId;
                         const incomingVotes = pollData.currentUserVotes;
                         const existingVotes = m.poll?.currentUserVotes;
-                        const existingTargetId = m.poll?.targetUserId;
-
-                        let finalUserVotes = existingVotes;
-
-                        if (!incomingTargetId) {
-                            finalUserVotes = existingVotes;
-                        } else if (incomingTargetId === currentUserId) {
-                            finalUserVotes = incomingVotes;
-                        } else {
-                            console.warn(`[PollLeakProtection] Blocked leaked data for ${incomingTargetId}`);
-                            finalUserVotes = existingVotes;
-                        }
 
                         return {
                             ...m,
                             poll: {
                                 ...pollData,
-                                currentUserVotes: finalUserVotes,
-                                targetUserId: incomingTargetId ?? existingTargetId ?? null
+                                currentUserVotes: incomingVotes ?? existingVotes,
                             }
                         };
                     }

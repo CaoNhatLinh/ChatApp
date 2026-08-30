@@ -5,6 +5,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMes
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNotificationSettings;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalPoll;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
@@ -23,7 +24,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -118,8 +121,115 @@ class CanonicalBackendServiceMessageTest {
         assertThat(page.hasNext()).isTrue();
         assertThat(page.nextCursor()).isNotBlank();
         assertThat(page.interactions()).containsExactly(interaction);
+        assertThat(page.polls()).isEmpty();
         verify(store).listMessageInteractions(
                 conversationId, newer.messageBucket(), List.of(newer.messageId()), actorId);
+    }
+
+    @Test
+    void historyHydratesOnlyPollsFromTheReturnedMessagePage() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID pollId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        CanonicalMessage pollMessage = pollMessage(conversationId, pollId, actorId, createdAt);
+        CanonicalPoll poll = new CanonicalPoll(
+                pollId, conversationId, pollMessage.messageBucket(), pollMessage.messageId(),
+                "Where next?", List.of("North", "South"), false, false, false,
+                actorId, createdAt, null, null, null);
+        CanonicalCqlStore.PollState state = new CanonicalCqlStore.PollState(
+                Map.of(0, 3L, 1, 1L), Set.of(0), 4);
+        when(store.listMessageBuckets(conversationId, null, 256)).thenReturn(List.of(
+                new CanonicalCqlStore.MessageBucketRow(createdAt, pollMessage.messageBucket())));
+        when(store.listMessagesByBucket(conversationId, pollMessage.messageBucket(), 2))
+                .thenReturn(List.of(pollMessage));
+        when(store.findPollsByIds(List.of(pollId))).thenReturn(List.of(poll));
+        when(store.listPollStates(List.of(pollId), actorId)).thenReturn(Map.of(pollId, state));
+
+        var page = service.listMessageHistory(actorId, conversationId, 1, null);
+
+        assertThat(page.polls()).containsExactly(new CanonicalApiContracts.PollView(
+                poll, state.optionCounts(), state.currentUserOptionIndexes(), state.totalVoters()));
+        verify(store).findPollsByIds(List.of(pollId));
+        verify(store).listPollStates(List.of(pollId), actorId);
+    }
+
+    @Test
+    void pollCreateRetryReturnsExistingPollWithoutResettingItsState() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID clientMessageId = UUID.randomUUID();
+        UUID pollId = UUID.nameUUIDFromBytes(
+                (actorId + "|poll|" + clientMessageId).getBytes(StandardCharsets.UTF_8));
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        CanonicalMessage pollMessage = pollMessage(conversationId, pollId, actorId, createdAt);
+        CanonicalPoll poll = new CanonicalPoll(
+                pollId, conversationId, pollMessage.messageBucket(), pollMessage.messageId(),
+                "Where next?", List.of("North", "South"), false, false, false,
+                actorId, createdAt, null, null, null);
+        CanonicalCqlStore.PollState state = new CanonicalCqlStore.PollState(Map.of(0, 2L), Set.of(0), 2);
+        when(store.claimMessage(eq(actorId), eq(clientMessageId), eq(conversationId), any(), any(), any()))
+                .thenReturn(new CanonicalCqlStore.MessageClaim(
+                        pollMessage.messageId(), pollMessage.messageBucket(), createdAt, false, true));
+        when(store.findMessage(conversationId, pollMessage.messageBucket(), pollMessage.messageId()))
+                .thenReturn(pollMessage);
+        when(store.findPollById(pollId)).thenReturn(poll);
+        when(store.listPollStates(List.of(pollId), actorId)).thenReturn(Map.of(pollId, state));
+
+        var result = service.createPoll(actorId, new CanonicalApiContracts.PollCreateRequest(
+                conversationId, clientMessageId, "Where next?", List.of("North", "South"),
+                false, false, null));
+
+        assertThat(result).isEqualTo(new CanonicalApiContracts.PollView(
+                poll, state.optionCounts(), state.currentUserOptionIndexes(), state.totalVoters()));
+        verify(store, never()).createPoll(any());
+    }
+
+    @Test
+    void pollCreateRetryRejectsChangedOptionsForTheSameClientMessageId() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID clientMessageId = UUID.randomUUID();
+        UUID pollId = UUID.nameUUIDFromBytes(
+                (actorId + "|poll|" + clientMessageId).getBytes(StandardCharsets.UTF_8));
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        CanonicalMessage pollMessage = pollMessage(conversationId, pollId, actorId, createdAt);
+        CanonicalPoll poll = new CanonicalPoll(
+                pollId, conversationId, pollMessage.messageBucket(), pollMessage.messageId(),
+                "Where next?", List.of("North", "South"), false, false, false,
+                actorId, createdAt, null, null, null);
+        when(store.claimMessage(eq(actorId), eq(clientMessageId), eq(conversationId), any(), any(), any()))
+                .thenReturn(new CanonicalCqlStore.MessageClaim(
+                        pollMessage.messageId(), pollMessage.messageBucket(), createdAt, false, true));
+        when(store.findMessage(conversationId, pollMessage.messageBucket(), pollMessage.messageId()))
+                .thenReturn(pollMessage);
+        when(store.findPollById(pollId)).thenReturn(poll);
+
+        assertThatThrownBy(() -> service.createPoll(actorId, new CanonicalApiContracts.PollCreateRequest(
+                conversationId, clientMessageId, "Where next?", List.of("North", "West"),
+                false, false, null)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("clientMessageId is already bound to another poll payload");
+        verify(store, never()).createPoll(any());
+    }
+
+    @Test
+    void voteReportsClosedWhenThePollPartitionWasSealedConcurrently() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID pollId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-07-22T01:00:00Z");
+        CanonicalPoll poll = new CanonicalPoll(
+                pollId, conversationId, "2026-07-22-01:03", Uuids.timeBased(),
+                "Where next?", List.of("North", "South"), false, false, false,
+                actorId, createdAt, null, null, null);
+        when(store.findPollById(pollId)).thenReturn(poll);
+        when(store.votePoll(pollId, actorId, Set.of(0))).thenReturn(CanonicalCqlStore.VoteResult.CLOSED);
+
+        assertThatThrownBy(() -> service.votePoll(
+                actorId, pollId, new CanonicalApiContracts.PollVoteRequest(Set.of(0))))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("poll is closed");
     }
 
     @Test
@@ -225,6 +335,14 @@ class CanonicalBackendServiceMessageTest {
                 conversationId, bucket, messageId, senderId, "TEXT", "hello", "PLAIN",
                 null, null, null, null, null, null, null, null,
                 false, null, null, null, false, false, false, createdAt, clientMessageId);
+    }
+
+    private static CanonicalMessage pollMessage(
+            UUID conversationId, UUID pollId, UUID senderId, Instant createdAt) {
+        return new CanonicalMessage(
+                conversationId, "2026-07-22-01:03", Uuids.timeBased(), senderId, "POLL", "Where next?", "PLAIN",
+                null, null, null, pollId, null, null, null, null,
+                false, null, null, null, false, false, false, createdAt, UUID.randomUUID());
     }
 
     private static CanonicalConversation conversation(UUID conversationId) {

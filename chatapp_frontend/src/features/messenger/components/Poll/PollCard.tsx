@@ -1,13 +1,11 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { cn } from '@/shared/lib/cn';
-import { motion } from 'framer-motion';
 import { Check, Clock, Lock, BarChart3, Users, XCircle } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { votePoll, closePoll, removePollVote } from '../../api/poll.api';
 import type { PollData } from '../../types/messenger.types';
 import { formatDistanceToNow, isPast } from 'date-fns';
 import { enUS, vi } from 'date-fns/locale';
-import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
@@ -15,18 +13,16 @@ import { notifyError, notifySuccess } from '@/shared/lib/notification';
 
 interface PollCardProps {
     poll: PollData;
-    onUpdate?: (updatedPoll: PollData) => void;
 }
 
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 
-export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate }) => {
+export const PollCard: React.FC<PollCardProps> = ({ poll }) => {
     const { locale } = useAppLocale();
     const currentUser = useAuthStore(state => state.user);
     const updatePollData = useMessengerStore(state => state.updatePollData);
     const [selectedOptions, setSelectedOptions] = useState<string[]>(poll.currentUserVotes ?? []);
     const [isVoting, setIsVoting] = useState(false);
-    const [showVoters, setShowVoters] = useState(false);
     const [localPoll, setLocalPoll] = useState(poll);
 
     // Ref-based guard to prevent double-click and protect state during async operations
@@ -151,29 +147,22 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
     }, [localPoll.pollId, localPoll.conversationId, updatePollData]);
 
     return (
-        <div className="w-full max-w-md bg-card/70 backdrop-blur-xl border border-border/40 rounded-xl overflow-hidden transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300 hover:border-primary/20 neo-shadow group/poll">
+        <div className="w-full max-w-md overflow-hidden rounded-xl border border-border/60 bg-card">
             {/* Poll Header */}
-            <div className="relative px-5 pt-5 pb-3 bg-gradient-to-b from-primary/5 to-transparent">
+            <div className="relative px-5 pb-3 pt-5">
                 <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <BarChart3 size={14} className="text-primary/70" />
-                            <span className="text-[8px] font-black uppercase tracking-[0.15em] text-primary/60">
-                                {localizeText('Bình chọn')}
-                            </span>
-                        </div>
-                        <span className="text-[8px] font-bold text-muted-foreground/50 uppercase">
-                            {localizeText('Tạo bởi')} {localPoll.createdByUsername || localizeText('Hệ thống')}
-                        </span>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                        <BarChart3 size={14} />
+                        <span>{localizeText('Bình chọn')}</span>
                     </div>
-                    <h4 className="text-sm font-bold leading-tight text-foreground/90">
+                    <h4 className="text-base font-bold leading-snug text-foreground">
                         {localPoll.question}
                     </h4>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1 mt-3">
                     <div className={cn(
-                        "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase border transition-[color,background-color,border-color,box-shadow,transform,opacity]",
+                        "rounded-md border px-2 py-1 text-[11px] font-medium",
                         localPoll.isMultipleChoice
                             ? "bg-blue-500/5 text-blue-500 border-blue-500/10"
                             : "bg-primary/5 text-primary border-primary/10"
@@ -183,19 +172,19 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
 
                     {localPoll.expiresAt && (
                         <div className={cn(
-                            "flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase border",
+                            "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
                             isExpired
                                 ? "bg-destructive/5 text-destructive border-destructive/10"
                                 : "bg-amber-500/5 text-amber-500 border-amber-500/10"
                         )}>
-                            <Clock size={8} />
+                            <Clock size={11} />
                             {isExpired ? localizeText('Hết hạn') : formatDistanceToNow(new Date(localPoll.expiresAt), { locale: locale === 'en' ? enUS : vi, addSuffix: true })}
                         </div>
                     )}
 
                     {isClosed && !isExpired && (
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase bg-muted/20 text-muted-foreground border border-border/20">
-                            <Lock size={8} /> {localizeText('Đã đóng')}
+                        <div className="flex items-center gap-1 rounded-md border border-border/40 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                            <Lock size={11} /> {localizeText('Đã đóng')}
                         </div>
                     )}
                 </div>
@@ -242,7 +231,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                                         {(isSelected || isUserVoted) && <Check size={10} strokeWidth={4} />}
                                     </div>
                                     <span className={cn(
-                                        "text-[12.5px] font-semibold tracking-tight truncate transition-colors duration-200",
+                                        "truncate text-sm font-semibold transition-colors duration-200",
                                         isWinning && showResults ? "text-primary font-bold" : "text-foreground/85"
                                     )}>
                                         {option.option}
@@ -250,11 +239,11 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                                 </div>
                                 {showResults && (
                                     <div className="flex items-center gap-2 whitespace-nowrap">
-                                        <span className="text-[9px] font-bold text-muted-foreground/60 tabular-nums">
+                                        <span className="text-xs font-medium text-muted-foreground tabular-nums">
                                             {option.voteCount}
                                         </span>
                                         <span className={cn(
-                                            "text-[9px] font-black tabular-nums",
+                                            "text-xs font-bold tabular-nums",
                                             isWinning ? "text-primary" : "text-muted-foreground/80"
                                         )}>
                                             {option.percentage.toFixed(0)}%
@@ -270,7 +259,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             {/* Voting mode and secondary labels */}
             <div className="px-5 pb-2 flex flex-wrap items-center gap-1.5 grayscale-[0.5] opacity-60">
                 <div className={cn(
-                    "px-1.5 py-0.5 rounded-[4px] text-[7px] font-bold uppercase border transition-[color,background-color,border-color,box-shadow,transform,opacity]",
+                    "rounded-md border px-2 py-1 text-[11px] font-medium",
                     localPoll.isAnonymous
                         ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
                         : "bg-green-500/10 text-green-500 border-green-500/20"
@@ -282,22 +271,11 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
             {/* Compact Footer */}
             <div className="px-5 py-2.5 border-t border-border/10 flex items-center justify-between bg-muted/5">
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-[8px] font-bold text-muted-foreground/60 uppercase tracking-tighter">
-                        <Users size={9} />
+                    <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        <Users size={13} />
                         {localizeText(`${localPoll.totalVotes} phiếu`)}
                     </div>
 
-                    {localPoll.totalVotes > 0 && (
-                        <button
-                            type="button"
-                            onClick={() => setShowVoters(!showVoters)}
-                            aria-expanded={showVoters}
-                            aria-controls={`poll-voters-${localPoll.pollId}`}
-                            className="text-[8px] font-black text-primary/70 hover:text-primary uppercase tracking-tighter"
-                        >
-                            {localizeText(showVoters ? 'Ẩn' : 'Chi tiết')}
-                        </button>
-                    )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -307,10 +285,10 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             onClick={() => void handleRemoveVote()}
                             disabled={isVoting}
                             aria-label={localizeText('Hủy phiếu')}
-                            className="p-1 hover:bg-destructive/5 rounded transition-colors text-destructive/40 hover:text-destructive"
+                            className="grid size-8 place-items-center rounded-md text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
                             title={localizeText('Hủy phiếu')}
                         >
-                            <XCircle size={12} />
+                            <XCircle size={16} />
                         </button>
                     )}
 
@@ -319,7 +297,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             type="button"
                             onClick={() => void handleVote()}
                             disabled={isVoting}
-                            className="px-3 py-1 text-[9px] font-black uppercase bg-primary text-primary-foreground rounded-md shadow-sm hover:shadow active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40"
+                            className="min-h-8 rounded-md bg-primary px-3 text-xs font-bold text-primary-foreground transition-opacity disabled:opacity-40"
                         >
                             {isVoting ? '...' : hasVoted ? localizeText('Đổi') : localizeText('Gửi')}
                         </button>
@@ -330,48 +308,15 @@ export const PollCard: React.FC<PollCardProps> = ({ poll, onUpdate: _onUpdate })
                             type="button"
                             onClick={() => void handleClosePoll()}
                             aria-label={localizeText('Đóng bình chọn')}
-                            className="p-1 hover:bg-amber-500/5 rounded transition-colors text-amber-500/60 hover:text-amber-500"
+                            className="grid size-8 place-items-center rounded-md text-amber-600 transition-colors hover:bg-amber-500/10"
                             title={localizeText('Đóng bình chọn')}
                         >
-                            <Lock size={12} />
+                            <Lock size={16} />
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Voter Details Area */}
-            {showVoters && (
-                <motion.div
-                    id={`poll-voters-${localPoll.pollId}`}
-                    className="px-4 pb-3"
-                    initial={UI_MOTION_CONFIG.initialState}
-                    animate={UI_MOTION_CONFIG.animateState}
-                    variants={UI_MOTION_VARIANTS.slideInFromTop}
-                >
-                    <div className="bg-background/10 rounded-xl p-1.5 space-y-1">
-                        {sortedOptions.filter(o => o.voteCount > 0).map(option => (
-                            <div key={option.option} className="flex flex-col gap-1.5 p-2 border-b border-border/5 last:border-0 bg-muted/5 rounded-lg">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-foreground/80">{option.option}</span>
-                                    <span className="text-[9px] font-black tabular-nums text-primary/60">{localizeText(`${option.voteCount} phiếu`)}</span>
-                                </div>
-                                {!localPoll.isAnonymous && option.voterNames && option.voterNames.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                        {option.voterNames.map((name, i) => (
-                                            <span
-                                                key={i}
-                                                className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[8px] font-bold"
-                                            >
-                                                {name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </motion.div>
-            )}
         </div>
     );
 };

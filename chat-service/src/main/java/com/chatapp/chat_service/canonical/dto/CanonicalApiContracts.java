@@ -258,7 +258,8 @@ public final class CanonicalApiContracts {
             List<CqlCanonicalRecords.CanonicalMessage> content,
             String nextCursor,
             boolean hasNext,
-            List<MessageInteractionView> interactions) {
+            List<MessageInteractionView> interactions,
+            List<PollView> polls) {
     }
 
     public record MessageInteractionView(
@@ -319,8 +320,13 @@ public final class CanonicalApiContracts {
             CqlCanonicalRecords.CanonicalPoll poll,
             Map<Integer, Long> optionCounts,
             Set<Integer> currentUserOptionIndexes,
-            Integer totalVoters,
-            Map<Integer, Set<UUID>> voterIdsByOption) {
+            long totalVoters) {
+    }
+
+    public record PollAggregateView(
+            CqlCanonicalRecords.CanonicalPoll poll,
+            Map<Integer, Long> optionCounts,
+            long totalVoters) {
     }
 
     public record InviteLinkCreateRequest(
