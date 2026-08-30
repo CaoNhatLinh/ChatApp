@@ -339,6 +339,11 @@ await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 if (captureVisualAudit) {
   await mkdir(captureDirectory, { recursive: true });
   await page.screenshot({ path: `${captureDirectory}/room-detail-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${captureDirectory}/room-detail-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(300);
 }
 await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Member 50', { exact: true }).waitFor();
@@ -376,7 +381,14 @@ await chatPolicySection.getByRole('button', { name: 'Lưu chính sách chat' }).
 
 const rolesSection = page.locator('details').filter({ hasText: 'Vai trò của phòng' });
 await rolesSection.locator('summary').click();
-if (captureVisualAudit) await page.screenshot({ path: `${captureDirectory}/room-roles-desktop.png`, fullPage: true });
+if (captureVisualAudit) {
+  await page.screenshot({ path: `${captureDirectory}/room-roles-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${captureDirectory}/room-roles-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(300);
+}
 await rolesSection.getByRole('button', { name: 'Tạo vai trò', exact: true }).click();
 await rolesSection.getByLabel('Tên vai trò').fill('Reviewer');
 await rolesSection.getByLabel('Mã vai trò').fill('REVIEWER');
@@ -399,7 +411,14 @@ await inviteManager.getByRole('button', { name: 'QR', exact: true }).click();
 await inviteManager.getByLabel('Cách tham gia').selectOption('REQUEST_APPROVAL');
 await inviteManager.getByRole('button', { name: 'Tạo lời mời 7 ngày' }).click();
 await inviteManager.getByText('Lời mời đã sẵn sàng', { exact: true }).waitFor();
-if (captureVisualAudit) await page.screenshot({ path: `${captureDirectory}/room-invite-desktop.png`, fullPage: true });
+if (captureVisualAudit) {
+  await page.screenshot({ path: `${captureDirectory}/room-invite-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${captureDirectory}/room-invite-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(300);
+}
 const activeInviteDisclosure = inviteManager.locator('details');
 await activeInviteDisclosure.locator('summary').click();
 await activeInviteDisclosure.getByRole('button', { name: 'Thu hồi lời mời' }).first().click();
