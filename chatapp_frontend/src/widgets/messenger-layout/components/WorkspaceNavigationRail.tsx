@@ -6,6 +6,7 @@ import { CreateRoomModal } from "@/features/messenger/components/Modals/CreateRo
 import { useMessenger } from "@/features/messenger/model/useMessenger";
 import { Button } from "@/shared/ui/Button";
 import { localizeText } from "@/shared/i18n";
+import { LanguageToggle } from "@/shared/ui/LanguageToggle";
 
 const railButtonClassName = "h-11 w-11 rounded-[var(--radius-md)] text-slate-400 hover:bg-white/8 hover:text-slate-100 data-[active=true]:bg-primary data-[active=true]:text-primary-foreground";
 
@@ -32,10 +33,10 @@ export const WorkspaceNavigationRail = () => {
           <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Tạo phòng mới")} title={localizeText("Tạo phòng mới")} onClick={() => setIsCreateRoomOpen(true)}>
             <PencilLine size={20} />
           </Button>
-          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "chat"} aria-label={localizeText("Hội thoại")} title={localizeText("Hội thoại")} onClick={openChats}>
+          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "chat"} aria-label={localizeText("Mở hội thoại")} title={localizeText("Mở hội thoại")} onClick={openChats}>
             <MessageCircle size={20} />
           </Button>
-          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "contacts"} aria-label={localizeText("Bạn bè")} title={localizeText("Bạn bè")} onClick={openContacts}>
+          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "contacts"} aria-label={localizeText("Mở bạn bè")} title={localizeText("Mở bạn bè")} onClick={openContacts}>
             <Users size={20} />
           </Button>
           <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Thông báo")} title={localizeText("Thông báo")} onClick={() => router.push("/settings?tab=notifications")}>
@@ -46,6 +47,7 @@ export const WorkspaceNavigationRail = () => {
           </Button>
         </div>
         <div className="mt-auto flex flex-col items-center gap-3">
+          <LanguageToggle />
           <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Cài đặt")} title={localizeText("Cài đặt")} onClick={() => router.push("/settings")}>
             <Settings size={20} />
           </Button>
@@ -56,10 +58,10 @@ export const WorkspaceNavigationRail = () => {
       </nav>
 
       <nav aria-label={localizeText("Điều hướng di động")} className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-[#0b141c]/95 px-4 backdrop-blur md:hidden">
-        <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "chat"} aria-label={localizeText("Hội thoại")} onClick={openChats}>
+        <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "chat"} aria-label={localizeText("Mở hội thoại")} onClick={openChats}>
           <MessageCircle size={20} />
         </Button>
-        <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "contacts"} aria-label={localizeText("Bạn bè")} onClick={openContacts}>
+        <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "contacts"} aria-label={localizeText("Mở bạn bè")} onClick={openContacts}>
           <Users size={20} />
         </Button>
         <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Thông báo")} onClick={() => router.push("/settings?tab=notifications")}>
