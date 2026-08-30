@@ -91,6 +91,12 @@ the explicit load-more action remains a recovery path. Mention lookup starts
 with a 100-member page and requests additional pages only when a typed query
 still has fewer than eight matches.
 
+`npm run test:e2e:room-management` renders a full 30-row first conversation
+page, scrolls within the bounded sidebar and asserts the next HTTP request uses
+the server-provided opaque cursor before the second-page row appears. The same
+journey also proves scroll-triggered room-member pagination without draining all
+remaining pages on mount.
+
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
 `localizeText(...)` call under `src/` (including the global admin feedback

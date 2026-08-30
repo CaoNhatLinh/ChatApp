@@ -82,7 +82,7 @@ export const SidebarConversationList = ({
   }
 
   return (
-    <div ref={scrollRef} className="overflow-y-auto custom-scrollbar px-2 py-2 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto custom-scrollbar px-2 py-2 pb-4">
       <div className="space-y-1">
         {conversations.map((conversation) => (
           <ConversationItem

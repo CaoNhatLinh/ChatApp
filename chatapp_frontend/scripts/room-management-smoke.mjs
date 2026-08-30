@@ -34,6 +34,29 @@ const conversation = {
   chatMode: 'OPEN',
   slowModeSeconds: 0,
 };
+const conversationListItem = (item) => ({
+  conversation: item,
+  pinned: false,
+  unreadCount: 0,
+  joinedAt: now,
+  notificationOverride: 'INHERIT',
+  lastMessage: null,
+});
+const sidebarConversations = [
+  conversation,
+  ...Array.from({ length: 29 }, (_, index) => ({
+    ...conversation,
+    conversationId: `10000000-0000-0000-0000-${String(index).padStart(12, '0')}`,
+    name: `Project room ${String(index + 1).padStart(2, '0')}`,
+    memberCount: index + 3,
+  })),
+];
+const secondPageConversation = {
+  ...conversation,
+  conversationId: '20000000-0000-0000-0000-000000000001',
+  name: 'Loaded on demand',
+  memberCount: 8,
+};
 const baseRoles = [
   {
     conversationId,
@@ -93,6 +116,7 @@ page.setDefaultTimeout(10_000);
 const consoleErrors = [];
 const requestFailures = [];
 const apiRequests = [];
+const conversationPageCursors = [];
 
 page.on('console', (message) => {
   const location = message.location();
@@ -104,7 +128,13 @@ page.on('requestfailed', (request) => {
   if (!request.url().includes('/ws/')) requestFailures.push({ url: request.url(), error: request.failure()?.errorText });
 });
 page.on('request', (request) => {
-  if (request.url().startsWith(apiBaseUrl)) apiRequests.push(`${request.method()} ${new URL(request.url()).pathname}`);
+  if (request.url().startsWith(apiBaseUrl)) {
+    const requestUrl = new URL(request.url());
+    apiRequests.push(`${request.method()} ${requestUrl.pathname}`);
+    if (requestUrl.pathname.endsWith('/conversations') && request.method() === 'GET') {
+      conversationPageCursors.push(requestUrl.searchParams.get('cursor'));
+    }
+  }
 });
 
 await page.route(`${apiBaseUrl}/**`, async (route) => {
@@ -118,7 +148,10 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith('/devices')) return json({ deviceId: 'device-room-management' });
   if (path.endsWith('/preferences/chat')) return json({ defaultThemeId: 'aurora', defaultBubbleStyleId: 'tiktok', rooms: [] });
   if (path.endsWith('/conversations') && method === 'GET') {
-    return json({ content: [{ conversation, pinned: false, unreadCount: 0, joinedAt: now, notificationOverride: 'INHERIT', lastMessage: null }], nextCursor: null, hasNext: false });
+    const cursor = new URL(request.url()).searchParams.get('cursor');
+    return cursor === 'conversation-cursor-1'
+      ? json({ content: [conversationListItem(secondPageConversation)], nextCursor: null, hasNext: false })
+      : json({ content: sidebarConversations.map(conversationListItem), nextCursor: 'conversation-cursor-1', hasNext: true });
   }
   if (path.endsWith(`/conversations/${conversationId}/notification-policy`)) {
     return json({ defaultNotificationLevel: 'ALL', notificationOverride: 'INHERIT' });
@@ -213,6 +246,17 @@ await page.addInitScript(() => {
   document.cookie = 'novachat_session=1; Path=/; SameSite=Lax';
 });
 await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
+const loadMoreConversationsButton = page.getByRole('button', { name: 'Tải thêm cuộc trò chuyện' });
+await loadMoreConversationsButton.waitFor();
+const conversationCursorRequestsBeforeScroll = conversationPageCursors.filter(Boolean).length;
+const nextConversationPageResponse = page.waitForResponse((response) => {
+  const responseUrl = new URL(response.url());
+  return responseUrl.pathname.endsWith('/conversations')
+    && responseUrl.searchParams.get('cursor') === 'conversation-cursor-1';
+});
+await loadMoreConversationsButton.scrollIntoViewIfNeeded();
+await nextConversationPageResponse;
+await page.getByText('Loaded on demand', { exact: true }).waitFor();
 await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
@@ -267,7 +311,7 @@ const memberPageRequests = apiRequests.filter((request) => request === `GET /api
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -286,6 +330,8 @@ if (
   || ownershipTransfers.length !== 1
   || overflow
   || visibleToastCount > 1
+  || conversationCursorRequestsBeforeScroll !== 0
+  || conversationPageCursors.filter((cursor) => cursor === 'conversation-cursor-1').length !== 1
   || memberPageRequestsAfterLazyLoad < 2
   || consoleErrors.length
   || requestFailures.length

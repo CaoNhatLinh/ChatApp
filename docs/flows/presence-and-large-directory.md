@@ -179,6 +179,7 @@ Security and consistency rules:
   cost.
 
 Evidence: `test:e2e:room-management` proves scroll-triggered member pagination,
-stale-room protection and bounded layout; sidebar code and frontend validation
-prove cursor/in-flight behavior. Clean Cassandra ordering/load evidence and a
+stale-room protection, bounded layout, and the sidebar's real second-page HTTP
+request with the opaque server cursor. Frontend validation covers the shared
+cursor/in-flight implementation. Clean Cassandra ordering/load evidence and a
 virtualized extreme-directory benchmark remain pending.
