@@ -257,11 +257,14 @@ const captureRoute = async (browser, viewport, capture) => {
   return result;
 };
 
-const requestedCapture = process.env.AUDIT_CAPTURE;
-const selectedCaptures = requestedCapture
-  ? captures.filter((capture) => capture.slug === requestedCapture)
+const requestedCaptures = process.env.AUDIT_CAPTURE
+  ?.split(',')
+  .map((capture) => capture.trim())
+  .filter(Boolean);
+const selectedCaptures = requestedCaptures?.length
+  ? captures.filter((capture) => requestedCaptures.includes(capture.slug))
   : captures;
-if (!selectedCaptures.length) throw new Error(`Unknown audit capture: ${requestedCapture}`);
+if (!selectedCaptures.length) throw new Error(`Unknown audit capture: ${requestedCaptures?.join(', ') ?? ''}`);
 
 await mkdir(outputDirectory, { recursive: true });
 const browser = await chromium.launch({ headless: true });

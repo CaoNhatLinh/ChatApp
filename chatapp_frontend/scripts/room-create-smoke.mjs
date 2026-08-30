@@ -71,6 +71,10 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], nextCursor: null, hasNext: false }) });
     return;
   }
+  if (pathname.includes('/messages')) {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], interactions: [], polls: [], nextCursor: null, hasNext: false }) });
+    return;
+  }
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ content: [], userDetails: [], hasNext: false }) });
 });
 

@@ -332,6 +332,7 @@ try {
   await page.screenshot({ path: 'artifacts/room-management-open-info-failure.png', fullPage: true });
   throw new Error(`Conversation info button unavailable. Visible headings: ${(await page.getByRole('heading').allTextContents()).join(' | ')}. Console: ${JSON.stringify(consoleErrors)}. API: ${JSON.stringify(apiRequests)}`, { cause: error });
 }
+await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Member 50', { exact: true }).waitFor();

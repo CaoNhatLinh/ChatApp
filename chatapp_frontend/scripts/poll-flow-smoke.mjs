@@ -158,7 +158,8 @@ await messageRow.getByText('4 phiếu', { exact: true }).waitFor();
 await messageRow.getByRole('button', { name: 'Hủy phiếu' }).click();
 await messageRow.getByText('3 phiếu', { exact: true }).waitFor();
 
-await page.getByRole('button', { name: 'Tạo bình chọn' }).click();
+await page.getByRole('button', { name: 'Thêm nội dung', exact: true }).click();
+await page.getByRole('menuitem', { name: 'Tạo bình chọn', exact: true }).click();
 const dialog = page.getByRole('dialog', { name: 'Tạo bình chọn' });
 await dialog.getByLabel('Câu hỏi').fill('Ngày họp tiếp theo?');
 await dialog.getByLabel('Lựa chọn 1').fill('Thứ Hai');
