@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Check, Clock3, Link2Off, ShieldCheck, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/model/auth.store';
-import { acceptInvite, declineInvite, previewInvite, type InvitePreview } from '@/features/messenger/api/invite.api';
+import { acceptInvite, declineInvite, getInviteViewerState, previewInvite, type InvitePreview } from '@/features/messenger/api/invite.api';
 import { LoadingSpinner } from '@/shared/ui/LoadingSpinner';
 import { ShellFrame } from '@/route-pages/shared/layout/ShellFrame';
 import PublicShellHeader from '@/route-pages/shared/layout/PublicShellHeader';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
 
@@ -23,6 +23,7 @@ interface JoinInvitePageProps {
 }
 
 export default function JoinInvitePage({ token }: JoinInvitePageProps) {
+    useAppLocale();
     const router = useRouter();
     const authToken = useAuthStore(state => state.token);
     const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -36,11 +37,25 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
 
     useEffect(() => {
         let active = true;
+        setLoading(true);
         setPreviewError(null);
-        void previewInvite(token)
-            .then(data => {
+        setActionError(null);
+        setResult(null);
+        const inviteState = authToken
+            ? Promise.all([previewInvite(token), getInviteViewerState(token)])
+            : previewInvite(token).then(data => [data, null] as const);
+        void inviteState
+            .then(([data, viewerState]) => {
                 if (!active) return;
                 setPreview(data);
+                if (viewerState?.status === 'PENDING' || viewerState?.status === 'DECLINED') {
+                    setResult(viewerState.status);
+                } else if ((viewerState?.status === 'ACCEPTED' || viewerState?.status === 'ALREADY_MEMBER')
+                    && viewerState.conversationId) {
+                    router.replace(`/app?conversationId=${viewerState.conversationId}`);
+                } else if (viewerState?.status === 'FAILED') {
+                    setActionError(localizeText('Lần tham gia trước chưa hoàn tất. Bạn có thể thử lại.'));
+                }
             })
             .catch((error: unknown) => {
                 if (!active) return;
@@ -50,7 +65,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
             })
             .finally(() => active && setLoading(false));
         return () => { active = false; };
-    }, [previewRetry, token]);
+    }, [authToken, previewRetry, router, token]);
 
     const requireLogin = () => {
         router.push(`/login?from=${encodeURIComponent(`/join/${token}`)}`);

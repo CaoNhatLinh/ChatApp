@@ -52,6 +52,11 @@ public class CanonicalInviteController {
         return backend.consumeInvite(actorId(), request);
     }
 
+    @GetMapping("/{token}/status")
+    public CanonicalApiContracts.InviteViewerState viewerState(@PathVariable String token) {
+        return backend.getInviteViewerState(actorId(), token);
+    }
+
     @DeleteMapping("/{token}")
     public ResponseEntity<Void> revoke(@PathVariable String token) {
         backend.revokeInvite(actorId(), token);

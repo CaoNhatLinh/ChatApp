@@ -50,6 +50,15 @@ operator can safely resume an interrupted approval before completing it. No
 request path reads the removed bucket/tag discovery tables. Existing keyspaces
 must apply `migrations/V_add_community_directory.cql`; see ADR 0006.
 
+Invite recipients are idempotent per `(link_id, user_id)` in
+`invite_join_by_link_user`. A failed command may be conditionally reclaimed as
+`PENDING`; accepted or declined rows are not overwritten. Manager resolution
+uses `join_requests_by_conversation` with a conditional `PENDING` to
+`APPROVING` claim that stores both `resolved_by` and `resolution_decision`, so
+the same operator may resume only the same interrupted decision. Public invite
+preview contains no viewer state; authenticated reload restoration uses the
+separate `/invites/{token}/status` query. See `FLOW-INVITE-001`.
+
 Moderation reports use `reports_by_status_day` for bounded operator queues and
 `reports_by_reporter` for a caller's own history. The reporter projection keeps
 target type, reason, and description so the user-facing history does not need an

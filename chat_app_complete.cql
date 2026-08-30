@@ -885,6 +885,7 @@ CREATE TABLE IF NOT EXISTS join_requests_by_conversation (
   link_id uuid,
   link_token text,                   /* Manager-only lookup needed to resolve the request. */
   status text,                       /* PENDING, APPROVING, APPROVED, DECLINED, CANCELLED, FAILED */
+  resolution_decision text,          /* APPROVE or DECLINE while a manager owns the resolution */
   resolved_by uuid,
   resolved_at timestamp,
   PRIMARY KEY ((conversation_id), requested_at, request_id)

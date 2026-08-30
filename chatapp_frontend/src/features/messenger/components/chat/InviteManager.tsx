@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Link2, Loader2, QrCode, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Check, Copy, Link2, Plus, QrCode, Trash2, UserCheck, UserX } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
     createInvite,
@@ -10,18 +10,28 @@ import {
     type InviteLinkRecord,
     type JoinRequestView,
 } from '../../api/invite.api';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { logger } from '@/shared/lib/logger';
+import { Button } from '@/shared/ui/Button';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+
+const INITIAL_VISIBLE_ITEMS = 3;
 
 export function InviteManager({ conversationId }: { conversationId: string }) {
+    useAppLocale();
     const [links, setLinks] = useState<InviteLinkRecord[]>([]);
     const [requests, setRequests] = useState<JoinRequestView[]>([]);
     const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
     const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+    const [selectedInviteKind, setSelectedInviteKind] = useState<'LINK' | 'QR'>('LINK');
     const [kind, setKind] = useState<'LINK' | 'QR'>('LINK');
     const [policy, setPolicy] = useState<'DIRECT_JOIN' | 'REQUEST_APPROVAL'>('DIRECT_JOIN');
+    const [isCreating, setIsCreating] = useState(false);
+    const [visibleLinkCount, setVisibleLinkCount] = useState(INITIAL_VISIBLE_ITEMS);
+    const [visibleRequestCount, setVisibleRequestCount] = useState(INITIAL_VISIBLE_ITEMS);
+    const [revokeTarget, setRevokeTarget] = useState<InviteLinkRecord | null>(null);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
     const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -84,6 +94,8 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             });
             setSelectedUrl(created.joinUrl);
             setSelectedLinkId(created.invite.linkId);
+            setSelectedInviteKind(created.invite.inviteKind);
+            setIsCreating(false);
             await refresh();
         } catch (inviteError: unknown) {
             const message = getUserFacingErrorMessage(inviteError, localizeText('Không thể tạo lời mời. Hãy kiểm tra quyền của bạn.'));
@@ -116,6 +128,7 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 setSelectedUrl(null);
                 setSelectedLinkId(null);
             }
+            setRevokeTarget(null);
             notifySuccess(localizeText('Đã thu hồi lời mời.'));
         } catch (revokeError: unknown) {
             logger.error('[InviteManager] Failed to revoke invite', revokeError instanceof Error ? revokeError.message : String(revokeError));
@@ -124,6 +137,9 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
             setPendingAction(null);
         }
     };
+
+    const activeLinks = links.filter(link => link.isActive);
+    const pendingRequests = requests.filter(request => request.status === 'PENDING');
 
     const handleResolve = async (request: JoinRequestView, decision: 'APPROVE' | 'DECLINE') => {
         const actionKey = `${decision.toLowerCase()}:${request.requestId}`;
@@ -149,44 +165,98 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     }
 
     return (
-        <div className="space-y-4 rounded-2xl border border-border/50 p-3">
+        <section className="space-y-4" aria-labelledby="invite-manager-title">
             {error ? <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive" role="alert"><span>{error}</span><button type="button" onClick={retryLoad} className="focus-ring shrink-0 rounded-md px-2 py-1 font-semibold text-primary hover:bg-primary/10">{localizeText('Thử lại')}</button></div> : null}
-            <div className="flex gap-2">
-                <button type="button" onClick={() => setKind('LINK')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'LINK' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><Link2 className="mx-auto mb-1 size-4" />{localizeText('Liên kết')}</button>
-                <button type="button" onClick={() => setKind('QR')} className={`flex-1 rounded-lg p-2 text-xs font-bold ${kind === 'QR' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}><QrCode className="mx-auto mb-1 size-4" />QR</button>
-            </div>
-            <select value={policy} onChange={event => setPolicy(event.target.value as typeof policy)} className="w-full rounded-lg border border-border bg-background p-2 text-xs">
-                <option value="DIRECT_JOIN">{localizeText('Tham gia ngay')}</option>
-                <option value="REQUEST_APPROVAL">{localizeText('Cần quản lý duyệt')}</option>
-            </select>
-            <button type="button" onClick={() => void makeInvite()} disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary p-2 text-xs font-bold text-primary-foreground disabled:opacity-50">
-                {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} {localizeText('Tạo lời mời 7 ngày')}
-            </button>
+            <header className="flex items-center justify-between gap-3">
+                <h4 id="invite-manager-title" className="text-sm font-semibold">{localizeText('Lời mời & yêu cầu tham gia')}</h4>
+                <Button type="button" size="sm" variant={isCreating ? 'secondary' : 'default'} onClick={() => setIsCreating(value => !value)}>
+                    <Plus className="size-4" />
+                    {isCreating ? localizeText('Đóng') : localizeText('Tạo lời mời')}
+                </Button>
+            </header>
+
+            {pendingRequests.length > 0 ? (
+                <div className="space-y-2" aria-labelledby="pending-requests-title">
+                    <div className="flex items-center justify-between gap-3">
+                        <h5 id="pending-requests-title" className="text-sm font-medium">{localizeText('Đang chờ duyệt')} · {pendingRequests.length}</h5>
+                    </div>
+                    {pendingRequests.slice(0, visibleRequestCount).map(request => (
+                        <div key={request.requestId} className="flex items-center justify-between gap-3 border-t border-border/60 py-3 first:border-t-0">
+                            <p className="min-w-0 truncate text-sm" title={request.userId}>
+                                {localizeText('Người dùng')} · <span className="font-mono text-xs text-muted-foreground">{request.userId.slice(-8)}</span>
+                            </p>
+                            <div className="flex shrink-0 gap-1">
+                                <Button type="button" size="icon" variant="ghost" disabled={pendingAction !== null} onClick={() => void handleResolve(request, 'APPROVE')} aria-label={localizeText('Duyệt yêu cầu')}>
+                                    <UserCheck className="size-4 text-success" />
+                                </Button>
+                                <Button type="button" size="icon" variant="ghost" disabled={pendingAction !== null} onClick={() => void handleResolve(request, 'DECLINE')} aria-label={localizeText('Từ chối yêu cầu')}>
+                                    <UserX className="size-4 text-destructive" />
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                    {visibleRequestCount < pendingRequests.length ? (
+                        <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setVisibleRequestCount(count => count + INITIAL_VISIBLE_ITEMS)}>
+                            {localizeText('Xem thêm')}
+                        </Button>
+                    ) : null}
+                </div>
+            ) : null}
+
+            {isCreating ? <div className="space-y-3 border-t border-border/60 pt-4">
+                <div className="flex gap-2" role="group" aria-label={localizeText('Loại lời mời')}>
+                    <Button type="button" variant={kind === 'LINK' ? 'secondary' : 'ghost'} className="flex-1" aria-pressed={kind === 'LINK'} onClick={() => setKind('LINK')}><Link2 className="size-4" />{localizeText('Liên kết')}</Button>
+                    <Button type="button" variant={kind === 'QR' ? 'secondary' : 'ghost'} className="flex-1" aria-pressed={kind === 'QR'} onClick={() => setKind('QR')}><QrCode className="size-4" />QR</Button>
+                </div>
+                <label className="block space-y-2 text-sm font-medium">
+                    <span>{localizeText('Cách tham gia')}</span>
+                    <select value={policy} onChange={event => setPolicy(event.target.value as typeof policy)} className="focus-ring h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm">
+                        <option value="DIRECT_JOIN">{localizeText('Tham gia ngay')}</option>
+                        <option value="REQUEST_APPROVAL">{localizeText('Cần quản lý duyệt')}</option>
+                    </select>
+                </label>
+                <Button type="button" onClick={() => void makeInvite()} loading={busy} className="w-full">
+                    <Check className="size-4" /> {localizeText('Tạo lời mời 7 ngày')}
+                </Button>
+            </div> : null}
 
             {selectedUrl && (
-                <div className="space-y-3 rounded-xl bg-white p-4 text-center text-black">
-                    {kind === 'QR' && <QRCodeSVG value={selectedUrl} size={160} level="H" className="mx-auto" />}
-                    <p className="break-all text-[10px]">{selectedUrl}</p>
-                    <button type="button" onClick={() => void handleCopy()} className="mx-auto flex items-center gap-1 text-xs font-bold"><Copy className="size-3" /> {localizeText('Sao chép')}</button>
+                <div className="space-y-3 border-t border-border/60 pt-4 text-center">
+                    {selectedInviteKind === 'QR' && <div className="mx-auto w-fit rounded-[var(--radius-md)] bg-white p-3"><QRCodeSVG value={selectedUrl} size={152} level="H" /></div>}
+                    <p className="text-sm font-medium">{localizeText('Lời mời đã sẵn sàng')}</p>
+                    <Button type="button" variant="secondary" onClick={() => void handleCopy()} className="mx-auto"><Copy className="size-4" /> {localizeText('Sao chép liên kết')}</Button>
                 </div>
             )}
 
-            {links.filter(link => link.isActive).slice(0, 5).map(link => (
-                <div key={link.linkId} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-2 text-[10px]">
-                    <span className="truncate">{link.displayName} · {link.usedCount}/{link.maxUses ?? '∞'}</span>
-                    <button type="button" disabled={pendingAction !== null} onClick={() => void handleRevoke(link)} title={localizeText('Thu hồi')}><Trash2 className="size-3 text-destructive" /></button>
+            {activeLinks.length > 0 ? <details className="border-t border-border/60 pt-3">
+                <summary className="focus-ring cursor-pointer list-none rounded-[var(--radius-sm)] py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                    {localizeText('Liên kết đang hoạt động')} · {activeLinks.length}
+                </summary>
+                <div className="mt-1 space-y-1">
+                    {activeLinks.slice(0, visibleLinkCount).map(link => (
+                        <div key={link.linkId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                            <span className="min-w-0 truncate">{link.displayName}</span>
+                            <Button type="button" size="icon" variant="ghost" disabled={pendingAction !== null} onClick={() => setRevokeTarget(link)} aria-label={localizeText('Thu hồi lời mời')}>
+                                <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                        </div>
+                    ))}
+                    {visibleLinkCount < activeLinks.length ? (
+                        <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setVisibleLinkCount(count => count + INITIAL_VISIBLE_ITEMS)}>{localizeText('Xem thêm')}</Button>
+                    ) : null}
                 </div>
-            ))}
+            </details> : null}
 
-            {requests.filter(request => request.status === 'PENDING').map(request => (
-                <div key={request.requestId} className="rounded-lg border border-border/50 p-2 text-[10px]">
-                    <p className="mb-2 truncate font-bold">{localizeText('Người dùng')} {request.userId}</p>
-                    <div className="flex gap-2">
-                        <button type="button" disabled={pendingAction !== null} onClick={() => void handleResolve(request, 'APPROVE')} className="flex flex-1 items-center justify-center gap-1 rounded bg-emerald-500/10 p-1 text-emerald-600"><UserCheck className="size-3" />{localizeText('Duyệt')}</button>
-                        <button type="button" disabled={pendingAction !== null} onClick={() => void handleResolve(request, 'DECLINE')} className="flex flex-1 items-center justify-center gap-1 rounded bg-destructive/10 p-1 text-destructive"><UserX className="size-3" />{localizeText('Từ chối')}</button>
-                    </div>
-                </div>
-            ))}
-        </div>
+            <ConfirmDialog
+                open={revokeTarget !== null}
+                onOpenChange={open => { if (!open) setRevokeTarget(null); }}
+                title={localizeText('Thu hồi lời mời?')}
+                description={localizeText('Liên kết này sẽ ngừng hoạt động ngay lập tức.')}
+                confirmLabel={localizeText('Thu hồi')}
+                destructive
+                loading={Boolean(revokeTarget && pendingAction === `revoke:${revokeTarget.linkId}`)}
+                onConfirm={() => revokeTarget ? handleRevoke(revokeTarget) : undefined}
+            />
+        </section>
     );
 }

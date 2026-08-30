@@ -182,6 +182,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement deactivateInvite;
     private final PreparedStatement recordInviteJoin;
     private final PreparedStatement claimInviteJoin;
+    private final PreparedStatement reclaimFailedInviteJoin;
     private final PreparedStatement loadInviteJoin;
     private final PreparedStatement updateInviteJoinStatus;
     private final PreparedStatement updateInviteProjectionUseCount;
@@ -826,6 +827,11 @@ public class CanonicalCqlStore {
                     (link_id, user_id, request_id, status, first_requested_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?) IF NOT EXISTS
                 """);
+        this.reclaimFailedInviteJoin = session.prepare("""
+                UPDATE invite_join_by_link_user
+                SET request_id = ?, status = 'PENDING', updated_at = ?
+                WHERE link_id = ? AND user_id = ? IF status = 'FAILED'
+                """);
         this.loadInviteJoin = session.prepare("""
                 SELECT status FROM invite_join_by_link_user WHERE link_id = ? AND user_id = ?
                 """);
@@ -842,7 +848,8 @@ public class CanonicalCqlStore {
                 WHERE conversation_id = ? AND requested_at = ? AND request_id = ?
                 """);
         this.claimJoinRequestResolution = session.prepare("""
-                UPDATE join_requests_by_conversation SET status = 'APPROVING', resolved_by = ?, resolved_at = ?
+                UPDATE join_requests_by_conversation
+                SET status = 'APPROVING', resolution_decision = ?, resolved_by = ?, resolved_at = ?
                 WHERE conversation_id = ? AND requested_at = ? AND request_id = ? IF status = 'PENDING'
                 """);
         this.finishJoinRequestResolution = session.prepare("""
@@ -2530,6 +2537,11 @@ public class CanonicalCqlStore {
         return row == null ? null : mapInvite(row);
     }
 
+    public String findInviteJoinStatus(UUID linkId, UUID userId) {
+        Row row = session.execute(loadInviteJoin.bind(linkId, userId)).one();
+        return row == null ? null : row.getString("status");
+    }
+
     public InviteConsumeResult consumeInvite(String token, UUID userId) {
         CanonicalInviteLink invite = findInviteByToken(token);
         if (invite == null) {
@@ -2543,9 +2555,7 @@ public class CanonicalCqlStore {
             return InviteConsumeResult.RETRY_REQUIRED;
         }
         Instant now = Instant.now();
-        var joinClaim = session.execute(claimInviteJoin.bind(
-                invite.linkId(), userId, UUID.randomUUID(), "PENDING", now, now));
-        if (!joinClaim.wasApplied()) {
+        if (!claimInviteJoinForRetry(invite.linkId(), userId, UUID.randomUUID(), now)) {
             Row existingJoin = session.execute(loadInviteJoin.bind(invite.linkId(), userId)).one();
             return existingJoin != null && "ACCEPTED".equals(existingJoin.getString("status"))
                     ? InviteConsumeResult.ALREADY_ACCEPTED
@@ -2580,9 +2590,7 @@ public class CanonicalCqlStore {
     public String requestInviteApproval(CanonicalInviteLink invite, UUID userId) {
         Instant now = Instant.now();
         UUID requestId = UUID.randomUUID();
-        var claim = session.execute(claimInviteJoin.bind(
-                invite.linkId(), userId, requestId, "PENDING", now, now));
-        if (!claim.wasApplied()) {
+        if (!claimInviteJoinForRetry(invite.linkId(), userId, requestId, now)) {
             Row existing = session.execute(loadInviteJoin.bind(invite.linkId(), userId)).one();
             return existing == null ? "FAILED" : existing.getString("status");
         }
@@ -2590,6 +2598,14 @@ public class CanonicalCqlStore {
                 invite.conversationId(), requestId, userId, invite.linkId(), invite.linkToken()));
         session.execute(recordInviteJoin.bind(invite.linkId(), userId, "PENDING", null));
         return "PENDING";
+    }
+
+    private boolean claimInviteJoinForRetry(UUID linkId, UUID userId, UUID requestId, Instant now) {
+        if (session.execute(claimInviteJoin.bind(
+                linkId, userId, requestId, "PENDING", now, now)).wasApplied()) {
+            return true;
+        }
+        return session.execute(reclaimFailedInviteJoin.bind(requestId, now, linkId, userId)).wasApplied();
     }
 
     public void recordInviteOutcome(CanonicalInviteLink invite, UUID userId, String outcome) {
@@ -2629,9 +2645,9 @@ public class CanonicalCqlStore {
     }
 
     public boolean claimJoinRequestResolution(
-            UUID conversationId, UUID requestedAt, UUID requestId, UUID actorId) {
+            UUID conversationId, UUID requestedAt, UUID requestId, UUID actorId, String decision) {
         return session.execute(claimJoinRequestResolution.bind(
-                actorId, Instant.now(), conversationId, requestedAt, requestId)).wasApplied();
+                decision, actorId, Instant.now(), conversationId, requestedAt, requestId)).wasApplied();
     }
 
     public void finishJoinRequestResolution(
@@ -2683,6 +2699,10 @@ public class CanonicalCqlStore {
     public void markInviteJoinAccepted(CanonicalInviteLink invite, UUID userId) {
         session.execute(updateInviteJoinStatus.bind("ACCEPTED", Instant.now(), invite.linkId(), userId));
         recordInviteOutcome(invite, userId, "ACCEPTED");
+    }
+
+    public void markInviteJoinFailed(CanonicalInviteLink invite, UUID userId) {
+        session.execute(updateInviteJoinStatus.bind("FAILED", Instant.now(), invite.linkId(), userId));
     }
 
     public enum InviteConsumeResult {

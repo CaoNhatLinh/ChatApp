@@ -360,6 +360,9 @@ public final class CanonicalApiContracts {
     public record InviteConsumeResponse(String status, UUID conversationId) {
     }
 
+    public record InviteViewerState(String status, UUID conversationId) {
+    }
+
     public record JoinRequestView(
             UUID conversationId,
             UUID requestedAt,

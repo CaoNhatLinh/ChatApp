@@ -1510,28 +1510,39 @@ public class CanonicalBackendService {
         if (invite == null) {
             return new CanonicalApiContracts.InviteConsumeResponse("INVALID", null);
         }
-        String status = inviteStatus(invite, invite.usedCount() == null ? 0 : invite.usedCount());
-        if (!"ACTIVE".equals(status)) {
-            store.recordInviteOutcome(invite, actorId, status);
-            return new CanonicalApiContracts.InviteConsumeResponse(status, invite.conversationId());
-        }
         CanonicalConversationMember existingMember = store.findConversationMember(invite.conversationId(), actorId);
         if (existingMember != null) {
             repairMembershipProjections(existingMember);
             store.recordInviteOutcome(invite, actorId, "ALREADY_MEMBER");
             return new CanonicalApiContracts.InviteConsumeResponse("ALREADY_MEMBER", invite.conversationId());
         }
+        String priorJoinStatus = store.findInviteJoinStatus(invite.linkId(), actorId);
+        boolean hasReservedDirectInviteUse = "DIRECT_JOIN".equals(invite.joinPolicy())
+                && "ACCEPTED".equals(priorJoinStatus);
+        String status = inviteStatus(invite, invite.usedCount() == null ? 0 : invite.usedCount());
+        if (!"ACTIVE".equals(status) && !hasReservedDirectInviteUse) {
+            store.recordInviteOutcome(invite, actorId, status);
+            return new CanonicalApiContracts.InviteConsumeResponse(status, invite.conversationId());
+        }
         if ("REQUEST_APPROVAL".equals(invite.joinPolicy())) {
             String requestStatus = store.requestInviteApproval(invite, actorId);
             appendAudit(actorId, invite.conversationId(), "JOIN_REQUEST_CREATE", "invite", invite.linkId().toString(), null, null);
-            return new CanonicalApiContracts.InviteConsumeResponse(requestStatus, invite.conversationId());
+            return new CanonicalApiContracts.InviteConsumeResponse(
+                    "ACCEPTED".equals(requestStatus) ? "PENDING" : requestStatus,
+                    invite.conversationId());
         }
         CanonicalCqlStore.MembershipState membership = store.requireMembershipState(invite.conversationId());
         if (membership.memberCount() >= membership.maxMembers()) {
+            if (hasReservedDirectInviteUse) {
+                store.releaseInviteUse(invite, actorId);
+            }
             return new CanonicalApiContracts.InviteConsumeResponse("CAPACITY_REACHED", invite.conversationId());
         }
-        CanonicalCqlStore.InviteConsumeResult inviteResult = store.consumeInvite(req.linkToken(), actorId);
-        if (inviteResult != CanonicalCqlStore.InviteConsumeResult.CONSUMED) {
+        CanonicalCqlStore.InviteConsumeResult inviteResult = hasReservedDirectInviteUse
+                ? CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED
+                : store.consumeInvite(req.linkToken(), actorId);
+        boolean reservedByThisCommand = inviteResult == CanonicalCqlStore.InviteConsumeResult.CONSUMED;
+        if (!reservedByThisCommand && inviteResult != CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED) {
             return new CanonicalApiContracts.InviteConsumeResponse("RETRY_REQUIRED", invite.conversationId());
         }
         CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
@@ -1552,7 +1563,9 @@ public class CanonicalBackendService {
             return new CanonicalApiContracts.InviteConsumeResponse("CAPACITY_REACHED", invite.conversationId());
         }
         if (membershipResult == CanonicalCqlStore.MembershipMutationResult.ALREADY_MEMBER) {
-            store.releaseInviteUse(invite, actorId);
+            if (reservedByThisCommand) {
+                store.releaseInviteUse(invite, actorId);
+            }
             CanonicalConversationMember currentMember = store.findConversationMember(invite.conversationId(), actorId);
             if (currentMember == null) {
                 throw new IllegalStateException("conversation member is missing after membership claim");
@@ -1563,6 +1576,29 @@ public class CanonicalBackendService {
         repairMembershipProjections(member);
         appendAudit(actorId, invite.conversationId(), "JOIN_BY_INVITE", "conversation", invite.conversationId().toString(), null, null);
         return new CanonicalApiContracts.InviteConsumeResponse("ACCEPTED", invite.conversationId());
+    }
+
+    public CanonicalApiContracts.InviteViewerState getInviteViewerState(UUID actorId, String token) {
+        CanonicalInviteLink invite = store.findInviteByToken(token);
+        if (invite == null) {
+            return new CanonicalApiContracts.InviteViewerState("INVALID", null);
+        }
+        if (store.findConversationMember(invite.conversationId(), actorId) != null) {
+            return new CanonicalApiContracts.InviteViewerState("ALREADY_MEMBER", invite.conversationId());
+        }
+        String status = store.findInviteJoinStatus(invite.linkId(), actorId);
+        if (status == null) {
+            return new CanonicalApiContracts.InviteViewerState("AVAILABLE", invite.conversationId());
+        }
+        if (!Set.of("PENDING", "ACCEPTED", "DECLINED", "FAILED").contains(status)) {
+            throw new IllegalStateException("unsupported invite viewer status: " + status);
+        }
+        if ("ACCEPTED".equals(status)) {
+            return new CanonicalApiContracts.InviteViewerState(
+                    "REQUEST_APPROVAL".equals(invite.joinPolicy()) ? "PENDING" : "FAILED",
+                    invite.conversationId());
+        }
+        return new CanonicalApiContracts.InviteViewerState(status, invite.conversationId());
     }
 
     public List<CanonicalApiContracts.JoinRequestView> listJoinRequests(
@@ -1600,10 +1636,14 @@ public class CanonicalBackendService {
         if (row == null) {
             return resolveCommunityJoinRequest(actorId, conversationId, requestId, request);
         }
-        if (!"PENDING".equals(row.getString("status"))) {
+        boolean continuingOwnClaim = "APPROVING".equals(row.getString("status"))
+                && actorId.equals(row.getUuid("resolved_by"))
+                && decision.equals(row.getString("resolution_decision"));
+        if (!"PENDING".equals(row.getString("status")) && !continuingOwnClaim) {
             throw new ConflictException("join request is no longer pending");
         }
-        if (!store.claimJoinRequestResolution(conversationId, request.requestedAt(), requestId, actorId)) {
+        if (!continuingOwnClaim && !store.claimJoinRequestResolution(
+                conversationId, request.requestedAt(), requestId, actorId, decision)) {
             throw new ConflictException("join request was resolved concurrently");
         }
         UUID userId = row.getUuid("user_id");
@@ -1618,8 +1658,14 @@ public class CanonicalBackendService {
                     requestId.toString(), userId, request.reason());
             return resolvedJoinRequest(conversationId, request.requestedAt(), requestId);
         }
-        if (invite == null || !invite.linkId().equals(row.getUuid("link_id"))
-                || !"ACTIVE".equals(inviteStatus(invite, invite.usedCount() == null ? 0 : invite.usedCount()))) {
+        boolean inviteMatchesRequest = invite != null && invite.linkId().equals(row.getUuid("link_id"));
+        boolean inviteAcceptanceRecorded = inviteMatchesRequest && "ACCEPTED".equals(
+                store.findInviteJoinStatus(invite.linkId(), userId));
+        if (!inviteMatchesRequest || (!inviteAcceptanceRecorded
+                && !"ACTIVE".equals(inviteStatus(invite, invite.usedCount() == null ? 0 : invite.usedCount())))) {
+            if (inviteMatchesRequest) {
+                store.markInviteJoinFailed(invite, userId);
+            }
             store.finishJoinRequestResolution(
                     conversationId, request.requestedAt(), requestId, "FAILED", actorId);
             throw new ConflictException("invite is no longer usable");
@@ -1628,14 +1674,24 @@ public class CanonicalBackendService {
         if (existingMember == null) {
             CanonicalCqlStore.MembershipState membership = store.requireMembershipState(conversationId);
             if (membership.memberCount() >= membership.maxMembers()) {
+                if (inviteAcceptanceRecorded) {
+                    store.releaseInviteUse(invite, userId);
+                } else {
+                    store.markInviteJoinFailed(invite, userId);
+                }
                 store.finishJoinRequestResolution(
                         conversationId, request.requestedAt(), requestId, "FAILED", actorId);
                 throw new ConflictException("conversation capacity has been reached");
             }
-            if (!store.reserveInviteUse(invite)) {
+            if (!inviteAcceptanceRecorded && !store.reserveInviteUse(invite)) {
+                store.markInviteJoinFailed(invite, userId);
                 store.finishJoinRequestResolution(
                         conversationId, request.requestedAt(), requestId, "FAILED", actorId);
                 throw new ConflictException("invite usage changed concurrently; retry with a new invite");
+            }
+            if (!inviteAcceptanceRecorded) {
+                store.markInviteJoinAccepted(invite, userId);
+                inviteAcceptanceRecorded = true;
             }
             CanonicalConversationMember member = new CqlCanonicalRecords.CanonicalConversationMember(
                     conversationId, userId, defaultConversationRoleIds(conversationId), Instant.now(), actorId,
@@ -1660,7 +1716,9 @@ public class CanonicalBackendService {
         } else {
             repairMembershipProjections(existingMember);
         }
-        store.markInviteJoinAccepted(invite, userId);
+        if (!inviteAcceptanceRecorded) {
+            store.markInviteJoinAccepted(invite, userId);
+        }
         store.finishJoinRequestResolution(
                 conversationId, request.requestedAt(), requestId, "APPROVED", actorId);
         appendAudit(actorId, conversationId, "JOIN_REQUEST_APPROVE", "join_request",

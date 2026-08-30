@@ -16,3 +16,5 @@ Current detailed flows:
 - [`FLOW-REALTIME-001` and `FLOW-DIRECTORY-001`](presence-and-large-directory.md):
   authorized viewport presence, multi-device expiry, reconnect boundaries and
   bounded room/conversation directory loading.
+- [`FLOW-INVITE-001`](invites-and-join-approval.md): public preview isolation,
+  authenticated viewer-state restoration, manager resolution and retry rules.

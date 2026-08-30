@@ -105,6 +105,32 @@ const members = [
 const directoryMembers = [members[0], ...members.slice(2, 101), members[1], ...members.slice(101)];
 
 let roles = [...baseRoles];
+let inviteLinks = Array.from({ length: 5 }, (_, index) => ({
+  linkId: `30000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+  linkToken: `room-invite-${index + 1}`,
+  conversationId,
+  createdBy: ownerId,
+  createdAt: now,
+  inviteKind: index === 1 ? 'QR' : 'LINK',
+  joinPolicy: index === 0 ? 'REQUEST_APPROVAL' : 'DIRECT_JOIN',
+  displayName: index === 1 ? 'QR phòng chat' : `Link phòng chat ${index + 1}`,
+  expiresAt: '2026-09-05T08:00:00Z',
+  isActive: true,
+  maxUses: null,
+  usedCount: index,
+  revokedBy: null,
+  revokedAt: null,
+}));
+let joinRequests = Array.from({ length: 5 }, (_, index) => ({
+  conversationId,
+  requestedAt: `40000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+  requestId: `50000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+  userId: `60000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+  linkId: inviteLinks[0].linkId,
+  status: 'PENDING',
+  resolvedBy: null,
+  resolvedAt: null,
+}));
 const roleAssignments = [];
 const ownershipTransfers = [];
 const createdRoles = [];
@@ -119,6 +145,7 @@ const requestFailures = [];
 const apiRequests = [];
 const conversationPageCursors = [];
 const memberPageLimits = [];
+const inviteCommands = [];
 
 page.on('console', (message) => {
   const location = message.location();
@@ -243,9 +270,39 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     ownershipTransfers.push(path);
     return route.fulfill({ status: 204 });
   }
-  if (path.endsWith(`/invites/conversation/${conversationId}`)) return json([]);
-  if (path.endsWith(`/invites/conversation/${conversationId}/requests`)) return json([]);
-  if (path.includes('/messages/')) return json({ content: [], nextCursor: null, hasNext: false });
+  if (path.endsWith(`/invites/conversation/${conversationId}/requests`) && method === 'GET') return json(joinRequests);
+  if (path.includes(`/invites/conversation/${conversationId}/requests/`) && path.endsWith('/resolve') && method === 'POST') {
+    const requestId = path.split('/').at(-2);
+    const payload = request.postDataJSON();
+    inviteCommands.push({ type: 'resolve', requestId, payload });
+    joinRequests = joinRequests.map(request => request.requestId === requestId
+      ? { ...request, status: payload.decision === 'APPROVE' ? 'APPROVED' : 'DECLINED', resolvedBy: ownerId, resolvedAt: now }
+      : request);
+    return json(joinRequests.find(request => request.requestId === requestId));
+  }
+  if (path.endsWith(`/invites/conversation/${conversationId}`) && method === 'GET') return json(inviteLinks);
+  if (path.endsWith('/invites') && method === 'POST') {
+    const payload = request.postDataJSON();
+    inviteCommands.push({ type: 'create', payload });
+    const invite = {
+      ...inviteLinks[0],
+      linkId: '70000000-0000-0000-0000-000000000001',
+      linkToken: 'created-room-invite',
+      inviteKind: payload.inviteKind,
+      joinPolicy: payload.joinPolicy,
+      displayName: payload.displayName,
+      usedCount: 0,
+    };
+    inviteLinks = [invite, ...inviteLinks];
+    return json({ invite, joinUrl: `${baseUrl}/join/${invite.linkToken}` }, 201);
+  }
+  if (path.includes('/invites/') && method === 'DELETE') {
+    const linkToken = path.split('/').at(-1);
+    inviteCommands.push({ type: 'revoke', linkToken });
+    inviteLinks = inviteLinks.map(link => link.linkToken === linkToken ? { ...link, isActive: false, revokedBy: ownerId, revokedAt: now } : link);
+    return route.fulfill({ status: 204 });
+  }
+  if (path.includes('/messages')) return json({ content: [], interactions: [], polls: [], nextCursor: null, hasNext: false });
   if (path.includes('/friendships/requests')) return json({ content: [], userDetails: [], hasNext: false });
   if (path.includes('/notifications')) return json({ content: [], hasNext: false });
   return json({ content: [], userDetails: [], hasNext: false });
@@ -267,7 +324,14 @@ await loadMoreConversationsButton.scrollIntoViewIfNeeded();
 await nextConversationPageResponse;
 await page.getByText('Loaded on demand', { exact: true }).waitFor();
 await page.getByText('Product Studio', { exact: true }).first().click();
-await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
+const conversationInfoButton = page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' });
+try {
+  await conversationInfoButton.click();
+} catch (error) {
+  await mkdir('artifacts', { recursive: true });
+  await page.screenshot({ path: 'artifacts/room-management-open-info-failure.png', fullPage: true });
+  throw new Error(`Conversation info button unavailable. Visible headings: ${(await page.getByRole('heading').allTextContents()).join(' | ')}. Console: ${JSON.stringify(consoleErrors)}. API: ${JSON.stringify(apiRequests)}`, { cause: error });
+}
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Member 50', { exact: true }).waitFor();
@@ -317,8 +381,27 @@ await rolesSection.getByText('Gửi tin nhắn', { exact: true }).click();
 await rolesSection.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click();
 await rolesSection.getByText('Product lead', { exact: true }).waitFor();
 
+const inviteManager = page.locator('section[aria-labelledby="invite-manager-title"]');
+await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 5' }).waitFor();
+if (await inviteManager.locator('p[title^="60000000"]:visible').count() !== 3) throw new Error('Invite requests were not progressively disclosed');
+await inviteManager.getByRole('button', { name: 'Xem thêm' }).first().click();
+if (await inviteManager.locator('p[title^="60000000"]:visible').count() !== 5) throw new Error('Invite request expansion did not reveal the next items');
+await inviteManager.getByRole('button', { name: 'Tạo lời mời', exact: true }).click();
+await inviteManager.getByRole('button', { name: 'QR', exact: true }).click();
+await inviteManager.getByLabel('Cách tham gia').selectOption('REQUEST_APPROVAL');
+await inviteManager.getByRole('button', { name: 'Tạo lời mời 7 ngày' }).click();
+await inviteManager.getByText('Lời mời đã sẵn sàng', { exact: true }).waitFor();
+const activeInviteDisclosure = inviteManager.locator('details');
+await activeInviteDisclosure.locator('summary').click();
+await activeInviteDisclosure.getByRole('button', { name: 'Thu hồi lời mời' }).first().click();
+await page.getByRole('dialog', { name: 'Thu hồi lời mời?' }).getByRole('button', { name: 'Thu hồi', exact: true }).click();
+await page.getByRole('dialog', { name: 'Thu hồi lời mời?' }).waitFor({ state: 'detached' });
+await inviteManager.getByRole('button', { name: 'Duyệt yêu cầu' }).first().click();
+await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 4' }).waitFor();
+
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Members & roles' }).waitFor();
+await inviteManager.getByRole('heading', { name: 'Invitations & join requests' }).waitFor();
 const englishAuditEvent = page.getByText('Role updated', { exact: true });
 if (!await englishAuditEvent.isVisible()) await page.getByText('Room audit log', { exact: true }).click();
 await englishAuditEvent.waitFor();
@@ -330,7 +413,7 @@ const memberPageRequests = apiRequests.filter((request) => request === `GET /api
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, renderedMemberRows, loadedMemberRowsAfterSecondPage, totalFixtureMembers: directoryMembers.length, memberPageLimits, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, inviteCommands, overflow, visibleToastCount, renderedMemberRows, loadedMemberRowsAfterSecondPage, totalFixtureMembers: directoryMembers.length, memberPageLimits, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -347,6 +430,9 @@ if (
   || !memberPolicies[0]?.mutedUntil
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
+  || inviteCommands.filter((command) => command.type === 'create').length !== 1
+  || inviteCommands.filter((command) => command.type === 'revoke').length !== 1
+  || inviteCommands.filter((command) => command.type === 'resolve').length !== 1
   || overflow
   || visibleToastCount > 1
   || renderedMemberRows >= loadedMemberRowsAfterSecondPage

@@ -90,7 +90,7 @@ const PublicShellHeader = ({
           <div className="hidden flex-wrap justify-end gap-2 sm:flex">
             {actions ?? defaultActions}
           </div>
-          <Link href="/register" className="focus-ring inline-flex rounded-[var(--radius-md)] bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground sm:hidden">
+          <Link href="/register" className="focus-ring hidden rounded-[var(--radius-md)] bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground min-[28rem]:inline-flex sm:hidden">
             {localizeText(UI_COPY.shell.publicActions.register)}
           </Link>
         </div>

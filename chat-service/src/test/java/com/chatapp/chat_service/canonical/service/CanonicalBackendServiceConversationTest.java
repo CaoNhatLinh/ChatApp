@@ -10,6 +10,7 @@ import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
+import com.datastax.oss.driver.api.core.cql.Row;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.List;
 
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -210,7 +212,7 @@ class CanonicalBackendServiceConversationTest {
         UUID ownerId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
-        Instant mutedUntil = Instant.parse("2026-08-30T05:00:00Z");
+        Instant mutedUntil = Instant.now().plusSeconds(3600);
         CanonicalConversationMember member = new CanonicalConversationMember(
                 conversationId, memberId, Set.of(), Instant.now(), ownerId,
                 null, null, "INHERIT", null, null);
@@ -393,6 +395,34 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
+    void inviteApprovalStatusCanBeRestoredAfterPageReload() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.findInviteJoinStatus(invite.linkId(), actorId)).thenReturn("PENDING");
+
+        CanonicalApiContracts.InviteViewerState state = service.getInviteViewerState(
+                actorId, invite.linkToken());
+
+        assertThat(state.status()).isEqualTo("PENDING");
+        assertThat(state.conversationId()).isEqualTo(invite.conversationId());
+    }
+
+    @Test
+    void incompleteDirectInviteAcceptanceIsExposedAsRetryable() {
+        UUID actorId = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.findInviteJoinStatus(invite.linkId(), actorId)).thenReturn("ACCEPTED");
+
+        CanonicalApiContracts.InviteViewerState state = service.getInviteViewerState(
+                actorId, invite.linkToken());
+
+        assertThat(state.status()).isEqualTo("FAILED");
+        assertThat(state.conversationId()).isEqualTo(invite.conversationId());
+    }
+
+    @Test
     void communityDirectoryHydratesCanonicalStateAndMembershipWithoutReturningArchivedRooms() {
         UUID actorId = UUID.randomUUID();
         UUID joinedId = UUID.randomUUID();
@@ -572,6 +602,61 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
+    void roomManagerCanResumeItsInterruptedInviteApproval() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        CanonicalInviteLink invite = invite(conversationId);
+        Row claimedRequest = mock(Row.class);
+        when(claimedRequest.getString("status")).thenReturn("APPROVING");
+        when(claimedRequest.getString("resolution_decision")).thenReturn("APPROVE");
+        when(claimedRequest.getString("link_token")).thenReturn(invite.linkToken());
+        when(claimedRequest.getUuid("resolved_by")).thenReturn(actorId);
+        when(claimedRequest.getUuid("user_id")).thenReturn(userId);
+        when(claimedRequest.getUuid("link_id")).thenReturn(invite.linkId());
+        when(store.findJoinRequest(conversationId, requestedAt, requestId)).thenReturn(claimedRequest);
+        when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.findInviteJoinStatus(invite.linkId(), userId)).thenReturn("ACCEPTED");
+        when(store.findConversationMember(conversationId, userId)).thenReturn(member(conversationId, userId));
+        when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, UUID.randomUUID(), "ALL"));
+
+        service.resolveJoinRequest(
+                actorId, conversationId, requestId,
+                new CanonicalApiContracts.JoinRequestDecisionRequest(
+                        requestedAt, userId, "APPROVE", null));
+
+        verify(store, never()).claimJoinRequestResolution(any(), any(), any(), any(), any());
+        verify(store).finishJoinRequestResolution(
+                conversationId, requestedAt, requestId, "APPROVED", actorId);
+        verify(store).addConversationMembershipProjection(eq(userId), any(), any());
+    }
+
+    @Test
+    void interruptedInviteApprovalCannotResumeWithADifferentDecision() {
+        UUID actorId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID requestedAt = UUID.randomUUID();
+        Row claimedRequest = mock(Row.class);
+        when(claimedRequest.getString("status")).thenReturn("APPROVING");
+        when(claimedRequest.getString("resolution_decision")).thenReturn("APPROVE");
+        when(claimedRequest.getUuid("resolved_by")).thenReturn(actorId);
+        when(store.findJoinRequest(conversationId, requestedAt, requestId)).thenReturn(claimedRequest);
+
+        assertThatThrownBy(() -> service.resolveJoinRequest(
+                actorId, conversationId, requestId,
+                new CanonicalApiContracts.JoinRequestDecisionRequest(
+                        requestedAt, userId, "DECLINE", null)))
+                .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class);
+
+        verify(store, never()).finishJoinRequestResolution(any(), any(), any(), any(), any());
+        verify(store, never()).tryAddConversationMember(any());
+    }
+
+    @Test
     void directInviteReleasesItsUseWhenCapacityIsReachedDuringTheMembershipClaim() {
         UUID actorId = UUID.randomUUID();
         CanonicalInviteLink invite = invite(UUID.randomUUID());
@@ -592,22 +677,32 @@ class CanonicalBackendServiceConversationTest {
     }
 
     @Test
-    void concurrentAcceptedInviteNeverReleasesAnotherRequestUse() {
+    void acceptedInviteReservationCompletesTheMissingMembershipWithoutAnotherUse() {
         UUID actorId = UUID.randomUUID();
-        CanonicalInviteLink invite = invite(UUID.randomUUID());
+        CanonicalInviteLink activeInvite = invite(UUID.randomUUID());
+        CanonicalInviteLink invite = new CanonicalInviteLink(
+                activeInvite.linkId(), activeInvite.linkToken(), activeInvite.conversationId(),
+                activeInvite.createdBy(), activeInvite.createdAt(), activeInvite.inviteKind(),
+                activeInvite.joinPolicy(), activeInvite.displayName(), activeInvite.expiresAt(),
+                false, 10, 10, null, null);
+        CanonicalConversation conversation = conversation(invite.conversationId(), UUID.randomUUID(), "ALL");
         when(store.findInviteByToken(invite.linkToken())).thenReturn(invite);
+        when(store.findInviteJoinStatus(invite.linkId(), actorId)).thenReturn("ACCEPTED");
         when(store.requireMembershipState(invite.conversationId()))
                 .thenReturn(new CanonicalCqlStore.MembershipState(
                         1, 10, UUID.randomUUID(), Instant.now(), 0L));
-        when(store.consumeInvite(invite.linkToken(), actorId))
-                .thenReturn(CanonicalCqlStore.InviteConsumeResult.ALREADY_ACCEPTED);
+        when(store.tryAddConversationMember(any()))
+                .thenReturn(CanonicalCqlStore.MembershipMutationResult.ADDED);
+        when(store.findConversation(invite.conversationId())).thenReturn(conversation);
 
         CanonicalApiContracts.InviteConsumeResponse response = service.consumeInvite(
                 actorId, new CanonicalApiContracts.InviteConsumeRequest(invite.linkToken()));
 
-        assertThat(response.status()).isEqualTo("RETRY_REQUIRED");
+        assertThat(response.status()).isEqualTo("ACCEPTED");
         verify(store, never()).releaseInviteUse(any(), any());
-        verify(store, never()).tryAddConversationMember(any());
+        verify(store, never()).consumeInvite(any(), any());
+        verify(store).tryAddConversationMember(any());
+        verify(store).addConversationMembershipProjection(eq(actorId), eq(conversation), any());
     }
 
     private CanonicalConversationMember member(UUID conversationId, UUID userId) {

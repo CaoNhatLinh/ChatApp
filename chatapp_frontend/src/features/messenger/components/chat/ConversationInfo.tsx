@@ -336,10 +336,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     {activeConv.type !== 'dm' && (
                         <>
                             <RoomManagementPanel conversation={activeConv} />
-                            <div>
-                                <h4 className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-3 px-1">{localizeText('Lời mời & yêu cầu tham gia')}</h4>
-                                <InviteManager conversationId={activeConv.conversationId} />
-                            </div>
+                            <InviteManager conversationId={activeConv.conversationId} />
                         </>
                     )}
                     {/* Danger Zone */}

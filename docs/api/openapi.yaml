@@ -414,6 +414,15 @@ paths:
       tags: [Invites]
       parameters: [{name: token, in: path, required: true, schema: {type: string}}]
       responses: {'200': {description: Invite declined}}
+  /invites/{token}/status:
+    get:
+      tags: [Invites]
+      summary: Restore the authenticated viewer's invite state after navigation or reload
+      parameters: [{name: token, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200':
+          description: Viewer-specific invite state
+          content: {application/json: {schema: {$ref: '#/components/schemas/InviteViewerState'}}}
   /invites/conversation/{conversationId}/requests:
     get:
       tags: [Invites]
@@ -785,6 +794,7 @@ components:
     PollView: {type: object, required: [poll, optionCounts, currentUserOptionIndexes, totalVoters], properties: {poll: {$ref: '#/components/schemas/Poll'}, optionCounts: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}, currentUserOptionIndexes: {type: array, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 9}}, totalVoters: {type: integer, format: int64, minimum: 0}}}
     InviteCreate: {type: object, required: [conversationId], properties: {conversationId: {type: string, format: uuid}, inviteKind: {type: string, enum: [LINK, QR]}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL]}, maxUses: {type: integer}, expiresAt: {type: string, format: date-time}}}
     InviteConsume: {type: object, required: [linkToken], properties: {linkToken: {type: string}}}
+    InviteViewerState: {type: object, required: [status], properties: {status: {type: string, enum: [AVAILABLE, PENDING, ACCEPTED, ALREADY_MEMBER, DECLINED, FAILED, INVALID]}, conversationId: {type: string, format: uuid, nullable: true}}}
     JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, userId: {type: string, format: uuid, description: Required for a public-community request}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}
     AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
     MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid}, mentionUserId: {type: string, format: uuid}, messageType: {type: string}, fromAt: {type: string, format: date-time}, toAt: {type: string, format: date-time}, hasAttachment: {type: boolean}, isPinned: {type: boolean}, pageCursor: {type: string}, limit: {type: integer, minimum: 1, maximum: 100}}}

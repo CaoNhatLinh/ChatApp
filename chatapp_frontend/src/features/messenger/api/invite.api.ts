@@ -1,81 +1,60 @@
 import apiClient from '@/shared/api/apiClient';
+import {
+    parseInviteConsumeResponse,
+    parseInvitePreview,
+    parseInviteRecord,
+    parseInviteViewerState,
+    parseInviteView,
+    parseJoinRequest,
+    type InviteConsumeResponse,
+    type InviteLinkRecord,
+    type InviteLinkView,
+    type InvitePreview,
+    type InviteViewerState,
+    type JoinRequestView,
+} from './invite.contracts';
 
-export interface InvitePreview {
-    status: 'ACTIVE' | 'INVALID' | 'INACTIVE' | 'REVOKED' | 'EXPIRED' | 'LIMIT_REACHED';
-    conversationId?: string | null;
-    conversationName?: string | null;
-    conversationType?: string | null;
-    createdBy?: string | null;
-    displayName?: string | null;
-    joinPolicy?: 'DIRECT_JOIN' | 'REQUEST_APPROVAL' | null;
-    expiresAt?: string | null;
-    remainingUses?: number | null;
-}
-
-export interface InviteConsumeResponse {
-    status: string;
-    conversationId?: string | null;
-}
-
-export interface InviteLinkRecord {
-    linkId: string;
-    linkToken: string;
-    conversationId: string;
-    createdBy: string;
-    createdAt: string;
-    inviteKind: 'LINK' | 'QR';
-    joinPolicy: 'DIRECT_JOIN' | 'REQUEST_APPROVAL';
-    displayName: string;
-    expiresAt: string;
-    isActive: boolean;
-    maxUses?: number | null;
-    usedCount: number;
-    revokedBy?: string | null;
-    revokedAt?: string | null;
-}
-
-export interface InviteLinkView {
-    invite: InviteLinkRecord;
-    joinUrl: string;
-}
-
-export interface JoinRequestView {
-    conversationId: string;
-    requestedAt: string;
-    requestId: string;
-    userId: string;
-    linkId?: string | null;
-    status: string;
-    resolvedBy?: string | null;
-    resolvedAt?: string | null;
-}
+export type {
+    InviteConsumeResponse,
+    InviteLinkRecord,
+    InviteLinkView,
+    InvitePreview,
+    InviteViewerState,
+    JoinRequestView,
+} from './invite.contracts';
 
 export const previewInvite = async (token: string): Promise<InvitePreview> => {
-    const response = await apiClient.get<InvitePreview>(`/public/invites/${encodeURIComponent(token)}`);
-    return response.data;
+    const response = await apiClient.get(`/public/invites/${encodeURIComponent(token)}`);
+    return parseInvitePreview(response.data);
 };
 
 export const acceptInvite = async (token: string): Promise<InviteConsumeResponse> => {
-    const response = await apiClient.post<InviteConsumeResponse>('/invites/consume', { linkToken: token });
-    return response.data;
+    const response = await apiClient.post('/invites/consume', { linkToken: token });
+    return parseInviteConsumeResponse(response.data);
+};
+
+export const getInviteViewerState = async (token: string): Promise<InviteViewerState> => {
+    const response = await apiClient.get(`/invites/${encodeURIComponent(token)}/status`);
+    return parseInviteViewerState(response.data);
 };
 
 export const declineInvite = async (token: string): Promise<InviteConsumeResponse> => {
-    const response = await apiClient.post<InviteConsumeResponse>(`/invites/${encodeURIComponent(token)}/decline`);
-    return response.data;
+    const response = await apiClient.post(`/invites/${encodeURIComponent(token)}/decline`);
+    return parseInviteConsumeResponse(response.data);
 };
 
 export const createInvite = async (
     conversationId: string,
     input: { inviteKind: 'LINK' | 'QR'; joinPolicy: 'DIRECT_JOIN' | 'REQUEST_APPROVAL'; displayName: string; durationMinutes: number; maxUses?: number },
 ): Promise<InviteLinkView> => {
-    const response = await apiClient.post<InviteLinkView>('/invites', { conversationId, ...input });
-    return response.data;
+    const response = await apiClient.post('/invites', { conversationId, ...input });
+    return parseInviteView(response.data);
 };
 
 export const listInvites = async (conversationId: string): Promise<InviteLinkRecord[]> => {
-    const response = await apiClient.get<InviteLinkRecord[]>(`/invites/conversation/${conversationId}`);
-    return response.data;
+    const response = await apiClient.get(`/invites/conversation/${conversationId}`);
+    if (!Array.isArray(response.data)) throw new Error('Invite list response is invalid');
+    return response.data.map(parseInviteRecord);
 };
 
 export const revokeInvite = async (token: string): Promise<void> => {
@@ -83,17 +62,18 @@ export const revokeInvite = async (token: string): Promise<void> => {
 };
 
 export const listJoinRequests = async (conversationId: string): Promise<JoinRequestView[]> => {
-    const response = await apiClient.get<JoinRequestView[]>(`/invites/conversation/${conversationId}/requests`);
-    return response.data;
+    const response = await apiClient.get(`/invites/conversation/${conversationId}/requests`);
+    if (!Array.isArray(response.data)) throw new Error('Join request list response is invalid');
+    return response.data.map(parseJoinRequest);
 };
 
 export const resolveJoinRequest = async (
     request: JoinRequestView,
     decision: 'APPROVE' | 'DECLINE',
 ): Promise<JoinRequestView> => {
-    const response = await apiClient.post<JoinRequestView>(
+    const response = await apiClient.post(
         `/invites/conversation/${request.conversationId}/requests/${request.requestId}/resolve`,
         { requestedAt: request.requestedAt, userId: request.userId, decision },
     );
-    return response.data;
+    return parseJoinRequest(response.data);
 };
