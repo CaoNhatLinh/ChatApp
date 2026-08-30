@@ -1,38 +1,25 @@
 import { Plus, Settings, Users } from "lucide-react";
-import { NotificationButton } from "@/features/notifications/components/notification/NotificationList";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 
 interface SidebarHeaderProps {
   friendRequestCount: number;
-  unreadNotification: number;
-  isNotificationsOpen: boolean;
   onOpenContacts: () => void;
   onOpenCreateRoom: () => void;
   onOpenSettings: () => void;
-  onToggleNotifications: () => void;
 }
 
 export const SidebarHeader = ({
   friendRequestCount,
-  unreadNotification,
-  isNotificationsOpen,
   onOpenContacts,
   onOpenCreateRoom,
   onOpenSettings,
-  onToggleNotifications,
 }: SidebarHeaderProps) => {
   return (
     <div className="border-b border-border px-4 py-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold tracking-[-0.02em]">{MESSENGER_COPY.sidebar.title}</h2>
         <div className="flex items-center gap-2">
-          <NotificationButton
-            unreadCount={unreadNotification}
-            isOpen={isNotificationsOpen}
-            onClick={onToggleNotifications}
-          />
-
           <Button
             variant="outline"
             size="icon"

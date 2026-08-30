@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
@@ -19,6 +19,8 @@ import { SidebarSearchBar } from './SidebarSearchBar';
 type SettingsTab = 'profile' | 'appearance';
 export const ChatSidebar = () => {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const {
     conversations,
     selectConversation,
@@ -97,13 +99,15 @@ export const ChatSidebar = () => {
     [selectConversation],
   );
 
-  const toggleNotificationPanel = useCallback(() => {
-    setIsNotificationPanelOpen((current) => !current);
-  }, []);
-
   const closeNotificationPanel = useCallback(() => {
     setIsNotificationPanelOpen(false);
-  }, []);
+    if (searchParams.get('notifications') !== '1') return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('notifications');
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     if (searchParams.get('notifications') === '1') setIsNotificationPanelOpen(true);
@@ -143,12 +147,9 @@ export const ChatSidebar = () => {
       <div className="md:hidden">
         <SidebarHeader
           friendRequestCount={friendRequestCount}
-          unreadNotification={notificationUnreadCount}
-          isNotificationsOpen={isNotificationPanelOpen}
           onOpenContacts={handleOpenContacts}
           onOpenCreateRoom={() => setIsCreateRoomModalOpen(true)}
           onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
-          onToggleNotifications={toggleNotificationPanel}
         />
       </div>
 
