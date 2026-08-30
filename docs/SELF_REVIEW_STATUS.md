@@ -1383,6 +1383,15 @@ Correction in this increment:
 | Failure and recovery | Pass for documented current behavior | Unknown UI state, strict event validation, disconnect cleanup, expiry sweep, reconnect batch, stale-page discard and manual pagination recovery are recorded | Live dependency failure behavior still needs clean-stack evidence | Preserve honest unknown/error states rather than inventing offline or complete-list fallbacks |
 | Test traceability | Partial | Java 20 suite reports 146 tests/0 failures/0 errors; `PresenceServiceTest`, frontend validation and `test:e2e:room-management` are linked to the exact flow branches they cover | Sidebar auto-pagination browser evidence and live multi-node presence evidence remain pending | Add targeted browser/integration proof instead of broadening current claims |
 
+# Follow-up self-review (2026-08-30, presence scope transfer)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Scope correctness | Pass at client state boundary | `presenceTracker` owns one active scope per target, retains per-scope reference counts, and performs ordered unsubscribe/subscribe when the active scope disappears | Distributed server invalidation for a scope revoked while still rendered remains pending | Never let a global user cache hide which UI scope authorized its subscription |
+| Snapshot truthfulness | Pass for unwatch/transfer | `removePresence` clears the target on active-scope transfer and final unwatch; the next view stays neutral until an authoritative event arrives | Disconnect-time stale snapshots still depend on reconnect resync/global network state | Clear stale data at authority changes instead of coercing it to offline |
+| Network cost | Pass | A target visible in multiple scopes still owns only one active server subscription; `resync` now replays only active scopes rather than every reference-count entry | Extreme viewport churn needs profiling | Transfer authorization deliberately without multiplying presence traffic |
+| Regression safety | Pass for available gates | Frontend type-check/lint/build and `test:e2e:presence` pass with zero console/request failures | A dedicated deterministic scope-transition unit test remains pending | Keep this item open for targeted state-machine coverage; browser status-menu proof is not scope-transfer proof |
+
 # Follow-up self-review (2026-08-29, unknown DM presence disclosure)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

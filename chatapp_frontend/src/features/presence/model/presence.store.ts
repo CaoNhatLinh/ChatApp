@@ -29,6 +29,7 @@ interface PresenceState {
     setMyStatusFromServer: (status: PresencePreferenceStatus, requestId?: string | null, traceId?: string | null) => void;
     rollbackMyStatus: (requestId?: string | null, traceId?: string | null) => boolean;
     getPendingStatusRequestId: () => string | null;
+    removePresence: (userId: string) => void;
     clearPresences: () => void;
 }
 
@@ -172,6 +173,15 @@ export const usePresenceStore = create<PresenceState>()(
 
         getPendingStatusRequestId: () => {
             return get().pendingStatusRequestId;
+        },
+
+        removePresence: (userId) => {
+            set((state) => {
+                if (!state.presences.has(userId)) return state;
+                const presences = new Map(state.presences);
+                presences.delete(userId);
+                return { presences };
+            });
         },
 
         clearPresences: () => {

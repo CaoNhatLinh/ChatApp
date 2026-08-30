@@ -26,7 +26,8 @@ changes.
 Preconditions: the watcher has an authenticated STOMP session and either an
 accepted friendship or membership in the supplied conversation scope.  
 Postcondition: the browser has the latest authorized public snapshot for only
-the currently tracked targets; leaving the viewport releases the subscription.
+the currently tracked targets; leaving the viewport releases the active scope
+or transfers the target to another still-rendered authorized scope.
 
 ```mermaid
 sequenceDiagram
@@ -53,6 +54,14 @@ sequenceDiagram
   PM->>WS: /app/presence.unsubscribe
   WS->>WS: Remove target from this STOMP session
 ```
+
+The client owns one active authorization scope per target user. If the same
+person is visible as both a friend and a room member, reference counts are kept
+per scope but only one server subscription is active. When that active view
+leaves, the tracker unsubscribes the old scope, clears the cached snapshot to
+`unknown`, and subscribes through another still-rendered scope. This prevents a
+snapshot authorized by a vanished view from silently surviving under a
+different UI context.
 
 ### Heartbeat, multi-device aggregation and expiry
 
@@ -103,6 +112,9 @@ Failure and recovery rules:
   global network banner communicates connectivity loss;
 - reconnect performs bounded subscription/batch synchronization rather than
   downloading a global presence list;
+- leaving the final tracked scope deletes that user's cached snapshot, so a
+  later row cannot briefly display stale online/offline state before its new
+  subscription response;
 - arbitrary UUID presence probing is forbidden;
 - membership or friendship revocation after a successful subscription is not
   yet pushed into the subscription set immediately; cleanup currently occurs
