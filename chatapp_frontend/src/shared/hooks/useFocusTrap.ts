@@ -9,6 +9,14 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
+const getVisibleFocusableElements = (container: HTMLElement): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && element.getClientRects().length > 0;
+  });
+
 export const useFocusTrap = (
   open: boolean,
   containerRef: RefObject<HTMLElement | null>,
@@ -23,7 +31,9 @@ export const useFocusTrap = (
   useEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const initialFocus = containerRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    const initialFocus = containerRef.current
+      ? getVisibleFocusableElements(containerRef.current)[0]
+      : undefined;
     if (initialFocus && !containerRef.current?.contains(document.activeElement)) initialFocus.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -31,7 +41,7 @@ export const useFocusTrap = (
         return;
       }
       if (event.key !== 'Tab' || !containerRef.current) return;
-      const focusable = Array.from(containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      const focusable = getVisibleFocusableElements(containerRef.current);
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];

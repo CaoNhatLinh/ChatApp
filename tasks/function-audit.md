@@ -20,14 +20,14 @@ authorization, Cassandra write/query, required runtime integrations, and automat
 | Frontend type-check | Working | `npm run type-check` exited 0. |
 | Frontend lint | Working | `npm run lint` exits 0 with no warnings or errors after splitting the i18n barrel, runtime, provider and hooks modules. |
 | Frontend production build | Working with risk | Next.js App Router production build exits 0; authenticated bundle/runtime profiling remains pending. |
-| Backend compile/test | Working at unit level | With Java 20 (`JAVA_HOME=C:\\Program Files\\Java\\jdk-20`), `mvnw test` reports 110 tests, 0 failures, 0 errors. The host default Java 17 cannot run the Java 20 test classes; clean-stack integration is still pending. |
+| Backend compile/test | Working at unit level | With Java 20 (`JAVA_HOME=C:\\Program Files\\Java\\jdk-20`), `mvnw test` reports 155 tests, 0 failures, 0 errors. The host default Java 17 cannot run the Java 20 test classes; clean-stack integration is still pending. |
 | Docker Compose validation | Blocked | Docker executable is not installed or not in `PATH`. |
 | Browser E2E | Partial | `scripts/browser-smoke.mjs`, `locale-smoke.mjs`, `admin-route-smoke.mjs`, `notification-settings-smoke.mjs`, `contacts-locale-smoke.mjs`, `room-create-smoke.mjs`, `profile-locale-smoke.mjs`, `presence-status-smoke.mjs`, and `search-filter-smoke.mjs` pass their bounded journeys; authenticated multi-account E2E is still pending. |
 | Backend automated evidence | Partial | Unit/contract tests pass; no clean-stack Cassandra/Kafka/Redis/Elasticsearch integration suite is available on this host. |
 
 The shared copy registries are additionally guarded by
 `chatapp_frontend/scripts/locale-copy-smoke.mjs` (`npm run test:i18n:copy`):
-782 static Vietnamese copy keys are checked and currently have no missing
+935 static Vietnamese copy keys are checked and currently have no missing
 English translation key, including every static `localizeText(...)` call under
 `src/`. This is a source-contract check, not evidence of live
 provider delivery or authenticated service persistence.

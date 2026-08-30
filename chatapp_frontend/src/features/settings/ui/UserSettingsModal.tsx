@@ -24,6 +24,7 @@ import { localizeText, useAppLocale } from '@/shared/i18n';
 import { NotificationSettingsPanel } from '@/features/notifications/components/NotificationSettingsPanel';
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -49,11 +50,15 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const [draftThemePreference, setDraftThemePreference] = useState<ThemePreference>('system');
   const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>('system');
   const appearanceOpenRef = useRef(false);
+  const settingsDialogRef = useRef<HTMLDivElement>(null);
 
   const { user, logout: logoutStore, updateUser } = useAuthStore();
   const { themePreference, setThemePreference, previewThemePreference } = useTheme();
   const { locale, setLocale } = useAppLocale();
   const router = useRouter();
+
+  const isPageMode = mode === 'page';
+  const isWorking = isSaving || isLoggingOut;
 
   useEffect(() => {
     if (!user) return;
@@ -87,13 +92,6 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       user?.avatarUrl,
     ]
   );
-
-  if (!isOpen) {
-    return null;
-  }
-
-  const isPageMode = mode === 'page';
-  const isWorking = isSaving || isLoggingOut;
 
   const handleSaveProfile = async () => {
     if (!normalizedDisplayName) {
@@ -171,6 +169,22 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     notifySuccess(localizeText('Đã cập nhật giao diện.'));
   };
 
+  useFocusTrap(isOpen && !isPageMode, settingsDialogRef, handleClose, isWorking);
+
+  useEffect(() => {
+    if (!isOpen || isPageMode) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen, isPageMode]);
+
+  if (!isOpen) {
+    return null;
+  }
+
   const content = (
     <motion.div
       className={
@@ -178,6 +192,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
           ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
           : 'settings-surface relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
       }
+      ref={isPageMode ? undefined : settingsDialogRef}
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={isPageMode ? UI_MOTION_VARIANTS.fadeIn : UI_MOTION_VARIANTS.zoomReveal}

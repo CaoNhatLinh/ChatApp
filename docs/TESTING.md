@@ -157,6 +157,12 @@ and 1440px: exactly one visible `h1`, no horizontal overflow, accessible names
 for visible links/buttons, labels for visible fields, valid link targets, and
 zero console/request failures.
 
+The visual audit capture opens the global Settings dialog from the desktop and
+mobile application rail and verifies the semantic dialog boundary. Keyboard
+Escape/Tab containment and background-scroll locking are enforced by the shared
+focus-trap behavior; a direct `/settings` deep link is a separate page-mode
+surface and is not the rail's primary action.
+
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the
 HTTP boundary inside the test process; no runtime code contains that stub.

@@ -291,6 +291,22 @@ const captureRoute = async (browser, viewport, capture) => {
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
+  let settingsModalClosed = null;
+  let settingsModalFocusContained = null;
+  let settingsModalScrollLocked = null;
+  if (capture.openSettingsModal) {
+    const dialog = page.getByRole('dialog');
+    settingsModalScrollLocked = await page.evaluate(() => document.body.style.overflow === 'hidden');
+    const focusable = dialog.locator('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])');
+    const first = focusable.first();
+    const last = focusable.last();
+    await first.focus();
+    await page.keyboard.press('Shift+Tab');
+    settingsModalFocusContained = await last.evaluate((element) => element === document.activeElement);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 });
+    settingsModalClosed = await page.getByRole('dialog').count() === 0;
+  }
   let notificationPanelClosed = null;
   if (capture.verifyNotificationClose) {
     await page.getByRole('button', { name: 'Đóng', exact: true }).click();
@@ -310,6 +326,9 @@ const captureRoute = async (browser, viewport, capture) => {
     consoleErrors: unexpectedConsoleErrors,
     failedRequests,
     horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1),
+    settingsModalClosed,
+    settingsModalFocusContained,
+    settingsModalScrollLocked,
     notificationPanelClosed,
   };
   await context.close();
