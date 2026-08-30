@@ -91,7 +91,8 @@ await authenticatedPage.getByText('Yêu cầu đã được gửi tới quản l
 await authenticatedPage.reload({ waitUntil: 'domcontentloaded' });
 await authenticatedPage.getByText('Yêu cầu đã được gửi tới quản lý phòng.', { exact: true }).waitFor();
 const acceptVisibleAfterReload = await authenticatedPage.getByRole('button', { name: 'Chấp nhận' }).isVisible().catch(() => false);
-await authenticatedPage.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await authenticatedPage.getByRole('button', { name: 'Ngôn ngữ' }).click();
+await authenticatedPage.getByRole('menuitem', { name: 'Tiếng Anh', exact: true }).click();
 await authenticatedPage.getByText('Your request was sent to the room manager.', { exact: true }).waitFor();
 const authenticatedOverflow = await authenticatedPage.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 await authenticatedPage.screenshot({ path: 'artifacts/invite-pending-mobile.png', fullPage: true });

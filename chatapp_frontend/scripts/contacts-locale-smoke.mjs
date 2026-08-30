@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
@@ -49,6 +50,7 @@ page.setDefaultTimeout(5_000);
 const captureState = async (name) => {
   if (!captureVisualAudit) return;
   await mkdir(captureDirectory, { recursive: true });
+  await page.waitForTimeout(250);
   await page.screenshot({ path: `${captureDirectory}/${name}-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(250);
@@ -160,14 +162,16 @@ await page.goto(`${baseUrl}/friends`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Danh sách', exact: true }).waitFor();
 await captureState('friends-list');
 const viTabs = await page.locator('header button').allTextContents();
-const viWorkspaceNav = await page.getByRole('navigation', { name: 'Điều hướng không gian' }).getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
+const viWorkspaceNav = await page.getByRole('navigation', { name: 'Điều hướng không gian' }).locator('a,button').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
 const viSelectedTab = await page.getByRole('button', { name: 'Bạn bè', exact: true }).getAttribute('aria-pressed');
+const viSettingsButton = await page.getByRole('button', { name: 'Cài đặt', exact: true }).count();
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await page.getByRole('heading', { name: 'Friends list', exact: true }).waitFor();
 const enTabs = await page.locator('header button').allTextContents();
-const enWorkspaceNav = await page.getByRole('navigation', { name: 'Workspace navigation' }).getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
+const enWorkspaceNav = await page.getByRole('navigation', { name: 'Workspace navigation' }).locator('a,button').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')));
 const enSelectedTab = await page.getByRole('button', { name: 'Friends', exact: true }).getAttribute('aria-pressed');
+const enSettingsButton = await page.getByRole('button', { name: 'Settings', exact: true }).count();
 await page.getByRole('button', { name: /Minh/ }).first().click();
 const profileDialog = page.getByRole('dialog', { name: 'Minh' });
 await profileDialog.waitFor();
@@ -196,9 +200,11 @@ const report = {
   viTabs,
   viWorkspaceNav,
   viSelectedTab,
+  viSettingsButton,
   enTabs,
   enWorkspaceNav,
   enSelectedTab,
+  enSettingsButton,
   enRequestsSelected,
   profileActions,
   cancelledFriendRequest,
@@ -230,16 +236,14 @@ if (
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')
   || !viWorkspaceNav.includes('Mở hội thoại')
-  || !viWorkspaceNav.includes('Mở bạn bè')
-  || !viWorkspaceNav.includes('Tìm kiếm')
-  || !viWorkspaceNav.includes('Cài đặt')
+  || !viWorkspaceNav.some((label) => label?.includes('Mở workspace'))
+  || viSettingsButton !== 1
   || !enTabs.includes('Friends')
   || !enTabs.includes('Requests')
   || !enTabs.includes('Find people')
   || !enWorkspaceNav.includes('Open conversations')
-  || !enWorkspaceNav.includes('Open friends')
-  || !enWorkspaceNav.includes('Search')
-  || !enWorkspaceNav.includes('Settings')
+  || !enWorkspaceNav.some((label) => label?.includes('Open workspace'))
+  || enSettingsButton !== 1
 ) {
   process.exitCode = 1;
 }
