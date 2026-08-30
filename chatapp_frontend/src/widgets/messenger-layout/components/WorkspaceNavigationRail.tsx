@@ -23,7 +23,7 @@ export const WorkspaceNavigationRail = () => {
 
   const openContacts = () => {
     setActiveView("contacts");
-    setSidebarOpen(true);
+    setSidebarOpen(window.innerWidth >= 768);
   };
 
   return (

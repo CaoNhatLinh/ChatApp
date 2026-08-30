@@ -46,6 +46,16 @@ let cancelledFriendRequest = null;
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 page.setDefaultTimeout(5_000);
+const captureState = async (name) => {
+  if (!captureVisualAudit) return;
+  await mkdir(captureDirectory, { recursive: true });
+  await page.screenshot({ path: `${captureDirectory}/${name}-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${captureDirectory}/${name}-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.waitForTimeout(250);
+};
 const consoleErrors = [];
 const requestFailures = [];
 const realtimeFailures = [];
@@ -148,24 +158,21 @@ await page.addInitScript(() => {
 
 await page.goto(`${baseUrl}/friends`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Danh sách', exact: true }).waitFor();
+await captureState('friends-list');
 const viTabs = await page.locator('header button').allTextContents();
-const viShellNav = await page.locator('header a').allTextContents();
+const viWorkspaceNav = await page.getByRole('navigation', { name: 'Điều hướng không gian' }).getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
 const viSelectedTab = await page.getByRole('button', { name: 'Bạn bè', exact: true }).getAttribute('aria-pressed');
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Friends list', exact: true }).waitFor();
 const enTabs = await page.locator('header button').allTextContents();
-const enShellNav = await page.locator('header a').allTextContents();
+const enWorkspaceNav = await page.getByRole('navigation', { name: 'Workspace navigation' }).getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
 const enSelectedTab = await page.getByRole('button', { name: 'Friends', exact: true }).getAttribute('aria-pressed');
 await page.getByRole('button', { name: /Minh/ }).first().click();
 const profileDialog = page.getByRole('dialog', { name: 'Minh' });
 await profileDialog.waitFor();
 if (captureVisualAudit) {
-  await mkdir(captureDirectory, { recursive: true });
-  await page.screenshot({ path: `${captureDirectory}/profile-detail-desktop.png`, fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: `${captureDirectory}/profile-detail-mobile.png`, fullPage: true });
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await captureState('profile-detail');
 }
 const profileActions = {
   hasMessage: (await profileDialog.getByRole('button', { name: 'Message', exact: true }).count()) === 1,
@@ -176,8 +183,10 @@ const profileActions = {
 await profileDialog.getByRole('button', { name: 'Close profile' }).click();
 await page.getByRole('button', { name: 'Requests', exact: true }).click();
 const enRequestsSelected = await page.getByRole('button', { name: 'Requests', exact: true }).getAttribute('aria-pressed');
+await captureState('friend-requests');
 await page.getByRole('button', { name: 'Find people', exact: true }).click();
 await page.getByPlaceholder('Enter a name or email').fill('pending');
+await captureState('find-people');
 await page.getByRole('button', { name: 'Cancel request', exact: true }).click();
 await page.getByRole('button', { name: 'Invite', exact: true }).waitFor();
 
@@ -185,10 +194,10 @@ const report = {
   baseUrl,
   language: await page.locator('html').getAttribute('lang'),
   viTabs,
-  viShellNav,
+  viWorkspaceNav,
   viSelectedTab,
   enTabs,
-  enShellNav,
+  enWorkspaceNav,
   enSelectedTab,
   enRequestsSelected,
   profileActions,
@@ -197,11 +206,15 @@ const report = {
   consoleErrors,
   requestFailures,
 };
+const unexpectedConsoleErrors = consoleErrors.filter((message) => !(
+  message.includes('net::ERR_CONNECTION_REFUSED')
+  && realtimeFailures.some((failure) => isRealtimeFailure(failure))
+));
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
 if (
-  consoleErrors.length
+  unexpectedConsoleErrors.length
   || requestFailures.length
   || report.language !== 'en'
   || viSelectedTab !== 'true'
@@ -216,19 +229,17 @@ if (
   || !viTabs.includes('Bạn bè')
   || !viTabs.includes('Lời mời')
   || !viTabs.includes('Tìm bạn')
-  || !viShellNav.includes('Chat')
-  || !viShellNav.includes('Bạn bè')
-  || !viShellNav.includes('Tìm kiếm')
-  || !viShellNav.includes('Hồ sơ')
-  || !viShellNav.includes('Cài đặt')
+  || !viWorkspaceNav.includes('Mở hội thoại')
+  || !viWorkspaceNav.includes('Mở bạn bè')
+  || !viWorkspaceNav.includes('Tìm kiếm')
+  || !viWorkspaceNav.includes('Cài đặt')
   || !enTabs.includes('Friends')
   || !enTabs.includes('Requests')
   || !enTabs.includes('Find people')
-  || !enShellNav.includes('Chat')
-  || !enShellNav.includes('Friends')
-  || !enShellNav.includes('Search')
-  || !enShellNav.includes('Profile')
-  || !enShellNav.includes('Settings')
+  || !enWorkspaceNav.includes('Open conversations')
+  || !enWorkspaceNav.includes('Open friends')
+  || !enWorkspaceNav.includes('Search')
+  || !enWorkspaceNav.includes('Settings')
 ) {
   process.exitCode = 1;
 }

@@ -234,13 +234,9 @@ export const ContactListView = () => {
             />
           ) : null}
 
-          {activeTab !== "add" && !searchQuery && globalSearchQuery.length === 0 ? (
+          {activeTab === "friends" && !searchQuery && globalSearchQuery.length === 0 ? (
             <p className="mt-3 text-center text-sm text-muted-foreground">
-              {activeTab === "friends"
-                ? FRIEND_COPY.filters.noFriendsHint
-                : activeTab === "requests"
-                  ? FRIEND_COPY.filters.noRequestsHint
-                  : FRIEND_COPY.filters.noSearchHint}
+              {FRIEND_COPY.filters.noFriendsHint}
             </p>
           ) : null}
         </div>

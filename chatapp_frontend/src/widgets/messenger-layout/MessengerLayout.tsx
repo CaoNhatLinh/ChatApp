@@ -26,19 +26,19 @@ export const MessengerLayout: React.FC = () => {
   const conversationIdFromQuery = searchParams.get("conversationId");
 
   useEffect(() => {
-    if (activeConversationId && window.innerWidth < 768) {
+    if ((activeConversationId || activeView === "contacts") && window.innerWidth < 768) {
       setSidebarOpen(false);
     }
-  }, [activeConversationId, setSidebarOpen]);
+  }, [activeConversationId, activeView, setSidebarOpen]);
 
   useEffect(() => {
     const mobileViewport = window.matchMedia('(max-width: 767px)');
     const closeSidebarOnMobile = (event: MediaQueryListEvent) => {
-      if (event.matches && activeConversationId) setSidebarOpen(false);
+      if (event.matches && (activeConversationId || activeView === "contacts")) setSidebarOpen(false);
     };
     mobileViewport.addEventListener('change', closeSidebarOnMobile);
     return () => mobileViewport.removeEventListener('change', closeSidebarOnMobile);
-  }, [activeConversationId, setSidebarOpen]);
+  }, [activeConversationId, activeView, setSidebarOpen]);
 
   useEffect(() => {
     if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) {
