@@ -41,6 +41,16 @@ const EMPTY_ROLE: RoomRoleFormValue = {
     rolePosition: 100,
 };
 const ROOM_MEMBER_PAGE_SIZE = 50;
+const ROOM_MANAGEMENT_PERMISSIONS = [
+    'ROOM_UPDATE',
+    'ROOM_AUDIT_READ',
+    'ROLE_ASSIGN',
+    'ROLE_CREATE',
+    'ROLE_UPDATE',
+    'ROLE_DELETE',
+    'MEMBER_KICK',
+    'MEMBER_MUTE',
+];
 
 type PendingAction =
     | { kind: 'kick'; member: ConversationMember }
@@ -107,6 +117,9 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const can = React.useCallback((permission: string) => (
         access?.permissions.includes(permission) ?? false
     ), [access]);
+    const hasRoomManagement = Boolean(
+        access?.owner || access?.permissions.some((permission) => ROOM_MANAGEMENT_PERMISSIONS.includes(permission)),
+    );
 
     const assignedRoleIds = React.useMemo(
         () => new Set(members.flatMap((member) => member.roleIds ?? [])),
@@ -283,7 +296,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     if (loadError || !access) {
         return (
             <section lang={locale} className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
-                <p className="text-sm font-semibold text-destructive">{localizeText('Không thể tải công cụ quản lý phòng.')}</p>
+                <p className="text-sm font-semibold text-destructive">{localizeText('Không thể tải thông tin phòng.')}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText('Dữ liệu thành viên và quyền chưa được thay đổi.')}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void load()}>
                     <RefreshCw className="h-4 w-4" /> {localizeText('Thử lại')}
@@ -296,13 +309,19 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         <section lang={locale} className="space-y-4" aria-labelledby="room-management-title">
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <h4 id="room-management-title" className="text-sm font-bold">{localizeText('Thành viên & vai trò')}</h4>
+                    <h4 id="room-management-title" className="text-sm font-bold">{localizeText('Thành viên')}</h4>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                        {localizeText('Quản lý quyền theo vai trò của phòng. Thay đổi được áp dụng ngay.')}
+                        {hasRoomManagement
+                            ? localizeText('Danh sách thành viên. Công cụ quản lý chỉ hiện theo quyền của bạn.')
+                            : localizeText('Những người đang tham gia phòng này.')}
                     </p>
                 </div>
                 <Badge variant="outline" className="shrink-0">{conversation.memberCount}</Badge>
             </div>
+
+            {hasRoomManagement ? (
+                <p className="pt-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{localizeText('Quản lý phòng')}</p>
+            ) : null}
 
             {can('ROOM_UPDATE') ? (
                 <details className="group rounded-2xl border border-border/70">

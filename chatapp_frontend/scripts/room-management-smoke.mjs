@@ -335,7 +335,7 @@ try {
   throw new Error(`Conversation info button unavailable. Visible headings: ${(await page.getByRole('heading').allTextContents()).join(' | ')}. Console: ${JSON.stringify(consoleErrors)}. API: ${JSON.stringify(apiRequests)}`, { cause: error });
 }
 await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click();
-await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
+await page.getByRole('heading', { name: 'Thành viên' }).waitFor();
 if (captureVisualAudit) {
   await mkdir(captureDirectory, { recursive: true });
   await page.screenshot({ path: `${captureDirectory}/room-detail-desktop.png`, fullPage: true });
@@ -428,7 +428,7 @@ await inviteManager.getByRole('button', { name: 'Duyệt yêu cầu' }).first().
 await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 4' }).waitFor();
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
-await page.getByRole('heading', { name: 'Members & roles' }).waitFor();
+await page.getByRole('heading', { name: 'Members' }).waitFor();
 await inviteManager.getByRole('heading', { name: 'Invitations & join requests' }).waitFor();
 const englishAuditEvent = page.getByText('Role updated', { exact: true });
 if (!await englishAuditEvent.isVisible()) await page.getByText('Room audit log', { exact: true }).click();
