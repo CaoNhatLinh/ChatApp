@@ -27,8 +27,8 @@ export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeade
   useAppLocale();
   return (
     <header className="site-nav sticky top-0 z-30">
-      <div className="layout-shell flex min-h-16 items-center gap-4 py-2">
-        <nav aria-label={localizeText("Điều hướng ứng dụng")} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <div className="layout-shell flex min-h-16 items-center gap-1 py-2 sm:gap-4">
+        <nav aria-label={localizeText("Điều hướng ứng dụng")} className="flex min-w-0 flex-1 items-center gap-0 overflow-x-auto sm:gap-1">
           {appShellNavItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -36,7 +36,7 @@ export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeade
                 key={item.to}
                 href={item.to}
                 className={cn(
-                  "focus-ring inline-flex shrink-0 items-center gap-2 rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium transition-colors",
+                  "focus-ring inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] px-2 py-2 text-sm font-medium transition-colors sm:px-3",
                   pathname === item.to ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
@@ -47,7 +47,7 @@ export const AppShellHeader = ({ title = UI_COPY.brand, actions }: AppShellHeade
           })}
         </nav>
         {title !== UI_COPY.brand ? <Link href="/app" className="focus-ring hidden shrink-0 text-sm font-semibold text-muted-foreground hover:text-foreground lg:inline">{title}</Link> : null}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <LanguageToggle />
           <ThemeToggle />
           {actions}
