@@ -123,7 +123,7 @@ export const CommunityDiscoveryPage = () => {
             <h1 className="text-balance text-3xl font-bold tracking-[-0.04em] sm:text-5xl">{localizeText('Tìm nơi dành cho điều bạn quan tâm.')}</h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-background/70 sm:text-base">{localizeText('Gặp gỡ những người cùng sở thích, tham gia cuộc trò chuyện công khai và xây dựng cộng đồng của bạn.')}</p>
           </div>
-          <div className="rounded-2xl border border-background/15 bg-background/8 p-5 backdrop-blur">
+          <div className="hidden rounded-2xl border border-background/15 bg-background/8 p-5 backdrop-blur lg:block">
             <Compass className="mb-6 text-primary" size={28} aria-hidden="true" />
             <p className="text-sm font-semibold">{localizeText('Cộng đồng mở, thông tin rõ ràng')}</p>
             <p className="mt-2 text-xs leading-5 text-background/60">{localizeText('Mỗi cộng đồng hiển thị chính sách tham gia và sức chứa trước khi bạn quyết định.')}</p>
@@ -189,8 +189,7 @@ export const CommunityDiscoveryPage = () => {
                     {community.categoryId ? <button type="button" onClick={() => { setSelectedCategory(community.categoryId ?? undefined); setSelectedTag(undefined); }} aria-label={`${localizeText('Lọc theo danh mục')}: ${community.categoryId}`}><Badge variant="secondary">{community.categoryId}</Badge></button> : null}
                     {community.communityTags.slice(0, 3).map((tag) => <Badge key={tag} variant="outline" className="gap-1"><Hash size={10} aria-hidden="true" />{tag}</Badge>)}
                   </div>
-                  <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-4">
-                    <span className="text-xs font-medium text-muted-foreground">{community.joinPolicy === 'REQUEST_APPROVAL' ? localizeText('Cần phê duyệt') : localizeText('Tham gia ngay')}</span>
+                  <div className="mt-auto flex items-center justify-end border-t border-border pt-4">
                     {isJoined ? (
                       <Button asChild size="sm"><Link href={`/app?conversationId=${encodeURIComponent(community.conversationId)}`}>{localizeText('Mở phòng')}<ArrowRight size={14} aria-hidden="true" /></Link></Button>
                     ) : (

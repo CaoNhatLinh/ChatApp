@@ -1409,3 +1409,12 @@ Correction in this increment:
 | UI density | Pass for changed surfaces | Known DM state keeps one compact status line; unknown state removes the redundant line instead of adding explanatory placeholder text | Full authenticated density review across all routes remains pending | Reveal status detail only when it is actionable and authoritative |
 | Contract consistency | Pass | `ConversationItem`, `ChatWindow` and `ConversationHeader` share nullable presence semantics; `rg` finds no remaining `OFFLINE` fallback in frontend source | Live backend event ordering remains pending | Keep the presence snapshot as the sole source of truth |
 | Regression safety | Pass for available gates | `npm run validate` passes after the change | Clean Redis/STOMP integration remains unavailable locally | Add browser evidence when the authenticated live stack is available |
+
+# Follow-up self-review (2026-08-30, community mobile density)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Information hierarchy | Pass for community discovery | The supporting hero panel is desktop-only; mobile retains the page purpose, search, filters and results without repeating the same explanation | Broader authenticated route-density review remains pending | Remove supporting copy before hiding state or primary actions |
+| Action clarity | Pass | Community cards no longer render “Tham gia ngay/Join now” beside the equivalent join button; pending, full and joined states remain expressed by the button itself | User-generated descriptions can still vary greatly in quality | Do not duplicate an action label merely to balance a card layout |
+| Localization and accessibility | Pass | Existing localized button names and heading structure are unchanged; the hidden mobile panel is non-interactive and remains available on desktop | Manual screen-reader reading-order review remains pending | Responsive omission must never remove the only instruction for an action |
+| Regression safety | Pass for available gates | `npm run validate`, production build and `test:e2e:communities` pass; the browser asserts no redundant Join-now label, hidden mobile support panel, no overflow and zero console/request failures | Live Cassandra community content remains pending | Keep density assertions in the populated bilingual browser journey |

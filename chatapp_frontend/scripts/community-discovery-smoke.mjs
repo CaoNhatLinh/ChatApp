@@ -135,19 +135,23 @@ await page.getByRole('heading', { name: 'Find where your interests belong.' }).w
 await page.getByRole('heading', { name: 'Frontend Sài Gòn' }).waitFor();
 await page.getByRole('heading', { name: 'Product Việt Nam' }).waitFor({ state: 'detached' });
 const englishNav = await page.getByRole('link', { name: 'Community', exact: true }).count();
+const redundantJoinLabelCount = await page.getByText('Join now', { exact: true }).count();
 
 await page.setViewportSize({ width: 390, height: 844 });
+const mobileHeroDetailVisible = await page.getByText('Open communities, clear details', { exact: true }).isVisible();
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/community-discovery.png', fullPage: true });
 
-const report = { baseUrl, englishNav, overflow, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, englishNav, redundantJoinLabelCount, mobileHeroDetailVisible, overflow, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
 if (
   !apiRequests.includes(`POST /api/communities/${approvalId}/join`)
   || englishNav !== 1
+  || redundantJoinLabelCount !== 0
+  || mobileHeroDetailVisible
   || overflow
   || consoleErrors.length
   || requestFailures.length

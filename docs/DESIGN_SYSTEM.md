@@ -68,6 +68,12 @@ later messages replace the same slot. Persistent or multi-step information
 belongs inline beside the affected control, not in a stack that obscures the
 workspace.
 
+Responsive information density is intentional. On narrow product pages, omit
+supporting promo or explanation panels when the heading and primary copy already
+carry the same meaning. A card must not repeat an action's meaning in an
+adjacent label (for example, “Join now” beside “Join community”); keep only
+authoritative state, constraints and the named action.
+
 ## Language
 
 The product supports Vietnamese (`vi`, canonical copy) and English (`en`). The

@@ -17,3 +17,7 @@
   Success/warning updates share one replaceable feedback slot; errors use one
   separate actionable slot. Do not create a toast per completed sub-step or
   mount feature-local global toasters.
+- On mobile, hide decorative or supporting explanation panels that duplicate
+  the page heading or primary description. Do not place a second text label
+  beside a button when both communicate the same action; preserve only status
+  or policy text that changes the user's decision.
