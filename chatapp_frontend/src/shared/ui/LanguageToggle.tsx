@@ -15,7 +15,7 @@ export function LanguageToggle() {
       variant="ghost"
       size="sm"
       onClick={toggleLocale}
-      aria-label={t(locale === 'vi' ? 'Chuyển sang tiếng Anh' : 'Chuyển sang tiếng Việt')}
+      aria-label={`${nextLocale.toUpperCase()} — ${t(locale === 'vi' ? 'Chuyển sang tiếng Anh' : 'Chuyển sang tiếng Việt')}`}
       title={t(nextLocale === 'en' ? 'Tiếng Anh' : 'Tiếng Việt')}
       className="gap-1.5 rounded-full px-2.5 text-xs font-bold tracking-[0.08em]"
     >

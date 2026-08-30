@@ -239,7 +239,8 @@
   }
 
   .page-kicker {
-    @apply mb-3 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-primary;
+    @apply mb-3 text-[0.7rem] font-bold uppercase tracking-[0.14em];
+    color: oklch(0.52 0.15 42);
   }
 
   .product-surface {
