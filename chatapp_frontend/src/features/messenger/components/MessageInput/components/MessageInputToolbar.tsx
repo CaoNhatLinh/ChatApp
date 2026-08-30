@@ -67,7 +67,7 @@ export const MessageInputToolbar = ({
           variant="ghost"
           size="icon"
           aria-label={MESSENGER_COPY.messageInput.toolbar.createPoll}
-          className="text-muted-foreground hover:text-primary"
+          className="hidden text-muted-foreground hover:text-primary sm:inline-flex"
           title={MESSENGER_COPY.messageInput.toolbar.createPoll}
         >
           <BarChart3 size={19} />
