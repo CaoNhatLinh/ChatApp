@@ -125,7 +125,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
               }}
               className="focus-ring rounded-md px-2 py-1 text-xs font-semibold text-primary hover:text-primary/80"
             >
-              {localizeText('Duyệt tất cả')}
+              {localizeText('Đánh dấu đã đọc tất cả')}
             </button>
           ) : null}
 

@@ -297,7 +297,7 @@ const rawUICopy = {
   notifications: {
     title: "Thông báo",
     latest: "Cập nhật mới nhất",
-    markAll: "Duyệt tất cả",
+    markAll: "Đánh dấu đã đọc tất cả",
     empty: "Không có thông báo nào.",
   },
 } as const;

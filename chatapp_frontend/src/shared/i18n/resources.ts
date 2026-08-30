@@ -344,7 +344,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Chưa có bản chỉnh sửa nào.': 'No edits yet.',
   'Vừa xong': 'Just now',
   'Cập nhật mới nhất': 'Latest updates',
-  'Duyệt tất cả': 'Mark all as read',
+  'Đánh dấu đã đọc tất cả': 'Mark all as read',
   'Không có thông báo nào.': 'No notifications yet.',
   'Không thể cập nhật thông báo.': 'Unable to update notifications.',
   'Không thể mở thông báo.': 'Unable to open the notification.',
