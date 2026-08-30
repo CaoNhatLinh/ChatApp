@@ -90,3 +90,25 @@
 - [ ] `cd chatapp_frontend; npm run build`
 - [ ] Playwright canonical E2E suite passes from clean state (`scripts/browser-smoke.mjs` covers public/deep-link/auth redirect only; multi-account suite remains).
 - [ ] `git diff --name-status` deletion audit confirms no capability/integration was removed without replacement.
+
+## Active continuation checkpoint (2026-08-30)
+
+- [ ] A.1 Reconcile native route matrix with `docs/UI_SCREEN_INVENTORY.md` and
+  verify retained navigation links.
+- [ ] A.2 Verify 320/390/768/1024/1440 shell layouts, mobile safe-area and
+  viewport-vs-full-page visual artifacts.
+- [X] A.3 Run locale, UI-quality and route smoke after shell changes
+  (locale copy: 982 keys/no missing; UI-quality: 320/390/768/1024/1440;
+  route smoke: public/deep-link/auth redirects, all pass on production build).
+- [ ] B.1 Audit canonical reply/mention/seen-by payloads and remove any UI that
+  assumes missing profile/preview data.
+- [ ] B.2 Add interaction contract/browser regression coverage where a command
+  is supported; document live Cassandra/STOMP proof still pending.
+- [ ] C.1 Add only endpoint-backed operator visibility (permission matrix,
+  bounded analytics dictionary/investigation context).
+- [ ] C.2 Record explicit blockers for provider-dependent admin surfaces instead
+  of shipping non-functional controls.
+- [ ] D.1 Run Java 20 backend + frontend validation/build and all available
+  browser smoke from the current working tree.
+- [ ] D.2 Update feature/traceability docs with exact evidence and review the
+  deletion diff before any commit/push.
