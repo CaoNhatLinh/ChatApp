@@ -531,8 +531,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onRemoveFile={removeSelectedFile}
         />
 
-        <div className="flex items-end gap-2 px-2">
-          <MessageInputToolbar
+        <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
+        <input
+          ref={mediaInputRef}
+          type="file"
+          className="hidden"
+          accept="image/*,video/*,audio/*"
+          multiple
+          onChange={handleFilesSelected}
+        />
+
+        <MessageInputToolbar
             onAttachFile={() => fileInputRef.current?.click()}
             onAttachMedia={() => mediaInputRef.current?.click()}
             onOpenPoll={() => setShowPollModal(true)}
@@ -541,20 +550,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onShowVoice={() => onStartCall("VOICE")}
             canShowVoice={canStartCall}
             onSend={() => void handleSend()}
-            canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
-            isEditing={Boolean(editingMessage)}
-          />
-
-          <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
-          <input
-            ref={mediaInputRef}
-            type="file"
-            className="hidden"
-            accept="image/*,video/*,audio/*"
-            multiple
-            onChange={handleFilesSelected}
-          />
-
+          canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
+          isEditing={Boolean(editingMessage)}
+        >
           <div className="flex-1 px-2 py-1">
             <Textarea
               ref={textareaRef}
@@ -573,7 +571,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               }}
             />
           </div>
-        </div>
+        </MessageInputToolbar>
       </div>
     </div>
   );

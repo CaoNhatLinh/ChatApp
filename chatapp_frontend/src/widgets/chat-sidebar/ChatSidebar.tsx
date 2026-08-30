@@ -133,16 +133,18 @@ export const ChatSidebar = () => {
   }, [markEverythingAsRead]);
 
   return (
-    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 text-foreground md:w-[320px]">
-      <SidebarHeader
-        friendRequestCount={friendRequestCount}
-        unreadNotification={notificationUnreadCount}
-        isNotificationsOpen={isNotificationPanelOpen}
-        onOpenContacts={handleOpenContacts}
-        onOpenCreateRoom={() => setIsCreateRoomModalOpen(true)}
-        onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
-        onToggleNotifications={toggleNotificationPanel}
-      />
+    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 text-foreground">
+      <div className="md:hidden">
+        <SidebarHeader
+          friendRequestCount={friendRequestCount}
+          unreadNotification={notificationUnreadCount}
+          isNotificationsOpen={isNotificationPanelOpen}
+          onOpenContacts={handleOpenContacts}
+          onOpenCreateRoom={() => setIsCreateRoomModalOpen(true)}
+          onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
+          onToggleNotifications={toggleNotificationPanel}
+        />
+      </div>
 
       <SidebarSearchBar value={searchTerm} onChange={setSearchTerm} />
 
@@ -161,10 +163,12 @@ export const ChatSidebar = () => {
         />
       </div>
 
-      <SidebarFooter
-        user={user}
-        onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
-      />
+      <div className="md:hidden">
+        <SidebarFooter
+          user={user}
+          onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
+        />
+      </div>
 
       <SidebarNotificationPanel
         isOpen={isNotificationPanelOpen}

@@ -124,6 +124,7 @@ export const ChatWindow = () => {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isDesktopLayout, setIsDesktopLayout] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -180,6 +181,14 @@ export const ChatWindow = () => {
     messages.length > 0 ? messages[messages.length - 1].messageId : null;
 
   useTrackPresence(trackIds, activeConversationId);
+
+  useEffect(() => {
+    const desktopViewport = window.matchMedia("(min-width: 768px)");
+    const syncDesktopLayout = () => setIsDesktopLayout(desktopViewport.matches);
+    syncDesktopLayout();
+    desktopViewport.addEventListener("change", syncDesktopLayout);
+    return () => desktopViewport.removeEventListener("change", syncDesktopLayout);
+  }, []);
 
   useEffect(() => {
     if (currentUser?.userId) {
@@ -533,7 +542,7 @@ export const ChatWindow = () => {
           }}
         />
 
-        <div className="chat-composer-dock p-4 sm:p-6">
+        <div className="chat-composer-dock p-4 pb-20 sm:p-6 md:pb-6">
           <MessageInput
             key={`${currentUser?.userId ?? 'anonymous'}:${activeConversationId}`}
             replyingTo={replyingTo}
@@ -573,12 +582,12 @@ export const ChatWindow = () => {
       />
 
       <div
-        className={`absolute top-0 right-0 h-full transition-transform duration-300 ${
+        className={`absolute right-0 top-0 z-30 h-full transition-transform duration-300 md:static md:z-auto md:w-[286px] md:shrink-0 md:translate-x-0 ${
           isInfoOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <ConversationInfo
-          isOpen={isInfoOpen}
+          isOpen={isInfoOpen || isDesktopLayout}
           onClose={() => setIsInfoOpen(false)}
         />
       </div>

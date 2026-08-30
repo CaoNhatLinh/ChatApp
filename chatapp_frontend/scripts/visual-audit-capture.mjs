@@ -240,7 +240,7 @@ const captureRoute = async (browser, viewport, capture) => {
   await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
   await page.locator('h1').first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
   if (capture.openComposerOptions && viewport.name === 'mobile') {
-    await page.locator('.chat-composer-dock').getByRole('button', { name: 'Tùy chọn khác' }).click();
+    await page.locator('.chat-composer-dock').getByRole('button', { name: /Thêm nội dung|Tùy chọn khác/ }).click();
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });

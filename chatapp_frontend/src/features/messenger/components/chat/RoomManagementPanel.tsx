@@ -109,7 +109,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     ), [access]);
 
     const assignedRoleIds = React.useMemo(
-        () => new Set(members.flatMap((member) => member.roleIds)),
+        () => new Set(members.flatMap((member) => member.roleIds ?? [])),
         [members],
     );
 

@@ -64,6 +64,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     const [blockStatusRetry, setBlockStatusRetry] = React.useState(0);
     const [isBlockConfirmOpen, setIsBlockConfirmOpen] = React.useState(false);
     const [isBlockLoading, setIsBlockLoading] = React.useState(false);
+    const [showAdvanced, setShowAdvanced] = React.useState(false);
     const [notificationPolicy, setNotificationPolicy] = React.useState<ConversationNotificationPolicyView | null>(null);
     const [notificationPolicyLoading, setNotificationPolicyLoading] = React.useState(false);
     const [notificationPolicySaving, setNotificationPolicySaving] = React.useState(false);
@@ -105,7 +106,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     }, [activeConversationId]);
 
     React.useEffect(() => {
-        if (isOpen && activeConversationId) {
+        if (isOpen && showAdvanced && activeConversationId) {
             void loadNotificationPolicy();
         } else {
             notificationPolicyRequestRef.current += 1;
@@ -113,7 +114,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             setNotificationPolicyLoading(false);
             setNotificationPolicyError(false);
         }
-    }, [activeConversationId, isOpen, loadNotificationPolicy]);
+    }, [activeConversationId, isOpen, loadNotificationPolicy, showAdvanced]);
 
     const canManageRoomNotifications = Boolean(currentUser?.userId && activeConv?.ownerId === currentUser.userId);
 
@@ -160,7 +161,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
     // Fetch block status for DM conversations
     React.useEffect(() => {
         const otherUserId = activeConv?.type === 'dm' ? activeConv.otherParticipant?.userId : undefined;
-        if (!isOpen || !otherUserId) {
+        if (!isOpen || !showAdvanced || !otherUserId) {
             setBlockStatus(null);
             setBlockStatusLoading(false);
             setBlockStatusError(false);
@@ -188,7 +189,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
         return () => {
             active = false;
         };
-    }, [activeConv?.conversationId, activeConv?.otherParticipant?.userId, activeConv?.type, blockStatusRetry, isOpen]);
+    }, [activeConv?.conversationId, activeConv?.otherParticipant?.userId, activeConv?.type, blockStatusRetry, isOpen, showAdvanced]);
 
     const handleBlock = async () => {
         if (!currentUser?.userId || !activeConv?.otherParticipant?.userId) return;
@@ -227,14 +228,14 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     return (
         <motion.div
-            className="w-full shrink-0 border-l border-border/50 bg-background/95 sm:w-[380px] flex flex-col h-full z-20"
+            className="flex h-full w-[300px] shrink-0 flex-col border-l border-white/10 bg-[#0d1720] sm:w-[320px] md:w-[286px]"
             initial={UI_MOTION_CONFIG.initialState}
             animate={UI_MOTION_CONFIG.animateState}
             variants={UI_MOTION_VARIANTS.slideInFromRight}
         >
             {/* Header */}
-            <div className="h-20 border-b border-border/50 px-4 flex items-center justify-between glass sticky top-0">
-                <h3 className="text-lg font-black uppercase tracking-tight">{MESSENGER_COPY.conversationInfo.title}</h3>
+            <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
+                <h3 className="text-sm font-semibold">{MESSENGER_COPY.conversationInfo.title}</h3>
                 <Button
                     variant="ghost"
                     size="icon"
@@ -246,11 +247,11 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+            <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto p-5">
                 {/* Profile Overview */}
-                <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="relative group">
-                        <Avatar className="w-24 h-24 rounded-3xl border-4 border-background neo-shadow transition-transform hover:scale-105">
+                <div className="flex flex-col items-center space-y-3 text-center">
+                    <div className="relative">
+                        <Avatar className="h-20 w-20 border border-white/10">
                             <AvatarImage src={activeConv.otherParticipant?.avatarUrl} />
                             <AvatarFallback className="bg-primary/10">
                                 <DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} />
@@ -259,8 +260,8 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </div>
 
                     <div className="w-full px-2">
-                        <div className="flex items-center justify-center gap-2 rounded-xl p-2">
-                            <h2 className="text-xl font-black uppercase tracking-tight break-all">{activeConv.name}</h2>
+                        <div className="flex items-center justify-center gap-2 p-1">
+                            <h2 className="break-all text-base font-semibold tracking-tight">{activeConv.name}</h2>
                         </div>
                         {activeConv.type === 'dm' && activeConv.otherParticipant && (
                             <p className="text-xs font-bold text-primary uppercase tracking-widest mt-1">@{activeConv.otherParticipant.userName}</p>
@@ -268,7 +269,22 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="border-y border-white/10 py-2">
+                    <div className="flex items-center justify-between py-2 text-sm">
+                        <span className="text-muted-foreground">{activeConv.type === 'dm' ? localizeText('Cuộc trò chuyện riêng') : localizeText('Thành viên')}</span>
+                        <span>{activeConv.type === 'dm' ? '1' : activeConv.memberCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 text-sm">
+                        <span className="text-muted-foreground">{localizeText('Tệp và nội dung dùng chung')}</span>
+                        <span className="text-muted-foreground">—</span>
+                    </div>
+                </div>
+
+                <Button type="button" variant="outline" className="w-full border-white/10 bg-white/5 text-slate-100 hover:bg-white/10" onClick={() => setShowAdvanced((current) => !current)}>
+                    {showAdvanced ? localizeText('Thu gọn tùy chọn') : localizeText('Tùy chọn cuộc trò chuyện')}
+                </Button>
+
+                {showAdvanced ? <div className="space-y-6">
                     <section className="space-y-4" aria-labelledby="conversation-notification-title">
                         <div>
                             <h4 id="conversation-notification-title" className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 px-1">
@@ -383,7 +399,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
                         </div>
                     </div>
-                </div>
+                </div> : null}
             </div>
             <ConfirmDialog
                 open={isBlockConfirmOpen}

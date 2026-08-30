@@ -7,6 +7,7 @@ import { ContactListView } from "@/features/relationships/components/Contacts/Co
 import { MessengerErrorState } from "@/widgets/messenger-layout/components/MessengerErrorState";
 import { MessengerLoadingState } from "@/widgets/messenger-layout/components/MessengerLoadingState";
 import { MessengerLayoutShell } from "@/widgets/messenger-layout/components/MessengerLayoutShell";
+import { WorkspaceNavigationRail } from "@/widgets/messenger-layout/components/WorkspaceNavigationRail";
 
 export const MessengerLayout: React.FC = () => {
   const {
@@ -58,6 +59,8 @@ export const MessengerLayout: React.FC = () => {
       isSidebarOpen={isSidebarOpen}
       setSidebarOpen={setSidebarOpen}
       mobileSidebarFullScreen={!activeConversationId && activeView !== "contacts"}
+      showMobileMenu={!activeConversationId}
+      navigationRail={<WorkspaceNavigationRail />}
       sidebar={<ChatSidebar />}
     >
       {activeView === "contacts" ? <ContactListView /> : <ChatWindow />}

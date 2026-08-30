@@ -1,8 +1,11 @@
-import { Info, Palette, Phone, Search, Video, X } from "lucide-react";
+import { ChevronLeft, Info, Palette, Phone, Search, Video, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { SurfacePanel } from "@/shared/ui/SurfacePanel";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { Avatar, AvatarFallback, AvatarImage, DefaultUserAvatar } from "@/shared/ui/Avatar";
+import { localizeText } from "@/shared/i18n";
+import { useMessenger } from "@/features/messenger/model/useMessenger";
 
 interface ConversationHeaderProps {
   conversation: Conversation;
@@ -29,6 +32,7 @@ export const ConversationHeader = ({
   onOpenRoomTheme,
   canCall,
 }: ConversationHeaderProps) => {
+  const { setSidebarOpen } = useMessenger();
   const isGroup = conversation.type === "group";
   const title = conversation.name;
 
@@ -37,8 +41,24 @@ export const ConversationHeader = ({
 
   return (
     <SurfacePanel className="chat-conversation-header rounded-none border-x-0 border-t-0 shadow-none">
-      <div className="flex items-center justify-between gap-4 px-4 py-4 pl-20 md:pl-4">
+      <div className="flex items-center justify-between gap-3 px-4 py-4">
         <div className="min-w-0 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+            aria-label={localizeText("Quay lại danh sách hội thoại")}
+            className="-ml-2 shrink-0 rounded-full md:hidden"
+          >
+            <ChevronLeft size={21} />
+          </Button>
+          <div className="relative">
+            <Avatar className="h-10 w-10 border border-white/10">
+              <AvatarImage src={conversation.otherParticipant?.avatarUrl} alt="" />
+              <AvatarFallback><DefaultUserAvatar alt={localizeText("Ảnh đại diện mặc định")} /></AvatarFallback>
+            </Avatar>
+            {!isGroup && isOtherOnline ? <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d1720] bg-emerald-400" aria-label={localizeText("Đang trực tuyến")} /> : null}
+          </div>
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>
             {statusLabel ? <p className={`text-xs font-medium ${statusClassName}`}>
@@ -64,7 +84,7 @@ export const ConversationHeader = ({
             onClick={onSearch}
             aria-label={MESSENGER_COPY.chatWindow.header.searchTooltip}
             title={MESSENGER_COPY.chatWindow.header.searchTooltip}
-            className="rounded-full"
+            className="hidden rounded-full sm:inline-flex"
           >
             <Search size={18} />
           </Button>
