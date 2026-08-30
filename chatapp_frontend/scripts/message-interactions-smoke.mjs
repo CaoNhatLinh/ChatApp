@@ -150,6 +150,7 @@ await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
 await page.getByRole('menuitem', { name: 'Bỏ ghim' }).waitFor();
 await page.keyboard.press('Escape');
 
+await page.waitForTimeout(3_000);
 await messageRow.getByRole('button', { name: 'Thích: 3' }).click();
 await messageRow.getByRole('button', { name: 'Thêm cảm xúc' }).click();
 if (captureVisualAudit) {
