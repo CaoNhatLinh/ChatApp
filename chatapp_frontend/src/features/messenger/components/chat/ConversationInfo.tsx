@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Ban, ShieldOff } from 'lucide-react';
+import { X, Ban, Palette, ShieldOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMessenger } from '@/features/messenger/model/useMessenger';
 import type { Conversation } from '@/features/messenger/types/messenger.types';
@@ -49,9 +49,10 @@ const roomNotificationRank: Record<ConversationNotificationLevel, number> = {
 interface ConversationInfoProps {
     isOpen: boolean;
     onClose: () => void;
+    onOpenAppearance: () => void;
 }
 
-export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onClose }) => {
+export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onClose, onOpenAppearance }) => {
     const { conversations, activeConversationId } = useMessenger();
     const updateConversationNotificationPolicy = useMessengerStore(
         (state) => state.updateConversationNotificationPolicy,
@@ -285,6 +286,20 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                 </Button>
 
                 {showAdvanced ? <div className="space-y-6">
+                    <section className="space-y-2" aria-labelledby="conversation-appearance-title">
+                        <div>
+                            <h4 id="conversation-appearance-title" className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 px-1">
+                                {localizeText('Giao diện')}
+                            </h4>
+                            <p className="px-1 text-xs leading-5 text-muted-foreground">
+                                {localizeText('Tùy chỉnh này chỉ hiển thị với bạn.')}
+                            </p>
+                        </div>
+                        <Button type="button" variant="outline" className="w-full border-white/10 bg-white/5 text-slate-100 hover:bg-white/10" onClick={onOpenAppearance}>
+                            <Palette className="h-4 w-4" /> {localizeText('Tùy chỉnh giao diện cá nhân')}
+                        </Button>
+                    </section>
+
                     <section className="space-y-4" aria-labelledby="conversation-notification-title">
                         <div>
                             <h4 id="conversation-notification-title" className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 px-1">

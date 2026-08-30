@@ -499,6 +499,7 @@ export const ChatWindow = () => {
                 roomThemeSettings.clearConversationBackground(activeConversationId);
               }
             }}
+            onClose={() => setIsRoomThemeOpen(false)}
           />
         ) : null}
 
@@ -590,6 +591,10 @@ export const ChatWindow = () => {
         <ConversationInfo
           isOpen={isInfoOpen || isDesktopLayout}
           onClose={() => setIsInfoOpen(false)}
+          onOpenAppearance={() => {
+            setIsInfoOpen(false);
+            setIsRoomThemeOpen(true);
+          }}
         />
       </div>
 

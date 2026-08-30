@@ -1,11 +1,11 @@
-﻿import { Palette, RotateCcw } from 'lucide-react';
+﻿import { Palette, RotateCcw, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
 import { localizeText } from '@/shared/i18n';
 import { notifyError } from '@/shared/lib/notification';
-import { CHAT_BUBBLE_PRESETS, CHAT_THEME_COPY, CHAT_THEME_STATUS, normalizeRoomBackgroundUrl, ROOM_THEME_PRESETS } from '@/features/settings/constants/chat-theme.constants';
+import { CHAT_BUBBLE_PRESETS, CHAT_THEME_COPY, normalizeRoomBackgroundUrl, ROOM_THEME_PRESETS } from '@/features/settings/constants/chat-theme.constants';
 import type {
   ChatBubbleStyleId,
   RoomThemeId,
@@ -25,6 +25,7 @@ interface RoomThemePanelProps {
   onSetBackgroundImage: (imageUrl: string) => void;
   onClearConversationTheme: () => void;
   onClearConversationBackground: () => void;
+  onClose: () => void;
 }
 
 const getLabel = (themeId: RoomThemeId) => {
@@ -47,6 +48,7 @@ export const RoomThemePanel = ({
   onSetBackgroundImage,
   onClearConversationTheme,
   onClearConversationBackground,
+  onClose,
 }: RoomThemePanelProps) => {
   const [localBackgroundUrl, setLocalBackgroundUrl] = useState(activeBackgroundImage);
 
@@ -82,14 +84,21 @@ export const RoomThemePanel = ({
             {CHAT_THEME_COPY.panelTitle}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            {hasActiveConversation
+            {CHAT_THEME_COPY.panelDescription} {hasActiveConversation
               ? CHAT_THEME_COPY.activeRoomHint(conversationName)
               : CHAT_THEME_COPY.noActiveConversation}
           </p>
         </div>
-        <div className="text-xs font-semibold text-muted-foreground">
-          {hasActiveConversation ? CHAT_THEME_STATUS.loading : CHAT_THEME_STATUS.noConversationSelected}
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          aria-label={localizeText('Đóng giao diện')}
+          title={localizeText('Đóng')}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

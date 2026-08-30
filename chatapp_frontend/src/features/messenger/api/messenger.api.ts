@@ -713,6 +713,13 @@ export const getConversationMembers = async (
     const response = await apiClient.get<ConversationMemberPage>(`/conversations/${conversationId}/members`, {
         params: { afterUserId, limit },
     });
+    if (
+        !Array.isArray(response.data.content)
+        || typeof response.data.hasNext !== 'boolean'
+        || (response.data.nextCursor !== null && typeof response.data.nextCursor !== 'string')
+    ) {
+        throw new Error('Canonical conversation member page is invalid');
+    }
     return response.data;
 };
 
@@ -740,6 +747,9 @@ export const leaveConversation = async (conversationId: string): Promise<void> =
 
 export const listConversationRoles = async (conversationId: string): Promise<ConversationRole[]> => {
     const response = await apiClient.get<ConversationRole[]>(`/conversations/${conversationId}/roles`);
+    if (!Array.isArray(response.data)) {
+        throw new Error('Canonical conversation role list is invalid');
+    }
     return response.data;
 };
 
@@ -747,6 +757,9 @@ export const getConversationPermissions = async (
     conversationId: string,
 ): Promise<ConversationPermissionsView> => {
     const response = await apiClient.get<ConversationPermissionsView>(`/conversations/${conversationId}/permissions`);
+    if (!Array.isArray(response.data.permissions) || typeof response.data.owner !== 'boolean') {
+        throw new Error('Canonical conversation permissions response is invalid');
+    }
     return response.data;
 };
 

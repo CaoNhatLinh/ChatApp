@@ -28,6 +28,7 @@ const captures = [
   { slug: 'workspace-empty', path: '/app', authenticated: true },
   { slug: 'workspace-conversation', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true },
   { slug: 'workspace-composer-options', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openComposerOptions: true },
+  { slug: 'conversation-appearance', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openConversationAppearance: true },
   { slug: 'notification-inbox', path: '/app?notifications=1', authenticated: true, verifyNotificationClose: true },
   { slug: 'friends-empty', path: '/friends', authenticated: true },
   { slug: 'communities', path: '/communities', authenticated: true },
@@ -204,6 +205,24 @@ const fulfillApiRequest = async (route) => {
   if (pathname.endsWith('/notifications/unread/count')) return json(route, { count: 2 });
   if (pathname.endsWith('/notifications/unread')) return json(route, notificationInbox.filter((notification) => !notification.isRead));
   if (pathname.endsWith('/notifications')) return json(route, { content: notificationInbox, nextCursor: null, hasNext: false });
+  if (pathname.endsWith('/notification-policy')) return json(route, { defaultNotificationLevel: 'ALL', notificationOverride: 'INHERIT' });
+  if (pathname.endsWith('/permissions')) return json(route, { permissions: ['MESSAGE_SEND'], owner: false });
+  if (pathname.endsWith('/members')) return json(route, {
+    content: [{
+      userId: currentUser.userId,
+      conversationId: '00000000-0000-0000-0000-000000000040',
+      role: 'member',
+      roleIds: [],
+      joinedAt: '2026-08-30T00:00:00Z',
+      username: currentUser.username,
+      displayName: currentUser.displayName,
+      mutedUntil: null,
+      messageIntervalSeconds: null,
+    }],
+    nextCursor: null,
+    hasNext: false,
+  });
+  if (pathname.endsWith('/roles')) return json(route, []);
   if (pathname.endsWith('/preferences/chat')) {
     return json(route, { defaultThemeId: 'aurora', defaultBubbleStyleId: 'tiktok', rooms: [] });
   }
@@ -250,6 +269,17 @@ const captureRoute = async (browser, viewport, capture) => {
   if (capture.openComposerOptions && viewport.name === 'mobile') {
     await page.locator('.chat-composer-dock').getByRole('button', { name: /Thêm nội dung|Tùy chọn khác/ }).click();
   }
+  if (capture.openConversationAppearance) {
+    if (viewport.name === 'mobile') {
+      await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện', exact: true }).click({ timeout: 5000 });
+      await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click({ timeout: 5000 });
+    }
+    try {
+      await page.getByRole('button', { name: 'Tùy chỉnh giao diện cá nhân', exact: true }).click({ timeout: 5000 });
+    } catch (error) {
+      throw new Error(`Conversation appearance action unavailable. Console: ${JSON.stringify(consoleErrors)}`, { cause: error });
+    }
+  }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
   let notificationPanelClosed = null;
@@ -285,11 +315,16 @@ const selectedCaptures = requestedCaptures?.length
   ? captures.filter((capture) => requestedCaptures.includes(capture.slug))
   : captures;
 if (!selectedCaptures.length) throw new Error(`Unknown audit capture: ${requestedCaptures?.join(', ') ?? ''}`);
+const requestedViewport = process.env.AUDIT_VIEWPORT?.trim();
+const selectedViewports = requestedViewport
+  ? viewports.filter((viewport) => viewport.name === requestedViewport)
+  : viewports;
+if (!selectedViewports.length) throw new Error(`Unknown audit viewport: ${requestedViewport ?? ''}`);
 
 await mkdir(outputDirectory, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
-for (const viewport of viewports) {
+for (const viewport of selectedViewports) {
   for (const capture of selectedCaptures) results.push(await captureRoute(browser, viewport, capture));
 }
 await browser.close();

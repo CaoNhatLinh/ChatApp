@@ -222,7 +222,7 @@ const rawMessengerCopy = {
     },
     header: {
       searchTooltip: "Tìm trong cuộc trò chuyện",
-      themeTooltip: "Thiết lập chủ đề phòng",
+      themeTooltip: "Tùy chỉnh giao diện cá nhân",
       themeInfo: "Mở/đóng thông tin phòng",
       themeInfoClosed: "Mở thông tin cuộc trò chuyện",
       voiceTooltip: "Gọi thoại",

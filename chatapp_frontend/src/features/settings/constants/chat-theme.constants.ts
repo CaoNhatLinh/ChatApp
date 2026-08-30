@@ -159,19 +159,19 @@ export const getRoomVisualComputed = (
 import { localizedCopy } from '@/shared/i18n';
 
 const rawChatThemeCopy = {
-  panelTitle: "Giao diện phòng chat",
-  panelDescription: "Thiết lập giao diện phòng chat hiện tại.",
-  resetConversation: "Đặt mặc định",
-  activeRoomHint: (conversationName: string) => `Đang áp dụng cho: ${conversationName}`,
-  noActiveConversation: "Mở phòng chat để cài đặt hình nền",
-  defaultThemeLabel: "Chủ đề mặc định",
-  defaultBubbleLabel: "Kiểu bong bóng",
-  roomThemeLabel: "Chủ đề cho phòng",
-  roomBackgroundLabel: "Tải hình nền",
-  roomBackgroundPlaceholder: "Dán URL ảnh hoặc để trống để dùng mặc định",
-  roomBackgroundApply: "Áp dụng",
-  roomBackgroundClear: "Xóa hình nền",
-  showMessage: "Xem trước",
+  panelTitle: "Giao diện của bạn",
+  panelDescription: "Tùy chỉnh này chỉ hiển thị với bạn.",
+  resetConversation: "Dùng mặc định",
+  activeRoomHint: (conversationName: string) => `Áp dụng riêng cho: ${conversationName}`,
+  noActiveConversation: "Chọn cuộc trò chuyện để tùy chỉnh giao diện.",
+  defaultThemeLabel: "Mặc định cho cuộc trò chuyện mới",
+  defaultBubbleLabel: "Kiểu bong bóng của bạn",
+  roomThemeLabel: "Chủ đề cuộc trò chuyện",
+  roomBackgroundLabel: "Hình nền riêng",
+  roomBackgroundPlaceholder: "Dán URL ảnh hoặc để trống để dùng chủ đề",
+  roomBackgroundApply: "Lưu cho cuộc trò chuyện này",
+  roomBackgroundClear: "Xóa hình nền riêng",
+  showMessage: "Chủ đề đang dùng",
 } as const;
 
 export const CHAT_THEME_COPY = localizedCopy(rawChatThemeCopy);
@@ -179,8 +179,8 @@ export const CHAT_THEME_COPY = localizedCopy(rawChatThemeCopy);
 const rawChatThemeStatus = {
   loading: UI_COPY.status.loading,
   noConversationSelected: "Chưa chọn cuộc trò chuyện",
-  conversationSaved: "Đã lưu cài đặt cho phòng này",
-  defaultsUpdated: "Đã cập nhật cài đặt mặc định",
+  conversationSaved: "Đã lưu giao diện riêng cho cuộc trò chuyện này",
+  defaultsUpdated: "Đã cập nhật giao diện mặc định của bạn",
 } as const;
 
 export const CHAT_THEME_STATUS = localizedCopy(rawChatThemeStatus);

@@ -52,7 +52,7 @@ export const localizeText = (value: string): string => {
     [/^File "(.+)" không đúng định dạng này\.$/, (match) => `File "${match[1]}" has an unsupported format.`],
     [/^Xóa tệp (.+)$/, (match) => `Remove file ${match[1]}`],
     [/^Đã xem lúc (.+)$/, (match) => `Seen at ${match[1]}`],
-    [/^Đang áp dụng cho: (.+)$/, (match) => `Applied to: ${match[1]}`],
+    [/^Áp dụng riêng cho: (.+)$/, (match) => `Applied only to: ${match[1]}`],
     [/^Thu hồi session (.+) của (.+)\?$/, (match) => `Revoke session ${match[1]} for ${match[2]}?`],
     [/^Thu hồi thiết bị (.+)\?$/, (match) => `Revoke device ${match[1]}?`],
     [/^Đã cấp role (.+) cho (.+)\.$/, (match) => `Granted role ${match[1]} to ${match[2]}.`],
