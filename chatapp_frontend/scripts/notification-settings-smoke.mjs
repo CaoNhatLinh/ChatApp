@@ -1,6 +1,9 @@
+import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
+const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
+const captureDirectory = 'artifacts/ui-audit/current';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const operator = {
   userId: '00000000-0000-0000-0000-000000000010',
@@ -57,6 +60,13 @@ await page.addInitScript(() => {
 });
 await page.goto(`${baseUrl}/settings?tab=notifications`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Thông báo' }).last().waitFor();
+if (captureVisualAudit) {
+  await mkdir(captureDirectory, { recursive: true });
+  await page.screenshot({ path: `${captureDirectory}/settings-notifications-detail-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: `${captureDirectory}/settings-notifications-detail-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+}
 await page.getByText('Thông báo đẩy', { exact: true }).click();
 await page.locator('#notification-global-level').selectOption('MENTIONS');
 const saveResponse = page.waitForResponse((response) => response.url().endsWith('/notifications/settings') && response.request().method() === 'PUT');

@@ -162,15 +162,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-profile-title"
-        className="relative w-full max-w-[95vw] sm:max-w-md bg-card/60 glass rounded-[2rem] sm:rounded-[2.5rem] neo-shadow border border-border/50 overflow-hidden flex flex-col"
+        className="relative flex w-full max-w-[95vw] flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0e141b] text-slate-100 shadow-[0_24px_80px_rgba(3,7,18,0.38)] sm:max-w-md sm:rounded-[2rem]"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.zoomReveal}
       >
-        <div className="h-28 sm:h-32 bg-gradient-to-br from-primary/30 to-purple-500/30 relative">
+        <div className="relative h-28 bg-[radial-gradient(circle_at_18%_0%,rgba(238,105,43,0.42),transparent_38%),linear-gradient(135deg,#302031_0%,#182334_100%)] sm:h-32">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-background/50 hover:bg-background rounded-full transition-[color,background-color,border-color,box-shadow,transform,opacity] text-muted-foreground hover:text-primary z-10"
+            className="absolute right-4 top-4 z-10 rounded-full bg-black/20 p-2 text-slate-300 transition-[color,background-color] hover:bg-white/10 hover:text-white"
             type="button"
             aria-label={localizeText("Đóng hồ sơ")}
           >
@@ -179,13 +179,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         <motion.div
-          className="px-6 sm:px-8 pb-8 -mt-14 sm:-mt-16 flex flex-col items-center text-center"
+          className="-mt-14 flex flex-col items-center px-6 pb-7 text-center sm:-mt-16 sm:px-8"
           initial={UI_MOTION_CONFIG.initialState}
           animate={UI_MOTION_CONFIG.animateState}
           variants={UI_MOTION_VARIANTS.panelReveal}
         >
           <motion.div className="relative mb-6" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-[2rem] sm:rounded-[2.5rem] bg-card border-4 border-background overflow-hidden neo-shadow flex items-center justify-center font-black text-primary text-4xl uppercase">
+            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-[1.75rem] border-4 border-[#0e141b] bg-[#171f2a] text-4xl font-black uppercase text-primary shadow-lg sm:h-32 sm:w-32 sm:rounded-[2rem]">
               {isLoading ? (
                 <Loader2 className="animate-spin" size={40} />
               ) : (
@@ -199,17 +199,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 status={presence.status}
                 isOnline={presence.isOnline}
                 size="lg"
-                className="absolute -bottom-1 right-2 border-4 border-background"
+              className="absolute -bottom-1 right-2 border-4 border-[#0e141b]"
               />
             ) : null}
           </motion.div>
 
           <motion.div className="space-y-1 mb-6" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.rowReveal}>
-            <h2 id="user-profile-title" className="text-xl sm:text-2xl font-black uppercase tracking-tight">
+            <h2 id="user-profile-title" className="text-xl font-bold tracking-tight text-white sm:text-2xl">
               {isLoading ? localizeText("Đang tải...") : userProfile?.displayName}
             </h2>
             <div className="flex items-center justify-center gap-2">
-              <span className="text-xs font-bold text-primary uppercase tracking-widest">@{userProfile?.username}</span>
+              <span className="text-xs font-semibold text-primary">@{userProfile?.username}</span>
               {userProfile?.role === "admin" ? (
                 <div className="flex items-center gap-1 bg-yellow-400/10 text-yellow-500 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-tighter">
                   <Crown size={10} /> {localizeText("Quản trị viên")}
@@ -217,7 +217,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               ) : null}
             </div>
             {canViewPresence && presence ? (
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pt-2">
+              <p className="pt-2 text-[10px] font-semibold tracking-wide text-slate-400">
                 {presence.isOnline ? localizeText("Đang hoạt động") : localizeText("Ngoại tuyến")}
               </p>
             ) : null}
@@ -235,17 +235,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
 
           <motion.div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mb-7" initial={UI_MOTION_CONFIG.initialState} animate={UI_MOTION_CONFIG.animateState} variants={UI_MOTION_VARIANTS.panelReveal}>
-            <div className="p-3 rounded-2xl bg-background/30 border border-border/30 flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/[0.07] p-3">
               <Calendar size={14} className="text-primary/60" />
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">{localizeText("Tham gia")}</span>
-              <span className="text-xs font-black">
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{localizeText("Tham gia")}</span>
+              <span className="text-xs font-bold text-slate-100">
                 {userProfile?.joinedAt ? format(new Date(userProfile.joinedAt), "MM/yyyy") : null}
               </span>
             </div>
-            <div className="p-3 rounded-2xl bg-background/30 border border-border/30 flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1 rounded-2xl bg-white/[0.07] p-3">
               <User size={14} className="text-primary/60" />
-              <span className="text-[9px] font-bold uppercase text-muted-foreground">{localizeText("Bạn chung")}</span>
-              <span className="text-xs font-black">{loadingMutual ? null : mutualForProfile?.userDetails.length ?? null}</span>
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{localizeText("Bạn chung")}</span>
+              <span className="text-xs font-bold text-slate-100">{loadingMutual ? null : mutualForProfile?.userDetails.length ?? null}</span>
             </div>
           </motion.div>
 
@@ -278,7 +278,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     onClick={onSendMessage}
                     disabled={hasBlocked}
                     type="button"
-                    className="flex w-full items-center justify-center gap-2 py-3 sm:py-4 bg-primary text-primary-foreground rounded-2xl text-xs font-black uppercase tracking-widest neo-shadow hover:scale-105 active:scale-95 transition-[color,background-color,border-color,box-shadow,transform,opacity] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-xs font-bold text-primary-foreground transition-[color,background-color,transform] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:py-4"
                   >
                     <MessageCircle size={18} />
                     {localizeText("Nhắn tin")}
@@ -291,7 +291,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   onClick={handleUnblock}
                   type="button"
                   disabled={isBlockLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3 text-primary hover:bg-primary/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
                 >
                   <ShieldOff size={14} /> {isBlockLoading ? localizeText("Đang cập nhật...") : localizeText("Bỏ chặn người dùng này")}
                 </button>
@@ -299,7 +299,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <button
                   onClick={() => setIsBlockConfirmOpen(true)}
                   type="button"
-                  className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-xs font-medium text-slate-400 transition-colors hover:bg-destructive/5 hover:text-destructive"
                 >
                   <Shield size={14} /> {localizeText("Chặn người dùng này")}
                 </button>
@@ -307,7 +307,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <button
                 onClick={() => setIsReportOpen(true)}
                 type="button"
-                className="w-full flex items-center justify-center gap-2 py-3 text-muted-foreground/60 hover:text-amber-600 hover:bg-amber-500/5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-xs font-medium text-slate-400 transition-colors hover:bg-amber-500/5 hover:text-amber-400"
               >
                 <Flag size={14} /> {localizeText("Báo cáo hồ sơ")}
               </button>

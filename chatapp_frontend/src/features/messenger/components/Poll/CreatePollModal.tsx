@@ -109,24 +109,24 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="create-poll-title"
-                className="relative mx-4 w-full max-w-lg overflow-hidden rounded-2xl border border-border/60 bg-card"
+                className="relative mx-4 w-full max-w-lg overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#101720] text-slate-100 shadow-[0_24px_80px_rgba(0,0,0,0.42)]"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.zoomReveal}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border/40">
+                <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-xl">
+                        <div className="rounded-xl bg-primary/15 p-2">
                             <BarChart3 size={20} className="text-primary" />
                         </div>
-                        <h3 id="create-poll-title" className="text-lg font-black tracking-tight">{localizeText('Tạo bình chọn')}</h3>
+                        <h3 id="create-poll-title" className="text-lg font-bold tracking-tight text-white">{localizeText('Tạo bình chọn')}</h3>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
                         aria-label={localizeText('Đóng cửa sổ tạo bình chọn')}
-                        className="p-2 hover:bg-primary/10 rounded-xl text-muted-foreground hover:text-foreground transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                        className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white"
                     >
                         <X size={20} />
                     </button>
@@ -136,7 +136,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 <div className="max-h-[65vh] space-y-5 overflow-y-auto p-6">
                     {/* Question */}
                     <div>
-                        <label htmlFor="poll-question" className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                        <label htmlFor="poll-question" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                             {localizeText('Câu hỏi')}
                         </label>
                         <textarea
@@ -144,16 +144,16 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             value={question}
                             onChange={(e) => setQuestion(e.target.value)}
                             placeholder={localizeText('Nhập câu hỏi bình chọn...')}
-                            className="w-full bg-background/60 border border-border/50 rounded-2xl px-4 py-3 text-sm font-medium placeholder:text-muted-foreground/40 focus:ring-2 ring-primary/20 focus:border-primary/30 outline-none transition-[color,background-color,border-color,box-shadow,transform,opacity] resize-none"
+                            className="w-full resize-none rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-medium text-white outline-none transition-[color,box-shadow] placeholder:text-slate-500 focus:ring-2 focus:ring-primary/30"
                             rows={2}
                             maxLength={500}
                         />
-                        <p className="text-[10px] text-muted-foreground/50 mt-1 text-right">{question.length}/500</p>
+                        <p className="mt-1 text-right text-[10px] text-slate-500">{question.length}/500</p>
                     </div>
 
                     {/* Options */}
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+                        <p className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                             {localizeText('Các lựa chọn')} ({options.length}/10)
                         </p>
                         <div className="space-y-2">
@@ -169,7 +169,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                                         value={option}
                                         onChange={(e) => updateOption(index, e.target.value)}
                                         placeholder={localizeText('Lựa chọn') + ` ${index + 1}`}
-                                        className="flex-1 bg-background/60 border border-border/50 rounded-xl px-3 py-2.5 text-sm font-medium placeholder:text-muted-foreground/40 focus:ring-2 ring-primary/20 focus:border-primary/30 outline-none transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                                        className="flex-1 rounded-xl bg-white/[0.06] px-3 py-2.5 text-sm font-medium text-white outline-none transition-[color,box-shadow] placeholder:text-slate-500 focus:ring-2 focus:ring-primary/30"
                                         maxLength={200}
                                     />
                                     {options.length > 2 && (
@@ -196,7 +196,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             <button
                                 type="button"
                                 onClick={addOption}
-                                className="mt-2 flex items-center gap-2 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] w-full justify-center border border-dashed border-primary/30"
+                                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
                             >
                                 <Plus size={14} />
                                 {localizeText('Thêm lựa chọn')}
@@ -206,7 +206,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
 
                     {/* Settings */}
                     <div className="space-y-3">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                        <p className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
                             {localizeText('Cài đặt')}
                         </p>
 
@@ -215,7 +215,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             type="button"
                             aria-pressed={isMultipleChoice}
                             onClick={() => setIsMultipleChoice(!isMultipleChoice)}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
+                            className="flex w-full items-center gap-3 rounded-xl p-3 transition-colors hover:bg-white/[0.06]"
                         >
                             {isMultipleChoice ? (
                                 <CheckSquare size={18} className="text-primary" />
@@ -230,7 +230,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             type="button"
                             aria-pressed={isAnonymous}
                             onClick={() => setIsAnonymous(!isAnonymous)}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
+                            className="flex w-full items-center gap-3 rounded-xl p-3 transition-colors hover:bg-white/[0.06]"
                         >
                             {isAnonymous ? (
                                 <CheckSquare size={18} className="text-primary" />
@@ -245,7 +245,7 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                             type="button"
                             aria-pressed={hasDeadline}
                             onClick={() => setHasDeadline(!hasDeadline)}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity] border border-border/30"
+                            className="flex w-full items-center gap-3 rounded-xl p-3 transition-colors hover:bg-white/[0.06]"
                         >
                             {hasDeadline ? (
                                 <CheckSquare size={18} className="text-primary" />
@@ -295,11 +295,11 @@ export const CreatePollModal: React.FC<CreatePollModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/40 bg-background/30">
+                <div className="flex items-center justify-end gap-3 border-t border-white/[0.07] bg-white/[0.025] px-6 py-4">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground rounded-xl hover:bg-background/60 transition-[color,background-color,border-color,box-shadow,transform,opacity]"
+                        className="rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white"
                     >
                         {localizeText('Hủy')}
                     </button>

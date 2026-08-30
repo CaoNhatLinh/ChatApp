@@ -2,6 +2,8 @@ import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
+const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
+const captureDirectory = 'artifacts/ui-audit/current';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000040';
@@ -334,6 +336,10 @@ try {
 }
 await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
+if (captureVisualAudit) {
+  await mkdir(captureDirectory, { recursive: true });
+  await page.screenshot({ path: `${captureDirectory}/room-detail-desktop.png`, fullPage: true });
+}
 await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Member 50', { exact: true }).waitFor();
 const renderedMemberRows = await page.locator('[data-room-member-id]').count();
@@ -370,6 +376,7 @@ await chatPolicySection.getByRole('button', { name: 'Lưu chính sách chat' }).
 
 const rolesSection = page.locator('details').filter({ hasText: 'Vai trò của phòng' });
 await rolesSection.locator('summary').click();
+if (captureVisualAudit) await page.screenshot({ path: `${captureDirectory}/room-roles-desktop.png`, fullPage: true });
 await rolesSection.getByRole('button', { name: 'Tạo vai trò', exact: true }).click();
 await rolesSection.getByLabel('Tên vai trò').fill('Reviewer');
 await rolesSection.getByLabel('Mã vai trò').fill('REVIEWER');
@@ -392,6 +399,7 @@ await inviteManager.getByRole('button', { name: 'QR', exact: true }).click();
 await inviteManager.getByLabel('Cách tham gia').selectOption('REQUEST_APPROVAL');
 await inviteManager.getByRole('button', { name: 'Tạo lời mời 7 ngày' }).click();
 await inviteManager.getByText('Lời mời đã sẵn sàng', { exact: true }).waitFor();
+if (captureVisualAudit) await page.screenshot({ path: `${captureDirectory}/room-invite-desktop.png`, fullPage: true });
 const activeInviteDisclosure = inviteManager.locator('details');
 await activeInviteDisclosure.locator('summary').click();
 await activeInviteDisclosure.getByRole('button', { name: 'Thu hồi lời mời' }).first().click();
@@ -413,6 +421,7 @@ const visibleToastCount = await page.locator('[role="status"]:visible').count();
 const memberPageRequests = apiRequests.filter((request) => request === `GET /api/conversations/${conversationId}/members`).length;
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
+if (captureVisualAudit) await page.screenshot({ path: `${captureDirectory}/room-management-mobile.png`, fullPage: true });
 
 const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, inviteCommands, overflow, visibleToastCount, renderedMemberRows, loadedMemberRowsAfterSecondPage, totalFixtureMembers: directoryMembers.length, memberPageLimits, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
