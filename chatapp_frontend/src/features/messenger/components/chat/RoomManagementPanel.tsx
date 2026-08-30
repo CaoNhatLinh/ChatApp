@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, Crown, Pencil, Plus, RefreshCw, ScrollText, ShieldCheck, Trash2, UserMinus } from 'lucide-react';
+import { ChevronDown, Pencil, Plus, RefreshCw, ScrollText, ShieldCheck, Trash2 } from 'lucide-react';
 import type { Conversation, ConversationMember } from '@/features/messenger/types/messenger.types';
 import {
     assignConversationRoles,
@@ -18,7 +18,6 @@ import {
 } from '@/features/messenger/api/messenger.api';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useMessengerStore } from '@/features/messenger/model/messenger.store';
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/Avatar';
 import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -27,14 +26,11 @@ import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { logger } from '@/shared/lib/logger';
 import { notifyError, notifySuccess } from '@/shared/lib/notification';
-import { cn } from '@/shared/lib/cn';
 import { RoomRoleForm, type RoomRoleFormValue } from './RoomRoleForm';
 import { RoomChatPolicyForm } from './RoomChatPolicyForm';
-import { RoomMemberPolicyForm, type RoomMemberPolicyValue } from './RoomMemberPolicyForm';
+import type { RoomMemberPolicyValue } from './RoomMemberPolicyForm';
 import { RoomAuditTimeline } from './RoomAuditTimeline';
-import { usePresence } from '@/features/presence/model/presence.store';
-import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
-import { StatusDot } from '@/features/presence/ui/StatusSelector';
+import { RoomMemberDirectory } from './RoomMemberDirectory';
 
 const EMPTY_ROLE: RoomRoleFormValue = {
     displayName: '',
@@ -44,6 +40,7 @@ const EMPTY_ROLE: RoomRoleFormValue = {
     isDefault: false,
     rolePosition: 100,
 };
+const ROOM_MEMBER_PAGE_SIZE = 50;
 
 type PendingAction =
     | { kind: 'kick'; member: ConversationMember }
@@ -53,20 +50,6 @@ type PendingAction =
 
 interface RoomManagementPanelProps {
     conversation: Conversation;
-}
-
-function RoomMemberPresence({ userId, conversationId }: { userId: string; conversationId: string }) {
-    const presenceRef = useTrackPresenceInViewport<HTMLSpanElement>([userId], conversationId);
-    const { presence } = usePresence(userId);
-    return presence ? (
-        <span ref={presenceRef} className="inline-flex shrink-0">
-            <StatusDot
-                status={presence.status}
-                isOnline={presence.isOnline}
-                size="sm"
-            />
-        </span>
-    ) : <span ref={presenceRef} className="inline-flex h-2.5 w-2.5 shrink-0" aria-hidden="true" />;
 }
 
 export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) {
@@ -87,8 +70,6 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null);
     const [auditOpen, setAuditOpen] = React.useState(false);
     const requestRef = React.useRef(0);
-    const membersScrollRef = React.useRef<HTMLDivElement>(null);
-    const loadMoreSentinelRef = React.useRef<HTMLDivElement>(null);
 
     const load = React.useCallback(async () => {
         const requestId = ++requestRef.current;
@@ -97,7 +78,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         setLoadError(false);
         try {
             const [memberPage, nextRoles, nextAccess] = await Promise.all([
-                getConversationMembers(conversation.conversationId),
+                getConversationMembers(conversation.conversationId, undefined, ROOM_MEMBER_PAGE_SIZE),
                 listConversationRoles(conversation.conversationId),
                 getConversationPermissions(conversation.conversationId),
             ]);
@@ -127,7 +108,6 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         access?.permissions.includes(permission) ?? false
     ), [access]);
 
-    const roleById = React.useMemo(() => new Map(roles.map((role) => [role.roleId, role])), [roles]);
     const assignedRoleIds = React.useMemo(
         () => new Set(members.flatMap((member) => member.roleIds)),
         [members],
@@ -154,7 +134,7 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         const requestId = requestRef.current;
         setBusyKey('load-more-members');
         try {
-            const page = await getConversationMembers(conversation.conversationId, memberCursor);
+            const page = await getConversationMembers(conversation.conversationId, memberCursor, ROOM_MEMBER_PAGE_SIZE);
             if (requestId !== requestRef.current) return;
             setMembers((current) => {
                 const existingIds = new Set(current.map((member) => member.userId));
@@ -170,17 +150,6 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
             if (requestId === requestRef.current) setBusyKey(null);
         }
     }, [busyKey, conversation.conversationId, hasMoreMembers, memberCursor]);
-
-    React.useEffect(() => {
-        const root = membersScrollRef.current;
-        const sentinel = loadMoreSentinelRef.current;
-        if (!root || !sentinel || !hasMoreMembers || root.scrollHeight <= root.clientHeight || typeof IntersectionObserver === 'undefined') return;
-        const observer = new IntersectionObserver((entries) => {
-            if (entries.some((entry) => entry.isIntersecting)) void loadMoreMembers();
-        }, { root, rootMargin: '240px 0px' });
-        observer.observe(sentinel);
-        return () => observer.disconnect();
-    }, [hasMoreMembers, loadMoreMembers, members.length]);
 
     const createRole = async (value: RoomRoleFormValue) => {
         if (!value.displayName || !/^[A-Z][A-Z0-9_]{1,31}$/.test(value.roleCode) || !/^#[0-9A-F]{6}$/.test(value.colorHex)) {
@@ -375,119 +344,20 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 </details>
             ) : null}
 
-            <div ref={membersScrollRef} className="max-h-[min(70vh,36rem)] space-y-2 overflow-y-auto pr-1">
-                {members.length === 0 ? (
-                    <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                        {localizeText('Phòng chưa có thành viên.')}
-                    </p>
-                ) : members.map((member) => {
-                    const memberRoles = member.roleIds.map((roleId) => roleById.get(roleId)).filter(Boolean) as ConversationRole[];
-                    const isOwner = member.role === 'owner';
-                    const isSelf = member.userId === currentUserId;
-                    return (
-                        <details key={member.userId} className="group rounded-2xl border border-border/70 bg-card/55 open:border-primary/30">
-                            <summary className="flex cursor-pointer list-none items-center gap-3 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                                <Avatar className="h-9 w-9 shrink-0">
-                                    <AvatarImage src={member.avatarUrl} alt="" />
-                                    <AvatarFallback>{member.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                                </Avatar>
-                                <span className="min-w-0 flex-1">
-                                    <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                                        {member.displayName}
-                                        {isSelf ? <span className="text-xs font-normal text-muted-foreground">({localizeText('Bạn')})</span> : null}
-                                    </span>
-                                    <span className="mt-1 flex flex-wrap gap-1">
-                                        {isOwner ? <Badge className="gap-1 bg-amber-500 text-white"><Crown className="h-3 w-3" />{localizeText('Chủ phòng')}</Badge> : null}
-                                        {memberRoles.filter((role) => !role.isSystem).map((role) => (
-                                            <Badge key={role.roleId} variant="outline" style={{ borderColor: role.colorHex, color: role.colorHex }}>{role.displayName}</Badge>
-                                        ))}
-                                    </span>
-                                </span>
-                                <RoomMemberPresence userId={member.userId} conversationId={conversation.conversationId} />
-                                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-                            </summary>
-                            {!isOwner && (can('ROLE_ASSIGN') || can('MEMBER_KICK') || can('MEMBER_MUTE') || access.owner) ? (
-                                <div className="space-y-3 border-t border-border/60 p-3">
-                                    {can('ROLE_ASSIGN') ? (
-                                        <div>
-                                            <p className="mb-2 text-xs font-semibold">{localizeText('Vai trò được gán')}</p>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {roles.filter((role) => !role.isSystem).map((role) => {
-                                                    const selected = member.roleIds.includes(role.roleId);
-                                                    const assignable = role.permissions.every((permission) => access.permissions.includes(permission));
-                                                    return (
-                                                        <button
-                                                            key={role.roleId}
-                                                            type="button"
-                                                            aria-pressed={selected}
-                                                            disabled={busyKey !== null || (!selected && !assignable)}
-                                                            title={!selected && !assignable ? localizeText('Vai trò có quyền cao hơn quyền của bạn.') : undefined}
-                                                            onClick={() => void saveMemberRoles(
-                                                                member,
-                                                                selected
-                                                                    ? member.roleIds.filter((roleId) => roleId !== role.roleId)
-                                                                    : [...member.roleIds, role.roleId],
-                                                            )}
-                                                            className={cn(
-                                                                'rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                                                                selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/50',
-                                                            )}
-                                                        >
-                                                            {role.displayName}
-                                                        </button>
-                                                    );
-                                                })}
-                                                {roles.every((role) => role.isSystem) ? <span className="text-xs text-muted-foreground">{localizeText('Chưa có vai trò tùy chỉnh.')}</span> : null}
-                                            </div>
-                                        </div>
-                                    ) : null}
-                                    {can('MEMBER_MUTE') && !isSelf ? (
-                                        <div>
-                                            <p className="mb-2 text-xs font-semibold">{localizeText('Chính sách chat của thành viên')}</p>
-                                            <RoomMemberPolicyForm
-                                                key={`${member.mutedUntil}:${member.messageIntervalSeconds}`}
-                                                initialMutedUntil={member.mutedUntil}
-                                                initialMessageIntervalSeconds={member.messageIntervalSeconds}
-                                                loading={busyKey === `member-policy:${member.userId}`}
-                                                disabled={busyKey !== null}
-                                                onSubmit={(value) => void saveMemberChatPolicy(member, value)}
-                                            />
-                                        </div>
-                                    ) : null}
-                                    <div className="flex flex-wrap gap-2">
-                                        {access.owner ? (
-                                            <Button type="button" variant="outline" size="sm" disabled={busyKey !== null} onClick={() => setPendingAction({ kind: 'transfer', member })}>
-                                                <Crown className="h-4 w-4" /> {localizeText('Chuyển quyền chủ phòng')}
-                                            </Button>
-                                        ) : null}
-                                        {can('MEMBER_KICK') && !isSelf ? (
-                                            <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={busyKey !== null} onClick={() => setPendingAction({ kind: 'kick', member })}>
-                                                <UserMinus className="h-4 w-4" /> {localizeText('Xóa khỏi phòng')}
-                                            </Button>
-                                        ) : null}
-                                    </div>
-                                </div>
-                            ) : null}
-                        </details>
-                    );
-                })}
-                {hasMoreMembers ? (
-                    <>
-                        <div ref={loadMoreSentinelRef} className="h-px" aria-hidden="true" />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            loading={busyKey === 'load-more-members'}
-                            disabled={busyKey !== null}
-                            onClick={() => void loadMoreMembers()}
-                        >
-                            {localizeText('Tải thêm thành viên')}
-                        </Button>
-                    </>
-                ) : null}
-            </div>
+            <RoomMemberDirectory
+                conversationId={conversation.conversationId}
+                members={members}
+                roles={roles}
+                access={access}
+                currentUserId={currentUserId}
+                busyKey={busyKey}
+                hasMore={hasMoreMembers}
+                onLoadMore={() => void loadMoreMembers()}
+                onSaveRoles={saveMemberRoles}
+                onSavePolicy={saveMemberChatPolicy}
+                onKick={(member) => setPendingAction({ kind: 'kick', member })}
+                onTransfer={(member) => setPendingAction({ kind: 'transfer', member })}
+            />
 
             {(can('ROLE_CREATE') || can('ROLE_UPDATE') || can('ROLE_DELETE')) ? (
                 <details className="group rounded-2xl border border-border/70">

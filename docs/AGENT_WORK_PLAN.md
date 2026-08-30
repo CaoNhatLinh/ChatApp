@@ -66,12 +66,13 @@ Presence subscriptions are session-scoped, authorization-scoped and capped at
 200 targets per session; per-session heartbeat expiry is aggregated in Redis
 and presence changes fan out through the configured Redis Pub/Sub channel.
 Client rows use an Intersection Observer window rather than subscribing an
-entire loaded directory. Conversation lists now use an opaque cursor page, and
+entire loaded directory, and a 50 ms scope-aware batcher coalesces viewport
+churn before STOMP delivery. Conversation lists now use an opaque cursor page, and
 mention lookup requests additional member pages only when the compact result
 set needs them.
-Room-management member pages use a bounded scroll container and an
-IntersectionObserver sentinel, while stale requests are discarded when the
-selected room changes.
+Room-management member pages request 50 rows at a time and use variable-height
+virtualized rendering with a measured load-more footer; stale requests are
+discarded when the selected room changes.
 Typing now follows the same boundary: commands contain only canonical command
 fields, and server-emitted user summaries use `username` plus required
 `displayName`.

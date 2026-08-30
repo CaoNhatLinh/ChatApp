@@ -88,6 +88,11 @@ verifies duplicate-ID de-duplication, one active scope per target, reconnect
 resync, ordered room-to-friend scope transfer, snapshot clearing, final unwatch
 and logout cleanup without replacing STOMP/Redis integration evidence.
 
+`npm run test:presence:batcher` executes the production viewport-command
+batcher with a deterministic scheduler. It proves same-scope coalescing,
+duplicate removal, enter/leave cancellation, unsubscribe/resubscribe
+cancellation, and subscribe-before-resync ordering.
+
 The conversation sidebar consumes cursor-paginated `ConversationPage` data and
 requests the next page when its bounded-scroll sentinel enters the lower margin;
 the explicit load-more action remains a recovery path. Mention lookup starts
@@ -98,7 +103,9 @@ still has fewer than eight matches.
 page, scrolls within the bounded sidebar and asserts the next HTTP request uses
 the server-provided opaque cursor before the second-page row appears. The same
 journey also proves scroll-triggered room-member pagination without draining all
-remaining pages on mount.
+remaining pages on mount. It asserts the explicit 50-member request limit and
+that the number of rendered member rows stays below the number retained in
+loaded client state.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static

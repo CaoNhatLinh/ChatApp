@@ -90,8 +90,8 @@ const baseRoles = [
 const members = [
   { userId: ownerId, conversationId, role: 'owner', roleIds: [ownerRoleId], joinedAt: now, username: 'owner', displayName: 'Room Owner', mutedUntil: null, messageIntervalSeconds: null },
   { userId: memberId, conversationId, role: 'member', roleIds: [], joinedAt: now, username: 'linh', displayName: 'Linh Tran', mutedUntil: null, messageIntervalSeconds: null },
-  ...Array.from({ length: 20 }, (_, index) => ({
-    userId: `00000000-0000-0000-0000-0000000001${String(index).padStart(2, '0')}`,
+  ...Array.from({ length: 119 }, (_, index) => ({
+    userId: `00000000-0000-0000-1000-${String(index + 1).padStart(12, '0')}`,
     conversationId,
     role: 'member',
     roleIds: [],
@@ -102,6 +102,7 @@ const members = [
     messageIntervalSeconds: null,
   })),
 ];
+const directoryMembers = [members[0], ...members.slice(2, 101), members[1], ...members.slice(101)];
 
 let roles = [...baseRoles];
 const roleAssignments = [];
@@ -117,6 +118,7 @@ const consoleErrors = [];
 const requestFailures = [];
 const apiRequests = [];
 const conversationPageCursors = [];
+const memberPageLimits = [];
 
 page.on('console', (message) => {
   const location = message.location();
@@ -133,6 +135,9 @@ page.on('request', (request) => {
     apiRequests.push(`${request.method()} ${requestUrl.pathname}`);
     if (requestUrl.pathname.endsWith('/conversations') && request.method() === 'GET') {
       conversationPageCursors.push(requestUrl.searchParams.get('cursor'));
+    }
+    if (requestUrl.pathname.endsWith(`/conversations/${conversationId}/members`) && request.method() === 'GET') {
+      memberPageLimits.push(requestUrl.searchParams.get('limit'));
     }
   }
 });
@@ -158,9 +163,13 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   }
   if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') {
     const afterUserId = new URL(request.url()).searchParams.get('afterUserId');
-    return afterUserId
-      ? json({ content: [members[1]], nextCursor: null, hasNext: false })
-      : json({ content: [members[0], ...members.slice(2)], nextCursor: ownerId, hasNext: true });
+    const pageSize = Number(new URL(request.url()).searchParams.get('limit'));
+    const startIndex = afterUserId
+      ? directoryMembers.findIndex((member) => member.userId === afterUserId) + 1
+      : 0;
+    const content = directoryMembers.slice(startIndex, startIndex + pageSize);
+    const hasNext = startIndex + content.length < directoryMembers.length;
+    return json({ content, nextCursor: hasNext ? content.at(-1).userId : null, hasNext });
   }
   if (path.endsWith(`/conversations/${conversationId}/roles`) && method === 'GET') return json(roles);
   if (path.endsWith(`/conversations/${conversationId}/permissions`)) {
@@ -261,8 +270,28 @@ await page.getByText('Product Studio', { exact: true }).first().click();
 await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện' }).click();
 await page.getByRole('heading', { name: 'Thành viên & vai trò' }).waitFor();
 await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
+await page.getByText('Member 50', { exact: true }).waitFor();
+const renderedMemberRows = await page.locator('[data-room-member-id]').count();
+const loadedMemberRowsAfterSecondPage = 100;
+await page.getByRole('button', { name: 'Tải thêm thành viên' }).scrollIntoViewIfNeeded();
 await page.getByText('Linh Tran', { exact: true }).waitFor();
 const memberPageRequestsAfterLazyLoad = apiRequests.filter((request) => request === `GET /api/conversations/${conversationId}/members`).length;
+await page.getByLabel('Danh sách thành viên').evaluate((scroller, targetMemberId) => {
+  const target = scroller.querySelector(`[data-room-member-id="${targetMemberId}"]`);
+  if (!(target instanceof HTMLElement)) throw new Error('Target member row is not rendered');
+  target.scrollIntoView({ block: 'center' });
+}, memberId);
+
+const memberSection = page.locator('details').filter({ hasText: 'Linh Tran' });
+await memberSection.locator('summary').click();
+await memberSection.getByLabel('Tắt tiếng đến').fill('2026-08-30T12:00');
+await memberSection.getByLabel('Thời gian chờ riêng').fill('120');
+await memberSection.getByLabel('Lý do kiểm duyệt').fill('Lặp lại nội dung quảng cáo');
+await memberSection.getByRole('button', { name: 'Lưu chính sách thành viên' }).click();
+await memberSection.getByRole('button', { name: 'Product steward', exact: true }).click();
+await memberSection.getByRole('button', { name: 'Chuyển quyền chủ phòng', exact: true }).click();
+await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).getByRole('button', { name: 'Chuyển quyền', exact: true }).click();
+await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).waitFor({ state: 'detached' });
 
 await page.getByText('Nhật ký phòng', { exact: true }).click();
 await page.getByText('Đã cập nhật vai trò', { exact: true }).waitFor();
@@ -288,21 +317,11 @@ await rolesSection.getByText('Gửi tin nhắn', { exact: true }).click();
 await rolesSection.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click();
 await rolesSection.getByText('Product lead', { exact: true }).waitFor();
 
-const memberSection = page.locator('details').filter({ hasText: 'Linh Tran' });
-await memberSection.locator('summary').click();
-await memberSection.getByLabel('Tắt tiếng đến').fill('2026-08-30T12:00');
-await memberSection.getByLabel('Thời gian chờ riêng').fill('120');
-await memberSection.getByLabel('Lý do kiểm duyệt').fill('Lặp lại nội dung quảng cáo');
-await memberSection.getByRole('button', { name: 'Lưu chính sách thành viên' }).click();
-await memberSection.getByRole('button', { name: 'Product lead', exact: true }).click();
-await memberSection.getByRole('button', { name: 'Chuyển quyền chủ phòng', exact: true }).click();
-await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).getByRole('button', { name: 'Chuyển quyền', exact: true }).click();
-await page.getByRole('dialog', { name: 'Chuyển quyền sở hữu' }).waitFor({ state: 'detached' });
-
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await page.getByRole('heading', { name: 'Members & roles' }).waitFor();
-await page.getByText('Room audit log', { exact: true }).click();
-await page.getByText('Role updated', { exact: true }).waitFor();
+const englishAuditEvent = page.getByText('Role updated', { exact: true });
+if (!await englishAuditEvent.isVisible()) await page.getByText('Room audit log', { exact: true }).click();
+await englishAuditEvent.waitFor();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
@@ -311,7 +330,7 @@ const memberPageRequests = apiRequests.filter((request) => request === `GET /api
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, renderedMemberRows, loadedMemberRowsAfterSecondPage, totalFixtureMembers: directoryMembers.length, memberPageLimits, conversationCursorRequestsBeforeScroll, conversationPageCursors, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -330,9 +349,11 @@ if (
   || ownershipTransfers.length !== 1
   || overflow
   || visibleToastCount > 1
+  || renderedMemberRows >= loadedMemberRowsAfterSecondPage
+  || memberPageLimits.some((limit) => limit !== '50')
   || conversationCursorRequestsBeforeScroll !== 0
   || conversationPageCursors.filter((cursor) => cursor === 'conversation-cursor-1').length !== 1
-  || memberPageRequestsAfterLazyLoad < 2
+  || memberPageRequestsAfterLazyLoad !== 3
   || consoleErrors.length
   || requestFailures.length
 ) process.exitCode = 1;

@@ -1083,6 +1083,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Mã vai trò, ví dụ MODERATOR': 'Role code, for example MODERATOR',
   'Mã vai trò không thể thay đổi:': 'Role code cannot be changed:',
   'Phòng chưa có thành viên.': 'This room has no members.',
+  'Danh sách thành viên': 'Member list',
   'Tải thêm thành viên': 'Load more members',
   'Không thể tải thêm thành viên.': 'Unable to load more members.',
   'Tải tất cả thành viên trước khi xóa vai trò.': 'Load every member before deleting a role.',
