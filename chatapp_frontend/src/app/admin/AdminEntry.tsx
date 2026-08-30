@@ -2,13 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from '@/app/providers/ThemeProvider';
 import { AuthProvider } from '@/app/providers/AuthProvider';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import AdminPage from '@/route-pages/AdminPage';
 import { AppI18nProvider, localizeText } from '@/shared/i18n';
 import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
+import { AppToaster } from '@/shared/ui/AppToaster';
 
 export default function AdminEntry() {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function AdminEntry() {
     <AppI18nProvider>
       <ThemeProvider>
         <AuthProvider>
-          <Toaster position="top-center" />
+          <AppToaster />
           <DeviceLifecycleManager />
           <AdminPage onBackToApp={() => router.push('/app')} />
         </AuthProvider>

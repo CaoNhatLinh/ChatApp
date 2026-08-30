@@ -13,3 +13,7 @@
   colors, radii or shadows.
 - Motion is limited to transform/opacity and must honor reduced motion. Product
   transitions stay within 150-250ms.
+- Use `AppToaster` once per application shell and the shared `notify*` helpers.
+  Success/warning updates share one replaceable feedback slot; errors use one
+  separate actionable slot. Do not create a toast per completed sub-step or
+  mount feature-local global toasters.

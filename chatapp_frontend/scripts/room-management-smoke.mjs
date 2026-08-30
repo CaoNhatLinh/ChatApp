@@ -262,11 +262,12 @@ await page.getByText('Role updated', { exact: true }).waitFor();
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+const visibleToastCount = await page.locator('[role="status"]:visible').count();
 const memberPageRequests = apiRequests.filter((request) => request === `GET /api/conversations/${conversationId}/members`).length;
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/room-management.png', fullPage: true });
 
-const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, createdRoles, updatedRoles, roomPolicies, memberPolicies, roleAssignments, ownershipTransfers, overflow, visibleToastCount, memberPageRequestsAfterLazyLoad, memberPageRequests, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -284,6 +285,7 @@ if (
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
   || overflow
+  || visibleToastCount > 1
   || memberPageRequestsAfterLazyLoad < 2
   || consoleErrors.length
   || requestFailures.length

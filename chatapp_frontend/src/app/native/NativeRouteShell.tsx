@@ -1,7 +1,6 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/app/providers/AuthProvider';
 import { PresenceManager } from '@/app/providers/PresenceManager';
 import { ThemeProvider } from '@/app/providers/ThemeProvider';
@@ -9,6 +8,7 @@ import { AppI18nProvider, localizeText } from '@/shared/i18n';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
 import { NetworkStatusBanner } from '@/shared/ui/NetworkStatusBanner';
+import { AppToaster } from '@/shared/ui/AppToaster';
 import { useEffect, useState } from 'react';
 
 interface NativeRouteShellProps {
@@ -45,7 +45,7 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
             <PresenceManager />
             <DeviceLifecycleManager />
             <NetworkStatusBanner />
-            <Toaster position="top-center" />
+            <AppToaster />
             {children}
           </AuthProvider>
         </ThemeProvider>

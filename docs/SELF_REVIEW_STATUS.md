@@ -1392,6 +1392,15 @@ Correction in this increment:
 | Network cost | Pass | A target visible in multiple scopes still owns only one active server subscription; `resync` now replays only active scopes rather than every reference-count entry | Extreme viewport churn needs profiling | Transfer authorization deliberately without multiplying presence traffic |
 | Regression safety | Pass for available gates | Frontend type-check/lint/build, `test:presence:tracker` (four deterministic transition groups) and `test:e2e:presence` pass with zero console/request failures | Live STOMP/Redis scope transfer remains pending | Keep state-machine proof distinct from browser status-menu and distributed integration proof |
 
+# Follow-up self-review (2026-08-30, bounded transient feedback)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Information density | Pass for global toast surfaces | Shared success/warning notifications replace one feedback slot; errors replace one separate slot; the prior mobile artifact showed five stacked success messages and the corrected room-management artifact shows one | Feature-local `ChatWindowToast` remains a separate single-message surface by design | Keep ephemeral confirmations out of the content hierarchy and never stack completed sub-steps |
+| Responsive behavior | Pass | `AppToaster` applies a 12px viewport inset and a `calc(100vw - 1.5rem)` width cap; 390px room-management smoke reports no overflow | Very long unbroken domain text still depends on the toast renderer's wrapping | Keep transient text concise and move detailed errors inline |
+| Accessibility | Pass at live-region boundary | React Hot Toast retains one polite `role=status` region per visible slot; replacing an ID prevents repeated simultaneous announcements | Manual screen-reader timing review remains pending | Errors remain longer than success feedback and are not hidden behind hover-only UI |
+| Regression safety | Pass for available gates | Type-check/lint/build pass; room-management browser smoke reports `visibleToastCount=1`, zero console/request failures and refreshed screenshot evidence | Authenticated error-plus-success overlap is not separately exercised | Keep the two-slot limit in the shared notification layer so feature code cannot bypass it |
+
 # Follow-up self-review (2026-08-29, unknown DM presence disclosure)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |

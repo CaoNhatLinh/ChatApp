@@ -62,6 +62,12 @@ details with the native `SurfacePanel` disclosure. Never turn an unavailable
 or not-yet-synced value into a guessed status; `unknown` remains visually
 neutral until an authoritative snapshot arrives.
 
+Transient feedback must not become page content. The shared toaster uses a
+mobile-safe width and at most one visible success/warning plus one error slot;
+later messages replace the same slot. Persistent or multi-step information
+belongs inline beside the affected control, not in a stack that obscures the
+workspace.
+
 ## Language
 
 The product supports Vietnamese (`vi`, canonical copy) and English (`en`). The
