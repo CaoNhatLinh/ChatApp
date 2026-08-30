@@ -1,8 +1,8 @@
-# Implementation Plan: NovaChat Canonical Production Rebuild
+# Implementation Plan: Nối Canonical Production Rebuild
 
 ## 1. Outcome
 
-Hoàn thiện NovaChat end-to-end trên một contract duy nhất từ `chat_app_complete.cql` tới Spring Boot và React. Kiến trúc bắt buộc giữ đủ sáu thành phần: Spring Boot, Cassandra, Kafka, Redis, Cloudinary và Elasticsearch. Runtime chỉ sử dụng schema, API và event contract canonical; legacy data/code/compatibility không thuộc phạm vi xử lý.
+Hoàn thiện Nối end-to-end trên một contract duy nhất từ `chat_app_complete.cql` tới Spring Boot và React. Kiến trúc bắt buộc giữ đủ sáu thành phần: Spring Boot, Cassandra, Kafka, Redis, Cloudinary và Elasticsearch. Runtime chỉ sử dụng schema, API và event contract canonical; legacy data/code/compatibility không thuộc phạm vi xử lý.
 
 Kết quả cuối phải chạy được bằng Docker, có API/WebSocket thật, frontend dùng đúng contract, có test tự động và chứng minh được các giới hạn/permission/log/audit mà sản phẩm yêu cầu.
 

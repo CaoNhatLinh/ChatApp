@@ -276,6 +276,8 @@ await roomPanel.getByText('Active', { exact: true }).waitFor();
 const reportPanel = page.locator('details').filter({ hasText: 'Reports & sanctions' });
 await reportPanel.getByText('Repeated unsolicited links.', { exact: true }).waitFor();
 await reportPanel.getByRole('button', { name: 'Select target user' }).click();
+const sanctionDisclosure = reportPanel.locator('details').filter({ hasText: 'Apply user sanction' });
+await sanctionDisclosure.locator('summary').click();
 await reportPanel.getByLabel('Reason code').fill('CONFIRMED_SPAM');
 await reportPanel.getByLabel('Detailed reason (required)').fill('Evidence reviewed by trust and safety.');
 await reportPanel.getByRole('button', { name: 'Resolve' }).click();
@@ -388,5 +390,5 @@ if (
   || quality.unlabeledFields
   || consoleErrors.length
   || requestFailures.length
-  || !/^novachat-audit-\d{4}-\d{2}\.csv$/.test(report.exportedFilename)
+  || !/^noi-audit-\d{4}-\d{2}\.csv$/.test(report.exportedFilename)
 ) process.exitCode = 1;

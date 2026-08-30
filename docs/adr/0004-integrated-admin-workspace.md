@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-NovaChat already has one Spring Boot backend (`chat-service`) and one web client
+Nối already has one Spring Boot backend (`chat-service`) and one web client
 (`chatapp_frontend`). A separate admin project would duplicate authentication,
 authorization, API contracts, design tokens and deployment pipelines before the
 admin domain has a separate scaling or compliance boundary.

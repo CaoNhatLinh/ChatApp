@@ -1,5 +1,5 @@
 /*
- * NovaChat / ChatApp — Canonical Cassandra schema (Apache Cassandra 4.1+)
+ * Nối / ChatApp — Canonical Cassandra schema (Apache Cassandra 4.1+)
  *
  * Purpose
  * -------

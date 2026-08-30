@@ -142,7 +142,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     <motion.div
       className={
         isPageMode
-          ? 'relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card'
+          ? 'relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:flex-row'
           : 'relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:flex-row'
       }
       initial={UI_MOTION_CONFIG.initialState}

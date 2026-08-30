@@ -17,7 +17,7 @@ export const SidebarSearchBar = ({ value, onChange }: SidebarSearchBarProps) => 
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={MESSENGER_COPY.sidebar.search.placeholder}
-          className="pl-10 pr-3"
+          className="border-white/10 bg-white/5 pl-10 pr-3 text-foreground placeholder:text-muted-foreground focus-visible:border-primary/60"
         />
       </div>
     </div>

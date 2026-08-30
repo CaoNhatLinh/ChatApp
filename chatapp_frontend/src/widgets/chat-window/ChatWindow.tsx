@@ -93,7 +93,6 @@ export const ChatWindow = () => {
   const {
     conversations,
     activeConversationId,
-    setSidebarOpen,
     loadMoreMessages,
     loading,
     typingUsers,
@@ -434,24 +433,21 @@ export const ChatWindow = () => {
   return (
     <motion.div
       key={activeConversation.conversationId}
-      className="flex-1 h-full flex z-10 overflow-hidden relative"
+      className="messenger-conversation flex h-full flex-1 overflow-hidden relative z-10"
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={UI_MOTION_VARIANTS.fadeIn}
     >
-      <div className="flex-1 flex flex-col h-full transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300">
+      <div className="flex h-full flex-1 flex-col transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300">
         <ConversationHeader
           conversation={activeConversation}
           isInfoOpen={isInfoOpen}
           isOtherOnline={otherPresence?.isOnline ?? null}
           otherStatusLabel={statusLabel}
-          canGoBack
-          onBack={() => setSidebarOpen(true)}
           onSearch={() => router.push(`/search?conversationId=${activeConversationId}`)}
           onVideoCall={() => startCall("VIDEO")}
           onVoiceCall={() => startCall("VOICE")}
           canCall={canCall}
-          callDisabledReason={localizeText("Gọi trực tiếp hiện chỉ hỗ trợ cuộc trò chuyện 1–1.")}
           onOpenRoomTheme={() => setIsRoomThemeOpen((current) => !current)}
           onToggleInfo={() => setIsInfoOpen((current) => !current)}
         />
@@ -537,7 +533,7 @@ export const ChatWindow = () => {
           }}
         />
 
-        <div className="p-6">
+        <div className="chat-composer-dock p-4 sm:p-6">
           <MessageInput
             key={`${currentUser?.userId ?? 'anonymous'}:${activeConversationId}`}
             replyingTo={replyingTo}
@@ -573,7 +569,7 @@ export const ChatWindow = () => {
       <ReportMessageModal
         message={reportingMessage}
         onClose={() => setReportingMessage(null)}
-        onSubmitted={() => showToast(localizeText("Đã gửi báo cáo. Cảm ơn bạn đã giúp giữ NovaChat an toàn."))}
+        onSubmitted={() => showToast(localizeText("Đã gửi báo cáo. Cảm ơn bạn đã giúp giữ Nối an toàn."))}
       />
 
       <div

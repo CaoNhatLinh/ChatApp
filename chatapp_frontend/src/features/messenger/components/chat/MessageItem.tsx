@@ -11,7 +11,7 @@ import { MentionText } from './MentionText';
 import { PollCard } from '../Poll/PollCard';
 import { usePresence } from '@/features/presence/model/presence.store';
 import { StatusDot } from '@/features/presence/ui/StatusSelector';
-import { Avatar, AvatarImage, AvatarFallback } from '@/shared/ui/Avatar';
+import { Avatar, AvatarImage, AvatarFallback, DefaultUserAvatar } from '@/shared/ui/Avatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -107,8 +107,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                 onClick={() => onUserClick?.(message.sender.userId)}
                             >
                                 <AvatarImage src={message.sender.avatarUrl} />
-                                <AvatarFallback className="bg-primary/10 text-primary font-black uppercase text-xs">
-                                    {message.sender.displayName?.charAt(0)}
+                                <AvatarFallback className="bg-primary/10">
+                                    <DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} />
                                 </AvatarFallback>
                             </Avatar>
                             {presence ? (

@@ -44,4 +44,12 @@ const AvatarFallback = React.forwardRef<
 ));
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
 
-export { Avatar, AvatarImage, AvatarFallback };
+const DefaultUserAvatar = ({ alt = '', className }: { alt?: string; className?: string }) => (
+  <img
+      src="/noi-default-avatar.webp"
+    alt={alt}
+    className={cn('h-full w-full object-cover', className)}
+  />
+);
+
+export { Avatar, AvatarImage, AvatarFallback, DefaultUserAvatar };

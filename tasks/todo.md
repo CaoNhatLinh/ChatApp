@@ -1,4 +1,4 @@
-# NovaChat Canonical Production Rebuild Checklist
+# Nối Canonical Production Rebuild Checklist
 
 > Không đánh dấu `[x]` nếu chưa có test/command evidence. Runtime chỉ expose contract
 > canonical; legacy consumers/data are outside scope and are not restored.

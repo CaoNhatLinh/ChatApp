@@ -42,6 +42,7 @@ let cancelledFriendRequest = null;
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
+page.setDefaultTimeout(5_000);
 const consoleErrors = [];
 const requestFailures = [];
 const realtimeFailures = [];

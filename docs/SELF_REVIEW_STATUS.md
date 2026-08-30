@@ -1,5 +1,25 @@
 # Final documentation and flow self-review (2026-08-28)
 
+## Follow-up self-review (2026-08-30, brand and locale runtime increment)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Brand continuity | Pass for product surfaces and repository documentation | `public/noi-mark.svg`, `src/app/icon.svg`, public metadata, browser captures, root/backend README and contribution guide | Backend/internal storage namespaces retain their existing identifiers intentionally | Product-facing labels and old mark assets were replaced by Nối; session, storage and API identifiers were not renamed because they are live contracts. |
+| Default avatars | Pass | `public/noi-default-avatar.webp`, `Avatar.tsx`, sidebar/profile/mention/member sources | User-uploaded image fallback policy remains server-owned | The default is a non-human connection mascot; initial-letter fallbacks and the rejected human assets are removed. |
+| Composer disclosure | Pass | `MessageInputToolbar.tsx`, mobile capture | Live upload/poll mutation proof still needs the clean backend stack | Mobile places file, media and poll behind one labelled menu; features remain reachable rather than disappearing. |
+| Locale runtime | Pass for audited public and profile routes | `HomePage`, `AboutPage`, `HelpPage`, `PrivacyPage`, `TermsPage`, `test:e2e:locale`, `test:e2e:profile` | Live provider-generated content remains domain data and is intentionally not translated | Static routes subscribe to `useAppLocale()` so toggling language re-renders current content instead of only the shell. |
+| Clean-stack verification | Externally blocked on this host | `docker` is not installed; no listeners on 8084/9042/6379/9092/9200; host Java is 17 while the backend test classes require Java 20 | Cassandra, Redis, Kafka, Elasticsearch and authenticated multi-account realtime proof cannot run locally | No mock or compatibility fallback is introduced; the release gate remains open until the required environment is available. |
+
+Corrections in this increment:
+
+- Replaced the visible product name with **Nối**, including metadata, error/loading states, public legal copy and the operator title.
+- Replaced the product mark and favicon with the compact Connection Paths mark; the supplied personal branding remains separate.
+- Replaced default person/initial avatar fallbacks with the Nối mascot across conversation, profile, contacts, mention and room flows.
+- Fixed a mobile composer regression where generic file attachments were hidden with no reachable action.
+- Fixed public-page locale reactivity and extended the browser locale smoke to assert the English public-route set.
+- Restored the language control inside the focused workspace through the sidebar footer, then removed the duplicated contacts button from that footer so the header remains the single contact entry point.
+- Replaced the remaining community-card initial fallback with the mascot and updated browser journeys to open disclosed filters rather than assuming hidden controls are visible.
+
 This review compares the current implementation, contracts, schema, tests and
 browser evidence after the integrated global-admin increment.
 

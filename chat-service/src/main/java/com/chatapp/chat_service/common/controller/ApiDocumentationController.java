@@ -12,7 +12,7 @@ public class ApiDocumentationController {
     @GetMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE)
     public Map<String, Object> getApiDocumentation() {
         return Map.of(
-                "service", "NovaChat canonical backend",
+                "service", "Nối canonical backend",
                 "runtime", "Spring Boot + Cassandra + Kafka + Redis + Elasticsearch + Cloudinary",
                 "stack", "auth, conversations, messages, polls, invites, notifications, role management, media assets",
                 "basePath", "/api",

@@ -33,10 +33,10 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
   return (
     <AppI18nProvider>
       {!mounted ? (
-        <div className="page-shell flex min-h-[100dvh] items-center justify-center p-6" aria-busy="true" aria-label={localizeText('Đang khởi tạo NovaChat')}>
+        <div className="page-shell flex min-h-[100dvh] items-center justify-center p-6" aria-busy="true" aria-label={localizeText('Đang khởi tạo Nối')}>
           <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-            <img src="/novachat-app-mark.png" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
-            {localizeText('Đang khởi tạo NovaChat')}
+            <img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
+            {localizeText('Đang khởi tạo Nối')}
           </div>
         </div>
       ) : (

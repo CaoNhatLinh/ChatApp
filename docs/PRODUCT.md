@@ -1,8 +1,8 @@
-# NovaChat product contract
+# Nối product contract
 
 ## Purpose
 
-NovaChat is a privacy-conscious, real-time conversation product. People can
+Nối is a privacy-conscious, real-time conversation product. People can
 discover users, establish explicit friendships, start direct or group rooms,
 exchange durable messages and attachments, and receive presence and
 notification feedback without losing history on refresh.

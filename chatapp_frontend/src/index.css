@@ -156,6 +156,80 @@
       var(--background);
   }
 
+  .landing-hero {
+    @apply relative overflow-hidden border-b border-border/70;
+    background:
+      linear-gradient(115deg, color-mix(in oklab, var(--background) 98%, transparent), color-mix(in oklab, var(--background) 72%, transparent)),
+      var(--background);
+  }
+
+  .landing-hero-art {
+    box-shadow: 0 24px 60px -36px color-mix(in oklab, var(--foreground) 55%, transparent);
+  }
+
+  .messenger-workspace {
+    --background: oklch(0.14 0.018 245);
+    --foreground: oklch(0.94 0.012 250);
+    --card: oklch(0.18 0.02 245);
+    --card-foreground: oklch(0.94 0.012 250);
+    --popover: oklch(0.18 0.02 245);
+    --popover-foreground: oklch(0.94 0.012 250);
+    --secondary: oklch(0.22 0.018 245);
+    --secondary-foreground: oklch(0.9 0.012 250);
+    --muted: oklch(0.22 0.018 245);
+    --muted-foreground: oklch(0.7 0.024 250);
+    --accent: oklch(0.25 0.032 245);
+    --accent-foreground: oklch(0.94 0.012 250);
+    --border: oklch(0.3 0.018 245);
+    --input: oklch(0.22 0.018 245);
+    --ring: oklch(0.7 0.17 42);
+    background:
+      radial-gradient(circle at 58% 0%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 32%),
+      var(--background);
+    color: oklch(0.94 0.012 250);
+  }
+
+  .messenger-workspace .text-foreground,
+  .messenger-workspace .text-card-foreground,
+  .messenger-workspace .text-popover-foreground {
+    color: oklch(0.94 0.012 250);
+  }
+
+  .messenger-workspace .text-muted-foreground {
+    color: oklch(0.72 0.024 250);
+  }
+
+  .messenger-workspace ::placeholder {
+    color: oklch(0.62 0.024 250);
+    opacity: 1;
+  }
+
+  .messenger-sidebar {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--card) 92%, transparent), color-mix(in oklab, var(--background) 96%, transparent)),
+      var(--background);
+  }
+
+  .messenger-conversation {
+    background: #071018;
+    color: oklch(0.94 0.012 250);
+  }
+
+  .messenger-workspace .chat-conversation-header {
+    border-color: rgb(255 255 255 / 9%);
+    background: #0d1720;
+    color: oklch(0.94 0.012 250);
+  }
+
+  .messenger-workspace .chat-message-history {
+    background-color: #071018;
+  }
+
+  .messenger-workspace .chat-composer-dock {
+    border-top: 1px solid rgb(255 255 255 / 8%);
+    background: #071018;
+  }
+
   .section-frame {
     @apply border-t border-border/70 py-16 sm:py-20;
   }

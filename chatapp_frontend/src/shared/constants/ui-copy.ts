@@ -1,7 +1,7 @@
 import { localizedCopy } from '@/shared/i18n';
 
 const rawUICopy = {
-  brand: "NovaChat",
+  brand: "Nối",
 
   status: {
     loading: "Đang tải...",
@@ -13,8 +13,8 @@ const rawUICopy = {
   },
 
   shell: {
-    appTitle: "NovaChat",
-    publicTitle: "NovaChat",
+    appTitle: "Nối",
+    publicTitle: "Nối",
     navPublic: [
       { to: "/", label: "Trang chủ" },
       { to: "/about", label: "Giới thiệu" },
@@ -109,7 +109,7 @@ const rawUICopy = {
       },
       {
         category: "public",
-        title: "Về NovaChat",
+        title: "Về Nối",
         path: "/about",
         description: "Tìm hiểu sâu hơn về sản phẩm, tầm nhìn và lợi ích cho làm việc nhóm.",
       },
@@ -183,7 +183,7 @@ const rawUICopy = {
       "Mọi thao tác quan trọng đều được gom trong giao diện thân thiện. Nếu cần hỗ trợ sâu hơn, xem nhanh các bước dưới đây.",
     faqTitle: "Câu hỏi thường gặp",
     tipsTitle: "Bắt đầu nhanh",
-    quickStartButton: "Mở NovaChat",
+    quickStartButton: "Mở Nối",
     supportLine:
       "Bạn đang gặp lỗi kỹ thuật? Vào menu Cài đặt > Hỗ trợ trong app để gửi yêu cầu.",
     faqs: [
@@ -244,11 +244,11 @@ const rawUICopy = {
   terms: {
     title: "Điều khoản sử dụng",
     description:
-      "Khi sử dụng nền tảng NovaChat, bạn đồng ý các điều khoản dưới đây. Các quy định có thể cập nhật theo yêu cầu bảo mật, vận hành dịch vụ và điều kiện pháp lý.",
+      "Khi sử dụng nền tảng Nối, bạn đồng ý các điều khoản dưới đây. Các quy định có thể cập nhật theo yêu cầu bảo mật, vận hành dịch vụ và điều kiện pháp lý.",
     items: [
       {
         title: "1. Quyền dùng",
-        body: "Bạn được phép sử dụng NovaChat để trao đổi thông tin cá nhân, công việc và cộng tác nhóm trong phạm vi hợp lệ theo luật hiện hành.",
+        body: "Bạn được phép sử dụng Nối để trao đổi thông tin cá nhân, công việc và cộng tác nhóm trong phạm vi hợp lệ theo luật hiện hành.",
       },
       {
         title: "2. Tài khoản",
@@ -260,7 +260,7 @@ const rawUICopy = {
       },
       {
         title: "4. Hạn chế trách nhiệm",
-        body: "NovaChat hỗ trợ giao tiếp realtime và công cụ cộng tác; dữ liệu người dùng chấp nhận rủi ro kỹ thuật theo điều kiện vận hành thông thường và được xử lý minh bạch theo Chính sách.",
+        body: "Nối hỗ trợ giao tiếp realtime và công cụ cộng tác; dữ liệu người dùng chấp nhận rủi ro kỹ thuật theo điều kiện vận hành thông thường và được xử lý minh bạch theo Chính sách.",
       },
     ],
     buttonHome: "Về trang chủ",

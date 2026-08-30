@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
-  title: NovaChat Canonical HTTP API
+  title: Nối Canonical HTTP API
   version: 1.0.0
   description: |
-    Source-controlled contract for the authenticated NovaChat web client.
+    Source-controlled contract for the authenticated Nối web client.
     Cassandra remains authoritative; cursors are opaque and must not be decoded by clients.
 servers:
   - url: http://localhost:8084/api

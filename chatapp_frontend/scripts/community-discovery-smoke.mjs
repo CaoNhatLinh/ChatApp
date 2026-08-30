@@ -46,6 +46,7 @@ const communities = [
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.setDefaultTimeout(5_000);
 const consoleErrors = [];
 const requestFailures = [];
 const apiRequests = [];
@@ -99,10 +100,11 @@ await page.addInitScript(() => {
 });
 
 await page.goto(`${baseUrl}/communities`, { waitUntil: 'domcontentloaded' });
-await page.getByRole('heading', { name: 'Tìm nơi dành cho điều bạn quan tâm.' }).waitFor();
+await page.getByRole('heading', { name: 'Tìm một cuộc trò chuyện có chung mối quan tâm.' }).waitFor();
 await page.getByRole('heading', { name: 'Product Việt Nam' }).waitFor();
 await page.getByRole('button', { name: 'Gửi yêu cầu' }).click();
 await page.getByRole('button', { name: 'Đang chờ duyệt' }).waitFor();
+await page.getByText('Bộ lọc', { exact: true }).click();
 const categoryResponse = page.waitForResponse((response) => {
   const url = new URL(response.url());
   return url.pathname.endsWith('/communities') && url.searchParams.get('categoryId') === 'Sản phẩm';
@@ -131,7 +133,7 @@ const englishResponse = page.waitForResponse((response) => {
 });
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
 await englishResponse;
-await page.getByRole('heading', { name: 'Find where your interests belong.' }).waitFor();
+await page.getByRole('heading', { name: 'Find a conversation around a shared interest.' }).waitFor();
 await page.getByRole('heading', { name: 'Frontend Sài Gòn' }).waitFor();
 await page.getByRole('heading', { name: 'Product Việt Nam' }).waitFor({ state: 'detached' });
 const englishNav = await page.getByRole('link', { name: 'Community', exact: true }).count();

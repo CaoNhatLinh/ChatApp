@@ -1,4 +1,4 @@
-# NovaChat design system
+# Nối design system
 
 This is the canonical visual contract for the frontend. Tokens live in
 `chatapp_frontend/src/index.css`; component defaults live under
@@ -11,10 +11,17 @@ language. The landing page may be expressive and asymmetric; product and admin
 screens stay familiar and state-first.
 
 Brand assets are intentionally separated: the personal mark supplied by the
-owner is reference-only, while the app uses the NovaChat mark at
-`chatapp_frontend/public/novachat-app-mark.png`. Shared shells, loading states
-and operator surfaces use the app mark; personal-brand artwork is never used as
-the product identity.
+owner is reference-only. Nối uses the independent Connection Paths mark at
+`chatapp_frontend/public/noi-mark.svg` and the matching app icon at
+`chatapp_frontend/src/app/icon.svg`. Two distinct paths meet without becoming
+one; it expresses intentional connection while remaining legible at favicon
+size. Shared loading states and operator surfaces use the app mark; personal
+brand artwork is never used as the product identity.
+
+Generated editorial artwork is used only where it creates a branded moment,
+such as the landing hero. It is not used as a substitute for product UI,
+status, navigation, empty-state explanation or data visualization. The first
+approved landing asset is `chatapp_frontend/public/noi-relay-hero.png`.
 
 ## Token contract
 
@@ -74,6 +81,33 @@ carry the same meaning. A card must not repeat an action's meaning in an
 adjacent label (for example, “Join now” beside “Join community”); keep only
 authoritative state, constraints and the named action.
 
+Messenger uses an ink workspace rather than inheriting the surrounding page
+canvas. Its three responsibilities are stable at desktop width: conversation
+directory, active conversation, and an on-demand context panel. On mobile the
+directory is a separate returnable layer and the active header keeps only the
+title plus search/context actions. Do not show disabled calls, room appearance,
+or every composer option merely because space exists.
+
+Composer actions are classified by frequency and prerequisite:
+
+| Tier | Actions | Presentation |
+|---|---|---|
+| Immediate | emoji, send | always visible |
+| Advanced | file, photo/video, poll | direct on larger screens; **Tùy chọn khác** menu on mobile |
+| Conditional | voice call | only when the current conversation is an eligible 1:1 chat |
+
+Avatar fallbacks use `public/noi-default-avatar.webp`, a small non-human mascot
+with a connection orbit, optimized for small circular crops. Do not fall back
+to a user's initials or a brand logo.
+
+Other advanced capabilities follow the same rule: room appearance, members,
+permissions and notification policy live behind the conversation context
+action; community filters use their native disclosure; account security and
+report history live in Settings; global sanctions, audit detail and exports
+live in the separate server-gated Admin workspace. Keep a feature inline only
+when it is needed to complete the user's current task or changes the current
+state.
+
 ## Language
 
 The product supports Vietnamese (`vi`, canonical copy) and English (`en`). The
@@ -83,3 +117,9 @@ and local storage and updates the document language. New user-visible strings
 must be added to `COPY_TRANSLATIONS` with concise, reviewed translations rather
 than silently falling back to guessed text. User-generated content, protocol
 enums and opaque IDs are not translated.
+
+Any route or component that renders localized static copy must subscribe with
+`useAppLocale()` (and be a client component when necessary). Calling
+`localizeText()` during a render without that subscription produces a page that
+does not update after the language toggle changes; locale smoke covers the
+public route set to prevent that regression.

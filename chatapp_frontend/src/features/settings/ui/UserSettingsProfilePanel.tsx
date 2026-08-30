@@ -30,8 +30,6 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
   const avatarUrlInputRef = useRef<HTMLInputElement>(null);
   const [showAvatarHint, setShowAvatarHint] = useState(false);
 
-  const initials = displayName.trim().charAt(0).toUpperCase();
-
   const handleOpenAvatarInput = () => {
     setShowAvatarHint(true);
     avatarUrlInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -66,11 +64,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
         >
           {avatarUrl ? (
             <img src={avatarUrl} alt={localizeText('Ảnh đại diện')} className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-3xl font-black text-primary">
-              {initials}
-            </span>
-          )}
+          ) : <img src="/noi-default-avatar.webp" alt={localizeText('Ảnh đại diện mặc định')} className="h-full w-full object-cover" />}
           <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-primary-foreground grid place-items-center">
             <span className="text-xs font-bold">{localizeText('Đổi')}</span>
           </span>

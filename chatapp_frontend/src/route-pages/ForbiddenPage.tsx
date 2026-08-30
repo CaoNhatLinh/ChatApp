@@ -1,12 +1,13 @@
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 export const ForbiddenPage = () => {
   const router = useRouter();
+  const { locale } = useAppLocale();
 
   return (
-    <main className="page-shell flex min-h-[100dvh] items-center justify-center px-6 py-12 text-foreground">
+    <main className="page-shell flex min-h-[100dvh] items-center justify-center px-6 py-12 text-foreground" lang={locale}>
       <section className="w-full max-w-xl" aria-labelledby="forbidden-title">
         <div className="brand-mark bg-destructive text-destructive-foreground">
           <ShieldAlert size={30} aria-hidden="true" />

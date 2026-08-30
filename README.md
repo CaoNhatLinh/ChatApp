@@ -1,6 +1,6 @@
-# NovaChat (ChatApp) - Monorepo
+# Nối (ChatApp) - Monorepo
 
-Welcome to the **NovaChat** repository. This is a complete, real-time chat application designed with a microservices-inspired architecture, featuring a robust backend and a modern frontend interface.
+Welcome to the **Nối** repository. This is a complete, real-time chat application designed with a microservices-inspired architecture, featuring a robust backend and a modern frontend interface.
 
 ## 📂 Project Structure
 

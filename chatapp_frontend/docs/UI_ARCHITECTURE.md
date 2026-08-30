@@ -1,4 +1,4 @@
-# NovaChat UI Architecture
+# Nối UI Architecture
 
 ## Scope
 

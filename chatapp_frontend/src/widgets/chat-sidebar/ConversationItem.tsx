@@ -82,7 +82,6 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const isLastMsgBlocked = lastMsg?.senderId ? blockedUserIds.has(lastMsg.senderId) : false;
   const unreadCount = conversation.unreadCount;
 
-  const displayAvatar = conversation.name.trim().charAt(0);
   const activeClass = isActive
     ? 'bg-primary/10 border-primary/30 text-foreground'
     : 'border-transparent hover:bg-background/60';
@@ -133,16 +132,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         >
           {isDM && otherUser?.avatarUrl ? (
             <img src={otherUser.avatarUrl} alt={localizeText('Ảnh đại diện')} className="h-full w-full object-cover" />
-          ) : (
-            <div
-              className={cn(
-                'h-full w-full flex items-center justify-center font-semibold text-sm',
-                isActive ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary',
-              )}
-            >
-              {displayAvatar}
-            </div>
-          )}
+          ) : <img src="/noi-default-avatar.webp" alt={localizeText('Ảnh đại diện mặc định')} className="h-full w-full object-cover" />}
         </div>
 
         {isDM && otherPresence ? (

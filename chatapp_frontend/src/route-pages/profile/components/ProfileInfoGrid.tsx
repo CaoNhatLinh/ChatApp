@@ -10,18 +10,18 @@ export const ProfileInfoGrid = ({
   userName,
 }: ProfileInfoGridProps) => {
   return (
-    <section className="product-surface p-6">
+    <section className="border-b border-border px-0 py-6 md:pl-8">
       <p className="page-kicker">{localizeText('Thông tin tài khoản')}</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[var(--radius-md)] border border-border p-4">
-          <p className="text-xs text-muted-foreground mb-1">{localizeText('Mã người dùng')}</p>
-          <p className="font-medium break-all">{userId}</p>
+      <dl className="mt-4 divide-y divide-border border-y border-border">
+        <div className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-4">
+          <dt className="text-xs text-muted-foreground">{localizeText('Mã người dùng')}</dt>
+          <dd className="font-medium break-all">{userId}</dd>
         </div>
-        <div className="rounded-[var(--radius-md)] border border-border p-4">
-          <p className="text-xs text-muted-foreground mb-1">{localizeText('Tên đăng nhập')}</p>
-          <p className="font-medium">{userName}</p>
+        <div className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr] sm:items-baseline sm:gap-4">
+          <dt className="text-xs text-muted-foreground">{localizeText('Tên đăng nhập')}</dt>
+          <dd className="font-medium">{userName}</dd>
         </div>
-      </div>
+      </dl>
     </section>
   );
 };

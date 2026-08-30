@@ -221,7 +221,6 @@ const rawMessengerCopy = {
       emptyMessage: "Bắt đầu kết nối với bạn bè của bạn trong không gian trò chuyện mới.",
     },
     header: {
-      goBackLabel: "Quay lại danh sách",
       searchTooltip: "Tìm trong cuộc trò chuyện",
       themeTooltip: "Thiết lập chủ đề phòng",
       themeInfo: "Mở/đóng thông tin phòng",

@@ -1,4 +1,4 @@
-# NovaChat Backend Architecture
+# Nối Backend Architecture
 
 ## Canonical runtime
 

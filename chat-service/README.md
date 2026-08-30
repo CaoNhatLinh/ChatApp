@@ -1,6 +1,6 @@
-# NovaChat Backend (Canonical Runtime)
+# Nối Backend (Canonical Runtime)
 
-Backend của NovaChat dùng mô hình dữ liệu **Cassandra-first**, realtime STOMP
+Backend của Nối dùng mô hình dữ liệu **Cassandra-first**, realtime STOMP
 và một contract duy nhất. Runtime không đọc schema/API legacy và không có
 mock-success fallback.
 

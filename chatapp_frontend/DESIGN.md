@@ -1,15 +1,15 @@
 ---
-name: NovaChat
+name: Nối
 description: A privacy-conscious realtime conversation product with a focused workspace and a global operator surface.
 platform: web
 register: adaptive
 ---
 
-# NovaChat design system
+# Nối design system
 
 ## Direction
 
-NovaChat uses a signal-orange accent over a cool ink canvas. The landing surface
+Nối uses a signal-orange accent over a cool ink canvas. The landing surface
 is confident and editorial, while signed-in screens stay quiet and operational.
 The product should feel like a reliable relay: every state is visible, every
 action has a clear place, and nothing ornamental competes with the conversation.
@@ -57,8 +57,8 @@ maximum prose width of 65-75ch.
 
 ## Landing art direction
 
-The landing uses a split hero and a generated NovaChat signal image at
-`public/novachat-hero.png`. Copy stays concrete and short. No decorative
+The landing uses a split hero and a generated Nối signal image at
+`public/noi-relay-hero.png`. Copy stays concrete and short. No decorative
 version labels, fake metrics, generic logo walls, repeated eyebrows, or
 duplicate CTA intents.
 

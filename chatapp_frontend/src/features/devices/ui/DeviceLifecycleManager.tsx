@@ -43,7 +43,7 @@ export function DeviceLifecycleManager(): null {
             deviceId,
             platform: 'WEB',
             pushProvider: 'WEB_PUSH',
-            deviceName: 'NovaChat Web',
+            deviceName: 'Nối Web',
           });
         } else {
           await heartbeatWebDevice(deviceId);

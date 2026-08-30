@@ -1,6 +1,6 @@
 # Frontend–backend integration
 
-NovaChat runs as one Next.js frontend and one Spring Boot backend. The
+Nối runs as one Next.js frontend and one Spring Boot backend. The
 frontend uses only the canonical contracts in
 [`../docs/api/openapi.yaml`](../docs/api/openapi.yaml) and
 [`../docs/api/asyncapi.yaml`](../docs/api/asyncapi.yaml).

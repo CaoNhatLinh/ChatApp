@@ -1,6 +1,6 @@
-# Contributing to NovaChat Backend
+# Contributing to Nối Backend
 
-Thank you for your interest in contributing to NovaChat Backend! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Nối Backend! This document provides guidelines and instructions for contributing.
 
 ## 📋 Table of Contents
 
@@ -46,13 +46,13 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 1. **Fork the repository**
 ```bash
 # Fork on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/NovaChat-backend.git
-cd NovaChat-backend
+git clone https://github.com/YOUR_USERNAME/noi-chat.git
+cd noi-chat
 ```
 
 2. **Add upstream remote**
 ```bash
-git remote add upstream https://github.com/CaoNhatLinh/NovaChat-backend.git
+git remote add upstream https://github.com/CaoNhatLinh/noi-chat.git
 ```
 
 3. **Start dependencies**
@@ -456,8 +456,8 @@ When adding features, update:
 
 ### Questions?
 
-- Open a [GitHub Discussion](https://github.com/CaoNhatLinh/NovaChat-backend/discussions)
-- Check existing [Issues](https://github.com/CaoNhatLinh/NovaChat-backend/issues)
+- Open a [GitHub Discussion](https://github.com/CaoNhatLinh/noi-chat/discussions)
+- Check existing [Issues](https://github.com/CaoNhatLinh/noi-chat/issues)
 - Read the [Documentation](./docs)
 
 ### Found a Bug?
@@ -494,4 +494,4 @@ By contributing, you agree that your contributions will be licensed under the sa
 
 ---
 
-**Thank you for contributing to NovaChat Backend!** 🚀
+**Thank you for contributing to Nối Backend!** 🚀

@@ -1,13 +1,18 @@
+"use client";
+
 import { LockKeyhole } from "lucide-react";
 import { PublicPageShell } from "@/route-pages/shared/PublicPageShell";
 import { PrivacyPolicyCards } from "@/route-pages/privacy/components/PrivacyPolicyCards";
 import { PrivacyPageCta } from "@/route-pages/privacy/components/PrivacyPageCta";
 import { UI_COPY } from "@/shared/constants/ui-copy";
+import { useAppLocale } from "@/shared/i18n";
 
 export const PrivacyPage = () => {
+  const { locale } = useAppLocale();
+
   return (
     <PublicPageShell>
-      <div className="layout-shell py-14 lg:py-20">
+      <div className="layout-shell py-14 lg:py-20" lang={locale}>
         <div className="grid gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:gap-20">
           <div className="page-intro">
             <span className="brand-mark h-11 w-11 rounded-[0.7rem]"><LockKeyhole size={20} aria-hidden="true" /></span>

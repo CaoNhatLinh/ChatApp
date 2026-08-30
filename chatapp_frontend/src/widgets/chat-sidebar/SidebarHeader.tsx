@@ -2,7 +2,6 @@ import { Plus, Settings, Users } from "lucide-react";
 import { NotificationButton } from "@/features/notifications/components/notification/NotificationList";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
-import { BrandMark } from "@/shared/ui/Brand";
 
 interface SidebarHeaderProps {
   friendRequestCount: number;
@@ -25,14 +24,8 @@ export const SidebarHeader = ({
 }: SidebarHeaderProps) => {
   return (
     <div className="border-b border-border px-4 py-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <div className="mb-2 flex items-center gap-2">
-            <BrandMark className="h-6 w-6 rounded-[0.45rem]" />
-            <p className="page-kicker">NovaChat</p>
-          </div>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight">{MESSENGER_COPY.sidebar.title}</h2>
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-[-0.02em]">{MESSENGER_COPY.sidebar.title}</h2>
         <div className="flex items-center gap-2">
           <NotificationButton
             unreadCount={unreadNotification}
@@ -45,7 +38,7 @@ export const SidebarHeader = ({
             size="icon"
             onClick={onOpenContacts}
             aria-label={MESSENGER_COPY.sidebar.header.contactsAriaLabel}
-            className={friendRequestCount > 0 ? "text-primary border-primary/40" : undefined}
+            className={friendRequestCount > 0 ? "border-primary/40 text-primary" : "border-white/10 bg-transparent text-foreground hover:bg-white/6"}
             title={MESSENGER_COPY.sidebar.header.contactsTitle}
           >
             <Users size={18} />
@@ -62,6 +55,7 @@ export const SidebarHeader = ({
             onClick={onOpenCreateRoom}
             aria-label={MESSENGER_COPY.sidebar.header.createRoomAriaLabel}
             title={MESSENGER_COPY.sidebar.header.createRoomTitle}
+            className="border-white/10 bg-transparent text-foreground hover:bg-white/6"
           >
             <Plus size={18} />
           </Button>
@@ -72,6 +66,7 @@ export const SidebarHeader = ({
             onClick={onOpenSettings}
             aria-label={MESSENGER_COPY.sidebar.header.settingsAriaLabel}
             title={MESSENGER_COPY.sidebar.header.settingsTitle}
+            className="border-white/10 bg-transparent text-foreground hover:bg-white/6"
           >
             <Settings size={18} />
           </Button>

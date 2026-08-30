@@ -1,4 +1,4 @@
-# NovaChat Social And Messaging Technical Guide
+# Nối Social And Messaging Technical Guide
 
 This document describes the current cross-layer behavior for friendship, block, notifications, unread/read state, pinning, reply, attachments, and presence across:
 

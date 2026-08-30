@@ -1,7 +1,13 @@
-import { BarChart3, Check, Image, Mic, Paperclip, Send, Smile } from "lucide-react";
+import { BarChart3, Check, Ellipsis, Image, Mic, Paperclip, Send, Smile } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { localizeText, useAppLocale } from '@/shared/i18n';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/ui/DropdownMenu';
 
 interface MessageInputToolbarProps {
   onAttachFile: () => void;
@@ -39,7 +45,7 @@ export const MessageInputToolbar = ({
           variant="ghost"
           size="icon"
           aria-label={MESSENGER_COPY.messageInput.toolbar.attachFile}
-          className="text-muted-foreground hover:text-primary"
+          className="hidden text-muted-foreground hover:text-primary sm:inline-flex"
           title={MESSENGER_COPY.messageInput.toolbar.attachFile}
         >
           <Paperclip size={19} />
@@ -50,7 +56,7 @@ export const MessageInputToolbar = ({
           variant="ghost"
           size="icon"
           aria-label={MESSENGER_COPY.messageInput.toolbar.attachMedia}
-          className="text-muted-foreground hover:text-primary"
+          className="hidden text-muted-foreground hover:text-primary sm:inline-flex"
           title={MESSENGER_COPY.messageInput.toolbar.attachMedia}
         >
           <Image size={19} />
@@ -84,18 +90,50 @@ export const MessageInputToolbar = ({
         >
           <Smile size={19} />
         </Button> : null}
-        <Button
-          onClick={onShowVoice}
-          disabled={!canShowVoice}
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={canShowVoice ? MESSENGER_COPY.messageInput.toolbar.callVoice : localizeText("Gọi trực tiếp chỉ hỗ trợ chat 1–1")}
-          className="text-muted-foreground hover:text-primary"
-          title={canShowVoice ? MESSENGER_COPY.messageInput.toolbar.callVoice : localizeText("Gọi trực tiếp chỉ hỗ trợ chat 1–1")}
-        >
-          <Mic size={19} />
-        </Button>
+        {canShowVoice ? (
+          <Button
+            onClick={onShowVoice}
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={MESSENGER_COPY.messageInput.toolbar.callVoice}
+            className="hidden text-muted-foreground hover:text-primary sm:inline-flex"
+            title={MESSENGER_COPY.messageInput.toolbar.callVoice}
+          >
+            <Mic size={19} />
+          </Button>
+        ) : null}
+
+        {!isEditing ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={localizeText('Tùy chọn khác')}
+                title={localizeText('Tùy chọn khác')}
+                className="text-muted-foreground hover:text-primary sm:hidden"
+              >
+                <Ellipsis size={19} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="min-w-48 border-white/10 bg-[#111922] text-slate-100">
+              <DropdownMenuItem onSelect={onAttachFile} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+                <Paperclip size={16} aria-hidden="true" />
+                {MESSENGER_COPY.messageInput.toolbar.attachFile}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onAttachMedia} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+                <Image size={16} aria-hidden="true" />
+                {MESSENGER_COPY.messageInput.toolbar.attachMedia}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenPoll} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+                <BarChart3 size={16} aria-hidden="true" />
+                {MESSENGER_COPY.messageInput.toolbar.createPoll}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
 
       <Button

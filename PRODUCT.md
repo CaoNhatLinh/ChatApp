@@ -1,8 +1,8 @@
-# NovaChat product contract
+# Nối product contract
 
 ## Purpose
 
-NovaChat is a privacy-conscious, real-time conversation product: people discover
+Nối is a privacy-conscious, real-time conversation product: people discover
 other users, establish explicit friendships, start direct or group conversations,
 exchange durable messages and attachments, and receive presence/notification
 feedback without losing history on refresh.
@@ -30,7 +30,7 @@ capabilities rather than mocked as complete.
 
 ## Product assumptions
 
-No separate product brief was supplied. The existing NovaChat `DESIGN.md`, route
+No separate product brief was supplied. The existing Nối `DESIGN.md`, route
 copy, schema, and implemented controllers are treated as the authoritative
 working brief; any conflict must be recorded as an ADR before implementation.
 

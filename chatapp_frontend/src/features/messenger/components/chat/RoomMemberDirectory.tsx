@@ -3,7 +3,7 @@ import { ChevronDown, Crown, UserMinus } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import type { ConversationMember } from '@/features/messenger/types/messenger.types';
 import type { ConversationPermissionsView, ConversationRole } from '@/features/messenger/api/messenger.api';
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/Avatar';
+import { Avatar, AvatarFallback, AvatarImage, DefaultUserAvatar } from '@/shared/ui/Avatar';
 import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { localizeText } from '@/shared/i18n';
@@ -100,7 +100,7 @@ function RoomMemberSummary({ member, conversationId, memberRoles, isOwner, isSel
     <>
       <Avatar className="h-9 w-9 shrink-0">
         <AvatarImage src={member.avatarUrl} alt="" />
-        <AvatarFallback>{member.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
+        <AvatarFallback><DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} /></AvatarFallback>
       </Avatar>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 truncate text-sm font-semibold">

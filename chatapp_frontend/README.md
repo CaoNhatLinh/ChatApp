@@ -1,4 +1,4 @@
-# NovaChat frontend
+# Nối frontend
 
 The frontend is a Next.js 16 App Router application with React 19 and
 TypeScript. Next is the only supported development, build, and production

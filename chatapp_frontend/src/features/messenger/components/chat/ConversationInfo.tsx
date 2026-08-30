@@ -6,7 +6,7 @@ import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { friendApi } from '@/features/relationships/api/friends.api';
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/Avatar';
+import { Avatar, AvatarFallback, AvatarImage, DefaultUserAvatar } from '@/shared/ui/Avatar';
 import { Button } from '@/shared/ui/Button';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
@@ -252,8 +252,8 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     <div className="relative group">
                         <Avatar className="w-24 h-24 rounded-3xl border-4 border-background neo-shadow transition-transform hover:scale-105">
                             <AvatarImage src={activeConv.otherParticipant?.avatarUrl} />
-                            <AvatarFallback className="bg-primary/10 text-primary text-4xl font-black uppercase">
-                                {activeConv.name.charAt(0)}
+                            <AvatarFallback className="bg-primary/10">
+                                <DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} />
                             </AvatarFallback>
                         </Avatar>
                     </div>

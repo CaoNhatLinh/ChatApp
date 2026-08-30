@@ -9,6 +9,7 @@ interface AppPageShellProps {
   children: ReactNode;
   contentClassName?: string;
   fullWidth?: boolean;
+  showHeader?: boolean;
 }
 
 export const AppPageShell = ({
@@ -17,6 +18,7 @@ export const AppPageShell = ({
   children,
   contentClassName,
   fullWidth = false,
+  showHeader = true,
 }: AppPageShellProps) => {
   const contentClasses = cn(
       "relative z-10 pb-12 pt-6",
@@ -26,7 +28,7 @@ export const AppPageShell = ({
 
   return (
     <ShellFrame ambient="normal">
-      <AppShellHeader title={title} actions={actions} />
+      {showHeader ? <AppShellHeader title={title} actions={actions} /> : null}
       <main className={contentClasses}>{children}</main>
     </ShellFrame>
   );

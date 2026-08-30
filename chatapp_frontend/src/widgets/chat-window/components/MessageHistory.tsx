@@ -51,7 +51,7 @@ export const MessageHistory = ({
   return (
     <div
       ref={scrollRef}
-      className="custom-scrollbar flex-1 space-y-6 overflow-y-auto bg-background/70 p-6"
+      className="chat-message-history custom-scrollbar flex-1 space-y-6 overflow-y-auto p-4 sm:p-6"
       style={roomStyle}
     >
       {hasNext ? (

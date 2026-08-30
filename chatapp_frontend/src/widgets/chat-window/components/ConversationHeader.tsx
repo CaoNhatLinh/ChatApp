@@ -1,4 +1,4 @@
-import { ArrowLeft, Info, MessageSquare, Palette, Phone, Search, Video } from "lucide-react";
+import { Info, MessageSquare, Palette, Phone, Search, Video } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { SurfacePanel } from "@/shared/ui/SurfacePanel";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
@@ -9,15 +9,12 @@ interface ConversationHeaderProps {
   isInfoOpen: boolean;
   isOtherOnline: boolean | null;
   otherStatusLabel: string | null;
-  canGoBack: boolean;
   onSearch: () => void;
-  onBack: () => void;
   onToggleInfo: () => void;
   onVideoCall: () => void;
   onVoiceCall: () => void;
   onOpenRoomTheme: () => void;
   canCall: boolean;
-  callDisabledReason: string;
 }
 
 export const ConversationHeader = ({
@@ -25,15 +22,12 @@ export const ConversationHeader = ({
   isInfoOpen,
   isOtherOnline,
   otherStatusLabel,
-  canGoBack,
   onSearch,
-  onBack,
   onToggleInfo,
   onVideoCall,
   onVoiceCall,
   onOpenRoomTheme,
   canCall,
-  callDisabledReason,
 }: ConversationHeaderProps) => {
   const isGroup = conversation.type === "group";
   const title = conversation.name;
@@ -42,21 +36,9 @@ export const ConversationHeader = ({
   const statusClassName = isGroup || isOtherOnline !== true ? "text-muted-foreground" : "text-primary";
 
   return (
-    <SurfacePanel className="rounded-none border-x-0 border-t-0 shadow-none">
-      <div className="flex items-center justify-between gap-4 p-4">
+    <SurfacePanel className="chat-conversation-header rounded-none border-x-0 border-t-0 shadow-none">
+      <div className="flex items-center justify-between gap-4 px-4 py-4 pl-20 md:pl-4">
         <div className="min-w-0 flex items-center gap-3">
-          {canGoBack ? (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onBack}
-              className="rounded-full bg-card/40"
-              aria-label={MESSENGER_COPY.chatWindow.header.goBackLabel}
-            >
-              <ArrowLeft size={18} />
-            </Button>
-          ) : null}
-
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>
             {statusLabel ? <p className={`text-xs font-medium ${statusClassName}`}>
@@ -72,7 +54,7 @@ export const ConversationHeader = ({
             onClick={onOpenRoomTheme}
             aria-label={MESSENGER_COPY.chatWindow.header.themeTooltip}
             title={MESSENGER_COPY.chatWindow.header.themeTooltip}
-            className="rounded-full"
+            className="hidden rounded-full sm:inline-flex"
           >
             <Palette size={18} />
           </Button>
@@ -87,29 +69,31 @@ export const ConversationHeader = ({
             <Search size={18} />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onVoiceCall}
-            disabled={!canCall}
-            aria-label={MESSENGER_COPY.chatWindow.header.voiceTooltip}
-            title={canCall ? MESSENGER_COPY.chatWindow.header.voiceTooltip : callDisabledReason}
-            className="rounded-full"
-          >
-            <Phone size={18} />
-          </Button>
+          {canCall ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onVoiceCall}
+                aria-label={MESSENGER_COPY.chatWindow.header.voiceTooltip}
+                title={MESSENGER_COPY.chatWindow.header.voiceTooltip}
+                className="rounded-full"
+              >
+                <Phone size={18} />
+              </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onVideoCall}
-            disabled={!canCall}
-            aria-label={MESSENGER_COPY.chatWindow.header.videoTooltip}
-            title={canCall ? MESSENGER_COPY.chatWindow.header.videoTooltip : callDisabledReason}
-            className="rounded-full"
-          >
-            <Video size={18} />
-          </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onVideoCall}
+                aria-label={MESSENGER_COPY.chatWindow.header.videoTooltip}
+                title={MESSENGER_COPY.chatWindow.header.videoTooltip}
+                className="rounded-full"
+              >
+                <Video size={18} />
+              </Button>
+            </>
+          ) : null}
 
           <Button
             variant="ghost"

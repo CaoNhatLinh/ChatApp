@@ -317,7 +317,7 @@ export const MentionMenu: React.FC<MentionMenuProps> = ({
                                     ) : (
                                         member.avatarUrl
                                             ? <img src={member.avatarUrl} alt="" className="w-full h-full object-cover rounded-lg" />
-                                            : member.displayName.charAt(0)
+                                            : <img src="/noi-default-avatar.webp" alt={localizeText('Ảnh đại diện mặc định')} className="h-full w-full rounded-lg object-cover" />
                                     )}
                                 </div>
 

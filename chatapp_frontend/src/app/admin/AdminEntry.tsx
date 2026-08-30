@@ -25,7 +25,7 @@ export default function AdminEntry() {
   }, [loading, router, token, user]);
 
   if (loading || !token || !user) {
-    return <AppI18nProvider><div className="page-shell flex min-h-[100dvh] items-center justify-center p-6"><div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground"><img src="/novachat-app-mark.png" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />{localizeText('Đang kiểm tra phiên quản trị...')}</div></div></AppI18nProvider>;
+    return <AppI18nProvider><div className="page-shell flex min-h-[100dvh] items-center justify-center p-6"><div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground"><img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />{localizeText('Đang kiểm tra phiên quản trị...')}</div></div></AppI18nProvider>;
   }
 
   return (

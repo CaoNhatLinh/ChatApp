@@ -1,4 +1,4 @@
-# NovaChat End-to-End Function Audit
+# Nối End-to-End Function Audit
 
 Audit date: 2026-08-29 (Asia/Saigon)
 

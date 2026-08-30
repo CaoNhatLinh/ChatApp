@@ -133,7 +133,7 @@ export const ChatSidebar = () => {
   }, [markEverythingAsRead]);
 
   return (
-    <aside className="h-full w-[320px] max-w-full flex-shrink-0 border-r border-border bg-background flex flex-col">
+    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 text-foreground md:w-[320px]">
       <SidebarHeader
         friendRequestCount={friendRequestCount}
         unreadNotification={notificationUnreadCount}
@@ -163,7 +163,6 @@ export const ChatSidebar = () => {
 
       <SidebarFooter
         user={user}
-        onOpenContacts={() => setActiveView('contacts')}
         onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
       />
 

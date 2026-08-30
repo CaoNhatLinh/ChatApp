@@ -28,23 +28,23 @@ const quickLinks = [
 
 export const ProfileQuickLinks = () => {
   return (
-    <section className="product-surface p-6">
+    <section className="border-b border-border py-6 md:pl-8">
       <p className="page-kicker">
         {localizeText(UI_COPY.profile.quickLinksTitle)}
       </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 divide-y divide-border border-y border-border">
         {quickLinks.map((link) => {
           const Icon = link.icon;
           return (
             <Link
               key={link.to}
               href={link.to}
-              className="focus-ring inline-flex items-center justify-between rounded-[var(--radius-md)] border border-border px-4 py-3 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
+              className="focus-ring flex items-center justify-between gap-3 py-3 text-sm font-semibold transition-colors hover:text-primary"
             >
               <span className="inline-flex items-center gap-2">
                 <Icon size={16} />
                 {localizeText(link.label)}
-              </span>
+              </span><span aria-hidden="true">↗</span>
             </Link>
           );
         })}

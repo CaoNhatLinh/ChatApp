@@ -44,7 +44,7 @@ public class AdminAuditController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"novachat-audit-" + normalizedMonth + ".csv\"")
+                        "attachment; filename=\"noi-audit-" + normalizedMonth + ".csv\"")
                 .body(body);
     }
 }

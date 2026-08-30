@@ -9,10 +9,11 @@ import { PROFILE_COPY } from "@/route-pages/profile/constants/profile.constants"
 import { ProfilePageSkeleton } from "@/route-pages/profile/components/ProfilePageSkeleton";
 import { motion } from "framer-motion";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 export const ProfilePage = () => {
   const { user, loading } = useAuthStore();
+  const { locale } = useAppLocale();
 
   if (loading) {
     return (
@@ -30,11 +31,10 @@ export const ProfilePage = () => {
   }
 
   const display = user.displayName;
-  const avatarText = display.trim().charAt(0).toUpperCase();
-
   return (
     <AppPageShell>
       <motion.main
+        lang={locale}
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.panelReveal}
@@ -42,13 +42,12 @@ export const ProfilePage = () => {
         <header className="mb-7">
           <p className="page-kicker">{localizeText('Tài khoản')}</p>
           <h1 className="text-3xl font-bold tracking-[-0.03em]">{localizeText('Hồ sơ của bạn')}</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{localizeText('Thông tin nhận diện và các lối tắt quan trọng trong NovaChat.')}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{localizeText('Thông tin nhận diện và các lối tắt quan trọng trong Nối.')}</p>
         </header>
-        <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+        <div className="grid gap-0 border-y border-border md:grid-cols-[220px_1fr]">
           <ProfileIdentityCard
             display={display}
             userName={user.userName}
-            avatarText={avatarText}
           />
           <section className="space-y-4">
             <ProfileInfoGrid userId={user.userId} userName={user.userName} />

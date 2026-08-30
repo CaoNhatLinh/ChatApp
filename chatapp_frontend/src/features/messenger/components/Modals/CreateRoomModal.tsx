@@ -408,9 +408,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                                 )}>
                                                     {user.avatarUrl ? (
                                                         <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="text-primary font-black text-lg uppercase">{user.displayName?.charAt(0)}</span>
-                                                    )}
+                                                    ) : <img src="/noi-default-avatar.webp" alt={localizeText('Ảnh đại diện mặc định')} className="h-full w-full object-cover" />}
                                                 </div>
                                                 {isSelected && (
                                                 <motion.div

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Archive, ArrowLeft, BarChart3, Building2, Download, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, Building2, ChevronDown, Download, Eye, History, RefreshCcw, Search, ScrollText, Server, ShieldCheck, UserCog, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { AppPageShell } from "@/route-pages/shared/AppPageShell";
@@ -377,7 +377,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `novachat-audit-${auditMonth}.csv`;
+      link.download = `noi-audit-${auditMonth}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -861,7 +861,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
           <div>
             <p className="page-kicker">{localizeText("Quản trị toàn cục")}</p>
             <h1 className="max-w-[14ch] text-4xl font-bold leading-[1.05] tracking-[-0.04em] sm:text-5xl">{localizeText("Điều hành toàn ứng dụng")}</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">{localizeText("Quản lý người dùng, room và chính sách ở cấp NovaChat. Mọi thao tác toàn cục đều qua phân quyền và audit của máy chủ.")}</p>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">{localizeText("Quản lý người dùng, room và chính sách ở cấp Nối. Mọi thao tác toàn cục đều qua phân quyền và audit của máy chủ.")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => (onBackToApp ? onBackToApp() : router.push("/app"))}><ArrowLeft size={16} /> {localizeText("Về ứng dụng")}</Button>
@@ -949,8 +949,11 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
             <div className="mt-4 space-y-2" aria-live="polite">
               {reportsLoading ? <div className="flex justify-center py-8"><LoadingSpinner /></div> : reports.length ? reports.map((report) => <div key={report.reportId} className="rounded-xl border border-border/60 bg-background/45 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{reportTargetLabel(report.targetType)}</Badge><Badge variant={report.status === "OPEN" ? "destructive" : "secondary"}>{reportStatusLabel(report.status)}</Badge><span className="text-xs text-muted-foreground">{report.reportId}</span></div><p className="mt-2 text-sm font-semibold">{report.reasonCode}</p>{report.description ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{report.description}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{localizeText("Người báo cáo")}: {report.reporterId}{report.targetUserId ? ` · ${localizeText("mục tiêu")}: ${report.targetUserId}` : ""}</p></div><div className="flex flex-wrap gap-2">{report.targetUserId ? <Button size="sm" variant="outline" onClick={() => { setSanctionTargetUserId(report.targetUserId as string); setSanctions([]); setFeedback(localizeText("Đã chọn người dùng mục tiêu cho biểu mẫu chế tài.")); }}>{localizeText("Chọn người dùng mục tiêu")}</Button> : null}{report.status === "OPEN" ? <Button size="sm" variant="outline" onClick={() => void handleReportResolution(report, "IN_REVIEW")} loading={moderationMutating}>{localizeText("Nhận xử lý")}</Button> : null}{report.status === "OPEN" || report.status === "IN_REVIEW" ? <><Button size="sm" onClick={() => void handleReportResolution(report, "RESOLVED")} loading={moderationMutating}>{localizeText("Giải quyết")}</Button><Button size="sm" variant="destructive" onClick={() => void handleReportResolution(report, "DISMISSED")} loading={moderationMutating}>{localizeText("Bỏ qua")}</Button></> : null}</div></div></div>) : <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">{localizeText("Không có báo cáo nào khớp bộ lọc hiện tại.")}</p>}
             </div>
-            <div className="mt-5 rounded-xl border border-border/60 bg-background/45 p-4">
-              <p className="text-sm font-bold">{localizeText("Áp dụng chế tài người dùng")}</p>
+            <details className="group mt-5 border-y border-border py-4">
+              <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-[var(--radius-sm)] text-sm font-bold marker:hidden">
+                <span>{localizeText("Áp dụng chế tài người dùng")}</span>
+                <ChevronDown size={17} aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText("Cấm hoặc tạm ngưng trên toàn ứng dụng sẽ cập nhật trạng thái tài khoản. Chế tài theo cuộc trò chuyện chỉ áp dụng cho room được chỉ định.")}</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <div><label htmlFor="admin-sanction-user" className="block text-xs font-semibold text-muted-foreground">{localizeText("ID người dùng mục tiêu")}</label><Input id="admin-sanction-user" className="mt-1" value={sanctionTargetUserId} onChange={(event) => setSanctionTargetUserId(event.target.value)} placeholder={localizeText("UUID của user")} /></div>
@@ -963,7 +966,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
               <label htmlFor="admin-moderation-reason" className="mt-3 block text-xs font-semibold text-muted-foreground">{localizeText("Lý do chi tiết (bắt buộc)")}</label>
               <Input id="admin-moderation-reason" className="mt-1" value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} placeholder={localizeText("Ghi rõ căn cứ quyết định")} />
               <Button className="mt-4" onClick={() => void handleImposeSanction()} loading={moderationMutating}>{localizeText("Áp dụng chế tài")}</Button>
-            </div>
+            </details>
             {sanctionsLoading ? <div className="mt-5 flex justify-center py-4"><LoadingSpinner /></div> : sanctionTargetUserId && sanctions.length ? <div className="mt-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{localizeText("Chế tài của người dùng mục tiêu đang chọn")}</p><div className="mt-3 space-y-2">{sanctions.map((sanction) => <div key={sanction.sanctionId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2"><div><Badge variant={sanction.status === "ACTIVE" ? "destructive" : "outline"}>{sanctionTypeLabel(sanction.sanctionType)} · {sanctionStatusLabel(sanction.status)}</Badge><p className="mt-1 text-xs text-muted-foreground">{sanctionScopeLabel(sanction.scope)} · {sanction.reasonText}</p></div>{sanction.status === "ACTIVE" ? <Button size="sm" variant="outline" onClick={() => void handleRevokeSanction(sanction)} loading={moderationMutating}>{localizeText("Thu hồi")}</Button> : null}</div>)}</div></div> : null}
           </>}
         </SurfacePanel>

@@ -6,6 +6,11 @@ const context = await browser.newContext();
 const page = await context.newPage();
 const consoleErrors = [];
 const requestFailures = [];
+const waitForSettledPage = () => page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => undefined);
+const openPage = async (path) => {
+  await page.goto(`${baseUrl}${path}`, { waitUntil: 'domcontentloaded' });
+  await waitForSettledPage();
+};
 
 page.on('console', (message) => {
   if (message.type() === 'error') consoleErrors.push(message.text());
@@ -14,7 +19,7 @@ page.on('requestfailed', (request) => {
   requestFailures.push({ url: request.url(), error: request.failure()?.errorText });
 });
 
-await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+await openPage('/');
 const vietnameseControls = {
   languageTitle: await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).first().getAttribute('title'),
   hasThemeToggle: (await page.getByRole('button', { name: 'Đổi giao diện' }).count()) > 0,
@@ -32,13 +37,27 @@ const home = {
 };
 
 await page.setViewportSize({ width: 390, height: 844 });
-await page.reload({ waitUntil: 'networkidle' });
+await page.reload({ waitUntil: 'domcontentloaded' });
+await waitForSettledPage();
 await page.getByRole('heading', { name: 'Say what matters. Keep what matters.', exact: true }).waitFor();
 await page.getByRole('button', { name: 'Open navigation menu' }).click();
 home.mobileNavigation = await page.locator('#public-mobile-navigation a').allTextContents();
 await page.getByRole('button', { name: 'Close navigation menu' }).waitFor();
 
-await page.goto(`${baseUrl}/does-not-exist`, { waitUntil: 'networkidle' });
+const expectedPublicHeadings = {
+  '/about': 'A place where a conversation can keep its rhythm.',
+  '/help': 'There is always a way back to the conversation.',
+  '/privacy': 'Privacy and data',
+  '/terms': 'Terms of use',
+};
+const publicPages = {};
+for (const [path, expectedHeading] of Object.entries(expectedPublicHeadings)) {
+  await openPage(path);
+  publicPages[path] = await page.locator('h1').innerText();
+  if (publicPages[path] !== expectedHeading) throw new Error(`${path} did not render its English heading`);
+}
+
+await openPage('/does-not-exist');
 const notFound = {
   lang: await page.locator('html').getAttribute('lang'),
   heading: await page.locator('h1').innerText(),
@@ -46,14 +65,14 @@ const notFound = {
   hasWorkspaceRecovery: (await page.getByRole('link', { name: 'Open workspace' }).count()) === 1,
 };
 
-await page.goto(`${baseUrl}/login`, { waitUntil: 'networkidle' });
+await openPage('/login');
 const login = {
   heading: await page.locator('h1').innerText(),
   passwordLabel: (await page.getByText('Password', { exact: true }).count()) === 1,
   accountPrompt: (await page.locator('p').filter({ hasText: 'No account yet?' }).count()) === 1,
 };
 
-await page.goto(`${baseUrl}/register`, { waitUntil: 'networkidle' });
+await openPage('/register');
 const register = {
   heading: await page.locator('h1').innerText(),
   passwordLabel: (await page.getByText('Password', { exact: true }).count()) === 1,
@@ -62,7 +81,7 @@ const register = {
 
 const expectedNotFoundDocumentError = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
 const unexpectedConsoleErrors = consoleErrors.filter((message) => !message.includes(expectedNotFoundDocumentError));
-const report = { baseUrl, vietnameseControls, home, notFound, login, register, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
+const report = { baseUrl, vietnameseControls, home, publicPages, notFound, login, register, consoleErrors: unexpectedConsoleErrors, expectedNotFoundDocumentErrors: consoleErrors.length - unexpectedConsoleErrors.length, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Bell, Check } from 'lucide-react';
+import { AlertCircle, Bell, Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import {
@@ -27,7 +27,7 @@ const NOTIFICATION_LEVELS: Array<{ value: NotificationLevel; label: string; desc
 ];
 
 const CHANNELS: Array<{ key: keyof Pick<NotificationDraft, 'pushEnabled' | 'emailEnabled' | 'desktopEnabled' | 'soundEnabled'>; label: string; description: string }> = [
-  { key: 'pushEnabled', label: 'Thông báo đẩy', description: 'Nhận thông báo khi bạn không mở NovaChat.' },
+  { key: 'pushEnabled', label: 'Thông báo đẩy', description: 'Nhận thông báo khi bạn không mở Nối.' },
   { key: 'emailEnabled', label: 'Email', description: 'Nhận các thông báo quan trọng qua email.' },
   { key: 'desktopEnabled', label: 'Thông báo trên máy tính', description: 'Hiển thị thông báo trên desktop khi trình duyệt cho phép.' },
   { key: 'soundEnabled', label: 'Âm thanh', description: 'Phát âm thanh cho thông báo mới.' },
@@ -139,64 +139,67 @@ export function NotificationSettingsPanel() {
   }
 
   return (
-    <section className="space-y-7" aria-labelledby="notification-settings-title">
-      <div>
+    <section className="space-y-8" aria-labelledby="notification-settings-title">
+      <header className="border-b border-border pb-6">
         <div className="flex items-center gap-3">
-          <span className="brand-mark h-10 w-10 rounded-xl text-primary"><Bell size={18} aria-hidden="true" /></span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/12 text-primary"><Bell size={17} aria-hidden="true" /></span>
           <div>
-            <h2 id="notification-settings-title" className="text-2xl font-semibold tracking-tight">{localizeText('Thông báo')}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{localizeText('Kiểm soát các kênh và khung giờ bạn muốn nhận thông báo.')}</p>
+            <h2 id="notification-settings-title" className="text-2xl font-semibold tracking-[-0.035em]">{localizeText('Thông báo')}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{localizeText('Chọn điều gì đáng để làm gián đoạn bạn.')}</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="rounded-[var(--radius-md)] border border-border bg-background p-4 sm:p-5">
-        <p className="text-sm font-semibold">{localizeText('Mức thông báo toàn cục')}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText('Chọn mức độ thông báo chung trước khi tinh chỉnh từng kênh nhận.')}</p>
-        <label htmlFor="notification-global-level" className="sr-only">{localizeText('Mức thông báo toàn cục')}</label>
-        <select id="notification-global-level" className="mt-3 h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm" value={draft.globalLevel} onChange={(event) => updateDraft('globalLevel', event.target.value as NotificationLevel)}>
-          {NOTIFICATION_LEVELS.map((level) => <option key={level.value} value={level.value}>{localizeText(level.label)}</option>)}
-        </select>
-        <p className="mt-2 text-xs text-muted-foreground">{localizeText(NOTIFICATION_LEVELS.find((level) => level.value === draft.globalLevel)?.description ?? '')}</p>
-      </div>
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold">{localizeText('Kênh thông báo')}</h3>
-        {CHANNELS.map(({ key, label, description }) => (
-          <label key={key} className="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4 transition-colors hover:border-primary/50">
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold">{localizeText(label)}</span>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">{localizeText(description)}</span>
-            </span>
-            <span className="relative shrink-0">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={draft[key]}
-                onChange={(event) => updateDraft(key, event.target.checked)}
-              />
-              <span className="block h-6 w-11 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-2" aria-hidden="true" />
-              <span className="pointer-events-none absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-primary transition-transform peer-checked:translate-x-5">
-                {draft[key] ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}
+      <fieldset>
+        <legend className="text-sm font-semibold">{localizeText('Mức thông báo toàn cục')}</legend>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{localizeText('Mức này áp dụng trước khi Nối xét đến từng kênh nhận.')}</p>
+        <div className="mt-4 grid gap-2">
+          {NOTIFICATION_LEVELS.map((level) => (
+            <label key={level.value} className="group flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-transparent px-3 py-2.5 transition-colors hover:bg-muted/55 has-[:checked]:border-primary/45 has-[:checked]:bg-primary/7">
+              <input className="focus-ring mt-1 h-4 w-4 accent-[var(--primary)]" type="radio" name="notification-global-level" value={level.value} checked={draft.globalLevel === level.value} onChange={() => updateDraft('globalLevel', level.value)} />
+              <span>
+                <span className="block text-sm font-semibold">{localizeText(level.label)}</span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{localizeText(level.description)}</span>
               </span>
-            </span>
-          </label>
-        ))}
-      </div>
-
-      <div className="space-y-3 rounded-[var(--radius-md)] border border-border bg-background p-4 sm:p-5">
-        <div>
-          <h3 className="text-sm font-semibold">{localizeText('Giờ yên tĩnh')}</h3>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{localizeText('Tạm ngưng thông báo trong khoảng thời gian này. Để trống để tắt giờ yên tĩnh.')}</p>
+            </label>
+          ))}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-sm font-semibold">{localizeText('Kênh nhận')}</legend>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{localizeText('Bật những cách Nối có thể liên hệ với bạn.')}</p>
+        <div className="mt-4 divide-y divide-border border-y border-border">
+          {CHANNELS.map(({ key, label, description }) => (
+            <label key={key} className="flex cursor-pointer items-center justify-between gap-4 py-4">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{localizeText(label)}</span>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">{localizeText(description)}</span>
+              </span>
+              <span className="relative shrink-0">
+                <input type="checkbox" className="peer sr-only" checked={draft[key]} onChange={(event) => updateDraft(key, event.target.checked)} />
+                <span className="block h-6 w-11 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-2" aria-hidden="true" />
+                <span className="pointer-events-none absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-primary transition-transform peer-checked:translate-x-5">{draft[key] ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <details className="group border-y border-border py-4">
+        <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-[var(--radius-sm)] text-sm font-semibold marker:hidden">
+          <span>{localizeText('Giờ yên tĩnh')}</span><ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
+        </summary>
+        <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{localizeText('Tạm ngưng thông báo theo giờ địa phương. Để trống để không đặt giờ yên tĩnh.')}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Bắt đầu')}</span><Input type="time" value={draft.quietHoursStart ?? ''} onChange={(event) => updateDraft('quietHoursStart', event.target.value)} /></label>
           <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Kết thúc')}</span><Input type="time" value={draft.quietHoursEnd ?? ''} onChange={(event) => updateDraft('quietHoursEnd', event.target.value)} /></label>
         </div>
-        <label className="block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" /></label>
-      </div>
+        <label className="mt-3 block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" /></label>
+      </details>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+        <p className="text-xs text-muted-foreground">{isDirty ? localizeText('Bạn có thay đổi chưa lưu.') : localizeText('Mọi thay đổi đã được lưu.')}</p>
         <Button type="button" onClick={() => void handleSave()} loading={saving} disabled={!isDirty}>{localizeText('Lưu thay đổi')}</Button>
       </div>
     </section>

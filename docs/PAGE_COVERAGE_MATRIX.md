@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | `/` | public | native Next App Router entry + client shell | present in HomePage | 200, no console/request failures |
 | `/login`, `/register` | public | native Next App Router entries + auth shell | form errors/loading | 200; auth service journey pending |
-| `/app` | authenticated | native Next App Router entry + protected client shell | protected, messenger, offline/recovery states | unauthenticated redirect and browser offline→online banner verified; live services blocked |
+| `/app` | authenticated | native Next App Router entry + protected client shell | protected, empty workspace, selected room, messenger, offline/recovery states | unauthenticated redirect and browser offline→online banner verified; desktop/mobile visual audit covers empty and selected room; live services blocked |
 | `/communities` | authenticated | native Next App Router entry + protected client shell | loading, error, empty, filtered, joined, approval-pending, capacity-full, pagination | production build and mock-authenticated VI→EN search/join/navigation/390px smoke pass; live Cassandra pending |
 | `/friends` | authenticated | native Next App Router entry + protected client shell | list/search/request states | unauthenticated redirect verified; live services blocked |
 | `/settings`, `/profile` | authenticated | native Next App Router entries + protected client shell | form states | unauthenticated redirect verified; live services blocked |

@@ -3,11 +3,8 @@ import { localizeText } from "@/shared/i18n";
 
 export const ProfileAccessNote = () => {
   return (
-    <section className="product-surface p-6">
-      <p className="page-kicker">
-        {localizeText("Tùy chỉnh hồ sơ")}
-      </p>
-      <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+    <section className="py-6 md:pl-8">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <CircleUserRound size={16} />
         {localizeText("Avatar, tên hiển thị và trạng thái có thể chỉnh sửa trong phần cài đặt.")}
       </p>

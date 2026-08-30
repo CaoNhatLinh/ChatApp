@@ -30,7 +30,7 @@
 7. **Release evidence** — pending. Do not label the release complete until each
    matrix row has runtime evidence or an explicit blocker.
 
-8. **Visual system** — complete. All canonical pages use one documented
+8. **Visual system** — complete. All canonical pages use the documented Nối
    signal-orange/cool-ink system, the generated landing visual, shared shells,
    semantic controls, responsive layout rules, and no compatibility pages for
    removed routes. Visual QA covered desktop landing/recovery and mobile public

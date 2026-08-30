@@ -27,7 +27,7 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     name: "Signal Dawn",
     description: "Lớp sáng cam nhẹ trên nền mực, giúp khu vực chat có nhịp rõ ràng.",
     accent: "bg-primary/20",
-    overlay: "linear-gradient(135deg, color-mix(in oklab, var(--primary) 28%, transparent), transparent 68%)",
+    overlay: "radial-gradient(circle at 76% 4%, rgb(244 92 32 / 18%), transparent 32%), linear-gradient(180deg, #0d1720 0%, #071018 100%)",
     backgroundImage: undefined,
   },
   {
@@ -35,7 +35,7 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     name: "Signal Grid",
     description: "Độ tương phản cao, giữ nhãn và tin nhắn dễ quét khi room đông.",
     accent: "bg-primary/15",
-    overlay: "linear-gradient(145deg, color-mix(in oklab, var(--primary) 20%, transparent), color-mix(in oklab, var(--foreground) 8%, transparent))",
+    overlay: "linear-gradient(145deg, rgb(244 92 32 / 14%), rgb(6 14 21 / 96%) 48%, #061019 100%)",
     backgroundImage: undefined,
   },
   {
@@ -43,7 +43,7 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     name: "Studio Matte",
     description: "Mặt nền phẳng và yên, ưu tiên đọc nội dung trong thời gian dài.",
     accent: "bg-muted",
-    overlay: "linear-gradient(160deg, color-mix(in oklab, var(--foreground) 12%, transparent), transparent 72%)",
+    overlay: "linear-gradient(160deg, #111b24 0%, #09131b 72%, #071018 100%)",
     backgroundImage: undefined,
   },
   {
@@ -51,7 +51,7 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     name: "Signal Haze",
     description: "Một lớp mờ có chiều sâu nhưng vẫn giữ màu cam làm điểm neo.",
     accent: "bg-primary/10",
-    overlay: "linear-gradient(160deg, color-mix(in oklab, var(--primary) 16%, transparent), color-mix(in oklab, var(--background) 14%, transparent))",
+    overlay: "radial-gradient(circle at 12% 12%, rgb(244 92 32 / 12%), transparent 28%), linear-gradient(160deg, #111b24, #071018 72%)",
     backgroundImage: undefined,
   },
 ];

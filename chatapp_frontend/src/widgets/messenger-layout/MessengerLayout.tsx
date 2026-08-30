@@ -57,6 +57,7 @@ export const MessengerLayout: React.FC = () => {
     <MessengerLayoutShell
       isSidebarOpen={isSidebarOpen}
       setSidebarOpen={setSidebarOpen}
+      mobileSidebarFullScreen={!activeConversationId && activeView !== "contacts"}
       sidebar={<ChatSidebar />}
     >
       {activeView === "contacts" ? <ContactListView /> : <ChatWindow />}

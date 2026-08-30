@@ -6,7 +6,7 @@ import { usePresence } from "@/features/presence/model/presence.store";
 import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
 import { StatusDot } from "@/features/presence/ui/StatusSelector";
 import { useFriendStore } from "@/features/relationships/model/friend.store";
-import { Avatar, AvatarFallback, AvatarImage } from "@/shared/ui/Avatar";
+import { Avatar, AvatarFallback, AvatarImage, DefaultUserAvatar } from "@/shared/ui/Avatar";
 import { friendApi } from "@/features/relationships/api/friends.api";
 import type { UserProfileModal as UserProfile } from "@/shared/types/room.types";
 import type { UserDTO } from "@/entities/user/model/user.types";
@@ -191,9 +191,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               ) : (
                 userProfile?.avatarUrl ? (
                   <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  userProfile?.displayName.charAt(0)
-                )
+                ) : <img src="/noi-default-avatar.webp" alt={localizeText('Ảnh đại diện mặc định')} className="h-full w-full object-cover" />
               )}
             </div>
             {!isLoading && canViewPresence && presence ? (
@@ -260,9 +258,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 {mutualForProfile?.userDetails.slice(0, 5).map((friend: UserDTO) => (
                 <Avatar key={friend.userId} className="h-8 w-8 border-2 border-background neo-shadow-sm" title={friend.displayName}>
                     <AvatarImage src={friend.avatarUrl} />
-                    <AvatarFallback className="text-[10px]">
-                      {friend.displayName.charAt(0)}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-[10px]"><DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} /></AvatarFallback>
                   </Avatar>
                 ))}
                 {(mutualForProfile?.userDetails.length ?? 0) > 5 && (
@@ -358,7 +354,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           onClose={() => setIsReportOpen(false)}
           onSubmitted={() => {
             setIsReportOpen(false);
-            notifySuccess(localizeText("Đã gửi báo cáo hồ sơ. Cảm ơn bạn đã giúp giữ NovaChat an toàn."));
+            notifySuccess(localizeText("Đã gửi báo cáo hồ sơ. Cảm ơn bạn đã giúp giữ Nối an toàn."));
             onReport?.();
           }}
         />
