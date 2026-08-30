@@ -33,6 +33,7 @@ export const ChatSidebar = () => {
     loadMoreConversations,
     conversationsPagination,
     friendRequestCount,
+    setSidebarOpen,
   } = useMessenger();
 
   const { user } = useAuthStore();
@@ -107,7 +108,8 @@ export const ChatSidebar = () => {
     nextParams.delete('notifications');
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
-  }, [pathname, router, searchParams]);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }, [pathname, router, searchParams, setSidebarOpen]);
 
   useEffect(() => {
     if (searchParams.get('notifications') === '1') setIsNotificationPanelOpen(true);

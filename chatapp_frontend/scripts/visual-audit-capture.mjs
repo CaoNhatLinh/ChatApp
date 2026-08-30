@@ -28,7 +28,7 @@ const captures = [
   { slug: 'workspace-empty', path: '/app', authenticated: true },
   { slug: 'workspace-conversation', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true },
   { slug: 'workspace-composer-options', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openComposerOptions: true },
-  { slug: 'notification-inbox', path: '/app?notifications=1', authenticated: true },
+  { slug: 'notification-inbox', path: '/app?notifications=1', authenticated: true, verifyNotificationClose: true },
   { slug: 'friends-empty', path: '/friends', authenticated: true },
   { slug: 'communities', path: '/communities', authenticated: true },
   { slug: 'search-empty', path: '/search', authenticated: true },
@@ -252,6 +252,13 @@ const captureRoute = async (browser, viewport, capture) => {
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
+  let notificationPanelClosed = null;
+  if (capture.verifyNotificationClose) {
+    await page.getByRole('button', { name: 'Đóng', exact: true }).click();
+    await page.getByRole('heading', { name: 'Thông báo', exact: true }).waitFor({ state: 'hidden' });
+    await page.waitForURL((url) => !url.searchParams.has('notifications'));
+    notificationPanelClosed = !new URL(page.url()).searchParams.has('notifications');
+  }
   const unexpectedConsoleErrors = consoleErrors.filter((message) => !(
     message.includes('net::ERR_CONNECTION_REFUSED')
     && failedRequests.some((request) => request.url.includes('/ws/'))
@@ -264,6 +271,7 @@ const captureRoute = async (browser, viewport, capture) => {
     consoleErrors: unexpectedConsoleErrors,
     failedRequests,
     horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1),
+    notificationPanelClosed,
   };
   await context.close();
   return result;
@@ -287,6 +295,6 @@ for (const viewport of viewports) {
 await browser.close();
 console.log(JSON.stringify({ baseUrl, results }, null, 2));
 
-if (results.some((result) => result.status !== 200 || result.consoleErrors.length || result.horizontalOverflow)) {
+if (results.some((result) => result.status !== 200 || result.consoleErrors.length || result.horizontalOverflow || result.notificationPanelClosed === false)) {
   process.exitCode = 1;
 }

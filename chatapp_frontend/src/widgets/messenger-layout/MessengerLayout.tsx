@@ -24,21 +24,31 @@ export const MessengerLayout: React.FC = () => {
   useMessengerSetup(initMessenger);
   const searchParams = useSearchParams();
   const conversationIdFromQuery = searchParams.get("conversationId");
+  const isNotificationInboxRequested = searchParams.get("notifications") === "1";
 
   useEffect(() => {
+    if (isNotificationInboxRequested && window.innerWidth < 768) {
+      setSidebarOpen(true);
+      return;
+    }
     if ((activeConversationId || activeView === "contacts") && window.innerWidth < 768) {
       setSidebarOpen(false);
     }
-  }, [activeConversationId, activeView, setSidebarOpen]);
+  }, [activeConversationId, activeView, isNotificationInboxRequested, setSidebarOpen]);
 
   useEffect(() => {
     const mobileViewport = window.matchMedia('(max-width: 767px)');
     const closeSidebarOnMobile = (event: MediaQueryListEvent) => {
-      if (event.matches && (activeConversationId || activeView === "contacts")) setSidebarOpen(false);
+      if (!event.matches) return;
+      if (isNotificationInboxRequested) {
+        setSidebarOpen(true);
+      } else if (activeConversationId || activeView === "contacts") {
+        setSidebarOpen(false);
+      }
     };
     mobileViewport.addEventListener('change', closeSidebarOnMobile);
     return () => mobileViewport.removeEventListener('change', closeSidebarOnMobile);
-  }, [activeConversationId, activeView, setSidebarOpen]);
+  }, [activeConversationId, activeView, isNotificationInboxRequested, setSidebarOpen]);
 
   useEffect(() => {
     if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) {
