@@ -36,6 +36,7 @@ import { CallSessionPanel } from "./components/CallSessionPanel";
 import { getLocale, localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
 import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
@@ -136,6 +137,8 @@ export const ChatWindow = () => {
   >();
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [reportingMessage, setReportingMessage] = useState<Message | null>(null);
+  const [pendingDeleteMessage, setPendingDeleteMessage] = useState<Message | null>(null);
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -331,11 +334,7 @@ export const ChatWindow = () => {
             setEditingMessage(message);
             return;
           case "delete":
-            await deleteMessageAction(message.messageId);
-            setEditingMessage((current) =>
-              current?.messageId === message.messageId ? null : current,
-            );
-            showToast(MESSENGER_COPY.chatWindow.messageAction.deleteSuccess);
+            setPendingDeleteMessage(message);
             return;
           case "pin":
             await pinMessageAction(message.messageId);
@@ -375,13 +374,30 @@ export const ChatWindow = () => {
       }
     },
     [
-      deleteMessageAction,
       jumpToMessage,
       loadMessageRevisionsAction,
       pinMessageAction,
       showToast,
     ],
   );
+
+  const confirmDeleteMessage = useCallback(async () => {
+    if (!pendingDeleteMessage) return;
+    setIsDeletingMessage(true);
+    try {
+      await deleteMessageAction(pendingDeleteMessage.messageId);
+      setEditingMessage((current) =>
+        current?.messageId === pendingDeleteMessage.messageId ? null : current,
+      );
+      setPendingDeleteMessage(null);
+      showToast(MESSENGER_COPY.chatWindow.messageAction.deleteSuccess);
+    } catch (error) {
+      logger.error('[ChatWindow] Message delete failed', error instanceof Error ? error.message : String(error));
+      showToast(getUserFacingErrorMessage(error, MESSENGER_COPY.chatWindow.messageAction.actionFailed));
+    } finally {
+      setIsDeletingMessage(false);
+    }
+  }, [deleteMessageAction, pendingDeleteMessage, showToast]);
 
   const closeProfileModal = () => {
     setIsProfileModalOpen(false);
@@ -569,6 +585,17 @@ export const ChatWindow = () => {
         isOpen={isHistoryOpen}
         revisions={messageHistory}
         onOpenChange={setIsHistoryOpen}
+      />
+
+      <ConfirmDialog
+        open={pendingDeleteMessage !== null}
+        onOpenChange={(open) => { if (!open && !isDeletingMessage) setPendingDeleteMessage(null); }}
+        title={MESSENGER_COPY.message.deleteLabel}
+        description={localizeText('Tin nhắn sẽ bị xóa khỏi cuộc trò chuyện. Bạn không thể hoàn tác thao tác này.')}
+        confirmLabel={localizeText('Xóa')}
+        destructive
+        loading={isDeletingMessage}
+        onConfirm={confirmDeleteMessage}
       />
     </motion.div>
   );

@@ -356,6 +356,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Sao chép': 'Copy',
   'Sửa': 'Edit',
   'Xóa tin nhắn': 'Delete message',
+  'Tin nhắn sẽ bị xóa khỏi cuộc trò chuyện. Bạn không thể hoàn tác thao tác này.': 'This message will be removed from the conversation. You cannot undo this action.',
   'Tin nhắn đã bị xóa': 'Message deleted',
   'Đã sửa': 'Edited',
   'Đã xem': 'Seen',

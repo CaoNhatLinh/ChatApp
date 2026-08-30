@@ -282,7 +282,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         const { validFiles, invalidMessages } = buildValidFiles(selectedFiles);
 
         invalidMessages.forEach((error) => {
-          showWarning(error, { icon: "ðŸ˜¢" });
+          showWarning(error);
         });
 
         if (validFiles.length === 0) {
@@ -303,7 +303,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         attachments = uploadedAttachments;
       } else if (editingMessage && hasFiles) {
-        showWarning(MESSENGER_COPY.messageInput.actionError.attachmentDisabledDuringEdit(), { icon: "ðŸ˜¢" });
+        showWarning(MESSENGER_COPY.messageInput.actionError.attachmentDisabledDuringEdit());
       }
 
       if (editingMessage) {
@@ -371,7 +371,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const { validFiles, invalidMessages } = buildValidFiles(files);
 
     invalidMessages.forEach((message) => {
-      showWarning(message, { icon: "ðŸ˜¢" });
+      showWarning(message);
     });
 
     if (validFiles.length === 0) {

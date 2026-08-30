@@ -107,6 +107,12 @@ remaining pages on mount. It asserts the explicit 50-member request limit and
 that the number of rendered member rows stays below the number retained in
 loaded client state.
 
+`npm run test:e2e:message-delete` opens an authenticated production message
+row, proves cancellation sends no mutation, verifies the Vietnamese and English
+destructive confirmation, asserts the exact bucket-scoped `DELETE` request and
+checks that a deliberately content-bearing server tombstone renders only the
+localized deleted state with no remaining action menu.
+
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
 `localizeText(...)` call under `src/` (including the global admin feedback

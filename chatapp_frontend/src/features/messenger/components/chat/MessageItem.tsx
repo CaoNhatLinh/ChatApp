@@ -21,7 +21,7 @@ import {
 } from '@/shared/ui/DropdownMenu';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
 
 interface MessageItemProps {
@@ -50,6 +50,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     presenceConversationId,
 }) => {
     const attachments = message.attachments;
+    const { locale } = useAppLocale();
     const { user } = useAuthStore();
     const [isRevealed, setIsRevealed] = React.useState(false);
     const isOwn = message.sender.userId === user?.userId;
@@ -57,7 +58,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         isOwn ? [] : [message.sender.userId],
         presenceConversationId ?? null,
     );
-    const isPoll = message.type === 'POLL' && message.poll;
+    const isPoll = !message.isDeleted && message.type === 'POLL' && message.poll;
     const { presence } = usePresence(message.sender.userId);
     const isFailed = message.status === 'failed';
     const latestSeenAt = React.useMemo(() => {
@@ -81,6 +82,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     return (
         <motion.div
             ref={presenceRef}
+            lang={locale}
             data-message-id={dataMessageId}
             className={cn(
                 "flex w-full gap-3",
@@ -160,7 +162,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                     <span className="block truncate">{message.replyTo.content}</span>
                                 </button>
                             )}
-                            {isBlocked && !isRevealed ? (
+                            {message.isDeleted ? (
+                                <span className="text-sm italic opacity-70">{MESSENGER_COPY.messageStatus.deleted}</span>
+                            ) : isBlocked && !isRevealed ? (
                                 <div className="flex items-center gap-2 group/blocked cursor-pointer" onClick={() => setIsRevealed(true)}>
                                     <span className="italic opacity-70 text-sm">{MESSENGER_COPY.message.hidden}</span>
                                     <span className="text-[10px] font-bold text-primary opacity-0 group-hover/blocked:opacity-100 transition-opacity uppercase">{MESSENGER_COPY.message.revealAction}</span>
@@ -173,7 +177,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                 />
                             )}
 
-                            {attachments && attachments.length > 0 && (
+                            {!message.isDeleted && attachments && attachments.length > 0 && (
                                 <div className="mt-3 space-y-2">
                                     {attachments.map((attachment, index) => {
                                         const contentType = attachment.contentType ?? attachment.mimeType ?? '';
@@ -249,7 +253,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                         </button>
                     )}
 
-                    {!isPoll && (
+                    {!isPoll && !message.isDeleted && (
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200">
                             <ReactionPicker
                                 conversationId={message.conversationId}
