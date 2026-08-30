@@ -16,11 +16,14 @@ The public/deep-link Playwright smoke currently passes (`/`, `/login`, `/about`,
 `/403`, `/search`, `/settings?tab=reports`, and `/admin` with unauthenticated redirect) with zero
 console errors or request failures. The global admin page is therefore covered
 for deep-link protection. A mock-authenticated Playwright check also loads the
-operator overview plus bounded admin panels, verifies the VI→EN admin heading
-and validation feedback, exports the audit CSV, and verifies `/admin` → `/app`
-navigation with zero console/request failures via `npm run test:e2e:admin`; it
-does not replace a real backend journey. An authenticated Cassandra-backed
-operator journey is still pending. Pending layers: Testcontainers/compose integration for
+operator overview and executes stateful HTTP-boundary mutations for global room
+policy/archive/restore, report resolution, sanction impose/revoke, user search,
+role grant, account suspension, refresh-session revoke, device revoke and audit
+CSV export via `npm run test:e2e:admin`. It asserts the exact request payloads
+and reasons, then audits the populated 390px UI for overflow, unnamed controls,
+unlabelled fields and console/request failures. This does not replace an
+authenticated Cassandra-backed operator journey, which remains pending.
+Pending layers: Testcontainers/compose integration for
 Cassandra + Redis + Kafka + Elasticsearch, Playwright authenticated journeys
 with seeded users, STOMP reconnect/read/reaction assertions, accessibility tree
 checks, and performance trace budgets.

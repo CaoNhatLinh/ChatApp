@@ -26,3 +26,8 @@
   and 1440px, including visible heading count, control names, field labels and
   horizontal-overflow checks. Full screen-reader/axe coverage remains a
   release gate.
+- The populated admin browser journey repeats the control-name, field-label and
+  horizontal-overflow audit at 390px after real operator interactions. Admin
+  room, audit, investigation, analytics, moderation and account-security fields
+  use explicit `htmlFor`/`id` associations; device and session revoke buttons
+  name the exact target instead of sharing an ambiguous “Revoke” name.
