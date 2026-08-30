@@ -1,5 +1,4 @@
-import { Bell, ChevronLeft, Info, Palette, Phone, Search, Video, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { ChevronLeft, Info, Palette, Phone, Search, Video, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { SurfacePanel } from "@/shared/ui/SurfacePanel";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
@@ -34,7 +33,6 @@ export const ConversationHeader = ({
   canCall,
 }: ConversationHeaderProps) => {
   const { setSidebarOpen } = useMessenger();
-  const router = useRouter();
   const isGroup = conversation.type === "group";
   const title = conversation.name;
 
@@ -70,16 +68,6 @@ export const ConversationHeader = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push("/app?notifications=1")}
-            aria-label={localizeText("Thông báo")}
-            title={localizeText("Thông báo")}
-            className="hidden rounded-full md:inline-flex"
-          >
-            <Bell size={18} />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

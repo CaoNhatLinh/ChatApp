@@ -1091,6 +1091,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Thiết lập': 'Setup',
   'Tùy chỉnh giao diện cá nhân': 'Customize your appearance',
   'Đóng giao diện': 'Close appearance',
+  'Thanh điều hướng chung': 'Global navigation',
   'Tải thêm kết quả': 'Load more results',
   'Đang tải thêm kết quả...': 'Loading more results…',
   'Không thể tải thêm kết quả tìm kiếm. Vui lòng thử lại.': 'Unable to load more search results. Try again.',

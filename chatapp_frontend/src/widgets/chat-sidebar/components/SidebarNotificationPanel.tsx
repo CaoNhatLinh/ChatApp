@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { NotificationList } from '@/features/notifications/components/notification/NotificationList';
 import type { NotificationRecord } from '@/features/notifications/api/notifications.api';
 
@@ -34,8 +35,13 @@ export const SidebarNotificationPanel = ({
   onMarkAllAsRead,
   onNotificationClick,
 }: SidebarNotificationPanelProps) => {
-  return (
-    <div className="absolute top-16 right-2 z-20">
+  const portalTarget = typeof document === 'undefined'
+    ? null
+    : document.querySelector<HTMLElement>('.messenger-workspace');
+  if (!portalTarget) return null;
+
+  return createPortal(
+    <div className="pointer-events-none fixed inset-0 z-50">
       <NotificationList
         isOpen={isOpen}
         onClose={onClose}
@@ -52,7 +58,8 @@ export const SidebarNotificationPanel = ({
         onMarkAllAsRead={onMarkAllAsRead}
         onNotificationClick={onNotificationClick}
       />
-    </div>
+    </div>,
+    portalTarget,
   );
 };
 

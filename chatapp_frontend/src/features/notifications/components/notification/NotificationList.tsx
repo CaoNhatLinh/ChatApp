@@ -100,7 +100,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
 
   return (
     <motion.div
-      className="neo-shadow absolute top-12 right-2 z-50 w-[min(20rem,calc(100vw-1rem))] sm:w-80 max-h-96 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card"
+      className="pointer-events-auto neo-shadow absolute right-3 top-16 z-50 max-h-96 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:w-80 md:right-4 md:top-20"
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={UI_MOTION_VARIANTS.zoomReveal}
