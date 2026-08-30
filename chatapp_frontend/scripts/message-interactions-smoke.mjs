@@ -67,7 +67,9 @@ page.on('console', (entry) => {
   }
 });
 page.on('requestfailed', (request) => {
-  if (!request.url().includes('/ws/')) requestFailures.push({ url: request.url(), error: request.failure()?.errorText });
+  const error = request.failure()?.errorText;
+  const isViewportAssetAbort = error === 'net::ERR_ABORTED' && request.resourceType() === 'image';
+  if (!request.url().includes('/ws/') && !isViewportAssetAbort) requestFailures.push({ url: request.url(), error });
 });
 
 await page.route(`${apiBaseUrl}/**`, async (route) => {
@@ -154,11 +156,24 @@ if (captureVisualAudit) {
   await mkdir(captureDirectory, { recursive: true });
   await page.screenshot({ path: `${captureDirectory}/message-reaction-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(250);
   await messageRow.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${captureDirectory}/message-reaction-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 await page.getByRole('button', { name: 'Yêu thích' }).click();
+
+await messageRow.hover();
+await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
+await page.getByRole('menuitem', { name: 'Trả lời' }).click();
+if (captureVisualAudit) {
+  await page.screenshot({ path: `${captureDirectory}/message-reply-desktop.png`, fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(250);
+  await messageRow.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${captureDirectory}/message-reply-mobile.png`, fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
 
 await page.reload({ waitUntil: 'domcontentloaded' });
 messageRow = await openConversation();
