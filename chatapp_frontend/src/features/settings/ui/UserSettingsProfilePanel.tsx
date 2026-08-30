@@ -51,7 +51,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
       </div>
 
       <motion.div
-        className="flex flex-col gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
+        className="flex flex-col gap-4 rounded-[var(--radius-md)] bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.rowReveal}
@@ -59,7 +59,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
         <button
           type="button"
           onClick={handleOpenAvatarInput}
-          className="focus-ring group relative h-24 w-24 overflow-hidden rounded-[0.9rem] border-4 border-background bg-primary/10 transition-transform sm:h-28 sm:w-28"
+          className="focus-ring group relative h-24 w-24 overflow-hidden rounded-[0.9rem] bg-primary/10 transition-transform sm:h-28 sm:w-28"
           title={localizeText('Đổi ảnh đại diện')}
         >
           {avatarUrl ? (

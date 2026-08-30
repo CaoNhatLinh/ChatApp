@@ -142,8 +142,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     <motion.div
       className={
         isPageMode
-          ? 'relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:flex-row'
-          : 'relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card sm:flex-row'
+          ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
+          : 'settings-surface relative z-10 flex h-[85vh] max-h-[850px] w-full max-w-4xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07] sm:flex-row'
       }
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
@@ -155,8 +155,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
         onLogout={handleLogout}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background px-6">
+        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-white/[0.07] bg-white/[0.025] px-6">
           <h2 className="hidden text-lg font-semibold tracking-tight sm:block">
             {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
           </h2>

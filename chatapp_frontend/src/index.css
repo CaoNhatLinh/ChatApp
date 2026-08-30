@@ -183,6 +183,21 @@
     --border: oklch(0.28 0.014 250);
     --input: oklch(0.205 0.015 250);
     --ring: oklch(0.7 0.17 42);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
     background: var(--background);
     color: var(--foreground);
   }
@@ -234,6 +249,57 @@
 
   .messenger-workspace .neo-shadow {
     box-shadow: none;
+  }
+
+  .settings-surface {
+    --background: oklch(0.155 0.014 250);
+    --foreground: oklch(0.93 0.012 250);
+    --card: oklch(0.185 0.016 250);
+    --card-foreground: oklch(0.93 0.012 250);
+    --popover: oklch(0.19 0.016 250);
+    --popover-foreground: oklch(0.93 0.012 250);
+    --secondary: oklch(0.215 0.017 250);
+    --secondary-foreground: oklch(0.9 0.01 250);
+    --muted: oklch(0.215 0.015 250);
+    --muted-foreground: oklch(0.69 0.02 250);
+    --accent: oklch(0.245 0.025 250);
+    --accent-foreground: oklch(0.93 0.01 250);
+    --border: oklch(0.28 0.014 250);
+    --input: oklch(0.205 0.015 250);
+    --ring: oklch(0.7 0.17 42);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: 0 24px 80px rgb(3 7 18 / 16%);
+  }
+
+  .settings-surface .text-foreground,
+  .settings-surface .text-card-foreground,
+  .settings-surface .text-popover-foreground {
+    color: oklch(0.94 0.012 250);
+  }
+
+  .settings-surface .text-muted-foreground {
+    color: oklch(0.72 0.024 250);
+  }
+
+  .settings-surface ::placeholder {
+    color: oklch(0.62 0.024 250);
+    opacity: 1;
   }
 
   .section-frame {
