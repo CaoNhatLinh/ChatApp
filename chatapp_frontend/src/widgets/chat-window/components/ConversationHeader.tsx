@@ -1,4 +1,4 @@
-import { Info, MessageSquare, Palette, Phone, Search, Video } from "lucide-react";
+import { Info, Palette, Phone, Search, Video, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { SurfacePanel } from "@/shared/ui/SurfacePanel";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
@@ -103,7 +103,7 @@ export const ConversationHeader = ({
             title={isInfoOpen ? MESSENGER_COPY.chatWindow.header.themeInfo : MESSENGER_COPY.chatWindow.header.themeInfoClosed}
             className="rounded-full"
           >
-            {isInfoOpen ? <MessageSquare size={18} /> : <Info size={18} />}
+            {isInfoOpen ? <X size={18} /> : <Info size={18} />}
           </Button>
         </div>
       </div>
