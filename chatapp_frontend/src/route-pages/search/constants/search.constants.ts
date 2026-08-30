@@ -16,9 +16,6 @@ const rawSearchCopy = {
   emptyMessage: MESSENGER_COPY.search.messageFilter.emptyMessage,
   noFilterMessage: UI_COPY.friends.filters.noSearchHint,
   messageFilter: {
-    senderIdPlaceholder: MESSENGER_COPY.search.messageFilter.senderIdPlaceholder,
-    mentionedUserPlaceholder: MESSENGER_COPY.search.messageFilter.mentionedUserPlaceholder,
-    replyToSenderIdPlaceholder: MESSENGER_COPY.search.messageFilter.replyToSenderIdPlaceholder,
     typeLabel: MESSENGER_COPY.search.messageFilter.typeLabel,
     messageTypeOptions: MESSENGER_COPY.search.messageFilter.messageTypeOptions,
     attachmentLabel: MESSENGER_COPY.search.messageFilter.attachmentLabel,

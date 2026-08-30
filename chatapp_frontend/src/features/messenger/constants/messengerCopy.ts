@@ -232,20 +232,17 @@ const rawMessengerCopy = {
   search: {
     messageFilter: {
       emptyMessage: "Không có kết quả phù hợp.",
-      senderIdPlaceholder: "UUID người gửi",
-      mentionedUserPlaceholder: "UUID người được nhắc",
-      replyToSenderIdPlaceholder: "UUID người gửi trong tin nhắn reply",
       typeLabel: "Loại",
       messageTypeOptions: [
         { value: "", label: "Tất cả" },
-        { value: "TEXT", label: "TEXT" },
-        { value: "IMAGE", label: "IMAGE" },
-        { value: "FILE", label: "FILE" },
-        { value: "AUDIO", label: "AUDIO" },
-        { value: "VIDEO", label: "VIDEO" },
-        { value: "STICKER", label: "STICKER" },
-        { value: "POLL", label: "POLL" },
-        { value: "SYSTEM", label: "SYSTEM" },
+        { value: "TEXT", label: "Văn bản" },
+        { value: "IMAGE", label: "Ảnh" },
+        { value: "FILE", label: "Tệp" },
+        { value: "AUDIO", label: "Âm thanh" },
+        { value: "VIDEO", label: "Video" },
+        { value: "STICKER", label: "Sticker" },
+        { value: "POLL", label: "Bình chọn" },
+        { value: "SYSTEM", label: "Hệ thống" },
       ],
       attachmentLabel: "Tệp đính kèm",
       attachmentOptions: [

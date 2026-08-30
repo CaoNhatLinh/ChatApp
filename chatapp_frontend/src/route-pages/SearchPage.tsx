@@ -68,12 +68,9 @@ export const SearchPage = () => {
   const [messageSearchResults, setMessageSearchResults] = useState<SearchData[]>([]);
   const [messageNextCursor, setMessageNextCursor] = useState<string>();
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [senderId, setSenderId] = useState("");
-  const [replyToSenderId, setReplyToSenderId] = useState("");
   const [messageType, setMessageType] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [mentionedUserId, setMentionedUserId] = useState("");
   const [attachmentFilter, setAttachmentFilter] = useState<TriStateFilter>("all");
   const [pinnedFilter, setPinnedFilter] = useState<TriStateFilter>("all");
   const searchParams = useSearchParams();
@@ -87,22 +84,16 @@ export const SearchPage = () => {
 
   const hasMessageFilter = Boolean(
     query.trim() ||
-      senderId.trim() ||
-      replyToSenderId.trim() ||
       messageType ||
       fromDate.trim() ||
       toDate.trim() ||
-      mentionedUserId.trim() ||
       attachmentFilter !== "all" ||
       pinnedFilter !== "all"
   );
   const messageFilterCount = [
-    senderId.trim(),
-    replyToSenderId.trim(),
     messageType,
     fromDate.trim(),
     toDate.trim(),
-    mentionedUserId.trim(),
     attachmentFilter !== "all" ? attachmentFilter : "",
     pinnedFilter !== "all" ? pinnedFilter : "",
   ].filter(Boolean).length;
@@ -141,7 +132,7 @@ export const SearchPage = () => {
       setIsLoadingMore(false);
       setIsSearching(false);
       if (isMessageScopeEnabled && hasMessageFilter && hasConversationId && !hasValidConversationId) {
-        setValidationError(localizeText("UUID cuộc trò chuyện không hợp lệ."));
+        setValidationError(localizeText("Đường dẫn cuộc trò chuyện không hợp lệ."));
       } else if (!isMessageScopeEnabled || !hasMessageFilter || !hasConversationId) {
         setValidationError(null);
       }
@@ -183,39 +174,9 @@ export const SearchPage = () => {
       return;
     }
 
-    const trimmedSenderId = senderId.trim();
-    const trimmedReplyToSenderId = replyToSenderId.trim();
-    if (trimmedSenderId && !isValidUuid(trimmedSenderId)) {
-      activeMessageFilterRef.current = null;
-      setMessageSearchResults([]);
-      setMessageNextCursor(undefined);
-      setValidationError(localizeText("UUID người gửi không hợp lệ."));
-      setIsSearching(false);
-      return;
-    }
-
-    if (trimmedReplyToSenderId && !isValidUuid(trimmedReplyToSenderId)) {
-      activeMessageFilterRef.current = null;
-      setMessageSearchResults([]);
-      setMessageNextCursor(undefined);
-      setValidationError(localizeText("UUID người gửi trong tin nhắn reply không hợp lệ."));
-      setIsSearching(false);
-      return;
-    }
-
-    const trimmedMentionedId = mentionedUserId.trim();
-    if (trimmedMentionedId && !isValidUuid(trimmedMentionedId)) {
-      activeMessageFilterRef.current = null;
-      setMessageSearchResults([]);
-      setMessageNextCursor(undefined);
-      setValidationError(localizeText("UUID người nhắc đến không hợp lệ."));
-      setIsSearching(false);
-      return;
-    }
-
     if (scope === "chat" && hasConversationId && !hasValidConversationId) {
       activeMessageFilterRef.current = null;
-      setValidationError(localizeText("UUID cuộc trò chuyện không hợp lệ."));
+      setValidationError(localizeText("Đường dẫn cuộc trò chuyện không hợp lệ."));
       setMessageSearchResults([]);
       setMessageNextCursor(undefined);
       setIsSearching(false);
@@ -234,13 +195,6 @@ export const SearchPage = () => {
       filter.content = query.trim();
     }
 
-    if (trimmedSenderId) {
-      filter.senderId = trimmedSenderId;
-    }
-    if (trimmedReplyToSenderId) {
-      filter.replyToSenderId = trimmedReplyToSenderId;
-    }
-
     if (messageType.trim()) {
       filter.type = messageType;
     }
@@ -251,10 +205,6 @@ export const SearchPage = () => {
 
     if (toDate.trim()) {
       filter.to = normalizedTo;
-    }
-
-    if (trimmedMentionedId) {
-      filter.mentionedUserId = trimmedMentionedId;
     }
 
     if (attachmentFilter !== "all") {
@@ -319,15 +269,12 @@ export const SearchPage = () => {
     fromDate,
     hasConversationId,
     hasMessageFilter,
-    replyToSenderId,
     isMessageScopeEnabled,
     messageType,
-    mentionedUserId,
     pinnedFilter,
     query,
     hasValidConversationId,
     scope,
-    senderId,
     toDate
   ]);
 
@@ -383,12 +330,9 @@ export const SearchPage = () => {
 
   const clearMessageFilters = () => {
     setQuery("");
-    setSenderId("");
-    setReplyToSenderId("");
     setMessageType("");
     setFromDate("");
     setToDate("");
-    setMentionedUserId("");
     setAttachmentFilter("all");
     setPinnedFilter("all");
     setSearchError(null);
@@ -453,24 +397,6 @@ export const SearchPage = () => {
               <div className="space-y-3 border-t border-border/40 p-3">
                 <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1.5 text-xs">
-                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.senderIdPlaceholder}</span>
-                  <input
-                    value={senderId}
-                    onChange={(event) => setSenderId(event.target.value)}
-                    placeholder={SEARCH_COPY.messageFilter.senderIdPlaceholder}
-                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  />
-                </label>
-                <label className="space-y-1.5 text-xs">
-                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.replyToSenderIdPlaceholder}</span>
-                  <input
-                    value={replyToSenderId}
-                    onChange={(event) => setReplyToSenderId(event.target.value)}
-                    placeholder={SEARCH_COPY.messageFilter.replyToSenderIdPlaceholder}
-                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  />
-                </label>
-                <label className="space-y-1.5 text-xs">
                   <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.typeLabel}</span>
                   <select
                     value={messageType}
@@ -527,15 +453,6 @@ export const SearchPage = () => {
                     type="datetime-local"
                     value={toDate}
                     onChange={(event) => setToDate(event.target.value)}
-                    className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  />
-                </label>
-                <label className="space-y-1.5 text-xs">
-                  <span className="text-muted-foreground">{SEARCH_COPY.messageFilter.mentionedUserPlaceholder}</span>
-                  <input
-                    value={mentionedUserId}
-                    onChange={(event) => setMentionedUserId(event.target.value)}
-                    placeholder={SEARCH_COPY.messageFilter.mentionedUserPlaceholder}
                     className="w-full rounded-md border border-border/50 bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </label>
