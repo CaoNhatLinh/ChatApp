@@ -20,26 +20,28 @@ page.on('requestfailed', (request) => {
 });
 
 await openPage('/');
+const languageButtonVi = page.getByRole('button', { name: 'Ngôn ngữ', exact: true }).first();
 const vietnameseControls = {
-  languageTitle: await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).first().getAttribute('title'),
+  languageTitle: await languageButtonVi.getAttribute('title'),
   hasThemeToggle: (await page.getByRole('button', { name: 'Đổi giao diện' }).count()) > 0,
 };
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
-await page.getByRole('heading', { name: 'Say what matters. Keep what matters.' }).waitFor();
+await languageButtonVi.click();
+await page.getByRole('menuitem', { name: 'Tiếng Anh', exact: true }).click();
+await page.getByRole('heading', { name: 'A conversation starts when both people are ready.' }).waitFor();
 
 const home = {
   lang: await page.locator('html').getAttribute('lang'),
   heading: await page.locator('h1').first().innerText(),
   storedLocale: await page.evaluate(() => window.localStorage.getItem('novachat_locale')),
   navigation: await page.locator('header a').allTextContents(),
-  languageTitle: await page.getByRole('button', { name: 'Switch to Vietnamese' }).first().getAttribute('title'),
+  languageTitle: await page.getByRole('button', { name: 'Language', exact: true }).first().getAttribute('title'),
   hasThemeToggle: (await page.getByRole('button', { name: 'Change theme' }).count()) > 0,
 };
 
 await page.setViewportSize({ width: 390, height: 844 });
 await page.reload({ waitUntil: 'domcontentloaded' });
 await waitForSettledPage();
-await page.getByRole('heading', { name: 'Say what matters. Keep what matters.', exact: true }).waitFor();
+await page.getByRole('heading', { name: 'A conversation starts when both people are ready.', exact: true }).waitFor();
 await page.getByRole('button', { name: 'Open navigation menu' }).click();
 home.mobileNavigation = await page.locator('#public-mobile-navigation a').allTextContents();
 await page.getByRole('button', { name: 'Close navigation menu' }).waitFor();
@@ -88,11 +90,11 @@ await browser.close();
 if (
   unexpectedConsoleErrors.length ||
   requestFailures.length ||
-  vietnameseControls.languageTitle !== 'Tiếng Anh' ||
+  vietnameseControls.languageTitle !== 'Ngôn ngữ' ||
   !vietnameseControls.hasThemeToggle ||
   home.lang !== 'en' ||
   home.storedLocale !== 'en' ||
-  home.languageTitle !== 'Vietnamese' ||
+  home.languageTitle !== 'Language' ||
   !home.hasThemeToggle ||
   !home.navigation.includes('Home') ||
   !home.navigation.includes('About') ||

@@ -246,6 +246,7 @@ export const COPY_TRANSLATIONS: Record<string, string> = {
   'Kênh riêng tư': 'Private channel',
   'Chỉ tham gia qua lời mời': 'Join by invitation only',
   'Cộng đồng': 'Community',
+  'Mở cộng đồng': 'Open communities',
   'Không gian theo chủ đề': 'A topic-focused space',
   'Không gian mở cho nhiều người': 'An open space for a wider audience',
   'Cách tham gia': 'How people join',
