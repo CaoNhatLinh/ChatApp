@@ -42,6 +42,13 @@ flowchart TD
     I -- No --> K[Apply canonical response or STOMP event]
 ```
 
+Selecting the compact seen state opens the explicit read-receipt endpoint. The
+endpoint is paged by reader UUID (`limit` 1–50) and hydrates the returned
+reader profiles in one bounded user lookup. The client keeps the existing
+message page unchanged, appends only the requested receipt page, and offers
+retry/load-more states; it never renders a guessed name or fetches profiles
+one-by-one.
+
 Deleted messages suppress reaction controls and badges. Missing interaction
 rows mean no reaction or seen state; the client does not invent values. A
 projection-write failure fails the command, and replay repairs the idempotent

@@ -20,7 +20,16 @@ export interface MessageSummary {
 
 export interface MessageReadReceipt {
     readerId: string;
+    username?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
     readAt: string;
+}
+
+export interface MessageReadReceiptPage {
+    content: MessageReadReceipt[];
+    nextCursor: string | null;
+    hasNext: boolean;
 }
 
 export interface MessageRevision {

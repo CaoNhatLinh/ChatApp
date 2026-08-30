@@ -53,6 +53,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement insertUser;
     private final PreparedStatement lookupUserIdByUsername;
     private final PreparedStatement lookupUserById;
+    private final PreparedStatement lookupUserProfilesByIds;
     private final PreparedStatement insertUserPrefix;
     private final PreparedStatement listUsersByPrefix;
     private final PreparedStatement listUsersByPrefixAfter;
@@ -146,6 +147,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement updateConversationMemberRead;
     private final PreparedStatement saveMessageReadReceipt;
     private final PreparedStatement listMessageReadReceipts;
+    private final PreparedStatement listMessageReadReceiptsAfter;
     private final PreparedStatement updateMessageReadBucketSummary;
     private final PreparedStatement listMessageReadBucketSummaries;
     private final PreparedStatement saveMessageRevision;
@@ -252,6 +254,8 @@ public class CanonicalCqlStore {
                 """);
         this.lookupUserIdByUsername = session.prepare("SELECT user_id FROM user_id_by_username WHERE username_normalized = ?");
         this.lookupUserById = session.prepare("SELECT * FROM users_by_id WHERE user_id = ?");
+        this.lookupUserProfilesByIds = session.prepare(
+                "SELECT user_id, username, display_name, avatar_url FROM users_by_id WHERE user_id IN ?");
         this.insertUserPrefix = session.prepare("""
                 INSERT INTO users_by_username_prefix
                     (username_prefix, username_normalized, user_id, username, display_name, avatar_url, account_status)
@@ -676,6 +680,13 @@ public class CanonicalCqlStore {
                 SELECT reader_id, read_at
                 FROM message_read_receipts_by_message
                 WHERE conversation_id = ? AND message_bucket = ? AND message_id = ?
+                LIMIT ?
+                """);
+        this.listMessageReadReceiptsAfter = session.prepare("""
+                SELECT reader_id, read_at
+                FROM message_read_receipts_by_message
+                WHERE conversation_id = ? AND message_bucket = ? AND message_id = ? AND reader_id > ?
+                LIMIT ?
                 """);
         this.updateMessageReadBucketSummary = session.prepare("""
                 UPDATE message_read_summary_by_conversation_bucket
@@ -2126,13 +2137,31 @@ public class CanonicalCqlStore {
                 .build());
     }
 
-    public List<CanonicalApiContracts.MessageReadReceiptView> listMessageReadReceipts(
+    public List<MessageReadReceiptRow> listMessageReadReceipts(
             UUID conversationId,
             String bucket,
-            UUID messageId) {
-        return session.execute(listMessageReadReceipts.bind(conversationId, bucket, messageId)).all().stream()
-                .map(row -> new CanonicalApiContracts.MessageReadReceiptView(
-                        row.getUuid("reader_id"), row.getInstant("read_at")))
+            UUID messageId,
+            UUID afterReaderId,
+            int limit) {
+        var result = afterReaderId == null
+                ? session.execute(listMessageReadReceipts.bind(conversationId, bucket, messageId, limit))
+                : session.execute(listMessageReadReceiptsAfter.bind(
+                        conversationId, bucket, messageId, afterReaderId, limit));
+        return result.all().stream()
+                .map(row -> new MessageReadReceiptRow(row.getUuid("reader_id"), row.getInstant("read_at")))
+                .toList();
+    }
+
+    public List<CanonicalUserProfile> findUserProfilesByIds(List<UUID> userIds) {
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        return session.execute(lookupUserProfilesByIds.bind(userIds)).all().stream()
+                .map(row -> new CanonicalUserProfile(
+                        row.getUuid("user_id"),
+                        row.getString("username"),
+                        row.getString("display_name"),
+                        row.getString("avatar_url")))
                 .toList();
     }
 
@@ -3277,6 +3306,13 @@ public class CanonicalCqlStore {
             String accountStatus) {
     }
 
+    public record CanonicalUserProfile(
+            UUID userId,
+            String username,
+            String displayName,
+            String avatarUrl) {
+    }
+
     public record RefreshTokenOwnerRow(
             UUID tokenId,
             UUID userId,
@@ -3306,6 +3342,9 @@ public class CanonicalCqlStore {
     }
 
     public record MessageBucketRow(Instant bucketHour, String messageBucket) {
+    }
+
+    public record MessageReadReceiptRow(UUID readerId, Instant readAt) {
     }
 
     public record CommunityDirectoryKey(String nameNormalized, UUID conversationId) {

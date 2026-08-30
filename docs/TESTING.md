@@ -131,8 +131,10 @@ network failures.
 interaction projection, verifies compact reaction and seen rendering, asserts
 exact bucket-scoped reaction plus pin/unpin requests, reloads the page and
 proves reaction/current-actor/pin state hydrates again without per-message
-requests or WebSocket-only state. It also verifies reactive VI→EN accessible
-names and reports unexpected console/request failures.
+requests or WebSocket-only state. Selecting the seen state opens the bounded
+seen-by dialog, verifies the hydrated reader profile, follows its cursor for a
+second page and asserts both `limit=25` requests. It also verifies reactive
+VI→EN accessible names and reports unexpected console/request failures.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static
@@ -164,6 +166,14 @@ the full-viewport detail state. Keyboard Escape/Tab containment and
 background-scroll locking are enforced by the shared focus-trap behavior; a
 direct `/settings` deep link is a separate page-mode surface and is not the
 rail's primary action.
+
+The latest Signal Relay visual pass was captured with
+`SMOKE_BASE_URL=http://localhost:3101 npm run test:ui:capture`. The run produced
+desktop/mobile evidence for the public shell, workspace, conversation composer,
+room appearance previews, settings appearance and admin surfaces with no
+horizontal overflow on the captured routes. The expected missing-route 404 and
+the intentionally unavailable local realtime transport are reported separately
+from UI assertions.
 
 All tests must follow BUILD–OPERATE–CHECK and must not silently replace a failed
 integration with a mock-success path. The browser admin check stubs only the

@@ -277,7 +277,18 @@ public final class CanonicalApiContracts {
     public record MessageReactionRequest(String emoji) {
     }
 
-    public record MessageReadReceiptView(UUID readerId, Instant readAt) {
+    public record MessageReadReceiptView(
+            UUID readerId,
+            String username,
+            String displayName,
+            String avatarUrl,
+            Instant readAt) {
+    }
+
+    public record MessageReadReceiptPage(
+            List<MessageReadReceiptView> content,
+            UUID nextCursor,
+            boolean hasNext) {
     }
 
     public record MessageRevisionView(

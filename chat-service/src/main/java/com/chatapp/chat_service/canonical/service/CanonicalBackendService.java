@@ -1226,13 +1226,44 @@ public class CanonicalBackendService {
                 "readerId", actorId.toString(), "readAt", readAt.toString()));
     }
 
-    public List<CanonicalApiContracts.MessageReadReceiptView> listMessageReadReceipts(
-            UUID actorId, UUID conversationId, String bucket, UUID messageId) {
+    public CanonicalApiContracts.MessageReadReceiptPage listMessageReadReceipts(
+            UUID actorId,
+            UUID conversationId,
+            String bucket,
+            UUID messageId,
+            int requestedLimit,
+            UUID cursor) {
         requireMember(conversationId, actorId);
         if (store.findMessage(conversationId, bucket, messageId) == null) {
             throw new NotFoundException("message not found");
         }
-        return store.listMessageReadReceipts(conversationId, bucket, messageId);
+        int limit = Math.max(1, Math.min(50, requestedLimit));
+        List<CanonicalCqlStore.MessageReadReceiptRow> rows = store.listMessageReadReceipts(
+                conversationId, bucket, messageId, cursor, limit + 1);
+        boolean hasNext = rows.size() > limit;
+        List<CanonicalCqlStore.MessageReadReceiptRow> pageRows = hasNext
+                ? List.copyOf(rows.subList(0, limit))
+                : List.copyOf(rows);
+        Map<UUID, CanonicalCqlStore.CanonicalUserProfile> usersById = store.findUserProfilesByIds(pageRows.stream()
+                .map(CanonicalCqlStore.MessageReadReceiptRow::readerId)
+                .distinct()
+                .toList()).stream()
+                .collect(Collectors.toMap(CanonicalCqlStore.CanonicalUserProfile::userId, user -> user));
+        List<CanonicalApiContracts.MessageReadReceiptView> content = pageRows.stream()
+                .map(row -> {
+                    CanonicalCqlStore.CanonicalUserProfile user = usersById.get(row.readerId());
+                    return new CanonicalApiContracts.MessageReadReceiptView(
+                            row.readerId(),
+                            user == null ? null : user.username(),
+                            user == null ? null : user.displayName(),
+                            user == null ? null : user.avatarUrl(),
+                            row.readAt());
+                })
+                .toList();
+        UUID nextCursor = hasNext && !pageRows.isEmpty()
+                ? pageRows.get(pageRows.size() - 1).readerId()
+                : null;
+        return new CanonicalApiContracts.MessageReadReceiptPage(content, nextCursor, hasNext);
     }
 
     public List<CanonicalApiContracts.MessageRevisionView> listMessageRevisions(

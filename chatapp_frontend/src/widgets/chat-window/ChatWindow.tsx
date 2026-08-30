@@ -27,13 +27,15 @@ import { useTrackPresence } from "@/features/presence/hooks/useTrackPresence";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import apiClient from "@/shared/api/apiClient";
 import { ConversationHeader } from "./components/ConversationHeader";
+import { MessageSearchDialog } from "./components/MessageSearchDialog";
+import { MessageReadReceiptDialog } from "./components/MessageReadReceiptDialog";
 import { ChatWindowPlaceholder } from "./components/ChatWindowPlaceholder";
 import { ChatWindowToast } from "./components/ChatWindowToast";
 import { RoomThemePanel } from "./components/RoomThemePanel";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { useWebRtcCall } from "@/features/calls/hooks/useWebRtcCall";
 import { CallSessionPanel } from "./components/CallSessionPanel";
-import { getLocale, localizeText } from '@/shared/i18n';
+import { localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -46,7 +48,7 @@ import {
 } from '@/shared/ui/Dialog';
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
-import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
+import type { MessageRevision } from "@/features/messenger/types/messenger.types";
 
 const WAIT_MESSAGE_LOAD_MS = 80;
 const MAX_MESSAGE_JUMP_ATTEMPTS = 20;
@@ -83,13 +85,6 @@ const fetchUserProfile = async (userId: string): Promise<UserDTO> => {
   };
 };
 
-const latestReadReceipt = (message: Message): MessageReadReceipt | undefined => (
-  [...(message.readReceipts ?? [])].sort(
-    (left, right) =>
-      new Date(right.readAt).getTime() - new Date(left.readAt).getTime(),
-  )[0]
-);
-
 const mapMessageHistory = (history: MessageRevision[]): SafeRevision[] => history.map(({ revisionNumber, editedAt, content }) => ({
   revisionNumber,
   editedAt,
@@ -107,11 +102,13 @@ export const ChatWindow = () => {
     deleteMessage,
     pinMessage,
     loadMessageRevisions,
+    loadMessageReadReceipts,
   } = useMessenger();
 
   const deleteMessageAction = deleteMessage;
   const pinMessageAction = pinMessage;
   const loadMessageRevisionsAction = loadMessageRevisions;
+  const loadMessageReadReceiptsAction = loadMessageReadReceipts;
 
   const messages = useMessengerStore(
     useShallow((state) =>
@@ -131,10 +128,12 @@ export const ChatWindow = () => {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false);
   const [isDesktopLayout, setIsDesktopLayout] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [readReceiptsMessage, setReadReceiptsMessage] = useState<Message | null>(null);
   const [isRoomThemeOpen, setIsRoomThemeOpen] = useState(false);
   const [messageHistory, setMessageHistory] = useState<SafeRevision[]>([]);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -206,6 +205,7 @@ export const ChatWindow = () => {
   useEffect(() => {
     setReplyingTo(null);
     setEditingMessage(null);
+    setIsMessageSearchOpen(false);
   }, [activeConversationId]);
 
   useEffect(() => {
@@ -372,12 +372,7 @@ export const ChatWindow = () => {
             return;
           }
           case "view-seen": {
-            const latestSeen = latestReadReceipt(message);
-            if (latestSeen) {
-              showToast(MESSENGER_COPY.chatWindow.messageAction.seenAt(
-                new Date(latestSeen.readAt).toLocaleString(getLocale() === 'en' ? 'en-US' : 'vi-VN'),
-              ));
-            }
+            setReadReceiptsMessage(message);
             return;
           }
           case "jump-reply":
@@ -460,15 +455,23 @@ export const ChatWindow = () => {
           isInfoOpen={isInfoOpen}
           isOtherOnline={otherPresence?.isOnline ?? null}
           otherStatusLabel={statusLabel}
-          onSearch={() => router.push(`/search?conversationId=${activeConversationId}`)}
+          onSearch={() => setIsMessageSearchOpen(true)}
           onVideoCall={() => startCall("VIDEO")}
           onVoiceCall={() => startCall("VOICE")}
           canCall={canCall}
           onToggleInfo={() => setIsInfoOpen((current) => !current)}
         />
 
+        <MessageSearchDialog
+          isOpen={isMessageSearchOpen}
+          conversationId={activeConversation.conversationId}
+          conversationName={activeConversation.name}
+          onClose={() => setIsMessageSearchOpen(false)}
+          onSelectMessage={(messageId) => void jumpToMessage(messageId)}
+        />
+
         <Dialog open={isRoomThemeOpen} onOpenChange={setIsRoomThemeOpen}>
-          <DialogContent className="messenger-workspace max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-background p-2 sm:max-w-3xl">
+          <DialogContent className="room-theme-dialog messenger-workspace overflow-y-auto border border-border/65 bg-background/95 p-2 sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl sm:rounded-[var(--radius-lg)] sm:p-3">
             <DialogHeader className="sr-only">
               <DialogTitle>{localizeText('Tùy chỉnh giao diện cá nhân')}</DialogTitle>
               <DialogDescription>{localizeText('Tùy chỉnh này chỉ hiển thị với bạn.')}</DialogDescription>
@@ -617,6 +620,15 @@ export const ChatWindow = () => {
         isOpen={isHistoryOpen}
         revisions={messageHistory}
         onOpenChange={setIsHistoryOpen}
+      />
+
+      <MessageReadReceiptDialog
+        isOpen={readReceiptsMessage !== null}
+        message={readReceiptsMessage}
+        onOpenChange={(open) => {
+          if (!open) setReadReceiptsMessage(null);
+        }}
+        loadPage={loadMessageReadReceiptsAction}
       />
 
       <ConfirmDialog

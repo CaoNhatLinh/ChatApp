@@ -155,6 +155,42 @@ class CanonicalBackendServiceMessageTest {
     }
 
     @Test
+    void readReceiptsReturnBoundedPageWithAuthoritativeProfiles() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = Uuids.timeBased();
+        String bucket = "2026-07-22-01:03";
+        UUID firstReader = UUID.randomUUID();
+        UUID secondReader = UUID.randomUUID();
+        UUID thirdReader = UUID.randomUUID();
+        Instant firstReadAt = Instant.parse("2026-07-22T01:01:00Z");
+        Instant secondReadAt = Instant.parse("2026-07-22T01:02:00Z");
+        CanonicalMessage message = message(
+                conversationId, bucket, messageId, actorId, UUID.randomUUID(), firstReadAt);
+        when(store.findMessage(conversationId, bucket, messageId)).thenReturn(message);
+        when(store.listMessageReadReceipts(conversationId, bucket, messageId, null, 3)).thenReturn(List.of(
+                new CanonicalCqlStore.MessageReadReceiptRow(firstReader, firstReadAt),
+                new CanonicalCqlStore.MessageReadReceiptRow(secondReader, secondReadAt),
+                new CanonicalCqlStore.MessageReadReceiptRow(thirdReader, secondReadAt.plusSeconds(1))));
+        when(store.findUserProfilesByIds(List.of(firstReader, secondReader))).thenReturn(List.of(
+                new CanonicalCqlStore.CanonicalUserProfile(firstReader, "first", "First Reader", null),
+                new CanonicalCqlStore.CanonicalUserProfile(secondReader, "second", "Second Reader", null)));
+
+        var page = service.listMessageReadReceipts(
+                actorId, conversationId, bucket, messageId, 2, null);
+
+        assertThat(page.hasNext()).isTrue();
+        assertThat(page.nextCursor()).isEqualTo(secondReader);
+        assertThat(page.content()).containsExactly(
+                new CanonicalApiContracts.MessageReadReceiptView(
+                        firstReader, "first", "First Reader", null, firstReadAt),
+                new CanonicalApiContracts.MessageReadReceiptView(
+                        secondReader, "second", "Second Reader", null, secondReadAt));
+        verify(store).listMessageReadReceipts(conversationId, bucket, messageId, null, 3);
+        verify(store).findUserProfilesByIds(List.of(firstReader, secondReader));
+    }
+
+    @Test
     void pollCreateRetryReturnsExistingPollWithoutResettingItsState() {
         UUID actorId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
@@ -364,8 +400,12 @@ class CanonicalBackendServiceMessageTest {
     }
 
     private static CanonicalUser user(UUID userId) {
-        return new CanonicalUser(userId, "sender", "sender", "sender@example.com", "sender@example.com",
-                "hash", "LOCAL", null, "Sender", null, "ACTIVE", Instant.now(), Instant.now(), null);
+        return user(userId, "sender", "Sender");
+    }
+
+    private static CanonicalUser user(UUID userId, String username, String displayName) {
+        return new CanonicalUser(userId, username, username, username + "@example.com", username + "@example.com",
+                "hash", "LOCAL", null, displayName, null, "ACTIVE", Instant.now(), Instant.now(), null);
     }
 
     private static ConversationMember member(UUID conversationId, UUID userId) {

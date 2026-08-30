@@ -10,6 +10,7 @@ import {
     editMessage as editMessageApi,
     deleteMessage as deleteMessageApi,
     getMessageRevisions as getMessageRevisionsApi,
+    getMessageReadReceipts as getMessageReadReceiptsApi,
     markMessagesAsRead,
     getConversationUnreadCount,
     mapToMessage,
@@ -26,6 +27,7 @@ import type {
     Conversation,
     Message,
     MessageRevision,
+    MessageReadReceiptPage,
     SendMessageRequest,
     MessageType,
     TypingEvent
@@ -68,6 +70,7 @@ interface UseMessengerResult {
     editMessage: (messageId: string, content: string) => Promise<Message | null>;
     deleteMessage: (messageId: string) => Promise<Message | null>;
     loadMessageRevisions: (messageId: string) => Promise<MessageRevision[]>;
+    loadMessageReadReceipts: (messageId: string, cursor?: string | null) => Promise<MessageReadReceiptPage>;
     pinMessage: (messageId: string) => Promise<void>;
     uploadMessageFiles: (files: File[]) => Promise<SendMessageRequest['attachments']>;
     sendTyping: (isTyping: boolean) => void;
@@ -543,6 +546,17 @@ export const useMessenger = (): UseMessengerResult => {
         return getMessageRevisionsApi(activeConversationId, messageBucket, messageId);
     }, [activeConversationId]);
 
+    const loadMessageReadReceipts = useCallback(async (
+        messageId: string,
+        cursor?: string | null,
+    ): Promise<MessageReadReceiptPage> => {
+        if (!activeConversationId) return { content: [], nextCursor: null, hasNext: false };
+        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        if (!messageBucket) throw new Error('Message bucket is required');
+        return getMessageReadReceiptsApi(activeConversationId, messageBucket, messageId, { cursor });
+    }, [activeConversationId]);
+
     const pinMessage = useCallback(async (messageId: string) => {
         if (!activeConversationId) return;
         const message = useMessengerStore.getState().messages[activeConversationId]
@@ -596,6 +610,7 @@ export const useMessenger = (): UseMessengerResult => {
         editMessage,
         deleteMessage,
         loadMessageRevisions,
+        loadMessageReadReceipts,
         pinMessage,
         uploadMessageFiles,
         sendTyping,

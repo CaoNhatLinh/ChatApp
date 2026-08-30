@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
@@ -12,6 +13,9 @@ const messageId = '40000000-0000-0000-0000-000000000403';
 const messageBucket = '2026-08-30T12:00:00Z';
 const createdAt = '2026-08-30T12:05:00Z';
 const latestReadAt = '2026-08-30T12:08:00Z';
+const firstReaderId = '40000000-0000-0000-0000-000000000404';
+const secondReaderId = '40000000-0000-0000-0000-000000000405';
+const readReceiptRequests = [];
 
 const operator = {
   userId: ownerId,
@@ -99,6 +103,24 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       polls: [],
     });
   }
+  if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}/read-receipts`) && method === 'GET') {
+    const cursor = requestUrl.searchParams.get('cursor');
+    readReceiptRequests.push({
+      cursor,
+      limit: requestUrl.searchParams.get('limit'),
+    });
+    return json(cursor
+      ? {
+        content: [{ readerId: secondReaderId, username: 'second-reader', displayName: 'Second Reader', avatarUrl: null, readAt: '2026-08-30T12:09:00Z' }],
+        nextCursor: null,
+        hasNext: false,
+      }
+      : {
+        content: [{ readerId: firstReaderId, username: 'first-reader', displayName: 'First Reader', avatarUrl: null, readAt: latestReadAt }],
+        nextCursor: firstReaderId,
+        hasNext: true,
+      });
+  }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}/pin`)) {
     pinRequests.push({ method, bucket: requestUrl.searchParams.get('bucket') });
     message = { ...message, isPinned: method === 'POST' };
@@ -141,6 +163,19 @@ await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
 let messageRow = await openConversation();
 await messageRow.getByRole('button', { name: 'Thích: 3' }).waitFor();
 await messageRow.getByRole('button', { name: 'Đã xem' }).waitFor();
+await messageRow.getByRole('button', { name: 'Đã xem' }).click();
+const readReceiptDialog = page.getByRole('dialog');
+await readReceiptDialog.getByRole('heading', { name: 'Danh sách người đã xem' }).waitFor();
+await readReceiptDialog.getByText('First Reader', { exact: true }).waitFor();
+await readReceiptDialog.getByRole('button', { name: 'Tải thêm người đã xem' }).click();
+await readReceiptDialog.getByText('Second Reader', { exact: true }).waitFor();
+await readReceiptDialog.getByRole('button', { name: 'Đóng' }).first().click();
+if (JSON.stringify(readReceiptRequests) !== JSON.stringify([
+  { cursor: null, limit: '25' },
+  { cursor: firstReaderId, limit: '25' },
+])) {
+  throw new Error(`Unexpected read receipt requests: ${JSON.stringify(readReceiptRequests)}`);
+}
 
 await messageRow.hover();
 await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
@@ -184,13 +219,13 @@ await messageRow.hover();
 await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
 await page.getByRole('menuitem', { name: 'Bỏ ghim' }).click();
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await messageRow.getByRole('button', { name: 'Like: 2' }).waitFor();
 await messageRow.hover();
 await messageRow.getByRole('button', { name: 'More options' }).click();
 await page.getByRole('menuitem', { name: 'Pin' }).waitFor();
 
-const report = { baseUrl, pinRequests, reactionRequests, consoleErrors, requestFailures };
+const report = { baseUrl, pinRequests, reactionRequests, readReceiptRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -205,6 +240,10 @@ if (
   || reactionRequests[1].method !== 'POST'
   || reactionRequests[1].emoji !== 'love'
   || reactionRequests.some((request) => request.bucket !== messageBucket)
+  || JSON.stringify(readReceiptRequests) !== JSON.stringify([
+    { cursor: null, limit: '25' },
+    { cursor: firstReaderId, limit: '25' },
+  ])
   || consoleErrors.length
   || requestFailures.length
 ) process.exitCode = 1;

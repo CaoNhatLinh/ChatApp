@@ -108,11 +108,13 @@ public class CanonicalMessageController {
     }
 
     @GetMapping("/{messageId}/read-receipts")
-    public List<CanonicalApiContracts.MessageReadReceiptView> readReceipts(
+    public CanonicalApiContracts.MessageReadReceiptPage readReceipts(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
-            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.listMessageReadReceipts(actorId(), conversationId, bucket, messageId);
+            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(50) int limit,
+            @RequestParam(required = false) UUID cursor) {
+        return backend.listMessageReadReceipts(actorId(), conversationId, bucket, messageId, limit, cursor);
     }
 
     @GetMapping("/{messageId}/revisions")

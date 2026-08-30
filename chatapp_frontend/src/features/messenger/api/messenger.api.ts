@@ -11,7 +11,8 @@ import type {
     SendMessageRequest,
     ConversationNotificationLevel,
     ConversationChatMode,
-    MemberNotificationOverride
+    MemberNotificationOverride,
+    MessageReadReceiptPage,
 } from '../types/messenger.types';
 
 export interface PaginatedResponse<T> {
@@ -568,6 +569,48 @@ export const markMessageAsRead = async (
         undefined,
         { params: { bucket: messageBucket } },
     );
+};
+
+export const getMessageReadReceipts = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+    options: { cursor?: string | null; limit?: number } = {},
+): Promise<MessageReadReceiptPage> => {
+    const response = await apiClient.get<MessageReadReceiptPage>(
+        `/conversations/${conversationId}/messages/${messageId}/read-receipts`,
+        {
+            params: {
+                bucket: messageBucket,
+                limit: Math.min(50, Math.max(1, options.limit ?? 25)),
+                ...(options.cursor ? { cursor: options.cursor } : {}),
+            },
+        },
+    );
+    const page = response.data;
+    if (!page || !Array.isArray(page.content) || typeof page.hasNext !== 'boolean'
+        || (page.nextCursor !== null && typeof page.nextCursor !== 'string')
+        || (page.hasNext && !page.nextCursor)) {
+        throw new Error('Canonical read receipt page is invalid');
+    }
+    const content = page.content.map((receipt) => {
+        if (!receipt || typeof receipt.readerId !== 'string' || typeof receipt.readAt !== 'string') {
+            throw new Error('Canonical read receipt is invalid');
+        }
+        for (const value of [receipt.username, receipt.displayName, receipt.avatarUrl]) {
+            if (value !== undefined && value !== null && typeof value !== 'string') {
+                throw new Error('Canonical read receipt profile is invalid');
+            }
+        }
+        return {
+            readerId: receipt.readerId,
+            username: receipt.username ?? null,
+            displayName: receipt.displayName ?? null,
+            avatarUrl: receipt.avatarUrl ?? null,
+            readAt: receipt.readAt,
+        };
+    });
+    return { content, nextCursor: page.nextCursor ?? null, hasNext: page.hasNext };
 };
 
 export const getMessageRevisions = async (
