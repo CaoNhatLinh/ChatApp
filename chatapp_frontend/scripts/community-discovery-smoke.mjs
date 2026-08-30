@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
@@ -131,21 +132,36 @@ const englishResponse = page.waitForResponse((response) => {
   const url = new URL(response.url());
   return url.pathname.endsWith('/communities') && url.searchParams.get('languageCode') === 'en';
 });
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await englishResponse;
 await page.getByRole('heading', { name: 'Find a conversation around a shared interest.' }).waitFor();
 await page.getByRole('heading', { name: 'Frontend Sài Gòn' }).waitFor();
 await page.getByRole('heading', { name: 'Product Việt Nam' }).waitFor({ state: 'detached' });
-const englishNav = await page.getByRole('link', { name: 'Community', exact: true }).count();
+const englishNav = await page.getByRole('link', { name: 'Open communities', exact: true }).count();
 const redundantJoinLabelCount = await page.getByText('Join now', { exact: true }).count();
 
 await page.setViewportSize({ width: 390, height: 844 });
 const mobileHeroDetailVisible = await page.getByText('Open communities, clear details', { exact: true }).isVisible();
-const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+const mobileLayout = await page.evaluate(() => {
+  const nav = [...document.querySelectorAll('nav')].find((candidate) => candidate.getAttribute('aria-label') === 'Mobile navigation');
+  const lastCard = document.querySelector('[role="listitem"]:last-child');
+  if (!(nav instanceof HTMLElement) || !(lastCard instanceof HTMLElement)) {
+    return { overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, bottomGap: null };
+  }
+  window.scrollTo(0, document.documentElement.scrollHeight);
+  const navRect = nav.getBoundingClientRect();
+  const cardRect = lastCard.getBoundingClientRect();
+  return {
+    overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    bottomGap: navRect.top - cardRect.bottom,
+  };
+});
+const overflow = mobileLayout.overflow;
+const mobileLastCardVisibleAboveNav = mobileLayout.bottomGap === null || mobileLayout.bottomGap >= 0;
 await mkdir('artifacts', { recursive: true });
 await page.screenshot({ path: 'artifacts/community-discovery.png', fullPage: true });
 
-const report = { baseUrl, englishNav, redundantJoinLabelCount, mobileHeroDetailVisible, overflow, apiRequests, consoleErrors, requestFailures };
+const report = { baseUrl, englishNav, redundantJoinLabelCount, mobileHeroDetailVisible, overflow, mobileLastCardVisibleAboveNav, apiRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -155,6 +171,7 @@ if (
   || redundantJoinLabelCount !== 0
   || mobileHeroDetailVisible
   || overflow
+  || !mobileLastCardVisibleAboveNav
   || consoleErrors.length
   || requestFailures.length
 ) process.exitCode = 1;

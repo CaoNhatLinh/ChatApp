@@ -18,7 +18,7 @@ export const AppPageShell = ({
   showNavigation = true,
 }: AppPageShellProps) => {
   const contentClasses = cn(
-      "relative z-10 pb-24 pt-6 md:pb-12",
+      "relative z-10 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 md:pb-12",
       fullWidth ? "w-full px-0" : "layout-shell",
     contentClassName
   );
