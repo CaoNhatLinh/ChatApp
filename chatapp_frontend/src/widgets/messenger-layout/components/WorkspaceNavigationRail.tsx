@@ -39,7 +39,7 @@ export const WorkspaceNavigationRail = () => {
           <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "contacts"} aria-label={localizeText("Mở bạn bè")} title={localizeText("Mở bạn bè")} onClick={openContacts}>
             <Users size={20} />
           </Button>
-          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Thông báo")} title={localizeText("Thông báo")} onClick={() => router.push("/settings?tab=notifications")}>
+          <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Thông báo")} title={localizeText("Thông báo")} onClick={() => router.push("/app?notifications=1")}>
             <Bell size={20} />
           </Button>
           <Button type="button" variant="ghost" size="icon" className={railButtonClassName} aria-label={localizeText("Tìm kiếm")} title={localizeText("Tìm kiếm")} onClick={() => router.push("/search")}>

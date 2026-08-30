@@ -28,6 +28,7 @@ const captures = [
   { slug: 'workspace-empty', path: '/app', authenticated: true },
   { slug: 'workspace-conversation', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true },
   { slug: 'workspace-composer-options', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openComposerOptions: true },
+  { slug: 'notification-inbox', path: '/app?notifications=1', authenticated: true },
   { slug: 'friends-empty', path: '/friends', authenticated: true },
   { slug: 'communities', path: '/communities', authenticated: true },
   { slug: 'search-empty', path: '/search', authenticated: true },
@@ -52,6 +53,7 @@ const notificationSettings = {
   quietHoursEnd: null,
   timezone: 'Asia/Ho_Chi_Minh',
 };
+
 
 const communities = [
   {
@@ -118,6 +120,12 @@ const workspaceConversationItem = {
     hasAttachments: false,
   },
 };
+
+const notificationInbox = [
+  { notificationId: 'notification-mention', userId: currentUser.userId, type: 'MENTION', title: 'Bạn được nhắc trong Design review', body: 'Minh đã nhắc bạn trong một tin nhắn mới.', isRead: false, createdAt: '2026-08-30T07:55:00Z', metadata: { conversationId: workspaceConversation.conversationId } },
+  { notificationId: 'notification-reaction', userId: currentUser.userId, type: 'REACTION', title: 'Linh đã thả cảm xúc', body: '❤️ vào tin nhắn của bạn.', isRead: false, createdAt: '2026-08-30T07:30:00Z' },
+  { notificationId: 'notification-invite', userId: currentUser.userId, type: 'CONVERSATION_INVITE', title: 'Lời mời vào Product Studio', body: 'Bạn có một lời mời phòng mới.', isRead: true, createdAt: '2026-08-29T10:00:00Z' },
+];
 
 const adminOverview = {
   actorId: currentUser.userId,
@@ -193,9 +201,9 @@ const fulfillApiRequest = async (route) => {
     });
   }
   if (pathname.endsWith('/notifications/settings')) return json(route, notificationSettings);
-  if (pathname.endsWith('/notifications/unread/count')) return json(route, { count: 0 });
-  if (pathname.endsWith('/notifications/unread')) return json(route, []);
-  if (pathname.endsWith('/notifications')) return json(route, { content: [], nextCursor: null, hasNext: false });
+  if (pathname.endsWith('/notifications/unread/count')) return json(route, { count: 2 });
+  if (pathname.endsWith('/notifications/unread')) return json(route, notificationInbox.filter((notification) => !notification.isRead));
+  if (pathname.endsWith('/notifications')) return json(route, { content: notificationInbox, nextCursor: null, hasNext: false });
   if (pathname.endsWith('/preferences/chat')) {
     return json(route, { defaultThemeId: 'aurora', defaultBubbleStyleId: 'tiktok', rooms: [] });
   }
@@ -244,12 +252,16 @@ const captureRoute = async (browser, viewport, capture) => {
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
+  const unexpectedConsoleErrors = consoleErrors.filter((message) => !(
+    message.includes('net::ERR_CONNECTION_REFUSED')
+    && failedRequests.some((request) => request.url.includes('/ws/'))
+  ));
   const result = {
     route: capture.path,
     viewport: viewport.name,
     status: response?.status() ?? 0,
     finalUrl: page.url(),
-    consoleErrors,
+    consoleErrors: unexpectedConsoleErrors,
     failedRequests,
     horizontalOverflow: await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1),
   };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
@@ -17,6 +18,7 @@ import { SidebarSearchBar } from './SidebarSearchBar';
 
 type SettingsTab = 'profile' | 'appearance';
 export const ChatSidebar = () => {
+  const searchParams = useSearchParams();
   const {
     conversations,
     selectConversation,
@@ -102,6 +104,10 @@ export const ChatSidebar = () => {
   const closeNotificationPanel = useCallback(() => {
     setIsNotificationPanelOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('notifications') === '1') setIsNotificationPanelOpen(true);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user?.userId) return;
