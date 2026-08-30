@@ -79,10 +79,17 @@ only rows inside a small viewport margin through the same presence subscription
 path; live STOMP snapshots, Redis fan-out, and two-device expiry remain an
 integration concern.
 
+`npm run test:presence:tracker` transpiles and executes the production
+`presenceTrackingState.ts` state machine with a deterministic transport spy. It
+verifies duplicate-ID de-duplication, one active scope per target, reconnect
+resync, ordered room-to-friend scope transfer, snapshot clearing, final unwatch
+and logout cleanup without replacing STOMP/Redis integration evidence.
+
 The conversation sidebar consumes cursor-paginated `ConversationPage` data and
-requests the next page only through its explicit load-more action. Mention
-lookup starts with a 100-member page and requests additional pages only when a
-typed query still has fewer than eight matches.
+requests the next page when its bounded-scroll sentinel enters the lower margin;
+the explicit load-more action remains a recovery path. Mention lookup starts
+with a 100-member page and requests additional pages only when a typed query
+still has fewer than eight matches.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static

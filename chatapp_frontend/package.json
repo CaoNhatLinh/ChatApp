@@ -20,6 +20,7 @@
     "test:e2e:communities": "node scripts/community-discovery-smoke.mjs",
     "test:e2e:profile": "node scripts/profile-locale-smoke.mjs",
     "test:e2e:presence": "node scripts/presence-status-smoke.mjs",
+    "test:presence:tracker": "node scripts/presence-tracker-smoke.mjs",
     "test:e2e:search": "node scripts/search-filter-smoke.mjs",
     "test:e2e:notifications": "node scripts/notification-settings-smoke.mjs",
     "test:i18n:copy": "node scripts/locale-copy-smoke.mjs",
