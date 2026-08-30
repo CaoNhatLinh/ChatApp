@@ -57,7 +57,7 @@ export const WorkspaceNavigationRail = () => {
         </div>
       </nav>
 
-      <nav aria-label={localizeText("Điều hướng di động")} className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-[#0b141c]/95 px-4 backdrop-blur md:hidden">
+      <nav aria-label={localizeText("Điều hướng di động")} className="workspace-mobile-nav fixed inset-x-0 bottom-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-[#0b141c]/95 px-4 backdrop-blur md:hidden">
         <Button type="button" variant="ghost" size="icon" className={railButtonClassName} data-active={activeView === "chat"} aria-label={localizeText("Mở hội thoại")} onClick={openChats}>
           <MessageCircle size={20} />
         </Button>

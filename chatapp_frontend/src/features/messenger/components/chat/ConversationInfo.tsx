@@ -228,7 +228,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     return (
         <motion.div
-            className="flex h-full w-[300px] shrink-0 flex-col border-l border-white/10 bg-[#0d1720] sm:w-[320px] md:w-[286px]"
+            className="flex h-full w-[100dvw] max-w-full shrink-0 flex-col bg-[#0d1720] sm:w-[320px] sm:border-l sm:border-white/10 md:w-[286px]"
             initial={UI_MOTION_CONFIG.initialState}
             animate={UI_MOTION_CONFIG.animateState}
             variants={UI_MOTION_VARIANTS.slideInFromRight}

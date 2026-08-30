@@ -582,8 +582,9 @@ export const ChatWindow = () => {
       />
 
       <div
-        className={`absolute right-0 top-0 z-30 h-full transition-transform duration-300 md:static md:z-auto md:w-[286px] md:shrink-0 md:translate-x-0 ${
-          isInfoOpen ? "translate-x-0" : "translate-x-full"
+        data-open={isInfoOpen ? "true" : undefined}
+        className={`conversation-info-drawer fixed inset-0 z-30 h-full transition-transform duration-300 md:static md:inset-auto md:z-auto md:w-[286px] md:shrink-0 md:translate-x-0 ${
+          isInfoOpen ? "z-50 translate-x-0" : "translate-x-full"
         }`}
       >
         <ConversationInfo

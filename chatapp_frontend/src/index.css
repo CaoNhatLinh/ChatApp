@@ -251,6 +251,12 @@
     box-shadow: none;
   }
 
+  @media (max-width: 767px) {
+    .messenger-workspace:has(.conversation-info-drawer[data-open="true"]) .workspace-mobile-nav {
+      display: none;
+    }
+  }
+
   .settings-surface {
     --background: oklch(0.155 0.014 250);
     --foreground: oklch(0.93 0.012 250);
