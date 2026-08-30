@@ -273,7 +273,6 @@ const rawUICopy = {
       app: "Chat",
       search: "Tìm nhanh",
       friends: "Bạn bè",
-      settings: "Cài đặt giao diện",
     },
   },
 

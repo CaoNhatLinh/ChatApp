@@ -23,13 +23,14 @@ import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { useTrackPresenceInViewport } from '@/features/presence/hooks/useTrackPresence';
+import type { ChatBubbleStylePreset } from '@/features/settings/constants/chat-theme.constants';
 
 interface MessageItemProps {
     message: Message;
     showAvatar: boolean;
     isBlocked?: boolean;
     isHighlighted?: boolean;
-    roomBubbleStyle?: string;
+    roomBubbleStyle?: ChatBubbleStylePreset;
     dataMessageId?: string;
     onAction?: (action: string, message: Message) => void;
     onUserClick?: (userId: string) => void;
@@ -147,11 +148,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                         message.poll && <PollCard poll={message.poll} />
                     ) : (
                         <div className={cn(
-                            "px-4 py-3 rounded-3xl relative transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300",
-                            roomBubbleStyle,
+                            "px-4 py-3 relative transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300",
                             isOwn
-                                ? "bg-primary text-primary-foreground rounded-tr-none neo-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]"
-                                : "glass rounded-tl-none hover:bg-background/40"
+                                ? roomBubbleStyle?.ownClass ?? "bg-primary text-primary-foreground rounded-3xl rounded-tr-none neo-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]"
+                                : roomBubbleStyle?.peerClass ?? "glass rounded-3xl rounded-tl-none hover:bg-background/40"
                         )}>
                             {message.replyTo && !message.isDeleted && (
                                 <button

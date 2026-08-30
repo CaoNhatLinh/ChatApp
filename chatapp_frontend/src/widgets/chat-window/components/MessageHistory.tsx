@@ -38,11 +38,11 @@ export const MessageHistory = ({
   onRetry,
 }: MessageHistoryProps) => {
   const roomBackground = roomVisual?.backgroundImage;
-  const roomStyle = roomVisual?.preset?.overlay
+  const roomStyle = roomVisual?.backgroundOverlay
     ? {
         backgroundImage: roomBackground
-          ? `${roomVisual.preset.overlay}, url("${roomBackground}")`
-          : roomVisual.preset.overlay,
+          ? `${roomVisual.backgroundOverlay}, url("${roomBackground}")`
+          : roomVisual.backgroundOverlay,
         backgroundSize: roomBackground ? "cover" : undefined,
         backgroundPosition: roomBackground ? "center" : undefined,
       }
@@ -89,6 +89,7 @@ export const MessageHistory = ({
             showAvatar={showAvatar}
             isBlocked={isBlocked}
             isHighlighted={isHighlighted}
+            roomBubbleStyle={roomVisual?.messageBubbleStyle}
             onAction={onAction}
             onUserClick={onUserClick}
             onRetry={onRetry}

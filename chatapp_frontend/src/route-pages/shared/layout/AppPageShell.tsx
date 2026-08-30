@@ -1,35 +1,37 @@
 import type { ReactNode } from "react";
 import { cn } from "@/shared/lib/cn";
 import { ShellFrame } from "./ShellFrame";
-import { AppShellHeader } from "./AppShellHeader";
+import { AppNavigationRail } from "./AppNavigationRail";
+import { AppGlobalHeader } from "./AppGlobalHeader";
 
 interface AppPageShellProps {
-  title?: string;
-  actions?: ReactNode;
   children: ReactNode;
   contentClassName?: string;
   fullWidth?: boolean;
-  showHeader?: boolean;
+  showNavigation?: boolean;
 }
 
 export const AppPageShell = ({
-  title,
-  actions,
   children,
   contentClassName,
   fullWidth = false,
-  showHeader = true,
+  showNavigation = true,
 }: AppPageShellProps) => {
   const contentClasses = cn(
-      "relative z-10 pb-12 pt-6",
+      "relative z-10 pb-24 pt-6 md:pb-12",
       fullWidth ? "w-full px-0" : "layout-shell",
     contentClassName
   );
 
   return (
     <ShellFrame ambient="normal">
-      {showHeader ? <AppShellHeader title={title} actions={actions} /> : null}
-      <main className={contentClasses}>{children}</main>
+      <div className="flex min-h-[100dvh]">
+        {showNavigation ? <AppNavigationRail /> : null}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {showNavigation ? <AppGlobalHeader /> : null}
+          <main className={cn("min-h-0 min-w-0 flex-1", contentClasses)}>{children}</main>
+        </div>
+      </div>
     </ShellFrame>
   );
 };

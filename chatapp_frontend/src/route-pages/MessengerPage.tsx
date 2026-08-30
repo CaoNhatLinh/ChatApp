@@ -11,8 +11,8 @@ export const MessengerPage: React.FC = () => {
   return (
     <AppPageShell
       fullWidth
-      showHeader={false}
-      contentClassName="h-[100dvh] min-h-[520px] overflow-hidden p-0"
+      showNavigation={false}
+      contentClassName="h-[100dvh] min-h-[520px] overflow-hidden p-0 pt-0 pb-0 md:pt-0 md:pb-0"
     >
       <motion.div
         className="h-full"

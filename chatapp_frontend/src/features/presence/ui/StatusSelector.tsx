@@ -147,7 +147,7 @@ export const StatusSelector = ({ className, children }: StatusSelectorProps) => 
                     </span>
                 </DropdownMenuTrigger>
             )}
-            <DropdownMenuContent align="end" className="w-64 rounded-xl p-2 z-50">
+            <DropdownMenuContent align="end" className="messenger-workspace w-64 rounded-xl p-2 z-50">
                 <DropdownMenuLabel className="font-semibold px-2 py-1.5 text-sm text-foreground">{localizeText(MESSENGER_COPY.presence.statusSelector.title)}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1" />
                 {STATUS_OPTIONS.map((option) => (

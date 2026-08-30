@@ -811,7 +811,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
 
   if (authLoading || loading) {
     return (
-      <AppPageShell title={localizeText("Quản trị")}>
+      <AppPageShell>
         <div className="flex min-h-[60vh] items-center justify-center"><LoadingSpinner size="lg" /></div>
       </AppPageShell>
     );
@@ -822,7 +822,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   if (!overview) {
     const denied = errorStatus === 403;
     return (
-      <AppPageShell title={localizeText("Quản trị")}>
+      <AppPageShell>
         <Card className="mx-auto mt-12 max-w-xl">
           <CardHeader>
             <CardTitle>{localizeText(denied ? "Bạn không có quyền truy cập" : "Không tải được khu vực quản trị")}</CardTitle>
@@ -850,7 +850,7 @@ const AdminPage = ({ onBackToApp }: AdminPageProps) => {
   const healthState = health?.cassandra?.startsWith("UP") ? localizeText("Ổn định") : health ? localizeText("Cần kiểm tra") : localizeText("Chưa đọc được");
 
   return (
-    <AppPageShell title={localizeText("Quản trị")}>
+    <AppPageShell>
       <motion.div
         className="space-y-8"
         initial={UI_MOTION_CONFIG.initialState}

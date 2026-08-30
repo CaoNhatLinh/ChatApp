@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_BUBBLE_STYLE_ID,
   DEFAULT_ROOM_THEME_ID,
+  type CustomBackgroundTreatment,
   getRoomVisualComputed,
   normalizeRoomBackgroundUrl,
   type ChatBubbleStyleId,
@@ -55,6 +56,7 @@ const normalizeThemeState = (raw: string | null): RoomVisualSettingsState => {
             const typedValue = value as {
               roomThemeId?: string;
               customBackgroundImage?: string;
+              customBackgroundTreatment?: string;
             };
 
             const roomThemeId = isRoomThemeId(typedValue?.roomThemeId)
@@ -75,6 +77,10 @@ const normalizeThemeState = (raw: string | null): RoomVisualSettingsState => {
             acc[conversationId] = {
               roomThemeId,
               customBackgroundImage,
+              customBackgroundTreatment:
+                typedValue?.customBackgroundTreatment === 'soft' || typedValue?.customBackgroundTreatment === 'strong'
+                  ? typedValue.customBackgroundTreatment
+                  : undefined,
             };
             return acc;
           }, {})
@@ -129,9 +135,11 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
         if (!active || hasUserInteractedRef.current) return;
         const remoteRoomThemes = remote.rooms.reduce<RoomVisualSettingsState['roomThemes']>((acc, room) => {
           const customBackgroundImage = room.customBackgroundUrl?.trim() || undefined;
+          const localTreatment = getPersistedRoomVisualSettings(userId).roomThemes[room.conversationId]?.customBackgroundTreatment;
           acc[room.conversationId] = {
             roomThemeId: room.themeId,
             customBackgroundImage,
+            customBackgroundTreatment: localTreatment,
           };
           return acc;
         }, {});
@@ -197,6 +205,10 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     ? settings.roomThemes[conversationId]?.customBackgroundImage
     : undefined;
 
+  const activeConversationBackgroundTreatment = conversationId
+    ? settings.roomThemes[conversationId]?.customBackgroundTreatment
+    : undefined;
+
   const commitSettings = useCallback((next: RoomVisualSettingsState) => {
     settingsRef.current = next;
     setSettings(next);
@@ -240,7 +252,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     syncConversation(conversationIdToSet, next);
   }, [commitSettings, syncConversation]);
 
-  const setConversationBackground = useCallback((conversationIdToSet: string, backgroundUrl: string) => {
+  const setConversationBackground = useCallback((conversationIdToSet: string, backgroundUrl: string, backgroundTreatment?: CustomBackgroundTreatment) => {
     hasUserInteractedRef.current = true;
     const normalizedBackgroundUrl = normalizeRoomBackgroundUrl(backgroundUrl);
     const current = settingsRef.current;
@@ -251,6 +263,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
         [conversationIdToSet]: {
           ...current.roomThemes[conversationIdToSet],
           customBackgroundImage: normalizedBackgroundUrl ?? undefined,
+          customBackgroundTreatment: backgroundTreatment ?? current.roomThemes[conversationIdToSet]?.customBackgroundTreatment,
         },
       },
     };
@@ -278,6 +291,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
       roomThemes[conversationIdToClear] = {
         roomThemeId: previous.roomThemeId,
         customBackgroundImage: undefined,
+        customBackgroundTreatment: undefined,
       };
     } else {
       delete roomThemes[conversationIdToClear];
@@ -296,6 +310,7 @@ export const useRoomThemeState = (conversationId: string | null, userId: string 
     computed,
     activeRoomThemeId,
     activeConversationBackground,
+    activeConversationBackgroundTreatment,
     hasConversationOverride:
       conversationId ? Boolean(settings.roomThemes[conversationId]) : false,
     setDefaultRoomTheme,

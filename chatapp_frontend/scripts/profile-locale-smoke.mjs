@@ -68,13 +68,11 @@ if (
   || !vi.quickLinks.some((label) => label.includes('Chat'))
   || !vi.quickLinks.some((label) => label.includes('Tìm nhanh'))
   || !vi.quickLinks.some((label) => label.includes('Bạn bè'))
-  || !vi.quickLinks.some((label) => label.includes('Cài đặt giao diện'))
   || en.lang !== 'en'
   || !en.quickLinksTitle
   || !en.quickLinks.some((label) => label.includes('Chat'))
   || !en.quickLinks.some((label) => label.includes('Quick search'))
   || !en.quickLinks.some((label) => label.includes('Friends'))
-  || !en.quickLinks.some((label) => label.includes('Appearance settings'))
 ) {
   process.exitCode = 1;
 }

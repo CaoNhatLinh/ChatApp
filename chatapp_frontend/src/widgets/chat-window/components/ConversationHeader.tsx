@@ -1,4 +1,4 @@
-import { ChevronLeft, Info, Palette, Phone, Search, Video, X } from "lucide-react";
+import { ChevronLeft, Info, Phone, Search, Video, X } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { SurfacePanel } from "@/shared/ui/SurfacePanel";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
@@ -16,7 +16,6 @@ interface ConversationHeaderProps {
   onToggleInfo: () => void;
   onVideoCall: () => void;
   onVoiceCall: () => void;
-  onOpenRoomTheme: () => void;
   canCall: boolean;
 }
 
@@ -29,7 +28,6 @@ export const ConversationHeader = ({
   onToggleInfo,
   onVideoCall,
   onVoiceCall,
-  onOpenRoomTheme,
   canCall,
 }: ConversationHeaderProps) => {
   const { setSidebarOpen } = useMessenger();
@@ -68,16 +66,6 @@ export const ConversationHeader = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onOpenRoomTheme}
-            aria-label={MESSENGER_COPY.chatWindow.header.themeTooltip}
-            title={MESSENGER_COPY.chatWindow.header.themeTooltip}
-            className="hidden rounded-full sm:inline-flex"
-          >
-            <Palette size={18} />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

@@ -82,12 +82,8 @@ const rawMessengerCopy = {
   sidebar: {
     title: "Hội thoại",
     header: {
-      contactsAriaLabel: "Mở danh bạ và lời mời",
       createRoomAriaLabel: "Tạo phòng mới",
-      settingsAriaLabel: "Mở cài đặt",
-      contactsTitle: "Danh sách bạn bè",
       createRoomTitle: "Tạo phòng mới",
-      settingsTitle: "Cài đặt",
     },
     search: {
       placeholder: "Tìm kiếm cuộc trò chuyện",
@@ -97,10 +93,6 @@ const rawMessengerCopy = {
     emptyHintWithFilter: "Thử lại với từ khóa khác hoặc kiểm tra bộ lọc ở phía trên.",
     emptyHintDefault: "Tạo phòng mới hoặc tìm bạn để bắt đầu trò chuyện.",
     loadMore: "Tải thêm cuộc trò chuyện",
-    footer: {
-      contactsAriaLabel: "Danh sách bạn bè",
-      settingsAriaLabel: "Mở cài đặt",
-    },
   },
   conversationInfo: {
     title: "Thông tin",

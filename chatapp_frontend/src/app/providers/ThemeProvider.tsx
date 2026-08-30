@@ -34,6 +34,10 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     }
   }, []);
 
+  const previewPreference = useCallback((preference: ThemePreference) => {
+    setThemePreference(preference);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -58,6 +62,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
   const contextValue: ThemeContextType = {
     themePreference,
     isDarkMode,
+    previewThemePreference: previewPreference,
     setThemePreference: setPreference,
   };
 

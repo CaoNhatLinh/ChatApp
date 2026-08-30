@@ -31,7 +31,7 @@ export const MessengerLayoutShell = ({
   const handleOverlayClick = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   return (
-    <section lang={locale} className="messenger-workspace relative h-full w-full overflow-hidden bg-background text-foreground">
+    <section lang={locale} className="messenger-workspace relative h-full w-full overflow-visible bg-background text-foreground">
       {showMobileMenu ? <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className={cn("focus-ring surface fixed left-4 top-4 z-50 h-10 w-10 items-center justify-center rounded-full text-primary md:hidden", mobileSidebarFullScreen && isSidebarOpen ? "hidden" : "flex")}
@@ -60,11 +60,11 @@ export const MessengerLayoutShell = ({
               </Button>
             </div>
           </header>
-          <div className="relative min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1 md:flex">
             <div
               className={cn(
                 "absolute inset-y-0 left-0 z-40 w-full max-w-[320px] border-r border-border bg-background",
-                "flex-shrink-0 transition-transform duration-200 ease-out md:static md:w-[300px] md:max-w-none md:translate-x-0 md:transform-none",
+                "flex-shrink-0 transition-transform duration-200 ease-out md:static md:h-full md:w-[300px] md:max-w-none md:translate-x-0 md:transform-none",
                 mobileSidebarFullScreen ? "max-w-none" : "",
                 isSidebarOpen ? "translate-x-0" : "-translate-x-full",
               )}

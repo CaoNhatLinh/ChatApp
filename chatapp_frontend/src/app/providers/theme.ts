@@ -5,6 +5,8 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export interface ThemeContextType {
   themePreference: ThemePreference;
   isDarkMode: boolean;
+  /** Apply a preview without changing the persisted preference. */
+  previewThemePreference: (preference: ThemePreference) => void;
   setThemePreference: (preference: ThemePreference) => void;
 }
 

@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { Bell, Flag, LogOut, Palette, UserCircle } from 'lucide-react';
+import { Bell, Flag, Languages, LogOut, Palette, UserCircle } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { localizeText } from '@/shared/i18n';
 
-type TabType = 'profile' | 'appearance' | 'notifications' | 'reports';
+type TabType = 'profile' | 'appearance' | 'language' | 'notifications' | 'reports';
 
 interface UserSettingsModalNavigationProps {
   activeTab: TabType;
@@ -33,6 +33,11 @@ export const UserSettingsModalNavigation: FC<UserSettingsModalNavigationProps> =
       key: 'appearance',
       label: localizeText('Giao diện'),
       icon: <Palette size={20} />,
+    },
+    {
+      key: 'language',
+      label: localizeText('Ngôn ngữ'),
+      icon: <Languages size={20} />,
     },
     {
       key: 'notifications',

@@ -4,7 +4,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { CreateRoomModal } from '@/features/messenger/components/Modals/CreateRoomModal';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { useMessenger } from '@/features/messenger/model/useMessenger';
-import { UserSettingsModal } from '@/features/settings/ui/UserSettingsModal';
 import {
   getNotificationConversationId,
   type NotificationRecord,
@@ -16,7 +15,6 @@ import { SidebarHeader } from './SidebarHeader';
 import { SidebarNotificationPanel } from './components/SidebarNotificationPanel';
 import { SidebarSearchBar } from './SidebarSearchBar';
 
-type SettingsTab = 'profile' | 'appearance';
 export const ChatSidebar = () => {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -26,13 +24,11 @@ export const ChatSidebar = () => {
     selectConversation,
     activeConversationId,
     setActiveView,
-    activeView,
     loading,
     pinConversation,
     unpinConversation,
     loadMoreConversations,
     conversationsPagination,
-    friendRequestCount,
     setSidebarOpen,
   } = useMessenger();
 
@@ -70,8 +66,6 @@ export const ChatSidebar = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsModalTab, setSettingsModalTab] = useState<SettingsTab>('profile');
 
   const filteredConversations = useMemo(
     () =>
@@ -80,18 +74,6 @@ export const ChatSidebar = () => {
       ),
     [conversations, searchTerm],
   );
-
-  const handleOpenSettings = useCallback(
-    (tab: SettingsTab = 'profile') => {
-      setSettingsModalTab(tab);
-      setIsSettingsModalOpen(true);
-    },
-    [],
-  );
-
-  const handleOpenContacts = useCallback(() => {
-    setActiveView('contacts');
-  }, [setActiveView]);
 
   const handleSelectConversation = useCallback(
     async (conversationId: string) => {
@@ -145,13 +127,10 @@ export const ChatSidebar = () => {
   }, [markEverythingAsRead]);
 
   return (
-    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 text-foreground">
+    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 pb-16 text-foreground md:pb-0">
       <div className="md:hidden">
         <SidebarHeader
-          friendRequestCount={friendRequestCount}
-          onOpenContacts={handleOpenContacts}
           onOpenCreateRoom={() => setIsCreateRoomModalOpen(true)}
-          onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
         />
       </div>
 
@@ -172,12 +151,10 @@ export const ChatSidebar = () => {
         />
       </div>
 
-      <div className="md:hidden">
-        <SidebarFooter
-          user={user}
-          onOpenSettings={() => handleOpenSettings(activeView === 'contacts' ? 'profile' : 'appearance')}
-        />
-      </div>
+      <SidebarFooter
+        user={user}
+        onOpenProfile={() => router.push('/profile')}
+      />
 
       <SidebarNotificationPanel
         isOpen={isNotificationPanelOpen}
@@ -196,11 +173,6 @@ export const ChatSidebar = () => {
         onNotificationClick={handleNotificationClick}
       />
 
-      <UserSettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        initialTab={settingsModalTab}
-      />
       <CreateRoomModal
         isOpen={isCreateRoomModalOpen}
         onClose={() => setIsCreateRoomModalOpen(false)}

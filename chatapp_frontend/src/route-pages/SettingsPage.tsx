@@ -13,7 +13,7 @@ export const SettingsPage = () => {
   const { user, loading } = useAuthStore();
   const tab = searchParams.get("tab");
 
-  const initialTab = tab === "appearance" ? "appearance" : tab === "notifications" ? "notifications" : tab === "reports" ? "reports" : "profile";
+  const initialTab = tab === "appearance" ? "appearance" : tab === "language" ? "language" : tab === "notifications" ? "notifications" : tab === "reports" ? "reports" : "profile";
 
   const handleClose = useCallback(() => {
     router.push("/app");

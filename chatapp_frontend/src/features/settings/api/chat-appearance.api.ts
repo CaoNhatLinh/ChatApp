@@ -24,6 +24,11 @@ interface ChatAppearancePreferencesResponse {
   rooms: ConversationAppearancePreference[];
 }
 
+interface BackgroundUploadResponse {
+  success: boolean;
+  file?: { url?: string; contentType?: string; resourceType?: string };
+}
+
 const isRoomThemeId = (value: string): value is RoomThemeId => (
   value === 'aurora' || value === 'neon' || value === 'studio' || value === 'vapor'
 );
@@ -80,4 +85,28 @@ export const saveConversationAppearancePreference = async (
 
 export const resetConversationAppearancePreference = async (conversationId: string): Promise<void> => {
   await apiClient.delete(`/preferences/chat/rooms/${conversationId}`);
+};
+
+export const uploadChatBackground = async (file: File): Promise<string> => {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files can be used as a chat background');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('Chat background images must be 10 MB or smaller');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post<BackgroundUploadResponse>('/files/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  const uploaded = response.data.file;
+  if (!response.data.success || !uploaded?.url || !uploaded.contentType?.startsWith('image/')) {
+    throw new Error('The uploaded background image is unavailable');
+  }
+  const normalizedUrl = normalizeRoomBackgroundUrl(uploaded.url);
+  if (!normalizedUrl) {
+    throw new Error('The uploaded background image URL is invalid');
+  }
+  return normalizedUrl;
 };

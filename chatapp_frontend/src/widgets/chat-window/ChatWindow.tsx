@@ -37,6 +37,13 @@ import { getLocale, localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/Dialog';
 
 import type { SafeRevision } from "@/widgets/chat-window/components/types";
 import type { MessageReadReceipt, MessageRevision } from "@/features/messenger/types/messenger.types";
@@ -457,52 +464,58 @@ export const ChatWindow = () => {
           onVideoCall={() => startCall("VIDEO")}
           onVoiceCall={() => startCall("VOICE")}
           canCall={canCall}
-          onOpenRoomTheme={() => setIsRoomThemeOpen((current) => !current)}
           onToggleInfo={() => setIsInfoOpen((current) => !current)}
         />
 
-        {isRoomThemeOpen ? (
-          <RoomThemePanel
-            conversationId={activeConversationId}
-            conversationName={
-              activeConversation.type === "dm"
-                ? activeConversation.otherParticipant?.displayName ?? activeConversation.name
-                : activeConversation.name
-            }
-            defaultRoomThemeId={roomThemeSettings.settings.defaultRoomThemeId}
-            defaultBubbleStyleId={roomThemeSettings.settings.messageBubbleStyle}
-            activeRoomThemeId={roomThemeSettings.activeRoomThemeId}
-            activeBackgroundImage={roomThemeSettings.activeConversationBackground || ""}
-            hasConversationOverride={roomThemeSettings.hasConversationOverride}
-            onSetDefaultRoomTheme={roomThemeSettings.setDefaultRoomTheme}
-            onSetRoomTheme={(themeId) => {
-              if (activeConversationId) {
-                roomThemeSettings.setConversationTheme(activeConversationId, themeId);
+        <Dialog open={isRoomThemeOpen} onOpenChange={setIsRoomThemeOpen}>
+          <DialogContent className="messenger-workspace max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-background p-2 sm:max-w-3xl">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{localizeText('Tùy chỉnh giao diện cá nhân')}</DialogTitle>
+              <DialogDescription>{localizeText('Tùy chỉnh này chỉ hiển thị với bạn.')}</DialogDescription>
+            </DialogHeader>
+            <RoomThemePanel
+              conversationId={activeConversationId}
+              conversationName={
+                activeConversation.type === "dm"
+                  ? activeConversation.otherParticipant?.displayName ?? activeConversation.name
+                  : activeConversation.name
               }
-            }}
-            onSetBubbleStyle={roomThemeSettings.setRoomBubbleStyle}
-            onSetBackgroundImage={(backgroundUrl) => {
-              if (activeConversationId) {
-                roomThemeSettings.setConversationBackground(
-                  activeConversationId,
-                  backgroundUrl.trim(),
-                );
-              }
-            }}
-            onClearConversationTheme={() => {
-              if (activeConversationId) {
-                roomThemeSettings.resetConversationTheme(activeConversationId);
-              }
-            }}
-            onClearConversationBackground={() => {
-              if (activeConversationId) {
-                roomThemeSettings.clearConversationBackground(activeConversationId);
-              }
-            }}
-            onClose={() => setIsRoomThemeOpen(false)}
-          />
-        ) : null}
-
+              defaultRoomThemeId={roomThemeSettings.settings.defaultRoomThemeId}
+              defaultBubbleStyleId={roomThemeSettings.settings.messageBubbleStyle}
+              activeRoomThemeId={roomThemeSettings.activeRoomThemeId}
+              activeBackgroundImage={roomThemeSettings.activeConversationBackground || ""}
+              activeBackgroundTreatment={roomThemeSettings.activeConversationBackgroundTreatment}
+              hasConversationOverride={roomThemeSettings.hasConversationOverride}
+              onSetDefaultRoomTheme={roomThemeSettings.setDefaultRoomTheme}
+              onSetRoomTheme={(themeId) => {
+                if (activeConversationId) {
+                  roomThemeSettings.setConversationTheme(activeConversationId, themeId);
+                }
+              }}
+              onSetBubbleStyle={roomThemeSettings.setRoomBubbleStyle}
+              onSetBackgroundImage={(backgroundUrl, treatment) => {
+                if (activeConversationId) {
+                  roomThemeSettings.setConversationBackground(
+                    activeConversationId,
+                    backgroundUrl.trim(),
+                    treatment,
+                  );
+                }
+              }}
+              onClearConversationTheme={() => {
+                if (activeConversationId) {
+                  roomThemeSettings.resetConversationTheme(activeConversationId);
+                }
+              }}
+              onClearConversationBackground={() => {
+                if (activeConversationId) {
+                  roomThemeSettings.clearConversationBackground(activeConversationId);
+                }
+              }}
+              onSaved={() => setIsRoomThemeOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
         <CallSessionPanel controls={callControls} />
 
         <MessageHistory

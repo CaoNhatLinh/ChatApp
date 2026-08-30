@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -14,11 +15,12 @@ import { notifyError, notifySuccess, notifyWarning } from '@/shared/lib/notifica
 import { useTheme } from '@/app/providers/theme';
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from '@/shared/constants/ui-motion-variants';
 import { UserSettingsAppearancePanel } from './UserSettingsAppearancePanel';
+import { UserSettingsLanguagePanel } from './UserSettingsLanguagePanel';
 import { UserSettingsModalNavigation } from './UserSettingsModalNavigation';
 import { UserSettingsProfilePanel } from './UserSettingsProfilePanel';
 import { Button } from '@/shared/ui/Button';
 import { ReportHistoryPanel } from '@/features/moderation/components/ReportHistoryPanel';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 import { NotificationSettingsPanel } from '@/features/notifications/components/NotificationSettingsPanel';
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
@@ -26,11 +28,11 @@ import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'profile' | 'appearance' | 'notifications' | 'reports';
+  initialTab?: 'profile' | 'appearance' | 'language' | 'notifications' | 'reports';
   mode?: 'modal' | 'page';
 }
 
-type TabType = 'profile' | 'appearance' | 'notifications' | 'reports';
+type TabType = 'profile' | 'appearance' | 'language' | 'notifications' | 'reports';
 type ThemePreference = 'light' | 'dark' | 'system';
 
 export const UserSettingsModal: FC<UserSettingsModalProps> = ({
@@ -44,9 +46,13 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [draftThemePreference, setDraftThemePreference] = useState<ThemePreference>('system');
+  const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>('system');
+  const appearanceOpenRef = useRef(false);
 
   const { user, logout: logoutStore, updateUser } = useAuthStore();
-  const { themePreference, setThemePreference } = useTheme();
+  const { themePreference, setThemePreference, previewThemePreference } = useTheme();
+  const { locale, setLocale } = useAppLocale();
   const router = useRouter();
 
   useEffect(() => {
@@ -58,6 +64,15 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (isOpen && !appearanceOpenRef.current) {
+      const currentTheme = themePreference as ThemePreference;
+      setDraftThemePreference(currentTheme);
+      setSavedThemePreference(currentTheme);
+    }
+    appearanceOpenRef.current = isOpen;
+  }, [isOpen, themePreference]);
 
   const normalizedDisplayName = useMemo(() => displayName.trim(), [displayName]);
   const currentDisplayName = useMemo(() => user?.displayName.trim() ?? '', [user?.displayName]);
@@ -134,8 +149,26 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
 
   const handleClose = () => {
     if (!isWorking) {
+      if (draftThemePreference !== savedThemePreference) {
+        previewThemePreference(savedThemePreference);
+      }
       onClose();
     }
+  };
+
+  const handleThemePreview = (nextTheme: ThemePreference) => {
+    setDraftThemePreference(nextTheme);
+    previewThemePreference(nextTheme);
+  };
+
+  const handleSaveAppearance = () => {
+    if (draftThemePreference === savedThemePreference) {
+      notifyWarning(UI_COPY.settings.saveProfileNoChanges);
+      return;
+    }
+    setThemePreference(draftThemePreference);
+    setSavedThemePreference(draftThemePreference);
+    notifySuccess(localizeText('Đã cập nhật giao diện.'));
   };
 
   const content = (
@@ -148,6 +181,9 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={isPageMode ? UI_MOTION_VARIANTS.fadeIn : UI_MOTION_VARIANTS.zoomReveal}
+      role={isPageMode ? undefined : 'dialog'}
+      aria-modal={isPageMode ? undefined : true}
+      aria-labelledby={isPageMode ? undefined : 'user-settings-title'}
     >
       <UserSettingsModalNavigation
         activeTab={activeTab}
@@ -157,8 +193,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
 
         <div className="flex flex-1 flex-col overflow-hidden">
         <div className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-white/[0.07] bg-white/[0.025] px-6">
-          <h2 className="hidden text-lg font-semibold tracking-tight sm:block">
-            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
+          <h2 id="user-settings-title" className="hidden text-lg font-semibold tracking-tight sm:block">
+            {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'language' ? localizeText('Ngôn ngữ') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
           </h2>
           <Button
             variant="ghost"
@@ -187,9 +223,13 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
               /> : null
             ) : activeTab === 'appearance' ? (
               <UserSettingsAppearancePanel
-                themePreference={themePreference as ThemePreference}
-                onThemeChange={setThemePreference}
+                themePreference={draftThemePreference}
+                onThemeChange={handleThemePreview}
+                canSave={draftThemePreference !== savedThemePreference}
+                onSave={handleSaveAppearance}
               />
+            ) : activeTab === 'language' ? (
+              <UserSettingsLanguagePanel locale={locale} onLocaleChange={setLocale} />
             ) : activeTab === 'notifications' ? <NotificationSettingsPanel /> : <ReportHistoryPanel />}
           </div>
         </div>

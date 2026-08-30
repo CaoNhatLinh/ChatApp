@@ -26,6 +26,7 @@ const captures = [
   { slug: 'not-found', path: '/missing-route', authenticated: false },
   { slug: 'invite', path: '/join/design-audit', authenticated: false },
   { slug: 'workspace-empty', path: '/app', authenticated: true },
+  { slug: 'settings-modal', path: '/app', authenticated: true, openSettingsModal: true },
   { slug: 'workspace-conversation', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true },
   { slug: 'workspace-composer-options', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openComposerOptions: true },
   { slug: 'conversation-appearance', path: '/app?conversationId=00000000-0000-0000-0000-000000000040', authenticated: true, openConversationAppearance: true },
@@ -35,6 +36,7 @@ const captures = [
   { slug: 'search-empty', path: '/search', authenticated: true },
   { slug: 'profile', path: '/profile', authenticated: true },
   { slug: 'settings-profile', path: '/settings', authenticated: true },
+  { slug: 'settings-appearance', path: '/settings?tab=appearance', authenticated: true },
   { slug: 'settings-notifications', path: '/settings?tab=notifications', authenticated: true },
   { slug: 'admin', path: '/admin', authenticated: true },
 ];
@@ -272,13 +274,20 @@ const captureRoute = async (browser, viewport, capture) => {
   if (capture.openConversationAppearance) {
     if (viewport.name === 'mobile') {
       await page.getByRole('button', { name: 'Mở thông tin cuộc trò chuyện', exact: true }).click({ timeout: 5000 });
-      await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click({ timeout: 5000 });
     }
     try {
+      await page.getByRole('button', { name: 'Tùy chọn cuộc trò chuyện', exact: true }).click({ timeout: 5000 });
       await page.getByRole('button', { name: 'Tùy chỉnh giao diện cá nhân', exact: true }).click({ timeout: 5000 });
     } catch (error) {
       throw new Error(`Conversation appearance action unavailable. Console: ${JSON.stringify(consoleErrors)}`, { cause: error });
     }
+  }
+  if (capture.openSettingsModal) {
+    await page.getByRole('button', { name: 'Cài đặt', exact: true }).first().click();
+    await page.getByRole('dialog').waitFor({ state: 'visible', timeout: 5000 });
+  }
+  if (capture.path.includes('conversationId=')) {
+    await page.locator('.messenger-conversation').waitFor({ state: 'visible', timeout: 5000 }).catch(() => undefined);
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
