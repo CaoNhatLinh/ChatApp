@@ -338,7 +338,9 @@ export const ChatWindow = () => {
             return;
           case "pin":
             await pinMessageAction(message.messageId);
-            showToast(MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
+            showToast(message.isPinned
+              ? MESSENGER_COPY.chatWindow.messageAction.unpinSuccess
+              : MESSENGER_COPY.chatWindow.messageAction.pinSuccess);
             return;
           case "report":
             setReportingMessage(message);

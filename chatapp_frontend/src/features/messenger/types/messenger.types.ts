@@ -123,6 +123,7 @@ export interface Message {
     createdAt: string;
     updatedAt: string;
     readReceipts?: MessageReadReceipt[];
+    latestReadAt?: string;
     status?: 'sending' | 'sent' | 'delivered' | 'failed';
     senderBlockedByViewer?: boolean;
     isPinned?: boolean;

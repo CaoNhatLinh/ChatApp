@@ -2,7 +2,7 @@ import { SmilePlus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { reactToMessage } from '@/features/messenger/api/messenger.api';
 import { logger } from '@/shared/lib/logger';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { notifyError } from '@/shared/lib/notification';
 
@@ -28,6 +28,7 @@ const ReactionPicker = ({
   messageId,
   onReactionAdded,
 }: ReactionPickerProps) => {
+  const { locale } = useAppLocale();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -63,12 +64,13 @@ const ReactionPicker = ({
   }, [conversationId, loading, messageBucket, messageId, onReactionAdded]);
 
   return (
-    <div ref={pickerRef} className="relative inline-flex">
+    <div ref={pickerRef} className="relative inline-flex" lang={locale}>
       <button
         type="button"
         disabled={!messageBucket || loading}
         onClick={() => setIsOpen((value) => !value)}
         className="rounded-full p-1 text-muted-foreground transition-opacity hover:text-primary group-hover:opacity-100"
+        aria-label={localizeText("Thêm cảm xúc")}
         title={localizeText("Thêm cảm xúc")}
       >
         <SmilePlus size={16} />
@@ -83,6 +85,7 @@ const ReactionPicker = ({
               onClick={() => void handleReaction(key)}
               disabled={loading}
               className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-primary/10 disabled:opacity-50"
+              aria-label={localizeText(label)}
               title={localizeText(label)}
             >
               <span className="text-lg leading-none">{emoji}</span>

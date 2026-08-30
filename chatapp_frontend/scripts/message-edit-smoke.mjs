@@ -88,7 +88,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages`) && method === 'GET') {
-    return json({ content: [message], nextCursor: null, hasNext: false });
+    return json({ content: [message], nextCursor: null, hasNext: false, interactions: [] });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}`) && method === 'PUT') {
     const body = request.postDataJSON();

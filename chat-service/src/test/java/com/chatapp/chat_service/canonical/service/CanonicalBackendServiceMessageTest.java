@@ -66,6 +66,7 @@ class CanonicalBackendServiceMessageTest {
                         null, null, null, "INHERIT", null, null));
         lenient().when(authorization.effectivePermissions(any(), any()))
                 .thenReturn(Set.of(ConversationPermission.MESSAGE_SEND));
+        lenient().when(store.listMessageInteractions(any(), any(), any(), any())).thenReturn(List.of());
     }
 
     @Test
@@ -103,12 +104,22 @@ class CanonicalBackendServiceMessageTest {
                 new CanonicalCqlStore.MessageBucketRow(hour, newer.messageBucket())));
         when(store.listMessagesByBucket(conversationId, older.messageBucket(), 2)).thenReturn(List.of(older));
         when(store.listMessagesByBucket(conversationId, newer.messageBucket(), 2)).thenReturn(List.of(newer));
+        var interaction = new CanonicalApiContracts.MessageInteractionView(
+                newer.messageId(),
+                List.of(new CanonicalApiContracts.MessageReactionView("like", 2, true)),
+                hour.plusSeconds(30));
+        when(store.listMessageInteractions(
+                conversationId, newer.messageBucket(), List.of(newer.messageId()), actorId))
+                .thenReturn(List.of(interaction));
 
         var page = service.listMessageHistory(actorId, conversationId, 1, null);
 
         assertThat(page.content()).containsExactly(newer);
         assertThat(page.hasNext()).isTrue();
         assertThat(page.nextCursor()).isNotBlank();
+        assertThat(page.interactions()).containsExactly(interaction);
+        verify(store).listMessageInteractions(
+                conversationId, newer.messageBucket(), List.of(newer.messageId()), actorId);
     }
 
     @Test
@@ -123,6 +134,23 @@ class CanonicalBackendServiceMessageTest {
         assertThatThrownBy(() -> service.sendMessage(actorId, conversationId, request(clientMessageId, "changed")))
                 .isInstanceOf(ConflictException.class);
         verify(store, never()).insertMessage(any(), any());
+    }
+
+    @Test
+    void pinReturnsTheCanonicalUpdatedMessage() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = Uuids.timeBased();
+        String bucket = "2026-07-22-01:03";
+        CanonicalMessage pinned = message(
+                conversationId, bucket, messageId, actorId, UUID.randomUUID(), Instant.now());
+        when(store.findMessage(conversationId, bucket, messageId)).thenReturn(pinned);
+        when(store.pinMessage(conversationId, bucket, messageId, actorId, true)).thenReturn(true);
+
+        CanonicalMessage result = service.pinMessage(actorId, conversationId, bucket, messageId);
+
+        assertThat(result).isSameAs(pinned);
+        verify(store).pinMessage(conversationId, bucket, messageId, actorId, true);
     }
 
     @Test

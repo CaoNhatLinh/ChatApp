@@ -2,7 +2,7 @@
 
 Backend: Maven unit/service tests cover auth, refresh rotation, directory,
 friendship, conversations, message idempotency/cursor merge, policies, roles,
-contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence scope/fan-out/expiry, conversation cursor pagination, and infrastructure manifests (146 tests, 0
+contracts, report moderation, sanction expiry, actuator authority, session/device admin controls, direct-call peer authorization, notification settings policy, room notification precedence/evaluator, notification pagination, outgoing friend-request cancellation, atomic room membership/capacity/ownership, role catalog/deletion/assignment concurrency, community discovery/approval recovery, invite compensation, distributed presence scope/fan-out/expiry, conversation cursor pagination, bounded message interaction hydration, and infrastructure manifests (147 tests, 0
 failures, 0 errors) when run with Java 20. On this host the default Java 17
 cannot execute Java 20 test classes; use `JAVA_HOME=C:\\Program Files\\Java\\jdk-20`.
 Frontend: `npm run type-check`,
@@ -118,6 +118,13 @@ mode owns the composer, proves cancellation sends no mutation, switches the
 active edit controls from Vietnamese to English, asserts the exact bucket-scoped
 `PUT` payload, restores the draft after success and verifies the canonical
 `editedAt` marker plus the bucket-scoped revision-history request.
+
+`npm run test:e2e:message-interactions` starts with a populated server-side
+interaction projection, verifies compact reaction and seen rendering, asserts
+exact bucket-scoped reaction plus pin/unpin requests, reloads the page and
+proves reaction/current-actor/pin state hydrates again without per-message
+requests or WebSocket-only state. It also verifies reactive VI→EN accessible
+names and reports unexpected console/request failures.
 
 `npm run test:i18n:copy` statically checks every Vietnamese string in the shared
 `UI_COPY`, messenger copy, and chat-theme copy registries plus every static

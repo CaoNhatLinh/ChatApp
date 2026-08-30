@@ -20,6 +20,12 @@ The backend base path is `/api`; every endpoint below is relative to that base.
   `/conversations/{conversationId}`
 - **Messages:** message list/create/update/delete, read receipts, revisions,
   pins and reactions under `/conversations/{conversationId}/messages`
+
+The cursor message page includes a required `interactions` collection keyed by
+`messageId`. It hydrates bounded reaction aggregates, the current actor's
+reaction state and `latestReadAt` for only the messages in that page. Pin and
+unpin return the updated canonical message so clients can apply the exact
+`isPinned` state without waiting for STOMP.
 - **Polls:** `/polls`, `/polls/{pollId}`, `/polls/{pollId}/votes`,
   `/polls/{pollId}/close`
 - **Invites:** `/invites`, `/invites/conversation/{conversationId}`,

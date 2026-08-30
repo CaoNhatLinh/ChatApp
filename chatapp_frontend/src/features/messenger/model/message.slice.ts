@@ -204,7 +204,15 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         return {
             messages: {
                 ...state.messages,
-                [conversationId]: msgs.map(existing => existing.messageId === message.messageId ? { ...existing, ...message } : existing)
+                [conversationId]: msgs.map(existing => existing.messageId === message.messageId ? {
+                    ...existing,
+                    ...message,
+                    attachments: message.attachments ?? existing.attachments,
+                    reactions: message.reactions ?? existing.reactions,
+                    readReceipts: message.readReceipts ?? existing.readReceipts,
+                    latestReadAt: message.latestReadAt ?? existing.latestReadAt,
+                    replyTo: message.replyTo ?? existing.replyTo,
+                } : existing)
             },
             conversations: state.conversations.map(conversation => {
                 if (conversation.conversationId !== conversationId) {
@@ -241,9 +249,12 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                     }
                     const receipts = message.readReceipts ?? [];
                     const exists = receipts.some(receipt => receipt.readerId === readReceipt.readerId);
+                    const latestReadAt = !message.latestReadAt || readReceipt.readAt > message.latestReadAt
+                        ? readReceipt.readAt
+                        : message.latestReadAt;
                     return exists
-                        ? message
-                        : { ...message, readReceipts: [...receipts, readReceipt] };
+                        ? { ...message, latestReadAt }
+                        : { ...message, readReceipts: [...receipts, readReceipt], latestReadAt };
                 })
             }
         };

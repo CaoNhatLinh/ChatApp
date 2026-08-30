@@ -257,7 +257,20 @@ public final class CanonicalApiContracts {
     public record MessagePage(
             List<CqlCanonicalRecords.CanonicalMessage> content,
             String nextCursor,
-            boolean hasNext) {
+            boolean hasNext,
+            List<MessageInteractionView> interactions) {
+    }
+
+    public record MessageInteractionView(
+            UUID messageId,
+            List<MessageReactionView> reactions,
+            Instant latestReadAt) {
+    }
+
+    public record MessageReactionView(
+            String emoji,
+            long count,
+            boolean reactedByCurrentUser) {
     }
 
     public record MessageReactionRequest(String emoji) {

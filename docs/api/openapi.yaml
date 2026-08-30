@@ -232,11 +232,11 @@ paths:
     post:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
-      responses: {'204': {description: Pinned}}
+      responses: {'200': {description: Pinned message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
     delete:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
-      responses: {'204': {description: Unpinned}}
+      responses: {'200': {description: Unpinned message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
   /conversations/{conversationId}/roles:
     get:
       tags: [Conversations]
@@ -775,7 +775,9 @@ components:
     ConversationNotificationPolicyView: {type: object, required: [defaultNotificationLevel, notificationOverride], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}, notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
     MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, attachments: {type: array}}}
     Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
-    MessagePage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}
+    MessageReactionView: {type: object, required: [emoji, count, reactedByCurrentUser], properties: {emoji: {type: string}, count: {type: integer, format: int64, minimum: 1}, reactedByCurrentUser: {type: boolean}}}
+    MessageInteractionView: {type: object, required: [messageId, reactions], properties: {messageId: {type: string, format: uuid}, reactions: {type: array, items: {$ref: '#/components/schemas/MessageReactionView'}}, latestReadAt: {type: string, format: date-time, nullable: true}}}
+    MessagePage: {type: object, required: [content, hasNext, interactions], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}, interactions: {type: array, description: Bounded reaction and latest-read projection for messages in this page, items: {$ref: '#/components/schemas/MessageInteractionView'}}}}
     MessageSearchPage: {type: object, required: [content], properties: {content: {type: array, items: {$ref: '#/components/schemas/MessageSearchResult'}}, nextCursor: {type: string, nullable: true}}}
     MessageSearchResult: {type: object, required: [messageId, conversationId, messageBucket, senderId, content], properties: {messageId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageBucket: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid, nullable: true}, mentionedUserIds: {type: array, items: {type: string, format: uuid}, nullable: true}, messageType: {type: string}, content: {type: string}, hasAttachments: {type: boolean}, isPinned: {type: boolean}, isDeleted: {type: boolean}, createdAt: {type: string, format: date-time}}}
     PollCreate: {type: object, required: [conversationId, clientMessageId, question, options], properties: {conversationId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid}, question: {type: string}, options: {type: array, minItems: 2, maxItems: 10, items: {type: string}}}}

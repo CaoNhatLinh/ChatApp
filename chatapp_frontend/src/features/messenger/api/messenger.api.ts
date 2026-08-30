@@ -340,6 +340,15 @@ interface CanonicalMessagePage {
     content: BackendMessage[];
     nextCursor?: string;
     hasNext: boolean;
+    interactions: Array<{
+        messageId: string;
+        reactions: Array<{
+            emoji: string;
+            count: number;
+            reactedByCurrentUser: boolean;
+        }>;
+        latestReadAt?: string;
+    }>;
 }
 
 /**
@@ -427,9 +436,34 @@ export const getMessages = async (
         params: { limit: params.size ?? 50, cursor: params.before }
     });
     const data = response.data;
+    if (!Array.isArray(data.interactions)
+        || data.interactions.some((interaction) =>
+            typeof interaction.messageId !== 'string'
+            || !Array.isArray(interaction.reactions)
+            || interaction.reactions.some((reaction) =>
+                typeof reaction.emoji !== 'string'
+                || !Number.isSafeInteger(reaction.count)
+                || reaction.count < 1
+                || typeof reaction.reactedByCurrentUser !== 'boolean'))) {
+        throw new Error('Canonical message interaction page is invalid');
+    }
+    const interactionsByMessageId = new Map(
+        data.interactions.map((interaction) => [interaction.messageId, interaction] as const),
+    );
 
     return {
-        content: data.content.map(mapToMessage),
+        content: data.content.map((messageDto) => {
+            const message = mapToMessage(messageDto);
+            const interaction = interactionsByMessageId.get(message.messageId);
+            return interaction ? {
+                ...message,
+                reactions: interaction.reactions.map((reaction) => ({
+                    ...reaction,
+                    latestUserNames: [],
+                })),
+                latestReadAt: interaction.latestReadAt,
+            } : message;
+        }),
         hasNext: data.hasNext,
         number: params.page ?? 0,
         size: data.content.length,
@@ -541,12 +575,17 @@ export const getMessageRevisions = async (
     return response.data;
 };
 
-export const togglePinMessage = async (conversationId: string, messageBucket: string, messageId: string): Promise<void> => {
-    await apiClient.post(
-        `/conversations/${conversationId}/messages/${messageId}/pin`,
-        undefined,
-        { params: { bucket: messageBucket } }
-    );
+export const togglePinMessage = async (
+    conversationId: string,
+    messageBucket: string,
+    messageId: string,
+    shouldPin: boolean,
+): Promise<Message> => {
+    const path = `/conversations/${conversationId}/messages/${messageId}/pin`;
+    const response = shouldPin
+        ? await apiClient.post<BackendMessage>(path, undefined, { params: { bucket: messageBucket } })
+        : await apiClient.delete<BackendMessage>(path, { params: { bucket: messageBucket } });
+    return mapToMessage(response.data);
 };
 
 export const unpinMessage = async (conversationId: string, messageBucket: string, messageId: string): Promise<void> => {

@@ -544,11 +544,15 @@ export const useMessenger = (): UseMessengerResult => {
 
     const pinMessage = useCallback(async (messageId: string) => {
         if (!activeConversationId) return;
-        const messageBucket = useMessengerStore.getState().messages[activeConversationId]
-            ?.find((message) => message.messageId === messageId)?.messageBucket;
+        const message = useMessengerStore.getState().messages[activeConversationId]
+            ?.find((candidate) => candidate.messageId === messageId);
+        const messageBucket = message?.messageBucket;
         if (!messageBucket) throw new Error('Message bucket is required');
-        await pinMessageApi(activeConversationId, messageBucket, messageId);
-    }, [activeConversationId]);
+        const updated = await pinMessageApi(
+            activeConversationId, messageBucket, messageId, !message.isPinned,
+        );
+        updateMessage(activeConversationId, updated);
+    }, [activeConversationId, updateMessage]);
 
     const uploadMessageFiles = useCallback(async (files: File[]) => {
         return uploadFiles(files);

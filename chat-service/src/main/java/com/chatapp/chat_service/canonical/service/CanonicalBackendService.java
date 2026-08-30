@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class CanonicalBackendService {
@@ -1081,7 +1082,7 @@ public class CanonicalBackendService {
         }
     }
 
-    public void pinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
+    public CanonicalMessage pinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_PIN);
         if (store.findMessage(conversationId, bucket, messageId) == null) {
             throw new NotFoundException("message not found");
@@ -1093,9 +1094,10 @@ public class CanonicalBackendService {
         publishConversationEvent(conversationId, "/pins", Map.of(
                 "messageId", messageId.toString(), "messageBucket", bucket,
                 "pinnedBy", actorId.toString(), "action", "PIN"));
+        return store.findMessage(conversationId, bucket, messageId);
     }
 
-    public void unpinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
+    public CanonicalMessage unpinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_PIN);
         if (store.findMessage(conversationId, bucket, messageId) == null) {
             throw new NotFoundException("message not found");
@@ -1105,6 +1107,7 @@ public class CanonicalBackendService {
         publishConversationEvent(conversationId, "/pins", Map.of(
                 "messageId", messageId.toString(), "messageBucket", bucket,
                 "pinnedBy", actorId.toString(), "action", "UNPIN"));
+        return store.findMessage(conversationId, bucket, messageId);
     }
 
     public CanonicalMessage getMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
@@ -1152,7 +1155,18 @@ public class CanonicalBackendService {
         String nextCursor = hasNext && !content.isEmpty()
                 ? encodeMessageCursor(content.get(content.size() - 1))
                 : null;
-        return new CanonicalApiContracts.MessagePage(content, nextCursor, hasNext && nextCursor != null);
+        Map<String, List<UUID>> messageIdsByBucket = content.stream()
+                .collect(Collectors.groupingBy(
+                        CanonicalMessage::messageBucket,
+                        LinkedHashMap::new,
+                        Collectors.mapping(CanonicalMessage::messageId, Collectors.toList())));
+        List<CanonicalApiContracts.MessageInteractionView> interactions = messageIdsByBucket.entrySet()
+                .stream()
+                .flatMap(entry -> store.listMessageInteractions(
+                        conversationId, entry.getKey(), entry.getValue(), actorId).stream())
+                .toList();
+        return new CanonicalApiContracts.MessagePage(
+                content, nextCursor, hasNext && nextCursor != null, interactions);
     }
 
     private String encodeMessageCursor(CanonicalMessage message) {
@@ -1199,10 +1213,11 @@ public class CanonicalBackendService {
                 && Uuids.unixTimestamp(member.lastReadMessageId()) >= Uuids.unixTimestamp(messageId)) {
             return;
         }
-        store.markMessageRead(conversationId, bucket, messageId, actorId, Instant.now());
+        Instant readAt = Instant.now();
+        store.markMessageRead(conversationId, bucket, messageId, actorId, readAt);
         publishConversationEvent(conversationId, "/read", Map.of(
                 "messageId", messageId.toString(), "messageBucket", bucket,
-                "readerId", actorId.toString(), "readAt", Instant.now().toString()));
+                "readerId", actorId.toString(), "readAt", readAt.toString()));
     }
 
     public List<CanonicalApiContracts.MessageReadReceiptView> listMessageReadReceipts(

@@ -580,14 +580,15 @@ CREATE TABLE IF NOT EXISTS message_reactions_by_message (
   PRIMARY KEY ((conversation_id, message_bucket, message_id), emoji, user_id)
 );
 
-/* Counter projection for reaction display; reconcile from source rows if needed. */
-CREATE TABLE IF NOT EXISTS message_reaction_counts_by_message (
+/* Page-hydration projections avoid one interaction query per message. */
+CREATE TABLE IF NOT EXISTS message_reactions_by_conversation_bucket (
   conversation_id uuid,
   message_bucket text,
   message_id timeuuid,
   emoji text,
-  reaction_count counter,
-  PRIMARY KEY ((conversation_id, message_bucket, message_id), emoji)
+  user_id uuid,
+  reacted_at timeuuid,
+  PRIMARY KEY ((conversation_id, message_bucket), message_id, emoji, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS message_mentions_by_message (
@@ -661,6 +662,14 @@ CREATE TABLE IF NOT EXISTS message_read_receipts_by_message (
   reader_id uuid,
   read_at timestamp,
   PRIMARY KEY ((conversation_id, message_bucket, message_id), reader_id)
+);
+
+CREATE TABLE IF NOT EXISTS message_read_summary_by_conversation_bucket (
+  conversation_id uuid,
+  message_bucket text,
+  message_id timeuuid,
+  latest_read_at timestamp,
+  PRIMARY KEY ((conversation_id, message_bucket), message_id)
 );
 
 /* ================================ Polls ================================= */

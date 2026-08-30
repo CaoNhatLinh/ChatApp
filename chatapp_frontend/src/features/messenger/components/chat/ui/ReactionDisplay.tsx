@@ -3,7 +3,7 @@ import { logger } from '@/shared/lib/logger';
 import { cn } from '@/shared/lib/cn';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { notifyError } from '@/shared/lib/notification';
-import { localizeText } from '@/shared/i18n';
+import { localizeText, useAppLocale } from '@/shared/i18n';
 
 interface ReactionDisplayProps {
   reactions: Array<{
@@ -26,6 +26,15 @@ const EMOJI_MAP: Record<string, string> = {
   angry: '\u{1F620}',
 };
 
+const REACTION_LABELS: Record<string, string> = {
+  like: 'Thích',
+  love: 'Yêu thích',
+  laugh: 'Cười',
+  wow: 'Ngạc nhiên',
+  sad: 'Buồn',
+  angry: 'Tức giận',
+};
+
 export const ReactionDisplay = ({
   reactions,
   messageId,
@@ -33,6 +42,8 @@ export const ReactionDisplay = ({
   messageBucket,
   onToggle,
 }: ReactionDisplayProps) => {
+  const { locale } = useAppLocale();
+
   if (reactions.length === 0) {
     return null;
   }
@@ -52,7 +63,7 @@ export const ReactionDisplay = ({
   };
 
   return (
-    <div className="mt-1 flex flex-wrap gap-1">
+    <div className="mt-1 flex flex-wrap gap-1" lang={locale}>
       {reactions.map(({ emoji, count, reactedByCurrentUser }) => {
         const displayEmoji = EMOJI_MAP[emoji] ?? emoji;
 
@@ -61,6 +72,7 @@ export const ReactionDisplay = ({
             type="button"
             key={emoji}
             onClick={() => void handleToggle(emoji, reactedByCurrentUser)}
+            aria-label={`${localizeText(REACTION_LABELS[emoji] ?? emoji)}: ${count}`}
             className={cn(
               'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
               reactedByCurrentUser

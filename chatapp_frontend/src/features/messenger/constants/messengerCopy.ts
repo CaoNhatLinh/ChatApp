@@ -191,6 +191,7 @@ const rawMessengerCopy = {
     replyLabel: "Trả lời",
     copyLabel: "Sao chép",
     pinLabel: "Ghim",
+    unpinLabel: "Bỏ ghim",
     editLabel: "Sửa",
     deleteLabel: "Xóa tin nhắn",
   },
@@ -207,7 +208,8 @@ const rawMessengerCopy = {
     messageAction: {
       copySuccess: "Đã sao chép tin nhắn.",
       deleteSuccess: "Tin nhắn đã được xóa.",
-      pinSuccess: "Cập nhật trạng thái ghim.",
+      pinSuccess: "Đã ghim tin nhắn.",
+      unpinSuccess: "Đã bỏ ghim tin nhắn.",
       actionFailed: "Không thể hoàn tất thao tác với tin nhắn.",
       seenAt: (timestamp: string) => `Đã xem lúc ${timestamp}`,
       noReplyTarget: "Không có tin nhắn reply.",

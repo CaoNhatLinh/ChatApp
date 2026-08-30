@@ -50,7 +50,7 @@
     delete-versus-assign/transfer races now use catalog CAS plus a membership
     revision barrier. Clean Cassandra verification remains pending.
 
-Current evidence (2026-08-29): backend Java 20 `./mvnw test` = 146 tests, 0 failures, 0 errors
+Current evidence (2026-08-30): backend Java 20 `./mvnw test` = 147 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and
@@ -59,6 +59,13 @@ the English landing/auth/recovery journey, and notification settings payload
 smoke passes without console or request failures.
 The canonical message UI mapping rejects incompatible payload shapes instead of
 silently translating legacy aliases or inventing sender/attachment metadata.
+Message edit/delete browser journeys preserve drafts and content privacy. The
+required message-page interaction projection now restores reactions and latest
+read state after refresh with bucket-bounded queries; pin/unpin applies the
+canonical response immediately. `test:e2e:message-edit`,
+`test:e2e:message-delete`, and `test:e2e:message-interactions` pass without
+console or request failures. ADR 0009 records why per-message N+1 reads,
+room-wide snapshots and replay-unsafe counter projections were rejected.
 Friendship and presence clients likewise consume only their canonical backend
 contracts; variant response adapters, presence aliases, fabricated IDs/statuses,
 and unwired placeholder controls are out of runtime scope.

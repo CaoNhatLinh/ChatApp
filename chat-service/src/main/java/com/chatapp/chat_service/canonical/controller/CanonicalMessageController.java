@@ -124,21 +124,19 @@ public class CanonicalMessageController {
     }
 
     @PostMapping("/{messageId}/pin")
-    public ResponseEntity<Void> pin(
+    public CanonicalMessage pin(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        backend.pinMessage(actorId(), conversationId, bucket, messageId);
-        return ResponseEntity.noContent().build();
+        return backend.pinMessage(actorId(), conversationId, bucket, messageId);
     }
 
     @DeleteMapping("/{messageId}/pin")
-    public ResponseEntity<Void> unpin(
+    public CanonicalMessage unpin(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        backend.unpinMessage(actorId(), conversationId, bucket, messageId);
-        return ResponseEntity.noContent().build();
+        return backend.unpinMessage(actorId(), conversationId, bucket, messageId);
     }
 
     private UUID actorId() {

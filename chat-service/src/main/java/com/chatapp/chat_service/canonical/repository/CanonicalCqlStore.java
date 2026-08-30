@@ -139,11 +139,15 @@ public class CanonicalCqlStore {
     private final PreparedStatement saveMentionInbox;
     private final PreparedStatement saveReaction;
     private final PreparedStatement deleteReaction;
-    private final PreparedStatement increaseReactionCounter;
+    private final PreparedStatement saveReactionBucket;
+    private final PreparedStatement deleteReactionBucket;
+    private final PreparedStatement listReactionBucket;
     private final PreparedStatement setMessagePinned;
     private final PreparedStatement updateConversationMemberRead;
     private final PreparedStatement saveMessageReadReceipt;
     private final PreparedStatement listMessageReadReceipts;
+    private final PreparedStatement updateMessageReadBucketSummary;
+    private final PreparedStatement listMessageReadBucketSummaries;
     private final PreparedStatement saveMessageRevision;
     private final PreparedStatement listMessageRevisions;
     private final PreparedStatement loadMessageEditState;
@@ -630,10 +634,19 @@ public class CanonicalCqlStore {
                 WHERE conversation_id = ? AND message_bucket = ? AND message_id = ? AND emoji = ? AND user_id = ?
                 IF EXISTS
                 """);
-        this.increaseReactionCounter = session.prepare("""
-                UPDATE message_reaction_counts_by_message
-                    SET reaction_count = reaction_count + ?
-                WHERE conversation_id = ? AND message_bucket = ? AND message_id = ? AND emoji = ?
+        this.saveReactionBucket = session.prepare("""
+                INSERT INTO message_reactions_by_conversation_bucket
+                    (conversation_id, message_bucket, message_id, emoji, user_id, reacted_at)
+                VALUES (?, ?, ?, ?, ?, now())
+                """);
+        this.deleteReactionBucket = session.prepare("""
+                DELETE FROM message_reactions_by_conversation_bucket
+                WHERE conversation_id = ? AND message_bucket = ? AND message_id = ? AND emoji = ? AND user_id = ?
+                """);
+        this.listReactionBucket = session.prepare("""
+                SELECT message_id, emoji, user_id
+                FROM message_reactions_by_conversation_bucket
+                WHERE conversation_id = ? AND message_bucket = ? AND message_id IN ?
                 """);
         this.setMessagePinned = session.prepare("""
                 UPDATE messages_by_conversation_bucket
@@ -658,6 +671,16 @@ public class CanonicalCqlStore {
                 SELECT reader_id, read_at
                 FROM message_read_receipts_by_message
                 WHERE conversation_id = ? AND message_bucket = ? AND message_id = ?
+                """);
+        this.updateMessageReadBucketSummary = session.prepare("""
+                UPDATE message_read_summary_by_conversation_bucket
+                SET latest_read_at = ?
+                WHERE conversation_id = ? AND message_bucket = ? AND message_id = ?
+                """);
+        this.listMessageReadBucketSummaries = session.prepare("""
+                SELECT message_id, latest_read_at
+                FROM message_read_summary_by_conversation_bucket
+                WHERE conversation_id = ? AND message_bucket = ? AND message_id IN ?
                 """);
         this.saveMessageRevision = session.prepare("""
                 INSERT INTO message_revisions_by_message
@@ -2068,8 +2091,11 @@ public class CanonicalCqlStore {
             UUID messageId,
             UUID readerId,
             Instant readAt) {
-        session.execute(updateConversationMemberRead.bind(messageId, readAt, conversationId, readerId));
-        session.execute(saveMessageReadReceipt.bind(conversationId, bucket, messageId, readerId, readAt));
+        session.execute(BatchStatement.builder(BatchType.LOGGED)
+                .addStatement(updateConversationMemberRead.bind(messageId, readAt, conversationId, readerId))
+                .addStatement(saveMessageReadReceipt.bind(conversationId, bucket, messageId, readerId, readAt))
+                .addStatement(updateMessageReadBucketSummary.bind(readAt, conversationId, bucket, messageId))
+                .build());
     }
 
     public List<CanonicalApiContracts.MessageReadReceiptView> listMessageReadReceipts(
@@ -2140,19 +2166,60 @@ public class CanonicalCqlStore {
     }
 
     public boolean addReaction(UUID conversationId, String bucket, UUID messageId, UUID userId, String emoji) {
-        if (!session.execute(saveReaction.bind(conversationId, bucket, messageId, emoji, userId)).wasApplied()) {
-            return false;
-        }
-        session.execute(increaseReactionCounter.bind(1L, conversationId, bucket, messageId, emoji));
-        return true;
+        boolean applied = session.execute(
+                saveReaction.bind(conversationId, bucket, messageId, emoji, userId)).wasApplied();
+        session.execute(saveReactionBucket.bind(conversationId, bucket, messageId, emoji, userId));
+        return applied;
     }
 
     public boolean removeReaction(UUID conversationId, String bucket, UUID messageId, UUID userId, String emoji) {
-        if (!session.execute(deleteReaction.bind(conversationId, bucket, messageId, emoji, userId)).wasApplied()) {
-            return false;
+        boolean applied = session.execute(
+                deleteReaction.bind(conversationId, bucket, messageId, emoji, userId)).wasApplied();
+        session.execute(deleteReactionBucket.bind(conversationId, bucket, messageId, emoji, userId));
+        return applied;
+    }
+
+    public List<CanonicalApiContracts.MessageInteractionView> listMessageInteractions(
+            UUID conversationId,
+            String bucket,
+            List<UUID> messageIds,
+            UUID actorId) {
+        if (messageIds.isEmpty()) {
+            return List.of();
         }
-        session.execute(increaseReactionCounter.bind(-1L, conversationId, bucket, messageId, emoji));
-        return true;
+
+        Map<UUID, Map<String, Long>> countsByMessage = new LinkedHashMap<>();
+        Map<UUID, Set<String>> actorReactionsByMessage = new LinkedHashMap<>();
+        for (Row row : session.execute(listReactionBucket.bind(conversationId, bucket, messageIds))) {
+            UUID messageId = row.getUuid("message_id");
+            String emoji = row.getString("emoji");
+            countsByMessage
+                    .computeIfAbsent(messageId, ignored -> new LinkedHashMap<>())
+                    .merge(emoji, 1L, Long::sum);
+            if (actorId.equals(row.getUuid("user_id"))) {
+                actorReactionsByMessage
+                        .computeIfAbsent(messageId, ignored -> new java.util.LinkedHashSet<>())
+                        .add(emoji);
+            }
+        }
+
+        Map<UUID, Instant> latestReadAtByMessage = new LinkedHashMap<>();
+        for (Row row : session.execute(listMessageReadBucketSummaries.bind(conversationId, bucket, messageIds))) {
+            latestReadAtByMessage.put(row.getUuid("message_id"), row.getInstant("latest_read_at"));
+        }
+
+        return messageIds.stream().map(messageId -> {
+            Set<String> actorReactions = actorReactionsByMessage.getOrDefault(messageId, Set.of());
+            List<CanonicalApiContracts.MessageReactionView> reactions = countsByMessage
+                    .getOrDefault(messageId, Map.of())
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new CanonicalApiContracts.MessageReactionView(
+                            entry.getKey(), entry.getValue(), actorReactions.contains(entry.getKey())))
+                    .toList();
+            return new CanonicalApiContracts.MessageInteractionView(
+                    messageId, reactions, latestReadAtByMessage.get(messageId));
+        }).toList();
     }
 
     public boolean pinMessage(UUID conversationId, String bucket, UUID messageId, UUID actorId, boolean pin) {

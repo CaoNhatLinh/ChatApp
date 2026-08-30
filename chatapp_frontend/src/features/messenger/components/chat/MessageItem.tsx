@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/cn';
-import { MoreHorizontal, Reply, Copy, Trash2, RefreshCw, Pencil, Pin, Flag } from 'lucide-react';
+import { MoreHorizontal, Reply, Copy, Trash2, RefreshCw, Pencil, Pin, PinOff, Flag } from 'lucide-react';
 import { ReactionPicker } from '@/features/messenger/components/chat/ui/ReactionPicker';
 import { ReactionDisplay as ReactionBadgeList } from '@/features/messenger/components/chat/ui/ReactionDisplay';
 import { MentionText } from './MentionText';
@@ -62,12 +62,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const { presence } = usePresence(message.sender.userId);
     const isFailed = message.status === 'failed';
     const latestSeenAt = React.useMemo(() => {
-        if (!isOwn || !message.readReceipts || message.readReceipts.length === 0) {
+        if (!isOwn) {
             return null;
         }
+        if (message.latestReadAt) {
+            return message.latestReadAt;
+        }
+        if (!message.readReceipts || message.readReceipts.length === 0) return null;
         return [...message.readReceipts]
             .sort((left, right) => new Date(right.readAt).getTime() - new Date(left.readAt).getTime())[0]?.readAt ?? null;
-    }, [isOwn, message.readReceipts]);
+    }, [isOwn, message.latestReadAt, message.readReceipts]);
 
     const handleAction = (action: string) => {
         if (onAction) {
@@ -286,8 +290,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                                         onClick={() => handleAction('pin')}
                                         className="gap-3 px-3 py-2.5 rounded-xl hover:bg-primary/10 transition-colors text-xs font-bold cursor-pointer"
                                     >
-                                        <Pin size={14} className="text-primary" />
-                                        <span>{MESSENGER_COPY.message.pinLabel}</span>
+                                        {message.isPinned ? <PinOff size={14} className="text-primary" /> : <Pin size={14} className="text-primary" />}
+                                        <span>{message.isPinned ? MESSENGER_COPY.message.unpinLabel : MESSENGER_COPY.message.pinLabel}</span>
                                     </DropdownMenuItem>
                                     {!isOwn && !message.isDeleted && (
                                         <DropdownMenuItem
@@ -325,8 +329,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                     )}
                 </div>
 
-                {message.messageBucket && message.reactions && message.reactions.length > 0 && (
-                    <div className={cn("px-2", isOwn ? "flex justify-end" : "") }>
+                {!message.isDeleted && message.messageBucket && message.reactions && message.reactions.length > 0 && (
+                    <div className={cn("px-2 pt-5", isOwn ? "flex justify-end" : "") }>
                         <ReactionBadgeList
                             reactions={message.reactions}
                             messageId={message.messageId}
