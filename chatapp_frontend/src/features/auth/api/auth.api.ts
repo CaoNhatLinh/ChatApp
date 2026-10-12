@@ -1,7 +1,7 @@
 ﻿import apiClient from '@/shared/api/apiClient';
 import type { AuthResponse, LoginRequest, RegisterRequest, User } from '../types/auth.types';
 
-interface CanonicalUserResponse {
+export interface CanonicalUserResponse {
     userId: string;
     username: string;
     email: string;
@@ -10,39 +10,35 @@ interface CanonicalUserResponse {
     accountStatus: string;
 }
 
-interface CanonicalAuthResponse {
+export interface CanonicalAuthResponse {
     accessToken: string;
     user: CanonicalUserResponse;
 }
 
-const toUser = (user: CanonicalUserResponse): User => ({
+export const toUser = (user: CanonicalUserResponse): User => ({
     userId: user.userId,
     userName: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
 });
 
+export const toAuthResponse = (response: CanonicalAuthResponse): AuthResponse => ({
+    token: response.accessToken,
+    userId: response.user.userId,
+    userName: response.user.username,
+    displayName: response.user.displayName,
+    avatarUrl: response.user.avatarUrl,
+});
+
 export const login = async (data: LoginRequest): Promise<AuthResponse> => {
     const response = await apiClient.post<CanonicalAuthResponse>('/auth/login', data);
-    return {
-        token: response.data.accessToken,
-        userId: response.data.user.userId,
-        userName: response.data.user.username,
-        displayName: response.data.user.displayName,
-        avatarUrl: response.data.user.avatarUrl,
-    };
+    return toAuthResponse(response.data);
 };
 
-export const refreshAccessToken = async (): Promise<string> => {
-    const response = await apiClient.post<CanonicalAuthResponse>('/auth/refresh');
-    return response.data.accessToken;
-};
+export const refreshAccessToken = (): Promise<string> => apiClient.refreshAccessToken();
 
 export const register = async (data: RegisterRequest): Promise<User> => {
-    const response = await apiClient.post<CanonicalUserResponse>('/auth/register', {
-        ...data,
-        authProvider: 'LOCAL',
-    });
+    const response = await apiClient.post<CanonicalUserResponse>('/auth/register', data);
     return toUser(response.data);
 };
 

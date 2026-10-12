@@ -1,16 +1,18 @@
 {
   "name": "ChatApp",
   "version": "1.0.0",
-  "description": "AI Agent project powered by Google Antigravity",
+  "description": "Nối — realtime conversations, communities and app administration",
   "private": true,
   "scripts": {
-    "dev": "echo \"No dev server configured\"",
-    "build": "echo \"No build script\""
+    "dev": "npm --prefix chatapp_frontend run dev",
+    "build": "npm --prefix chatapp_frontend run build",
+    "validate": "npm --prefix chatapp_frontend run validate",
+    "test:auth:session": "npm --prefix chatapp_frontend run test:auth:session"
   },
   "keywords": [
-    "ai",
-    "agent",
-    "google-antigravity"
+    "chat",
+    "realtime",
+    "noi"
   ],
   "author": "",
   "license": "MIT"

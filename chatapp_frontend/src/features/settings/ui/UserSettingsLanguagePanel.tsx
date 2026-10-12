@@ -34,7 +34,7 @@ export const UserSettingsLanguagePanel: FC<UserSettingsLanguagePanelProps> = ({
             type="button"
             aria-pressed={active}
             onClick={() => onLocaleChange(value)}
-            className={`flex items-center justify-between rounded-[var(--radius-md)] border px-4 py-4 text-left text-sm font-semibold transition-[border-color,background-color,box-shadow,transform] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/.2)]' : 'border-border bg-card/60 hover:border-primary/50'}`}
+            className={`flex items-center justify-between rounded-[var(--radius-md)] border px-4 py-4 text-left text-sm font-semibold transition-[border-color,background-color,box-shadow,transform] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary bg-primary/10 shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_20%,transparent)]' : 'border-border bg-card/60 hover:border-primary/50'}`}
           >
             <span>
               <span className="block">{label}</span>

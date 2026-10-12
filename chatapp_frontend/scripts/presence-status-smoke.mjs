@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
@@ -63,22 +64,21 @@ await page.addInitScript(() => {
 });
 
 await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
-const statusTriggerVi = page.getByRole('button', { name: 'Trực tuyến', exact: true });
+const statusTriggerVi = page.getByRole('button', { name: 'Trạng thái hoạt động', exact: true });
 await statusTriggerVi.waitFor();
 await statusTriggerVi.click();
 const viOptions = await page.getByRole('menuitem').allTextContents();
 await page.keyboard.press('Escape');
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
-const statusTriggerEn = page.getByRole('button', { name: 'Online', exact: true });
+await switchLocaleInSettings(page);
+const statusTriggerEn = page.getByRole('button', { name: 'Activity status', exact: true });
 await statusTriggerEn.waitFor();
 await statusTriggerEn.click();
 const enOptions = await page.getByRole('menuitem').allTextContents();
 await page.keyboard.press('Escape');
 await page.setViewportSize({ width: 390, height: 844 });
-const mobileStatusTrigger = page.getByRole('button', { name: 'Online', exact: true });
-await mobileStatusTrigger.waitFor();
-const mobileStatusNamed = await mobileStatusTrigger.getAttribute('aria-label');
+const mobileStatusTrigger = page.getByRole('button', { name: 'Activity status', exact: true });
+const mobileStatusNamed = await mobileStatusTrigger.count();
 
 const report = { baseUrl, viOptions, enOptions, mobileStatusNamed, realtimeFailures, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
@@ -93,7 +93,7 @@ if (
   || !enOptions.some((option) => option.includes('Online'))
   || !enOptions.some((option) => option.includes('Do not disturb'))
   || !enOptions.some((option) => option.includes('Invisible'))
-  || mobileStatusNamed !== 'Online'
+  || mobileStatusNamed !== 0
 ) {
   process.exitCode = 1;
 }

@@ -35,11 +35,6 @@ export const MessengerLayout: React.FC = () => {
     setSidebarOpen(true);
   }, [setActiveView, setSidebarOpen]);
 
-  const openFriendsList = useCallback(() => {
-    setActiveView("contacts");
-    setSidebarOpen(window.innerWidth >= 768);
-  }, [setActiveView, setSidebarOpen]);
-
   const openCreateRoom = useCallback(() => {
     setIsCreateRoomOpen(true);
   }, []);
@@ -100,7 +95,6 @@ export const MessengerLayout: React.FC = () => {
             activeTarget={activeView === "contacts" ? "/friends" : "/app"}
             onCreateRoom={openCreateRoom}
             onOpenChatList={openChatList}
-            onOpenFriendsList={openFriendsList}
           />
         )}
         sidebar={<ChatSidebar />}

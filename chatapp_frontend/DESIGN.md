@@ -14,8 +14,9 @@ is confident and editorial, while signed-in screens stay quiet and operational.
 The product should feel like a reliable relay: every state is visible, every
 action has a clear place, and nothing ornamental competes with the conversation.
 
-Design read: a full visual overhaul for a consumer and team messaging product,
-with an art-directed landing page and a familiar restrained product interface.
+Design read: **Signal Relay** — a full visual overhaul for a consumer and team
+messaging product. Public pages can be art-directed and expressive; signed-in
+surfaces keep the same warm signal language but stay quiet, readable and fast.
 Dial values: landing variance 8, motion 5, density 4; product variance 4,
 motion 2, density 6.
 
@@ -30,6 +31,9 @@ and elevation decisions.
 - Surfaces: `--card`, `--secondary`.
 - Radius: `sm` for compact controls, `md` for controls, `lg` for panels. No ad-hoc 24px+ cards.
 - Elevation: thin borders and a short tinted shadow only where hierarchy requires it.
+- Signal detail: `--signal-glow` and `--line-soft` create one restrained visual
+  rhythm for focus, selection, loading and meaningful empty states. Do not add
+  a new accent color per page.
 
 ## Typography
 
@@ -54,6 +58,16 @@ maximum prose width of 65-75ch.
 - Errors are contextual and never replaced by invented data.
 - Use the existing Lucide icon family consistently until a deliberate migration is planned.
 - Keep motion on transform and opacity, under 250ms for product UI, and disable it for reduced-motion users.
+
+## Shared brand and art assets
+
+- `src/shared/ui/Brand.tsx` owns the mark/lockup.
+- `src/shared/ui/BrandWord.tsx` owns the reusable `Nối` word treatment inside
+  translated copy.
+- `public/noi-mark.svg` is the canonical app mark; `public/noi-signal-orbit.svg`
+  is reserved for loading and empty states.
+- `public/noi-relay-hero.png` is the single landing hero image. Do not repeat it
+  inside product panels.
 
 ## Landing art direction
 

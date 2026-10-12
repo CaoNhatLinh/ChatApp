@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
@@ -6,7 +7,7 @@ const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000301';
 const conversationId = '00000000-0000-0000-0000-000000000302';
 const messageId = '30000000-0000-0000-0000-000000000303';
-const messageBucket = '2026-08-30T11:00:00Z';
+const messageBucket = '2026-08-30-11:03';
 const createdAt = '2026-08-30T11:05:00Z';
 const editedAt = '2026-08-30T11:10:00Z';
 const originalContent = 'Nội dung trước khi sửa';
@@ -134,7 +135,7 @@ await messageRow.hover();
 await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
 await page.getByRole('menuitem', { name: 'Sửa' }).click();
 await composer.fill(updatedContent);
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await page.getByText('Editing', { exact: true }).waitFor();
 await page.getByRole('button', { name: 'Save changes' }).click();
 

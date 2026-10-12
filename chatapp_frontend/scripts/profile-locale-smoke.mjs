@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
@@ -48,7 +49,7 @@ const vi = {
   quickLinks: await page.locator('main a').allTextContents(),
 };
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await page.getByRole('heading', { name: 'Your profile', exact: true }).waitFor();
 const en = {
   lang: await page.locator('html').getAttribute('lang'),
@@ -66,12 +67,10 @@ if (
   || vi.lang !== 'vi'
   || !vi.quickLinksTitle
   || !vi.quickLinks.some((label) => label.includes('Chat'))
-  || !vi.quickLinks.some((label) => label.includes('Tìm nhanh'))
   || !vi.quickLinks.some((label) => label.includes('Bạn bè'))
   || en.lang !== 'en'
   || !en.quickLinksTitle
   || !en.quickLinks.some((label) => label.includes('Chat'))
-  || !en.quickLinks.some((label) => label.includes('Quick search'))
   || !en.quickLinks.some((label) => label.includes('Friends'))
 ) {
   process.exitCode = 1;

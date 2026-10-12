@@ -147,6 +147,7 @@ export interface SendMessageRequest {
     type: MessageType;
     replyToId?: string;
     mentions?: string[];
+    mentionEveryone?: boolean;
     attachments?: Attachment[];
 }
 

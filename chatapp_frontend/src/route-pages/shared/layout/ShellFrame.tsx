@@ -17,7 +17,7 @@ const ambientClasses: Record<AmbientTone, string> = {
 
 export const ShellFrame = ({ children, ambient = "normal", className }: ShellFrameProps) => {
   return (
-    <div className={cn("page-shell relative min-h-[100dvh] overflow-hidden", className)}>
+    <div className={cn("page-shell relative min-h-[100dvh] overflow-x-clip", className)}>
       <div className={cn("absolute inset-0 pointer-events-none", ambientClasses[ambient])}>
         <div className="mx-auto h-[300px] w-[560px] rounded-full bg-primary/20 blur-[120px]" />
       </div>

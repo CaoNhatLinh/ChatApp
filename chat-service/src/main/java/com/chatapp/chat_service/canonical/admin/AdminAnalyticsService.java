@@ -3,7 +3,7 @@ package com.chatapp.chat_service.canonical.admin;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.analytics.AnalyticsRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.springframework.stereotype.Service;
 
@@ -24,11 +24,11 @@ public class AdminAnalyticsService {
             "ALL", "ROOM_CREATED", "ROOM_JOINED", "MESSAGE_SENT",
             "POLLS_CREATED", "POLL_VOTED", "CALL_STARTED");
 
-    private final CanonicalCqlStore store;
+    private final AnalyticsRepository analytics;
     private final AppAuthorizationService authorization;
 
-    public AdminAnalyticsService(CanonicalCqlStore store, AppAuthorizationService authorization) {
-        this.store = store;
+    public AdminAnalyticsService(AnalyticsRepository analytics, AppAuthorizationService authorization) {
+        this.analytics = analytics;
         this.authorization = authorization;
     }
 
@@ -48,7 +48,7 @@ public class AdminAnalyticsService {
         int limit = Math.max(1, Math.min(MAX_POINTS, requestedLimit));
         List<CanonicalAnalyticsPoint> points = new ArrayList<>();
         for (LocalDate day = start; !day.isAfter(end) && points.size() < limit; day = day.plusDays(1)) {
-            points.addAll(store.listAnalytics(day, eventType, Math.min(limit - points.size(), MAX_POINTS)));
+            points.addAll(analytics.find(day, eventType, Math.min(limit - points.size(), MAX_POINTS)));
         }
         return points.stream().limit(limit).toList();
     }

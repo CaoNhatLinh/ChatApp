@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
+const smokeTheme = process.env.SMOKE_THEME === 'dark' ? 'dark' : 'light';
 const captureDirectory = 'artifacts/ui-audit/current';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const operator = {
@@ -55,24 +56,30 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
 });
 
-await page.addInitScript(() => {
+await page.addInitScript((theme) => {
   document.cookie = 'novachat_session=1; Path=/; SameSite=Lax';
-});
+  window.localStorage.setItem('themePreference', theme);
+}, smokeTheme);
 await page.goto(`${baseUrl}/settings?tab=notifications`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Thông báo' }).last().waitFor();
 if (captureVisualAudit) {
   await mkdir(captureDirectory, { recursive: true });
-  await page.screenshot({ path: `${captureDirectory}/settings-notifications-detail-desktop.png`, fullPage: true });
+  await page.screenshot({ path: `${captureDirectory}/settings-notifications-${smokeTheme}-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: `${captureDirectory}/settings-notifications-detail-mobile.png`, fullPage: true });
+  await page.screenshot({ path: `${captureDirectory}/settings-notifications-${smokeTheme}-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
 }
-await page.getByText('Thông báo đẩy', { exact: true }).click();
-await page.locator('#notification-global-level').selectOption('MENTIONS');
+const pushToggle = page.locator('label').filter({ hasText: 'Thông báo đẩy' }).locator('input[type="checkbox"]');
+if (!(await pushToggle.isDisabled())) throw new Error('Push toggle must stay disabled without a runtime provider');
+await page.locator('input[name="notification-global-level"][value="MENTIONS"]').check();
 const saveResponse = page.waitForResponse((response) => response.url().endsWith('/notifications/settings') && response.request().method() === 'PUT');
 await page.getByRole('button', { name: 'Lưu thay đổi' }).click();
 await saveResponse;
-await page.getByText('Đã lưu cài đặt thông báo.', { exact: true }).waitFor();
+await page.getByRole('button', { name: 'Lưu thay đổi' }).waitFor({ state: 'visible' });
+await page.waitForFunction(() => {
+  const button = Array.from(document.querySelectorAll('button')).find((element) => element.textContent?.includes('Lưu thay đổi'));
+  return button instanceof HTMLButtonElement && button.disabled;
+});
 
 const result = {
   baseUrl,
@@ -89,7 +96,7 @@ if (
   || requestFailures.length
   || !result.pageUrl.includes('/settings?tab=notifications')
   || !savedPayload
-  || savedPayload.pushEnabled !== false
+  || savedPayload.pushEnabled !== true
   || savedPayload.globalLevel !== 'MENTIONS'
 ) {
   process.exitCode = 1;

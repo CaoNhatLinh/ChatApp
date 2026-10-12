@@ -4,7 +4,7 @@ import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.message.MessageRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.NotFoundException;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
@@ -19,15 +19,15 @@ import java.util.regex.Pattern;
 public class AdminMessageService {
     private static final Pattern MESSAGE_BUCKET = Pattern.compile("\\d{4}-\\d{2}-\\d{2}-\\d{2}:\\d{2}");
 
-    private final CanonicalCqlStore store;
+    private final MessageRepository messages;
     private final AppAuthorizationService authorization;
     private final CanonicalEventRecorder events;
 
     public AdminMessageService(
-            CanonicalCqlStore store,
+            MessageRepository messages,
             AppAuthorizationService authorization,
             CanonicalEventRecorder events) {
-        this.store = store;
+        this.messages = messages;
         this.authorization = authorization;
         this.events = events;
     }
@@ -42,13 +42,13 @@ public class AdminMessageService {
         requireBucket(bucket);
         requireReason(reason);
 
-        CanonicalMessage message = store.findMessage(conversationId, bucket, messageId);
+        CanonicalMessage message = messages.find(conversationId, bucket, messageId);
         if (message == null) {
             throw new NotFoundException("message not found");
         }
 
         List<CanonicalApiContracts.MessageRevisionView> revisions =
-                store.listMessageRevisions(conversationId, bucket, messageId);
+                messages.findRevisions(conversationId, bucket, messageId);
         events.record(
                 actorId,
                 conversationId,

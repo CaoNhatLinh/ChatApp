@@ -1,5 +1,15 @@
 let accessToken: string | undefined;
+let sessionGeneration = 0;
 const SESSION_HINT_COOKIE = 'novachat_session';
+
+export class SessionChangedError extends Error {
+  constructor() {
+    super('The session changed while the request was running');
+    this.name = 'SessionChangedError';
+  }
+}
+
+export const getSessionGeneration = (): number => sessionGeneration;
 
 export const getAccessToken = (): string | undefined => accessToken;
 
@@ -11,6 +21,7 @@ export const setAccessToken = (token: string): void => {
 };
 
 export const clearAccessToken = (): void => {
+  sessionGeneration += 1;
   accessToken = undefined;
 };
 

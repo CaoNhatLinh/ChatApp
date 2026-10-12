@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, X, Loader2, Users, Check, Hash, LayoutGrid, ArrowRight } from 'lucide-react';
 import { createConversation } from '../../api/messenger.api';
@@ -13,6 +12,7 @@ import { localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
 import { notifyError } from '@/shared/lib/notification';
+import { ModalShell } from '@/shared/ui/ModalShell';
 
 interface CreateRoomModalProps {
     isOpen: boolean;
@@ -36,10 +36,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const [isCreating, setIsCreating] = useState(false);
-    const modalRef = useRef<HTMLDivElement>(null);
-    const isCreatingRef = useRef(false);
-    isCreatingRef.current = isCreating;
-
     const { selectConversation, hoistConversation } = useMessenger();
     // Reset state when opened/closed
     useEffect(() => {
@@ -56,36 +52,6 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
             setSearchResults([]);
         }
     }, [isOpen, setSearchResults]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                if (!isCreatingRef.current) onClose();
-                return;
-            }
-            if (event.key !== 'Tab' || !modalRef.current) return;
-            const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
-                'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-            ));
-            if (!focusable.length) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        return () => {
-            document.removeEventListener('keydown', handleKeyDown);
-            previouslyFocused?.focus();
-        };
-    }, [isOpen, onClose]);
 
     const handleToggleUser = (user: User) => {
         setSelectedUsers(prev => {
@@ -129,29 +95,20 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
     if (!isOpen) return null;
 
-    const modalContent = (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 sm:p-4">
-            {/* Backdrop */}
-            <motion.button
-                type="button"
-                className="absolute inset-0 bg-black/10 backdrop-blur-[1px]"
-                onClick={isCreating ? undefined : onClose}
-                aria-label={localizeText('Đóng cửa sổ tạo phòng')}
-                initial={UI_MOTION_CONFIG.initialState}
-                animate={UI_MOTION_CONFIG.animateState}
-                variants={UI_MOTION_VARIANTS.fadeIn}
-            />
-
-            {/* Modal Container */}
+    return (
+        <ModalShell
+            open={isOpen}
+            onClose={onClose}
+            closeDisabled={isCreating}
+            showClose={false}
+            title={MESSENGER_COPY.createRoomModal.title}
+            description={localizeText('Đặt tên, chọn loại phòng và mời người phù hợp.')}
+            className="overflow-hidden sm:max-w-2xl"
+        >
             <motion.div
-                ref={modalRef}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="create-room-title"
                 aria-describedby={errorMessage ? 'create-room-error' : undefined}
                 aria-busy={isCreating}
-                tabIndex={-1}
-                className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden border-0 bg-card/60 glass neo-shadow sm:h-[80vh] sm:max-h-[700px] sm:max-w-2xl sm:rounded-[2.5rem]"
+                className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-card/95 sm:h-[80vh] sm:max-h-[700px]"
                 initial={UI_MOTION_CONFIG.initialState}
                 animate={UI_MOTION_CONFIG.animateState}
                 variants={UI_MOTION_VARIANTS.zoomReveal}
@@ -360,7 +317,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                                             variants={UI_MOTION_VARIANTS.zoomReveal}
                                         >
                                             <span>{user.displayName}</span>
-                                            <button type="button" onClick={() => handleToggleUser(user)} className="hover:bg-white/20 rounded-lg p-0.5 transition-colors" aria-label={`${MESSENGER_COPY.newConversationModal.removeChipAriaPrefix} ${user.displayName}`}>
+                                            <button type="button" onClick={() => handleToggleUser(user)} className="focus-ring rounded-lg p-0.5 transition-colors hover:bg-muted/60" aria-label={`${MESSENGER_COPY.newConversationModal.removeChipAriaPrefix} ${user.displayName}`}>
                                                 <X size={12} strokeWidth={4} />
                                             </button>
                                         </motion.div>
@@ -477,9 +434,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
                     )}
                 </div>
             </motion.div>
-        </div>
+        </ModalShell>
     );
-
-    return createPortal(modalContent, document.body);
 };
 

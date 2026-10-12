@@ -3,7 +3,7 @@ package com.chatapp.chat_service.canonical.service;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomEvent;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.audit.AuditRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.springframework.stereotype.Service;
 
@@ -15,11 +15,11 @@ import java.util.UUID;
 @Service
 public class RoomAuditService {
 
-    private final CanonicalCqlStore store;
+    private final AuditRepository audit;
     private final ConversationAuthorizationService authorization;
 
-    public RoomAuditService(CanonicalCqlStore store, ConversationAuthorizationService authorization) {
-        this.store = store;
+    public RoomAuditService(AuditRepository audit, ConversationAuthorizationService authorization) {
+        this.audit = audit;
         this.authorization = authorization;
     }
 
@@ -33,7 +33,7 @@ public class RoomAuditService {
         String eventMonth = requireMonth(month);
         requireTimeUuid(beforeEventId);
         int limit = Math.max(1, Math.min(requestedLimit, 100));
-        List<CanonicalRoomEvent> rows = store.listRoomEvents(
+        List<CanonicalRoomEvent> rows = audit.findRoomEvents(
                 conversationId, eventMonth, beforeEventId, limit + 1);
         boolean hasNext = rows.size() > limit;
         List<CanonicalRoomEvent> pageRows = hasNext ? rows.subList(0, limit) : rows;

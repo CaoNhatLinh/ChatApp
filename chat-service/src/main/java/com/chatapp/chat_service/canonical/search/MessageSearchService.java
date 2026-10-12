@@ -2,6 +2,8 @@ package com.chatapp.chat_service.canonical.search;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.MessageSearchRequest;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
+import com.chatapp.chat_service.canonical.message.MessageRepository;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,14 +32,17 @@ public class MessageSearchService {
     private final ElasticsearchOperations elasticsearch;
     private final ConversationAuthorizationService authorization;
     private final ObjectMapper objectMapper;
+    private final MessageRepository messages;
 
     public MessageSearchService(
             ElasticsearchOperations elasticsearch,
             ConversationAuthorizationService authorization,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MessageRepository messages) {
         this.elasticsearch = elasticsearch;
         this.authorization = authorization;
         this.objectMapper = objectMapper;
+        this.messages = messages;
     }
 
     public SearchPage search(UUID actorId, MessageSearchRequest request) {
@@ -91,7 +96,17 @@ public class MessageSearchService {
             String nextCursor = hits.size() < limit
                     ? null
                     : encodeCursor(hits.get(hits.size() - 1).getSortValues());
-            return new SearchPage(hits.stream().map(SearchHit::getContent).map(SearchResult::from).toList(), nextCursor);
+            List<SearchResult> visible = new ArrayList<>();
+            for (SearchHit<MessageSearchDocument> hit : hits) {
+                MessageSearchDocument document = hit.getContent();
+                CanonicalMessage current = messages.find(request.conversationId(), document.getMessageBucket(),
+                        UUID.fromString(document.getMessageId()));
+                // Search is a candidate index, never the authority for retained content.
+                if (current == null || Boolean.TRUE.equals(current.isDeleted())) continue;
+                if (request.isPinned() != null && !request.isPinned().equals(Boolean.TRUE.equals(current.isPinned()))) continue;
+                visible.add(SearchResult.from(current, document.getMentionedUserIds()));
+            }
+            return new SearchPage(List.copyOf(visible), nextCursor);
         } catch (BadRequestException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -138,20 +153,20 @@ public class MessageSearchService {
             boolean isDeleted,
             Instant createdAt) {
 
-        private static SearchResult from(MessageSearchDocument document) {
+        private static SearchResult from(CanonicalMessage message, Set<String> mentionedUserIds) {
             return new SearchResult(
-                    document.getMessageId(),
-                    document.getConversationId(),
-                    document.getMessageBucket(),
-                    document.getSenderId(),
-                    document.getReplyToSenderId(),
-                    document.getMentionedUserIds(),
-                    document.getMessageType(),
-                    document.getContent(),
-                    document.isHasAttachments(),
-                    document.isPinned(),
-                    document.isDeleted(),
-                    document.getCreatedAt());
+                    message.messageId().toString(),
+                    message.conversationId().toString(),
+                    message.messageBucket(),
+                    message.senderId().toString(),
+                    message.replyToSenderId() == null ? null : message.replyToSenderId().toString(),
+                    Boolean.TRUE.equals(message.hasMentions()) ? mentionedUserIds : Set.of(),
+                    message.messageType(),
+                    message.content(),
+                    Boolean.TRUE.equals(message.hasAttachments()),
+                    Boolean.TRUE.equals(message.isPinned()),
+                    false,
+                    message.createdAt());
         }
     }
 }

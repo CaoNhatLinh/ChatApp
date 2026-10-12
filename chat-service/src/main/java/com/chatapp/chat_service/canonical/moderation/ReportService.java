@@ -1,6 +1,8 @@
 package com.chatapp.chat_service.canonical.moderation;
 
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.message.MessageRepository;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.ConflictException;
@@ -20,11 +22,20 @@ public class ReportService {
 
     private final ModerationRepository repository;
     private final CanonicalCqlStore store;
+    private final MessageRepository messages;
+    private final UserRepository users;
     private final CanonicalEventRecorder events;
 
-    public ReportService(ModerationRepository repository, CanonicalCqlStore store, CanonicalEventRecorder events) {
+    public ReportService(
+            ModerationRepository repository,
+            CanonicalCqlStore store,
+            MessageRepository messages,
+            UserRepository users,
+            CanonicalEventRecorder events) {
         this.repository = repository;
         this.store = store;
+        this.messages = messages;
+        this.users = users;
         this.events = events;
     }
 
@@ -60,7 +71,7 @@ public class ReportService {
                 throw new BadRequestException("message reports require a valid messageBucket and messageId");
             }
             requireConversation(conversationId);
-            if (store.findMessage(conversationId, request.messageBucket().trim(), request.messageId()) == null) {
+            if (messages.find(conversationId, request.messageBucket().trim(), request.messageId()) == null) {
                 throw new NotFoundException("message not found");
             }
         }
@@ -79,7 +90,7 @@ public class ReportService {
     }
 
     private void requireUser(UUID userId) {
-        if (userId == null || store.findUserById(userId) == null) {
+        if (userId == null || users.findById(userId) == null) {
             throw new NotFoundException("user not found");
         }
     }

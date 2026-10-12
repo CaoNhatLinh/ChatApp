@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.poll.PollService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +18,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/polls")
 public class CanonicalPollController {
-    private final CanonicalBackendService backend;
+    private final PollService polls;
     private final SecurityContextHelper securityContext;
 
-    public CanonicalPollController(CanonicalBackendService backend, SecurityContextHelper securityContext) {
-        this.backend = backend;
+    public CanonicalPollController(PollService polls, SecurityContextHelper securityContext) {
+        this.polls = polls;
         this.securityContext = securityContext;
     }
 
@@ -30,28 +30,28 @@ public class CanonicalPollController {
     public ResponseEntity<CanonicalApiContracts.PollView> create(
             @RequestBody CanonicalApiContracts.PollCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(backend.createPoll(securityContext.getCurrentUserId(), request));
+                .body(polls.create(securityContext.getCurrentUserId(), request));
     }
 
     @PostMapping("/{pollId}/votes")
     public ResponseEntity<CanonicalApiContracts.PollView> vote(
             @PathVariable UUID pollId,
             @RequestBody CanonicalApiContracts.PollVoteRequest request) {
-        return ResponseEntity.ok(backend.votePoll(securityContext.getCurrentUserId(), pollId, request));
+        return ResponseEntity.ok(polls.vote(securityContext.getCurrentUserId(), pollId, request));
     }
 
     @GetMapping("/{pollId}")
     public ResponseEntity<CanonicalApiContracts.PollView> get(@PathVariable UUID pollId) {
-        return ResponseEntity.ok(backend.getPoll(securityContext.getCurrentUserId(), pollId));
+        return ResponseEntity.ok(polls.get(securityContext.getCurrentUserId(), pollId));
     }
 
     @DeleteMapping("/{pollId}/votes")
     public ResponseEntity<CanonicalApiContracts.PollView> removeVote(@PathVariable UUID pollId) {
-        return ResponseEntity.ok(backend.removePollVote(securityContext.getCurrentUserId(), pollId));
+        return ResponseEntity.ok(polls.removeVote(securityContext.getCurrentUserId(), pollId));
     }
 
     @PostMapping("/{pollId}/close")
     public ResponseEntity<CanonicalApiContracts.PollView> close(@PathVariable UUID pollId) {
-        return ResponseEntity.ok(backend.closePoll(securityContext.getCurrentUserId(), pollId));
+        return ResponseEntity.ok(polls.close(securityContext.getCurrentUserId(), pollId));
     }
 }

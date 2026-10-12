@@ -122,7 +122,7 @@ const configurePage = async (page) => {
       }
       return json({
         conversationId: betaConversationId,
-        messageBucket: now,
+        messageBucket: '2026-08-30-12:03',
         messageId: '00000000-0000-0000-0000-000000000421',
         clientMessageId: body.clientMessageId,
         senderId: activeUser.userId,
@@ -196,6 +196,14 @@ if (await composer.inputValue() !== betaDraft) {
 }
 await composer.press('Enter');
 await page.waitForFunction(() => document.querySelector('textarea')?.value === '');
+await page.locator('[data-message-id]:not([data-message-id^="temp-"])')
+  .filter({ hasText: betaDraft }).waitFor();
+if (await page.getByText('Đang gửi...', { exact: true }).count()) {
+  throw new Error('HTTP-confirmed message is still sending without a STOMP acknowledgement');
+}
+if (sendRequests[0].clientMessageId !== sendRequests[1].clientMessageId) {
+  throw new Error('Retry after reload created a new clientMessageId for the same unconfirmed message');
+}
 
 await page.reload({ waitUntil: 'domcontentloaded' });
 await openConversation(page, 'Draft Beta');

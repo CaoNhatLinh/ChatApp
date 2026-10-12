@@ -19,6 +19,23 @@ class MessageSearchProjectorTest {
     @Mock MessageSearchRepository repository;
 
     @Test
+    void projectsPinAndUnpinEvents() throws Exception {
+        MessageSearchDocument existing = new MessageSearchDocument();
+        when(repository.findById(anyString())).thenReturn(Optional.of(existing));
+        MessageSearchProjector projector = new MessageSearchProjector(repository, new ObjectMapper());
+        String template = """
+                {"eventType":"%s","conversationId":"room","payload":{
+                "messageId":"message","messageBucket":"2026-10-03-01:00",
+                "senderId":"sender","messageType":"TEXT","content":"hello",
+                "createdAt":"2026-10-03T01:00:00Z","isPinned":%s}}
+                """;
+        projector.project(template.formatted("MESSAGE_PIN", true));
+        assertThat(existing.isPinned()).isTrue();
+        projector.project(template.formatted("MESSAGE_UNPIN", false));
+        assertThat(existing.isPinned()).isFalse();
+    }
+
+    @Test
     void projectsCanonicalKafkaMessageEventWithSearchFilters() throws Exception {
         when(repository.findById(anyString())).thenReturn(Optional.empty());
         MessageSearchProjector projector = new MessageSearchProjector(repository, new ObjectMapper());

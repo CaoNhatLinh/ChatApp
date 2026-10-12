@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageCircle, Search, Users } from "lucide-react";
+import { MessageCircle, Users } from "lucide-react";
 import { UI_COPY } from "@/shared/constants/ui-copy";
 import { localizeText } from "@/shared/i18n";
 
@@ -8,11 +8,6 @@ const quickLinks = [
     to: "/app",
     icon: MessageCircle,
     label: UI_COPY.profile.quickLinkItems.app,
-  },
-  {
-    to: "/search",
-    icon: Search,
-    label: UI_COPY.profile.quickLinkItems.search,
   },
   {
     to: "/friends",

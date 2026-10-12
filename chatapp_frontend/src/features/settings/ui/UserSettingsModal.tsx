@@ -1,5 +1,4 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, X } from 'lucide-react';
@@ -24,17 +23,18 @@ import { localizeText, useAppLocale } from '@/shared/i18n';
 import { NotificationSettingsPanel } from '@/features/notifications/components/NotificationSettingsPanel';
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
-import { useFocusTrap } from '@/shared/hooks/useFocusTrap';
 import { cn } from '@/shared/lib/cn';
+import { ModalShell } from '@/shared/ui/ModalShell';
+import { ConnectedAccountsPanel } from './ConnectedAccountsPanel';
 
 interface UserSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'profile' | 'appearance' | 'language' | 'notifications' | 'reports';
+  initialTab?: 'profile' | 'connections' | 'appearance' | 'language' | 'notifications' | 'reports';
   mode?: 'modal' | 'page';
 }
 
-type TabType = 'profile' | 'appearance' | 'language' | 'notifications' | 'reports';
+type TabType = 'profile' | 'connections' | 'appearance' | 'language' | 'notifications' | 'reports';
 type ThemePreference = 'light' | 'dark' | 'system';
 
 export const UserSettingsModal: FC<UserSettingsModalProps> = ({
@@ -52,7 +52,6 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
   const [savedThemePreference, setSavedThemePreference] = useState<ThemePreference>('system');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const appearanceOpenRef = useRef(false);
-  const settingsDialogRef = useRef<HTMLDivElement>(null);
 
   const { user, logout: logoutStore, updateUser } = useAuthStore();
   const { themePreference, setThemePreference, previewThemePreference } = useTheme();
@@ -179,20 +178,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     }
     setThemePreference(draftThemePreference);
     setSavedThemePreference(draftThemePreference);
-    notifySuccess(localizeText('Đã cập nhật giao diện.'));
   };
-
-  useFocusTrap(isOpen && !isPageMode, settingsDialogRef, handleClose, isWorking);
-
-  useEffect(() => {
-    if (!isOpen || isPageMode) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen, isPageMode]);
 
   if (!isOpen) {
     return null;
@@ -202,16 +188,12 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     <motion.div
       className={
         isPageMode
-          ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.07]'
-          : 'settings-surface relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-none flex-col overflow-hidden rounded-none border-0 sm:h-[85vh] sm:max-h-[850px] sm:max-w-4xl sm:rounded-[1.5rem] sm:border'
+          ? 'settings-surface relative flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border/60'
+          : 'settings-surface relative flex h-full min-h-0 w-full flex-col overflow-hidden'
       }
-      ref={isPageMode ? undefined : settingsDialogRef}
       initial={UI_MOTION_CONFIG.initialState}
       animate={UI_MOTION_CONFIG.animateState}
       variants={isPageMode ? UI_MOTION_VARIANTS.fadeIn : UI_MOTION_VARIANTS.zoomReveal}
-      role={isPageMode ? undefined : 'dialog'}
-      aria-modal={isPageMode ? undefined : true}
-      aria-labelledby={isPageMode ? undefined : 'user-settings-title'}
     >
       <Button
         variant="ghost"
@@ -244,7 +226,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
             mobileNavOpen && 'pointer-events-none invisible sm:pointer-events-auto sm:visible',
           )}
         >
-          <div className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-white/[0.07] bg-white/[0.025] px-4 sm:px-6">
+          <div className="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-border/60 bg-card/70 px-4 backdrop-blur-xl sm:px-6">
             {!mobileNavOpen ? (
               <Button
                 variant="ghost"
@@ -257,7 +239,7 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
               </Button>
             ) : null}
             <h2 id="user-settings-title" className="text-lg font-semibold tracking-tight">
-              {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'language' ? localizeText('Ngôn ngữ') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
+              {activeTab === 'profile' ? UI_COPY.settings.profileTitle : activeTab === 'connections' ? localizeText('Cách đăng nhập') : activeTab === 'appearance' ? localizeText('Giao diện') : activeTab === 'language' ? localizeText('Ngôn ngữ') : activeTab === 'notifications' ? localizeText('Thông báo') : localizeText('Báo cáo của tôi')}
             </h2>
             <Button
               variant="ghost"
@@ -284,6 +266,8 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
                   onAvatarChange={setAvatarUrl}
                   onSave={handleSaveProfile}
                 /> : null
+              ) : activeTab === 'connections' ? (
+                <ConnectedAccountsPanel />
               ) : activeTab === 'appearance' ? (
                 <UserSettingsAppearancePanel
                   themePreference={draftThemePreference}
@@ -305,18 +289,18 @@ export const UserSettingsModal: FC<UserSettingsModalProps> = ({
     return <div className="w-full">{content}</div>;
   }
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
-      <motion.div
-        className="absolute inset-0 bg-black/10 backdrop-blur-[1px]"
-        onClick={handleClose}
-        initial={UI_MOTION_CONFIG.initialState}
-        animate={UI_MOTION_CONFIG.animateState}
-        variants={UI_MOTION_VARIANTS.fadeIn}
-      />
+  return (
+    <ModalShell
+      open={isOpen}
+      onClose={handleClose}
+      closeDisabled={isWorking}
+      showClose={false}
+      title={localizeText('Cài đặt')}
+      description={localizeText('Quản lý hồ sơ, giao diện, ngôn ngữ và thông báo.')}
+      className="overflow-hidden sm:h-[85vh] sm:max-h-[850px] sm:max-w-5xl"
+    >
       {content}
-    </div>,
-    document.body
+    </ModalShell>
   );
 };
 

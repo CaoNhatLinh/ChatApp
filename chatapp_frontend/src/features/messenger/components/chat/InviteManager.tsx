@@ -17,8 +17,8 @@ import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import { logger } from '@/shared/lib/logger';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-
-const INITIAL_VISIBLE_ITEMS = 3;
+import { Input } from '@/shared/ui/Input';
+import { Select } from '@/shared/ui/Select';
 
 export function InviteManager({ conversationId }: { conversationId: string }) {
     useAppLocale();
@@ -29,9 +29,15 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     const [selectedInviteKind, setSelectedInviteKind] = useState<'LINK' | 'QR'>('LINK');
     const [kind, setKind] = useState<'LINK' | 'QR'>('LINK');
     const [policy, setPolicy] = useState<'DIRECT_JOIN' | 'REQUEST_APPROVAL'>('DIRECT_JOIN');
+    const [displayName, setDisplayName] = useState('');
+    const [durationMinutes, setDurationMinutes] = useState(7 * 24 * 60);
+    const [maxUses, setMaxUses] = useState('');
     const [isCreating, setIsCreating] = useState(false);
-    const [visibleLinkCount, setVisibleLinkCount] = useState(INITIAL_VISIBLE_ITEMS);
-    const [visibleRequestCount, setVisibleRequestCount] = useState(INITIAL_VISIBLE_ITEMS);
+    const [linkCursor, setLinkCursor] = useState<string | null>(null);
+    const [requestCursor, setRequestCursor] = useState<string | null>(null);
+    const [hasMoreLinks, setHasMoreLinks] = useState(false);
+    const [hasMoreRequests, setHasMoreRequests] = useState(false);
+    const [loadingMore, setLoadingMore] = useState<'links' | 'requests' | null>(null);
     const [revokeTarget, setRevokeTarget] = useState<InviteLinkRecord | null>(null);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -59,8 +65,12 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 listJoinRequests(conversationId),
             ]);
             if (identity !== managerIdentityRef.current) return;
-            setLinks(nextLinks);
-            setRequests(nextRequests);
+            setLinks(nextLinks.content);
+            setLinkCursor(nextLinks.nextCursor ?? null);
+            setHasMoreLinks(nextLinks.hasNext);
+            setRequests(nextRequests.content);
+            setRequestCursor(nextRequests.nextCursor ?? null);
+            setHasMoreRequests(nextRequests.hasNext);
         } finally {
             if (identity === managerIdentityRef.current) setLoading(false);
         }
@@ -96,14 +106,20 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     };
 
     const makeInvite = async () => {
+        const parsedMaxUses = maxUses.trim() === '' ? undefined : Number(maxUses);
+        if (parsedMaxUses !== undefined && (!Number.isInteger(parsedMaxUses) || parsedMaxUses < 1 || parsedMaxUses > 1_000_000)) {
+            setError(localizeText('Số lượt dùng phải từ 1 đến 1.000.000.'));
+            return;
+        }
         setBusy(true);
         setError(null);
         try {
             const created = await createInvite(conversationId, {
                 inviteKind: kind,
                 joinPolicy: policy,
-                displayName: kind === 'QR' ? 'QR phòng chat' : 'Link phòng chat',
-                durationMinutes: 7 * 24 * 60,
+                displayName: displayName.trim() || (kind === 'QR' ? 'Mã QR của phòng' : 'Liên kết của phòng'),
+                durationMinutes,
+                maxUses: parsedMaxUses,
             });
             setSelectedUrl(created.joinUrl);
             setSelectedLinkId(created.invite.linkId);
@@ -154,6 +170,36 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
     const activeLinks = links.filter(link => link.isActive);
     const pendingRequests = requests.filter(request => request.status === 'PENDING');
 
+    const loadMoreLinks = async () => {
+        if (!linkCursor || loadingMore) return;
+        setLoadingMore('links');
+        try {
+            const page = await listInvites(conversationId, linkCursor);
+            setLinks(current => [...current, ...page.content.filter(item => !current.some(existing => existing.linkId === item.linkId))]);
+            setLinkCursor(page.nextCursor ?? null);
+            setHasMoreLinks(page.hasNext);
+        } catch (loadError: unknown) {
+            setError(getUserFacingErrorMessage(loadError, localizeText('Không thể tải thêm lời mời.')));
+        } finally {
+            setLoadingMore(null);
+        }
+    };
+
+    const loadMoreRequests = async () => {
+        if (!requestCursor || loadingMore) return;
+        setLoadingMore('requests');
+        try {
+            const page = await listJoinRequests(conversationId, requestCursor);
+            setRequests(current => [...current, ...page.content.filter(item => !current.some(existing => existing.requestId === item.requestId))]);
+            setRequestCursor(page.nextCursor ?? null);
+            setHasMoreRequests(page.hasNext);
+        } catch (loadError: unknown) {
+            setError(getUserFacingErrorMessage(loadError, localizeText('Không thể tải thêm yêu cầu tham gia.')));
+        } finally {
+            setLoadingMore(null);
+        }
+    };
+
     const handleResolve = async (request: JoinRequestView, decision: 'APPROVE' | 'DECLINE') => {
         const actionKey = `${decision.toLowerCase()}:${request.requestId}`;
         setPendingAction(actionKey);
@@ -190,12 +236,12 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 </Button>
             </header>
 
-            {pendingRequests.length > 0 ? (
+            {pendingRequests.length > 0 || hasMoreRequests ? (
                 <div className="space-y-2" aria-labelledby="pending-requests-title">
                     <div className="flex items-center justify-between gap-3">
                         <h5 id="pending-requests-title" className="text-sm font-medium">{localizeText('Đang chờ duyệt')} · {pendingRequests.length}</h5>
                     </div>
-                    {pendingRequests.slice(0, visibleRequestCount).map(request => (
+                    {pendingRequests.map(request => (
                         <div key={request.requestId} className="flex items-center justify-between gap-3 border-t border-border/60 py-3 first:border-t-0">
                             <p className="min-w-0 truncate text-sm" title={request.userId}>
                                 {localizeText('Người dùng')} · <span className="font-mono text-xs text-muted-foreground">{request.userId.slice(-8)}</span>
@@ -210,8 +256,8 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                             </div>
                         </div>
                     ))}
-                    {visibleRequestCount < pendingRequests.length ? (
-                        <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setVisibleRequestCount(count => count + INITIAL_VISIBLE_ITEMS)}>
+                    {hasMoreRequests ? (
+                        <Button type="button" variant="ghost" size="sm" className="w-full" loading={loadingMore === 'requests'} onClick={() => void loadMoreRequests()}>
                             {localizeText('Xem thêm')}
                         </Button>
                     ) : null}
@@ -225,13 +271,32 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 </div>
                 <label className="block space-y-2 text-sm font-medium">
                     <span>{localizeText('Cách tham gia')}</span>
-                    <select value={policy} onChange={event => setPolicy(event.target.value as typeof policy)} className="focus-ring h-10 w-full rounded-[var(--radius-md)] border border-border bg-background px-3 text-sm">
+                    <Select value={policy} onChange={event => setPolicy(event.target.value as typeof policy)}>
                         <option value="DIRECT_JOIN">{localizeText('Tham gia ngay')}</option>
                         <option value="REQUEST_APPROVAL">{localizeText('Cần quản lý duyệt')}</option>
-                    </select>
+                    </Select>
                 </label>
+                <label className="block space-y-2 text-sm font-medium">
+                    <span>{localizeText('Tên để bạn dễ nhận ra')}</span>
+                    <Input value={displayName} maxLength={120} onChange={event => setDisplayName(event.target.value)} placeholder={localizeText('Ví dụ: Nhóm học cuối tuần')} />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                    <label className="block space-y-2 text-sm font-medium">
+                        <span>{localizeText('Có hiệu lực')}</span>
+                        <Select value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))}>
+                            <option value={60}>{localizeText('1 giờ')}</option>
+                            <option value={1440}>{localizeText('1 ngày')}</option>
+                            <option value={10080}>{localizeText('7 ngày')}</option>
+                            <option value={43200}>{localizeText('30 ngày')}</option>
+                        </Select>
+                    </label>
+                    <label className="block space-y-2 text-sm font-medium">
+                        <span>{localizeText('Số lượt dùng')}</span>
+                        <Input type="number" min={1} max={1000000} value={maxUses} onChange={event => setMaxUses(event.target.value)} placeholder={localizeText('Không giới hạn')} />
+                    </label>
+                </div>
                 <Button type="button" onClick={() => void makeInvite()} loading={busy} className="w-full">
-                    <Check className="size-4" /> {localizeText('Tạo lời mời 7 ngày')}
+                    <Check className="size-4" /> {localizeText('Tạo lời mời')}
                 </Button>
             </div> : null}
 
@@ -243,12 +308,12 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                 </div>
             )}
 
-            {activeLinks.length > 0 ? <details className="border-t border-border/60 pt-3">
+            {activeLinks.length > 0 || hasMoreLinks ? <details className="border-t border-border/60 pt-3">
                 <summary className="focus-ring cursor-pointer list-none rounded-[var(--radius-sm)] py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
                     {localizeText('Liên kết đang hoạt động')} · {activeLinks.length}
                 </summary>
                 <div className="mt-1 space-y-1">
-                    {activeLinks.slice(0, visibleLinkCount).map(link => (
+                    {activeLinks.map(link => (
                         <div key={link.linkId} className="flex items-center justify-between gap-3 py-2 text-sm">
                             <span className="min-w-0 truncate">{link.displayName}</span>
                             <Button type="button" size="icon" variant="ghost" disabled={pendingAction !== null} onClick={() => setRevokeTarget(link)} aria-label={localizeText('Thu hồi lời mời')}>
@@ -256,8 +321,8 @@ export function InviteManager({ conversationId }: { conversationId: string }) {
                             </Button>
                         </div>
                     ))}
-                    {visibleLinkCount < activeLinks.length ? (
-                        <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setVisibleLinkCount(count => count + INITIAL_VISIBLE_ITEMS)}>{localizeText('Xem thêm')}</Button>
+                    {hasMoreLinks ? (
+                        <Button type="button" variant="ghost" size="sm" className="w-full" loading={loadingMore === 'links'} onClick={() => void loadMoreLinks()}>{localizeText('Xem thêm')}</Button>
                     ) : null}
                 </div>
             </details> : null}

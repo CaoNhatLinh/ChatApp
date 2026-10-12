@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { register as registerApi } from '../api/auth.api';
 import type { RegisterRequest } from '../types/auth.types';
 import { logger } from '@/shared/lib/logger';
-import { notifyError, notifySuccess } from '@/shared/lib/notification';
+import { notifySuccess } from '@/shared/lib/notification';
 import { getAuthErrorMessage } from '@/features/auth/lib/auth-error';
 import { localizeText } from '@/shared/i18n';
 
@@ -30,7 +30,6 @@ export const useRegister = () => {
         } catch (err: unknown) {
             const message = getAuthErrorMessage(err, 'register');
             setError(message);
-            notifyError(message);
             logger.error('Registration error', err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);

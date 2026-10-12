@@ -1,9 +1,10 @@
 package com.chatapp.chat_service.canonical.controller;
 
-import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
+import com.chatapp.chat_service.canonical.appearance.AppearanceService;
+import com.chatapp.chat_service.canonical.appearance.ChatAppearanceRequest;
+import com.chatapp.chat_service.canonical.appearance.RoomAppearanceRequest;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationPreferences;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import jakarta.validation.Valid;
 import java.time.Instant;
@@ -22,20 +23,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/preferences/chat")
 public class CanonicalChatAppearanceController {
 
-    private final CanonicalBackendService backend;
+    private final AppearanceService appearance;
     private final SecurityContextHelper securityContext;
 
     public CanonicalChatAppearanceController(
-            CanonicalBackendService backend,
+            AppearanceService appearance,
             SecurityContextHelper securityContext) {
-        this.backend = backend;
+        this.appearance = appearance;
         this.securityContext = securityContext;
     }
 
     @GetMapping
     public ChatAppearancePreferencesView get() {
-        CanonicalChatPreferences defaults = backend.getChatAppearancePreferences(actorId());
-        List<CanonicalConversationPreferences> rooms = backend.listConversationAppearancePreferences(actorId());
+        CanonicalChatPreferences defaults = appearance.getDefaults(actorId());
+        List<CanonicalConversationPreferences> rooms = appearance.listRoomPreferences(actorId());
         return new ChatAppearancePreferencesView(
                 defaults.defaultThemeId(),
                 defaults.defaultBubbleStyleId(),
@@ -44,22 +45,22 @@ public class CanonicalChatAppearanceController {
 
     @PutMapping
     public ResponseEntity<Void> update(
-            @RequestBody @Valid CanonicalApiContracts.ChatAppearancePreferencesRequest request) {
-        backend.updateChatAppearancePreferences(actorId(), request);
+            @RequestBody @Valid ChatAppearanceRequest request) {
+        appearance.updateDefaults(actorId(), request);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/rooms/{conversationId}")
     public ResponseEntity<Void> updateRoom(
             @PathVariable UUID conversationId,
-            @RequestBody @Valid CanonicalApiContracts.ConversationAppearancePreferencesRequest request) {
-        backend.updateConversationAppearancePreferences(actorId(), conversationId, request);
+            @RequestBody @Valid RoomAppearanceRequest request) {
+        appearance.updateRoom(actorId(), conversationId, request);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/rooms/{conversationId}")
     public ResponseEntity<Void> resetRoom(@PathVariable UUID conversationId) {
-        backend.deleteConversationAppearancePreferences(actorId(), conversationId);
+        appearance.resetRoom(actorId(), conversationId);
         return ResponseEntity.noContent().build();
     }
 

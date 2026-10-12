@@ -1,97 +1,79 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowUpRight, LockKeyhole, MessageCircle, Users } from "lucide-react";
 import Link from "next/link";
+import { ArrowDownRight, ArrowRight } from "lucide-react";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { PublicPageShell } from "@/route-pages/shared/PublicPageShell";
+import { LandingReveal } from "@/route-pages/shared/landing/LandingReveal";
+import { SignalShader } from "@/route-pages/shared/landing/SignalShader";
+import { SignalSequence } from "@/route-pages/shared/landing/SignalSequence";
+import { SignalThread } from "@/route-pages/shared/landing/SignalThread";
+import { TechnologyRelay } from "@/route-pages/shared/landing/TechnologyRelay";
 import { localizeText, useAppLocale } from "@/shared/i18n";
-
-const promises = [
-  {
-    title: "Giữ đúng ngữ cảnh",
-    body: "Tin nhắn, tệp và trạng thái ở cùng một luồng để cuộc trò chuyện không bị đứt đoạn.",
-    icon: MessageCircle,
-  },
-  {
-    title: "Kết nối có ý thức",
-    body: "Bạn quyết định khi nào bắt đầu kết nối và ai có thể bước vào cuộc trò chuyện.",
-    icon: Users,
-  },
-  {
-    title: "Riêng tư theo mặc định",
-    body: "Phiên, quyền truy cập và lịch sử có ranh giới rõ ràng ngay từ đầu.",
-    icon: LockKeyhole,
-  },
-] as const;
+import { BrandText } from "@/shared/ui/BrandWord";
 
 export const HomePage = () => {
   const { locale } = useAppLocale();
+  const reduceMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const heroVisualY = useTransform(scrollY, [0, 920], [0, 104]);
+  const heroVisualScale = useTransform(scrollY, [0, 920], [1, 0.94]);
 
   return (
     <PublicPageShell>
-      <section className="landing-hero" lang={locale}>
-        <div className="layout-shell grid min-h-[calc(100dvh-4.1rem)] items-center gap-9 py-8 lg:grid-cols-[0.78fr_1.22fr] lg:gap-14 lg:py-12">
-          <div className="relative z-10 py-8 lg:py-0">
-            <p className="page-kicker">{localizeText("Tín hiệu gặp nhau")}</p>
-            <h1 className="max-w-[9ch] text-5xl font-bold leading-[0.94] tracking-[-0.06em] text-balance sm:text-6xl lg:text-7xl">
-              {localizeText("Trò chuyện bắt đầu khi hai người sẵn sàng.")}
-            </h1>
-            <p className="mt-7 max-w-lg text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
-              {localizeText("Nối giữ cuộc trò chuyện, trạng thái và những điều quan trọng trong một nhịp rõ ràng.")}
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/register" className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px">
-                {localizeText("Bắt đầu một cuộc trò chuyện")}
-                <ArrowUpRight size={17} aria-hidden="true" />
-              </Link>
-              <Link href="/about" className="focus-ring inline-flex items-center rounded-[var(--radius-md)] border border-border bg-background/80 px-5 py-3 text-sm font-semibold transition-colors hover:border-primary hover:text-primary">
-                {localizeText("Vì sao Nối")}
-              </Link>
+      <div lang={locale} className="overflow-hidden">
+        <section className="relay-hero">
+          <SignalShader className="opacity-75" />
+          <div className="relay-hero-veil" />
+          <div className="layout-shell relative z-10 min-h-[min(880px,calc(100dvh-4rem))] py-10 sm:py-16">
+            <div className="relay-hero-index" aria-hidden="true">SIGNAL / 001</div>
+            <div className="relative grid min-h-[680px] items-center lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="relative z-20 pt-16 lg:pt-0">
+                <p className="relay-kicker">{localizeText("Nối là project tôi đang làm")}</p>
+                <h1 className="relay-display max-w-[10ch] text-landing-on-ink">{localizeText("Tôi học bằng cách tự làm một app chat.")}</h1>
+                <p className="text-landing-on-ink-muted mt-7 max-w-md text-base leading-7 sm:ml-[18%] sm:text-lg sm:leading-8"><BrandText text={localizeText("Tôi dùng Nối để học cách xây một app có người thật nhắn tin, dữ liệu thay đổi và giao diện phải theo kịp.")} /></p>
+                <div className="mt-8 flex flex-wrap gap-3 sm:ml-[18%]">
+                  <Link href="/app" className="landing-button landing-button-primary focus-ring"><span className="landing-button-label">{localizeText("Mở Nối")}</span><ArrowRight className="landing-button-icon" size={17} aria-hidden="true" /></Link>
+                  <Link href="/about" className="landing-button landing-button-secondary-dark focus-ring"><span className="landing-button-label">{localizeText("Xem Nối được làm thế nào")}</span></Link>
+                </div>
+              </div>
+
+              <motion.div className="relay-hero-visual" role="img" aria-label={localizeText("Minh họa các dải tín hiệu hội tụ trong Nối")} style={reduceMotion ? undefined : { y: heroVisualY, scale: heroVisualScale }}>
+                <div className="relay-hero-image"><Image src="/noi-relay-hero.png" alt="" fill priority sizes="(max-width: 1024px) 92vw, 52vw" className="object-cover" /></div>
+                <div className="relay-orbit relay-orbit-a" /><div className="relay-orbit relay-orbit-b" />
+                <div className="relay-live"><span />{localizeText("Đang truyền")}</div>
+                <p className="relay-side-note">{localizeText("Một việc xảy ra, mọi người cần thấy đúng lúc.")}</p>
+              </motion.div>
             </div>
-            <p className="mt-5 text-sm text-muted-foreground">{localizeText("Không bảng điều khiển thừa. Không làm bạn lạc khỏi cuộc trò chuyện.")}</p>
+            <a href="#manifesto" className="focus-ring relay-scroll-cue">{localizeText("Xem tiếp")}<ArrowDownRight size={18} aria-hidden="true" /></a>
           </div>
+        </section>
 
-          <div className="landing-hero-art relative overflow-hidden rounded-[1.35rem] border border-border/80 bg-[#121d2a]">
-            <figure className="relative aspect-[16/10]">
-              <Image src="/noi-relay-hero.png" alt={localizeText("Hai dải tín hiệu cam giao nhau trong không gian Nối")} fill priority sizes="(max-width: 1024px) 100vw, 58vw" className="object-cover" />
-            </figure>
-            <div className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#121d2a]/85 px-3 py-1.5 text-xs font-medium tracking-[0.08em] text-[#f6eee3] backdrop-blur sm:bottom-6 sm:left-6">
-              {localizeText("NỐI / NHỊP 01")}
+        <section id="manifesto" className="relay-manifesto">
+          <div className="layout-shell relative py-24 sm:py-32">
+            <SignalThread className="absolute left-[-8%] top-12 h-[72%] w-[116%] text-foreground" />
+            <div className="relative z-10 grid gap-14 lg:grid-cols-[0.34fr_0.66fr]">
+              <div><p className="relay-kicker text-primary">{localizeText("Nối là gì?")}</p><p className="mt-4 max-w-xs text-sm leading-6 text-muted-foreground">{localizeText("Nối là phần mềm tôi làm để luyện frontend, realtime và những tình huống người dùng thật thường gặp.")}</p></div>
+              <div className="space-y-2">
+                <p className="relay-statement">{localizeText("Tin nhắn")}<span>{localizeText("cần đúng ngữ cảnh.")}</span></p>
+                <p className="relay-statement relay-statement-offset">{localizeText("Trạng thái")}<span>{localizeText("cần dễ nhận ra.")}</span></p>
+                <p className="relay-statement">{localizeText("Quyền vào phòng")}<span>{localizeText("cần rõ ràng.")}</span></p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="section-frame border-t-0 pt-10 sm:pt-14">
-        <div className="layout-shell grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
-          <div className="page-intro">
-            <p className="page-kicker">{localizeText("Một nhịp rõ ràng")}</p>
-            <h2 className="text-3xl font-bold tracking-[-0.045em] sm:text-4xl">{localizeText("Ít giao diện hơn. Nhiều cuộc trò chuyện hơn.")}</h2>
+        <section className="relay-sequence">
+          <div className="layout-shell py-24 sm:py-32">
+            <LandingReveal className="mb-14 flex max-w-4xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><h2 className="max-w-[12ch] text-4xl font-semibold leading-[0.96] tracking-[-0.04em] sm:text-6xl">{localizeText("Ba điều giúp cuộc trò chuyện không bị đứt.")}</h2><p className="max-w-xs text-sm leading-6 text-muted-foreground">{localizeText("Chọn từng tín hiệu để xem giao diện phản hồi và giữ ngữ cảnh ra sao.")}</p></LandingReveal>
+            <LandingReveal delay={0.08}><SignalSequence /></LandingReveal>
           </div>
-          <div className="border-t border-border">
-            {promises.map(({ title, body, icon: Icon }) => (
-              <article key={title} className="grid gap-3 border-b border-border py-6 sm:grid-cols-[2.75rem_0.76fr_1.24fr] sm:items-start sm:gap-5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/12 text-primary"><Icon size={16} aria-hidden="true" /></span>
-                <h3 className="text-lg font-semibold tracking-[-0.02em]">{localizeText(title)}</h3>
-                <p className="text-sm leading-6 text-muted-foreground">{localizeText(body)}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="section-frame">
-        <div className="layout-shell flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div className="page-intro">
-            <h2 className="text-3xl font-bold tracking-[-0.045em]">{localizeText("Nói điều cần nói. Giữ lại điều quan trọng.")}</h2>
-            <p className="mt-3 text-base leading-7 text-muted-foreground">{localizeText("Bắt đầu bằng lời mời, đi tiếp bằng một không gian trò chuyện có chủ đích.")}</p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-3">
-            <Link href="/help" className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-2.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary">{localizeText("Xem hướng dẫn")} <ArrowUpRight size={16} aria-hidden="true" /></Link>
-            <Link href="/privacy" className="focus-ring inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-transform hover:-translate-y-px">{localizeText("Đọc về riêng tư")}</Link>
-          </div>
-        </div>
-      </section>
+        <TechnologyRelay />
+
+      </div>
     </PublicPageShell>
   );
 };

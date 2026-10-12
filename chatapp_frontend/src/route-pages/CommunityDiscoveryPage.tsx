@@ -17,6 +17,7 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { Input } from '@/shared/ui/Input';
 import { Skeleton } from '@/shared/ui/Skeleton';
+import { BrandText } from '@/shared/ui/BrandWord';
 
 const PAGE_SIZE = 24;
 const SEARCH_DELAY_MS = 300;
@@ -98,6 +99,13 @@ export const CommunityDiscoveryPage = () => {
         setError(localizeText('Trạng thái tham gia vừa thay đổi. Vui lòng thử lại.'));
         return;
       }
+      if (result.status === 'BANNED') {
+        setError(localizeText('Bạn đã bị cấm khỏi cộng đồng này. Liên hệ quản lý nếu bạn cho rằng có nhầm lẫn.'));
+        setCommunities((current) => current.map((item) => item.conversationId === community.conversationId
+          ? { ...item, membershipStatus: 'BANNED' }
+          : item));
+        return;
+      }
       const membershipStatus = result.status === 'PENDING' ? 'PENDING' : 'JOINED';
       setCommunities((current) => current.map((item) => item.conversationId === community.conversationId
         ? { ...item, membershipStatus }
@@ -112,35 +120,37 @@ export const CommunityDiscoveryPage = () => {
 
   return (
     <AppPageShell>
-      <section className="border-b border-border pb-8 pt-3 sm:pb-10">
-        <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
+      <section className="border-b border-border/70 pb-10 pt-6 sm:pb-12 lg:pt-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)] lg:items-end lg:gap-14">
           <div className="max-w-3xl">
             <p className="page-kicker">{localizeText('Khám phá cộng đồng')}</p>
             <h1 className="max-w-[13ch] text-balance text-4xl font-bold tracking-[-0.05em] sm:text-5xl">{localizeText('Tìm một cuộc trò chuyện có chung mối quan tâm.')}</h1>
-            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">{localizeText('Xem mục đích, quy mô và cách tham gia trước khi bạn gửi yêu cầu.')}</p>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">{localizeText('Xem mục đích, quy mô và cách tham gia trước khi bạn gửi yêu cầu.')}</p>
           </div>
-          <div className="hidden border-l border-border pl-6 lg:block">
-            <p className="text-sm font-semibold">{localizeText('Tham gia có chủ đích')}</p>
-            <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">{localizeText('Nối không tự đưa bạn vào một không gian. Bạn luôn biết điều gì sẽ xảy ra tiếp theo.')}</p>
+          <div className="hidden max-w-sm self-end lg:block">
+            <div className="flex items-center gap-3 border-t border-border pt-4">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-primary/10 text-primary"><Compass size={16} aria-hidden="true" /></span>
+              <p className="text-sm font-semibold">{localizeText('Tham gia có chủ đích')}</p>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground"><BrandText text={localizeText('Nối không tự đưa bạn vào một không gian. Bạn luôn biết điều gì sẽ xảy ra tiếp theo.')} /></p>
           </div>
         </div>
       </section>
 
-      <section className="mt-7" aria-labelledby="community-results-title">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="mt-8" aria-labelledby="community-results-title">
+        <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="page-kicker">{localizeText('Danh mục cộng đồng')}</p>
             <h2 id="community-results-title" className="text-2xl font-semibold tracking-tight">{localizeText('Khám phá theo tên hoặc chủ đề')}</h2>
           </div>
-          <label className="relative block w-full lg:max-w-md">
+          <label className="relative block w-full lg:max-w-sm">
             <span className="sr-only">{localizeText('Tìm cộng đồng')}</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} aria-hidden="true" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={localizeText('Tìm theo tên cộng đồng...')} className="pl-10" />
+            <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={localizeText('Tìm theo tên cộng đồng...')} className="pl-10" />
           </label>
         </div>
 
         {selectedCategory || selectedTag || visibleCategories.length > 0 || visibleTags.length > 0 ? (
-          <details className="group mt-5 border-y border-border py-3">
+          <details className="group border-b border-border py-3">
             <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-[var(--radius-sm)] text-sm font-semibold marker:hidden">
               <span className="flex items-center gap-2"><Filter size={16} aria-hidden="true" />{localizeText('Bộ lọc')}</span>
               <span className="flex items-center gap-3 text-xs font-medium text-muted-foreground">{selectedCategory || selectedTag ? localizeText('Đang áp dụng') : localizeText('Tất cả cộng đồng')}<ChevronDown size={16} aria-hidden="true" className="transition-transform group-open:rotate-180" /></span>
@@ -170,13 +180,14 @@ export const CommunityDiscoveryPage = () => {
         ) : communities.length === 0 ? (
           <div className="mt-6 product-surface"><EmptyState icon={<Compass size={22} />} title={localizeText('Chưa tìm thấy cộng đồng phù hợp')} description={localizeText('Thử từ khóa khác hoặc bỏ bộ lọc chủ đề để xem thêm kết quả.')} action={<Button type="button" variant="outline" onClick={() => { setQuery(''); setSelectedCategory(undefined); setSelectedTag(undefined); }}>{localizeText('Xóa bộ lọc')}</Button>} /></div>
         ) : (
-          <div className="mt-6 divide-y divide-border border-y border-border">
+          <div className="mt-5 divide-y divide-border/80 overflow-hidden rounded-[var(--radius-md)] border border-border/70 bg-card/35" role="list">
             {communities.map((community) => {
               const isJoined = community.membershipStatus === 'JOINED';
               const isPending = community.membershipStatus === 'PENDING';
+              const isBanned = community.membershipStatus === 'BANNED';
               const isFull = community.memberCount >= community.maxMembers;
               return (
-                <article key={community.conversationId} className="group grid gap-4 py-5 sm:grid-cols-[3.25rem_minmax(0,1fr)_auto] sm:items-center sm:gap-5">
+                <article key={community.conversationId} role="listitem" className="group grid gap-4 px-4 py-5 transition-colors hover:bg-accent/35 sm:grid-cols-[3.25rem_minmax(0,1fr)_auto] sm:items-center sm:gap-5 sm:px-5">
                   <div className="flex items-start gap-4 sm:contents">
                     <Avatar className="h-12 w-12 rounded-xl border border-border">
                       {community.avatarUrl ? <AvatarImage src={community.avatarUrl} alt="" /> : null}
@@ -198,8 +209,8 @@ export const CommunityDiscoveryPage = () => {
                     {isJoined ? (
                       <Button asChild size="sm"><Link href={`/app?conversationId=${encodeURIComponent(community.conversationId)}`}>{localizeText('Mở phòng')}<ArrowRight size={14} aria-hidden="true" /></Link></Button>
                     ) : (
-                      <Button type="button" size="sm" variant={isPending ? 'outline' : 'default'} loading={busyCommunityId === community.conversationId} disabled={isPending || isFull} onClick={() => void handleJoin(community)}>
-                        {isPending ? localizeText('Đang chờ duyệt') : isFull ? localizeText('Đã đủ thành viên') : community.joinPolicy === 'REQUEST_APPROVAL' ? localizeText('Gửi yêu cầu') : localizeText('Vào cộng đồng')}
+                      <Button type="button" size="sm" variant={isPending || isBanned ? 'outline' : 'default'} loading={busyCommunityId === community.conversationId} disabled={isPending || isFull || isBanned} onClick={() => void handleJoin(community)}>
+                        {isBanned ? localizeText('Không thể tham gia') : isPending ? localizeText('Đang chờ duyệt') : isFull ? localizeText('Đã đủ thành viên') : community.joinPolicy === 'REQUEST_APPROVAL' ? localizeText('Gửi yêu cầu') : localizeText('Vào cộng đồng')}
                       </Button>
                     )}
                   </div>

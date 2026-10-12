@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.user.UserService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -22,11 +22,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/users")
 public class CanonicalUserController {
-    private final CanonicalBackendService backend;
+    private final UserService users;
     private final SecurityContextHelper securityContext;
 
-    public CanonicalUserController(CanonicalBackendService backend, SecurityContextHelper securityContext) {
-        this.backend = backend;
+    public CanonicalUserController(UserService users, SecurityContextHelper securityContext) {
+        this.users = users;
         this.securityContext = securityContext;
     }
 
@@ -35,18 +35,18 @@ public class CanonicalUserController {
             @RequestParam("q") @Size(min = 2, max = 32) String query,
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit,
             @RequestParam(required = false) String cursor) {
-        return backend.searchUsers(actorId(), query, limit, cursor);
+        return users.searchUsers(actorId(), query, limit, cursor);
     }
 
     @GetMapping("/{userId}")
     public CanonicalApiContracts.PublicUserResponse get(@PathVariable UUID userId) {
-        return backend.getPublicUser(actorId(), userId);
+        return users.getPublicUser(actorId(), userId);
     }
 
     @PatchMapping("/me")
     public CanonicalApiContracts.UserResponse updateMe(
             @RequestBody @Valid CanonicalApiContracts.UpdateProfileRequest request) {
-        return backend.updateProfile(actorId(), request);
+        return users.updateProfile(actorId(), request);
     }
 
     private UUID actorId() {

@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.community.CommunityService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,13 +14,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 @RequestMapping("/api/communities")
 public class CanonicalCommunityController {
 
-    private final CanonicalBackendService backend;
+    private final CommunityService communities;
     private final SecurityContextHelper securityContext;
 
     public CanonicalCommunityController(
-            CanonicalBackendService backend,
+            CommunityService communities,
             SecurityContextHelper securityContext) {
-        this.backend = backend;
+        this.communities = communities;
         this.securityContext = securityContext;
     }
 
@@ -32,12 +32,12 @@ public class CanonicalCommunityController {
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "24") int limit) {
-        return backend.listCommunities(
+        return communities.list(
                 securityContext.getCurrentUserId(), languageCode, categoryId, tag, query, cursor, limit);
     }
 
     @PostMapping("/{conversationId}/join")
     public CanonicalApiContracts.CommunityJoinResponse join(@PathVariable java.util.UUID conversationId) {
-        return backend.joinCommunity(securityContext.getCurrentUserId(), conversationId);
+        return communities.join(securityContext.getCurrentUserId(), conversationId);
     }
 }

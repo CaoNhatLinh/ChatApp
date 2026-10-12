@@ -49,9 +49,16 @@ message page unchanged, appends only the requested receipt page, and offers
 retry/load-more states; it never renders a guessed name or fetches profiles
 one-by-one.
 
+Mention tokens are serialized as `@[display label|user UUID]` by the composer.
+Before send, the client extracts only valid UUID targets and sends them through
+`mentionedUserIds`; `@[all|all]` is represented by the explicit
+`mentionEveryone` flag. The backend resolves that flag against the current
+conversation membership and rejects any UUID that is not a member before it
+writes mention inbox rows or sends mention notifications.
+
 Deleted messages suppress reaction controls and badges. Missing interaction
 rows mean no reaction or seen state; the client does not invent values. A
 projection-write failure fails the command, and replay repairs the idempotent
 reaction projection. Permission errors preserve the prior UI. Verification is
-`CanonicalBackendServiceMessageTest`, the full Java suite and
+`MessageServiceTest`, the full Java suite and
 `test:e2e:message-interactions`.

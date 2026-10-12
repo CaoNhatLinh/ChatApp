@@ -471,7 +471,7 @@ export const ChatWindow = () => {
         />
 
         <Dialog open={isRoomThemeOpen} onOpenChange={setIsRoomThemeOpen}>
-          <DialogContent className="room-theme-dialog messenger-workspace overflow-y-auto border border-border/65 bg-background/95 p-2 sm:max-h-[calc(100dvh-2rem)] sm:max-w-3xl sm:rounded-[var(--radius-lg)] sm:p-3">
+          <DialogContent className="room-theme-dialog messenger-workspace overflow-y-auto border border-border/65 bg-background/95 p-0 sm:max-h-[calc(100dvh-2rem)] sm:max-w-5xl sm:rounded-[var(--radius-lg)]">
             <DialogHeader className="sr-only">
               <DialogTitle>{localizeText('Tùy chỉnh giao diện cá nhân')}</DialogTitle>
               <DialogDescription>{localizeText('Tùy chỉnh này chỉ hiển thị với bạn.')}</DialogDescription>

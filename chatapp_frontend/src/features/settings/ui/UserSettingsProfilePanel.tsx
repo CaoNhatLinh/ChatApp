@@ -51,7 +51,7 @@ export const UserSettingsProfilePanel: FC<UserSettingsProfilePanelProps> = ({
       </div>
 
       <motion.div
-        className="flex flex-col gap-4 rounded-[var(--radius-md)] bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
+        className="signal-surface flex flex-col gap-4 rounded-[var(--radius-md)] border border-border/60 bg-card/75 p-4 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
         initial={UI_MOTION_CONFIG.initialState}
         animate={UI_MOTION_CONFIG.animateState}
         variants={UI_MOTION_VARIANTS.rowReveal}

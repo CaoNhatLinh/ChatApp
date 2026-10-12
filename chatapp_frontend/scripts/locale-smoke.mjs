@@ -27,7 +27,7 @@ const vietnameseControls = {
 };
 await languageButtonVi.click();
 await page.getByRole('menuitem', { name: 'Tiếng Anh', exact: true }).click();
-await page.getByRole('heading', { name: 'A conversation starts when both people are ready.' }).waitFor();
+await page.getByRole('heading', { name: 'I learn by building a chat app myself.' }).waitFor();
 
 const home = {
   lang: await page.locator('html').getAttribute('lang'),
@@ -41,14 +41,14 @@ const home = {
 await page.setViewportSize({ width: 390, height: 844 });
 await page.reload({ waitUntil: 'domcontentloaded' });
 await waitForSettledPage();
-await page.getByRole('heading', { name: 'A conversation starts when both people are ready.', exact: true }).waitFor();
+await page.getByRole('heading', { name: 'I learn by building a chat app myself.', exact: true }).waitFor();
 await page.getByRole('button', { name: 'Open navigation menu' }).click();
 home.mobileNavigation = await page.locator('#public-mobile-navigation a').allTextContents();
 await page.getByRole('button', { name: 'Close navigation menu' }).waitFor();
 
 const expectedPublicHeadings = {
-  '/about': 'A place where a conversation can keep its rhythm.',
-  '/help': 'There is always a way back to the conversation.',
+  '/about': 'A conversation needs rhythm to stay alive.',
+  '/help': 'Where are you in the conversation flow?',
   '/privacy': 'Privacy and data',
   '/terms': 'Terms of use',
 };

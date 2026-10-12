@@ -4,6 +4,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalCon
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -17,9 +18,11 @@ import static org.mockito.Mockito.*;
 class SanctionExpirySchedulerTest {
     private final ModerationRepository repository = mock(ModerationRepository.class);
     private final CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final ConversationModerationRepository conversationModeration = mock(ConversationModerationRepository.class);
     private final CanonicalEventRecorder events = mock(CanonicalEventRecorder.class);
     private final SanctionExpiryScheduler scheduler = new SanctionExpiryScheduler(
-            repository, store, events, 7, 100);
+            repository, store, users, conversationModeration, events, 7, 100);
 
     @Test
     void expiredAppBanRestoresAccountAndRecordsExpiry() {
@@ -31,12 +34,12 @@ class SanctionExpirySchedulerTest {
                 .thenReturn(List.of(sanction));
         when(repository.isSanctionActive(sanction)).thenReturn(true);
         when(repository.hasActiveAppAccountLock(eq(userId), any(Instant.class))).thenReturn(false);
-        when(store.findUserById(userId)).thenReturn(user(userId, "BANNED"));
+        when(users.findById(userId)).thenReturn(user(userId, "BANNED"));
         when(repository.markSanctionExpired(sanction)).thenReturn(true);
 
         scheduler.expireDueSanctions();
 
-        verify(store).updateUserAccountStatus(eq(userId), eq("ACTIVE"), any(Instant.class));
+        verify(users).updateAccountStatus(eq(userId), eq("ACTIVE"), any(Instant.class));
         verify(repository).markSanctionExpired(sanction);
         verify(events).record(isNull(), isNull(), eq("SANCTION_EXPIRED"), eq("user_sanction"),
                 anyString(), eq(userId), eq("SANCTION_EXPIRED"), anyMap(), anyMap(), anyMap());
@@ -55,8 +58,8 @@ class SanctionExpirySchedulerTest {
 
         scheduler.expireDueSanctions();
 
-        verify(store, never()).findUserById(any());
-        verify(store, never()).updateUserAccountStatus(any(), anyString(), any());
+        verify(users, never()).findById(any());
+        verify(users, never()).updateAccountStatus(any(), anyString(), any());
         verify(repository).markSanctionExpired(sanction);
     }
 
@@ -74,11 +77,12 @@ class SanctionExpirySchedulerTest {
                 .thenReturn(List.of(sanction));
         when(repository.isSanctionActive(sanction)).thenReturn(true);
         when(store.findConversationMember(conversationId, userId)).thenReturn(member);
+        when(conversationModeration.clearMuteIfUnchanged(conversationId, userId, expiresAt)).thenReturn(true);
         when(repository.markSanctionExpired(sanction)).thenReturn(true);
 
         scheduler.expireDueSanctions();
 
-        verify(store).clearMemberMuteIfExpiresAt(conversationId, userId, expiresAt);
+        verify(conversationModeration).clearMuteIfUnchanged(conversationId, userId, expiresAt);
         verify(repository).markSanctionExpired(sanction);
     }
 
@@ -92,7 +96,8 @@ class SanctionExpirySchedulerTest {
                 .thenReturn(List.of(sanction));
         when(repository.isSanctionActive(sanction)).thenReturn(true);
         doThrow(new IllegalStateException("store unavailable"))
-                .when(store).clearConversationBanIfExpiresAt(eq(conversationId), eq(userId), any(Instant.class));
+                .when(conversationModeration).clearBanIfUnchanged(
+                        eq(conversationId), eq(userId), any(Instant.class));
 
         scheduler.expireDueSanctions();
 

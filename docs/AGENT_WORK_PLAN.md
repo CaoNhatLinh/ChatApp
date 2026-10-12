@@ -22,8 +22,9 @@
    the monthly audit timeline, process report queues, apply/revoke sanctions,
    search users, manage app roles and revoke bounded user sessions/devices.
    Timed sanctions use a bounded UTC-day
-   expiry worker with conditional cleanup. Analytics/export and operator E2E
-   remain planned rather than mocked.
+   expiry worker with conditional cleanup. Bounded analytics and audit export
+   are implemented; language moderation, long-range dashboards and clean-stack
+   operator verification remain planned rather than mocked.
    Abuse reporting now has message and profile entry points plus a bounded
    user-facing report-history tab; `/403` and the Next global error boundary
    cover permission/runtime recovery states.
@@ -50,7 +51,7 @@
     delete-versus-assign/transfer races now use catalog CAS plus a membership
     revision barrier. Clean Cassandra verification remains pending.
 
-Current evidence (2026-08-30): backend Java 20 `./mvnw test` = 155 tests, 0 failures, 0 errors
+Current evidence (2026-09-07): backend Java 20 `./mvnw test` = 165 tests, 0 failures, 0 errors
 (the host default Java 17 is not compatible with the Java 20 test classes);
 frontend `npm run validate`, `npm run build`,
 `npm run test:i18n:copy`, `npm run test:errors:copy`, `npm run test:e2e:network`, `npm run test:e2e:ui-quality`, `npm run test:e2e:smoke`, and

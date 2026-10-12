@@ -3,10 +3,11 @@ package com.chatapp.chat_service.canonical.controller;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.service.ConversationService;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.canonical.service.ConversationRoleService;
 import com.chatapp.chat_service.canonical.service.RoomAuditService;
+import com.chatapp.chat_service.canonical.moderation.ConversationBanService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,22 +29,25 @@ import java.util.UUID;
 @RequestMapping("/api/conversations")
 public class CanonicalConversationController {
 
-    private final CanonicalBackendService backend;
+    private final ConversationService conversations;
     private final ConversationRoleService roles;
     private final ConversationAuthorizationService authorization;
     private final RoomAuditService roomAudit;
     private final SecurityContextHelper securityContext;
+    private final ConversationBanService bans;
 
     public CanonicalConversationController(
-            CanonicalBackendService backend,
+            ConversationService conversations,
             ConversationRoleService roles,
             ConversationAuthorizationService authorization,
             RoomAuditService roomAudit,
+            ConversationBanService bans,
             SecurityContextHelper securityContext) {
-        this.backend = backend;
+        this.conversations = conversations;
         this.roles = roles;
         this.authorization = authorization;
         this.roomAudit = roomAudit;
+        this.bans = bans;
         this.securityContext = securityContext;
     }
 
@@ -51,31 +55,31 @@ public class CanonicalConversationController {
     public ResponseEntity<CanonicalConversation> create(
             @RequestBody CanonicalApiContracts.ConversationCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(backend.createConversation(actorId(), request));
+                .body(conversations.createConversation(actorId(), request));
     }
 
     @GetMapping
     public CanonicalApiContracts.ConversationPage list(
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam(required = false) String cursor) {
-        return backend.listMyConversations(actorId(), cursor, limit);
+        return conversations.listMyConversations(actorId(), cursor, limit);
     }
 
     @GetMapping("/{conversationId}")
     public CanonicalConversation get(@PathVariable UUID conversationId) {
         authorization.requireMember(conversationId, actorId());
-        return backend.getConversation(conversationId);
+        return conversations.getConversation(conversationId);
     }
 
     @GetMapping("/{conversationId}/notification-policy")
     public CanonicalApiContracts.ConversationNotificationPolicyView getNotificationPolicy(
             @PathVariable UUID conversationId) {
-        return backend.getConversationNotificationPolicy(actorId(), conversationId);
+        return conversations.getConversationNotificationPolicy(actorId(), conversationId);
     }
 
     @GetMapping("/dm/{otherUserId}")
     public CanonicalConversation findDm(@PathVariable UUID otherUserId) {
-        return backend.findMyDm(actorId(), otherUserId);
+        return conversations.findMyDm(actorId(), otherUserId);
     }
 
     @GetMapping("/{conversationId}/members")
@@ -83,38 +87,59 @@ public class CanonicalConversationController {
             @PathVariable UUID conversationId,
             @RequestParam(required = false) UUID afterUserId,
             @RequestParam(defaultValue = "100") int limit) {
-        return backend.listConversationMembers(actorId(), conversationId, afterUserId, limit);
+        return conversations.listConversationMembers(actorId(), conversationId, afterUserId, limit);
     }
 
     @PostMapping("/{conversationId}/members")
     public ResponseEntity<Void> addMember(
             @PathVariable UUID conversationId,
             @RequestBody CanonicalApiContracts.ConversationMemberRequest request) {
-        backend.addMember(actorId(), conversationId, request);
+        conversations.addMember(actorId(), conversationId, request);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{conversationId}/members/{userId}")
     public ResponseEntity<Void> kickMember(@PathVariable UUID conversationId, @PathVariable UUID userId) {
-        backend.removeMember(actorId(), conversationId, userId);
+        conversations.removeMember(actorId(), conversationId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{conversationId}/bans")
+    public List<CanonicalApiContracts.ConversationBanView> listBans(
+            @PathVariable UUID conversationId,
+            @RequestParam(defaultValue = "100") int limit) {
+        return bans.list(actorId(), conversationId, limit);
+    }
+
+    @PutMapping("/{conversationId}/bans/{userId}")
+    public CanonicalApiContracts.ConversationBanView banMember(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID userId,
+            @Valid @RequestBody CanonicalApiContracts.ConversationBanRequest request) {
+        return bans.ban(actorId(), conversationId, userId, request);
+    }
+
+    @DeleteMapping("/{conversationId}/bans/{userId}")
+    public ResponseEntity<Void> unbanMember(@PathVariable UUID conversationId, @PathVariable UUID userId) {
+        bans.unban(actorId(), conversationId, userId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{conversationId}/leave")
     public ResponseEntity<Void> leave(@PathVariable UUID conversationId) {
-        backend.leaveConversation(actorId(), conversationId);
+        conversations.leaveConversation(actorId(), conversationId);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{conversationId}/pin")
     public ResponseEntity<Void> pin(@PathVariable UUID conversationId) {
-        backend.pinConversation(actorId(), conversationId);
+        conversations.pinConversation(actorId(), conversationId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{conversationId}/pin")
     public ResponseEntity<Void> unpin(@PathVariable UUID conversationId) {
-        backend.unpinConversation(actorId(), conversationId);
+        conversations.unpinConversation(actorId(), conversationId);
         return ResponseEntity.noContent().build();
     }
 
@@ -180,7 +205,7 @@ public class CanonicalConversationController {
     public ResponseEntity<Void> updateChatPolicy(
             @PathVariable UUID conversationId,
             @RequestBody CanonicalApiContracts.ConversationChatPolicyRequest request) {
-        backend.updateConversationChatPolicy(actorId(), conversationId, request);
+        conversations.updateConversationChatPolicy(actorId(), conversationId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -188,7 +213,7 @@ public class CanonicalConversationController {
     public ResponseEntity<Void> updateNotificationPolicy(
             @PathVariable UUID conversationId,
             @Valid @RequestBody CanonicalApiContracts.ConversationNotificationPolicyRequest request) {
-        backend.updateConversationNotificationPolicy(actorId(), conversationId, request);
+        conversations.updateConversationNotificationPolicy(actorId(), conversationId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -197,7 +222,7 @@ public class CanonicalConversationController {
             @PathVariable UUID conversationId,
             @PathVariable UUID userId,
             @Valid @RequestBody CanonicalApiContracts.MemberNotificationPolicyRequest request) {
-        backend.updateMemberNotificationPolicy(actorId(), conversationId, userId, request);
+        conversations.updateMemberNotificationPolicy(actorId(), conversationId, userId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -206,7 +231,7 @@ public class CanonicalConversationController {
             @PathVariable UUID conversationId,
             @PathVariable UUID userId,
             @Valid @RequestBody CanonicalApiContracts.MemberChatPolicyRequest request) {
-        backend.updateMemberChatPolicy(actorId(), conversationId, userId, request);
+        conversations.updateMemberChatPolicy(actorId(), conversationId, userId, request);
         return ResponseEntity.noContent().build();
     }
 

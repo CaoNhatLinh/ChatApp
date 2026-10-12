@@ -10,7 +10,9 @@ export interface RoomThemePreset {
   mode: RoomThemeMode;
   name: string;
   description: string;
-  accent: string;
+  character: string;
+  signalColor: string;
+  signalForeground: string;
   overlay: string;
   backgroundImage?: string;
 }
@@ -30,8 +32,10 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     mode: "dark",
     name: "Signal Dawn",
     description: "Lớp sáng cam nhẹ trên nền mực, giúp khu vực chat có nhịp rõ ràng.",
-    accent: "bg-primary/20",
-    overlay: "radial-gradient(circle at 76% 4%, rgb(244 92 32 / 18%), transparent 32%), linear-gradient(180deg, #0d1720 0%, #071018 100%)",
+    character: "Ấm · cân bằng",
+    signalColor: "oklch(0.68 0.18 42)",
+    signalForeground: "oklch(0.15 0.02 255)",
+    overlay: "radial-gradient(circle at 76% 4%, oklch(0.7 0.17 42 / 22%), transparent 34%), linear-gradient(180deg, oklch(0.2 0.03 255) 0%, oklch(0.12 0.024 255) 100%)",
     backgroundImage: undefined,
   },
   {
@@ -39,8 +43,10 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     mode: "dark",
     name: "Signal Grid",
     description: "Độ tương phản cao, giữ nhãn và tin nhắn dễ quét khi room đông.",
-    accent: "bg-primary/15",
-    overlay: "linear-gradient(145deg, rgb(244 92 32 / 14%), rgb(6 14 21 / 96%) 48%, #061019 100%)",
+    character: "Sắc · mật độ cao",
+    signalColor: "oklch(0.76 0.14 226)",
+    signalForeground: "oklch(0.15 0.025 255)",
+    overlay: "radial-gradient(circle at 88% 12%, oklch(0.76 0.14 226 / 28%), transparent 30%), linear-gradient(145deg, oklch(0.23 0.055 258), oklch(0.11 0.025 255) 56%, oklch(0.09 0.02 255) 100%)",
     backgroundImage: undefined,
   },
   {
@@ -48,17 +54,21 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
     mode: "light",
     name: "Studio Matte",
     description: "Mặt nền phẳng và yên, ưu tiên đọc nội dung trong thời gian dài.",
-    accent: "bg-muted",
-    overlay: "linear-gradient(160deg, #f7f9fc 0%, #e8eef3 72%, #dfe8ee 100%)",
+    character: "Sáng · tĩnh",
+    signalColor: "oklch(0.48 0.1 166)",
+    signalForeground: "oklch(0.985 0.008 248)",
+    overlay: "radial-gradient(circle at 84% 8%, oklch(0.78 0.08 158 / 34%), transparent 30%), linear-gradient(160deg, oklch(0.985 0.008 248) 0%, oklch(0.94 0.018 248) 72%, oklch(0.9 0.025 248) 100%)",
     backgroundImage: undefined,
   },
   {
     id: "vapor",
     mode: "dark",
     name: "Signal Haze",
-    description: "Một lớp mờ có chiều sâu nhưng vẫn giữ màu cam làm điểm neo.",
-    accent: "bg-primary/10",
-    overlay: "radial-gradient(circle at 12% 12%, rgb(244 92 32 / 12%), transparent 28%), linear-gradient(160deg, #111b24, #071018 72%)",
+    description: "Lớp tím khói hòa với ánh cyan, dịu nhưng vẫn có chiều sâu.",
+    character: "Sâu · dịu",
+    signalColor: "oklch(0.72 0.15 314)",
+    signalForeground: "oklch(0.15 0.025 255)",
+    overlay: "radial-gradient(circle at 12% 12%, oklch(0.72 0.15 314 / 24%), transparent 28%), radial-gradient(circle at 86% 70%, oklch(0.72 0.12 205 / 18%), transparent 34%), linear-gradient(160deg, oklch(0.21 0.04 278), oklch(0.11 0.023 255) 72%)",
     backgroundImage: undefined,
   },
 ];
@@ -66,31 +76,31 @@ export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
 export const CHAT_BUBBLE_PRESETS: ChatBubbleStylePreset[] = [
   {
     id: "tiktok",
-    name: "TikTok Style",
-    description: "Tin của bạn có điểm nhấn vừa đủ, không làm mất nhịp đọc.",
+    name: "Nhịp cắt",
+    description: "Một nhịp cam sắc gọn, thời gian và trạng thái nằm sát mép tin.",
     ownClass:
-      "bg-primary text-primary-foreground rounded-[1.25rem] rounded-br-md shadow-[0_10px_24px_hsl(var(--primary)/.22)] border border-primary/30",
+      "chat-bubble-own chat-bubble-signal",
     peerClass:
-      "border border-border/80 bg-card/90 text-foreground rounded-[1.25rem] rounded-bl-md",
-    statusClass: "text-primary/90",
+      "chat-bubble-peer chat-bubble-signal-peer border border-border/60 bg-card/94 text-foreground",
+    statusClass: "chat-bubble-status-signal",
   },
   {
     id: "glass",
-    name: "Glass Soft",
-    description: "Bề mặt nhẹ, phù hợp khi muốn giữ nhiều khoảng thở trong room.",
+    name: "Quỹ đạo mềm",
+    description: "Bong bóng mềm và thoáng, hợp với cuộc trò chuyện ít nhưng dài.",
     ownClass:
-      "bg-primary/20 text-foreground border border-primary/35 backdrop-blur-md rounded-[1.5rem] rounded-br-md shadow-[0_8px_26px_hsl(var(--primary)/.1)]",
+      "chat-bubble-own chat-bubble-orbit text-foreground",
     peerClass:
-      "bg-card/65 backdrop-blur-md border border-border/70 rounded-[1.5rem] rounded-bl-md text-foreground",
+      "chat-bubble-peer chat-bubble-orbit-peer bg-card/80 border border-border/55 text-foreground backdrop-blur-md",
     statusClass: "text-muted-foreground",
   },
   {
     id: "classic",
-    name: "Classic Focus",
-    description: "Gọn và chắc, dành cho lịch sử tin nhắn cần quét nhanh.",
+    name: "Ghi chú nối",
+    description: "Cạnh thẳng, nhịp dọc rõ; đọc nhanh khi room có nhiều tin liên tiếp.",
     ownClass:
-      "bg-primary text-primary-foreground rounded-2xl rounded-tr-md border border-primary/30 shadow-sm",
-    peerClass: "bg-card border border-border/80 rounded-2xl rounded-tl-md text-foreground",
+      "chat-bubble-own chat-bubble-note text-foreground",
+    peerClass: "chat-bubble-peer chat-bubble-note-peer bg-card/86 border-l-2 border-muted-foreground/35 text-foreground",
     statusClass: "text-muted-foreground/90",
   },
 ];
@@ -132,6 +142,8 @@ export interface RoomVisualComputed {
   backgroundImage?: string;
   backgroundOverlay: string;
   messageBubbleStyle: ChatBubbleStylePreset;
+  signalColor: string;
+  signalForeground: string;
 }
 
 export const ROOM_THEME_STORAGE_KEY = "novachat-room-visual-settings";
@@ -169,6 +181,8 @@ export const getRoomVisualComputed = (
       ? CUSTOM_BACKGROUND_OVERLAYS[activeOverride.customBackgroundTreatment]
       : preset.overlay,
     messageBubbleStyle: bubbleStyle,
+    signalColor: preset.signalColor,
+    signalForeground: preset.signalForeground,
   };
 };
 

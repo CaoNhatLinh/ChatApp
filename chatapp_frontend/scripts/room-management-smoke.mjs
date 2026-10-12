@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
@@ -125,7 +126,7 @@ let inviteLinks = Array.from({ length: 5 }, (_, index) => ({
 }));
 let joinRequests = Array.from({ length: 5 }, (_, index) => ({
   conversationId,
-  requestedAt: `40000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+  requestedAt: `4000000${5 - index}-0000-1000-8000-000000000001`,
   requestId: `50000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
   userId: `60000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
   linkId: inviteLinks[0].linkId,
@@ -148,6 +149,7 @@ const apiRequests = [];
 const conversationPageCursors = [];
 const memberPageLimits = [];
 const inviteCommands = [];
+const joinRequestCursors = [];
 
 page.on('console', (message) => {
   const location = message.location();
@@ -272,7 +274,15 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     ownershipTransfers.push(path);
     return route.fulfill({ status: 204 });
   }
-  if (path.endsWith(`/invites/conversation/${conversationId}/requests`) && method === 'GET') return json(joinRequests);
+  if (path.endsWith(`/invites/conversation/${conversationId}/requests`) && method === 'GET') {
+    const cursor = new URL(request.url()).searchParams.get('cursor');
+    joinRequestCursors.push(cursor);
+    const cursorIndex = cursor ? joinRequests.findIndex(item => item.requestedAt === cursor) : -1;
+    if (cursor && cursorIndex === -1) throw new Error('Unknown join request cursor');
+    const content = joinRequests.slice(cursorIndex + 1, cursorIndex + 4);
+    const hasNext = cursorIndex + 1 + content.length < joinRequests.length;
+    return json({ content, hasNext, nextCursor: hasNext ? content.at(-1).requestedAt : null });
+  }
   if (path.includes(`/invites/conversation/${conversationId}/requests/`) && path.endsWith('/resolve') && method === 'POST') {
     const requestId = path.split('/').at(-2);
     const payload = request.postDataJSON();
@@ -282,7 +292,9 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       : request);
     return json(joinRequests.find(request => request.requestId === requestId));
   }
-  if (path.endsWith(`/invites/conversation/${conversationId}`) && method === 'GET') return json(inviteLinks);
+  if (path.endsWith(`/invites/conversation/${conversationId}`) && method === 'GET') {
+    return json({ content: inviteLinks, nextCursor: null, hasNext: false });
+  }
   if (path.endsWith('/invites') && method === 'POST') {
     const payload = request.postDataJSON();
     inviteCommands.push({ type: 'create', payload });
@@ -317,12 +329,35 @@ await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
 const loadMoreConversationsButton = page.getByRole('button', { name: 'Tải thêm cuộc trò chuyện' });
 await loadMoreConversationsButton.waitFor();
 const conversationCursorRequestsBeforeScroll = conversationPageCursors.filter(Boolean).length;
+const conversationScrollContainer = page.locator('.messenger-sidebar .custom-scrollbar').first();
+await conversationScrollContainer.waitFor({ state: 'attached' });
+console.log('conversation-scroll-metrics', await conversationScrollContainer.evaluate((element) => {
+  const chain = [];
+  let current = element;
+  while (current && chain.length < 12) {
+    const style = getComputedStyle(current);
+    chain.push({
+      className: current.className,
+      clientHeight: current.clientHeight,
+      scrollHeight: current.scrollHeight,
+      display: style.display,
+      minHeight: style.minHeight,
+      height: style.height,
+      flex: style.flex,
+      overflowY: style.overflowY,
+    });
+    current = current.parentElement;
+  }
+  return { viewportHeight: window.innerHeight, viewportWidth: window.innerWidth, chain };
+}));
 const nextConversationPageResponse = page.waitForResponse((response) => {
   const responseUrl = new URL(response.url());
   return responseUrl.pathname.endsWith('/conversations')
     && responseUrl.searchParams.get('cursor') === 'conversation-cursor-1';
 });
-await loadMoreConversationsButton.scrollIntoViewIfNeeded();
+await conversationScrollContainer.evaluate((element) => {
+  element.scrollTo({ top: element.scrollHeight, behavior: 'instant' });
+});
 await nextConversationPageResponse;
 await page.getByText('Loaded on demand', { exact: true }).waitFor();
 await page.getByText('Product Studio', { exact: true }).first().click();
@@ -402,14 +437,19 @@ await rolesSection.getByRole('button', { name: 'Lưu thay đổi', exact: true }
 await rolesSection.getByText('Product lead', { exact: true }).waitFor();
 
 const inviteManager = page.locator('section[aria-labelledby="invite-manager-title"]');
-await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 5' }).waitFor();
+await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 3' }).waitFor();
 if (await inviteManager.locator('p[title^="60000000"]:visible').count() !== 3) throw new Error('Invite requests were not progressively disclosed');
 await inviteManager.getByRole('button', { name: 'Xem thêm' }).first().click();
+await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 5' }).waitFor();
+if (!joinRequestCursors.includes(joinRequests[2].requestedAt)) throw new Error('Load more did not request the next API cursor');
 if (await inviteManager.locator('p[title^="60000000"]:visible').count() !== 5) throw new Error('Invite request expansion did not reveal the next items');
 await inviteManager.getByRole('button', { name: 'Tạo lời mời', exact: true }).click();
 await inviteManager.getByRole('button', { name: 'QR', exact: true }).click();
 await inviteManager.getByLabel('Cách tham gia').selectOption('REQUEST_APPROVAL');
-await inviteManager.getByRole('button', { name: 'Tạo lời mời 7 ngày' }).click();
+await inviteManager.getByLabel('Tên để bạn dễ nhận ra').fill('Nhóm học cuối tuần');
+await inviteManager.getByLabel('Có hiệu lực').selectOption('1440');
+await inviteManager.getByLabel('Số lượt dùng').fill('10');
+await inviteManager.getByRole('button', { name: 'Tạo lời mời', exact: true }).click();
 await inviteManager.getByText('Lời mời đã sẵn sàng', { exact: true }).waitFor();
 if (captureVisualAudit) {
   await page.screenshot({ path: `${captureDirectory}/room-invite-desktop.png`, fullPage: true });
@@ -425,9 +465,11 @@ await activeInviteDisclosure.getByRole('button', { name: 'Thu hồi lời mời'
 await page.getByRole('dialog', { name: 'Thu hồi lời mời?' }).getByRole('button', { name: 'Thu hồi', exact: true }).click();
 await page.getByRole('dialog', { name: 'Thu hồi lời mời?' }).waitFor({ state: 'detached' });
 await inviteManager.getByRole('button', { name: 'Duyệt yêu cầu' }).first().click();
+await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 2' }).waitFor();
+await inviteManager.getByRole('button', { name: 'Xem thêm' }).first().click();
 await inviteManager.getByRole('heading', { name: 'Đang chờ duyệt · 4' }).waitFor();
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await page.getByRole('heading', { name: 'Members' }).waitFor();
 await inviteManager.getByRole('heading', { name: 'Invitations & join requests' }).waitFor();
 const englishAuditEvent = page.getByText('Role updated', { exact: true });
@@ -460,6 +502,9 @@ if (
   || roleAssignments[0]?.roleIds?.[0] !== moderatorRoleId
   || ownershipTransfers.length !== 1
   || inviteCommands.filter((command) => command.type === 'create').length !== 1
+  || inviteCommands.find((command) => command.type === 'create')?.payload.durationMinutes !== 1440
+  || inviteCommands.find((command) => command.type === 'create')?.payload.maxUses !== 10
+  || inviteCommands.find((command) => command.type === 'create')?.payload.displayName !== 'Nhóm học cuối tuần'
   || inviteCommands.filter((command) => command.type === 'revoke').length !== 1
   || inviteCommands.filter((command) => command.type === 'resolve').length !== 1
   || overflow

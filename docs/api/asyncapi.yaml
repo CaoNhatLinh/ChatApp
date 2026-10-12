@@ -228,5 +228,6 @@ components:
         editedAt: {type: string, format: date-time, nullable: true}
         hasAttachments: {type: boolean}
         hasMentions: {type: boolean}
+        mentionedUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}, description: Explicit mention recipients resolved by the sender's conversation membership}
         isPinned: {type: boolean}
         createdAt: {type: string, format: date-time}

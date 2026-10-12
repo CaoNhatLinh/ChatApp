@@ -203,7 +203,13 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith('/admin/audit/export')) {
     return route.fulfill({ status: 200, headers: { 'content-type': 'text/csv; charset=UTF-8' }, body: 'eventMonth,eventId,action\n' });
   }
-  if (path.endsWith('/admin/audit')) return json([]);
+  if (path.endsWith('/admin/audit')) return json(
+    ['MEMBER_BAN', 'MEMBER_UNBAN', 'COMMUNITY_JOIN', 'COMMUNITY_JOIN_REQUEST'].map((action, index) => ({
+      eventMonth: '2026-10', eventId: `00000000-0000-4000-8000-00000000000${index}`,
+      action, resourceType: 'conversation', resourceId: roomId, actorId: operatorId,
+      conversationId: roomId, outcome: 'SUCCESS', createdAt: '2026-10-03T00:00:00Z',
+    })),
+  );
   if (path.endsWith('/admin/analytics')) return json([]);
   if (path.endsWith('/admin/reports') && method === 'GET') {
     return json(reports.filter((report) => report.status === url.searchParams.get('status')));
@@ -249,6 +255,7 @@ await page.addInitScript(() => {
 });
 await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
 await page.getByRole('heading', { name: 'Điều hành toàn ứng dụng' }).waitFor();
+await page.getByRole('button', { name: 'Không gian Phòng toàn hệ thống', exact: true }).click();
 await page.getByText('Safety Community', { exact: true }).waitFor();
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
@@ -270,9 +277,10 @@ await roomPanel.getByText('Archived', { exact: true }).first().waitFor();
 await roomPanel.getByLabel('Audit reason').fill('False positive cleared after review');
 await roomPanel.getByRole('button', { name: 'Restore' }).click();
 const restoreDialog = page.getByRole('dialog', { name: 'Restore room' });
-await restoreDialog.getByRole('button', { name: 'Restore', exact: true }).click();
+await restoreDialog.getByRole('button', { name: /Restore/ }).click();
 await roomPanel.getByText('Active', { exact: true }).waitFor();
 
+await page.getByRole('button', { name: 'Safety Reports and investigations', exact: true }).click();
 const reportPanel = page.locator('details').filter({ hasText: 'Reports & sanctions' });
 await reportPanel.getByText('Repeated unsolicited links.', { exact: true }).waitFor();
 await reportPanel.getByRole('button', { name: 'Select target user' }).click();
@@ -296,6 +304,7 @@ const sanctionDialog = page.getByRole('dialog', { name: 'Revoke sanction' });
 await sanctionDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
 await reportPanel.getByText(/Warning · Revoked/).waitFor();
 
+await page.getByRole('button', { name: 'Access Users and permissions', exact: true }).click();
 const userSearchPanel = page.locator('details').filter({ hasText: 'Find a user' });
 await userSearchPanel.getByLabel('Search admin users').fill('linh');
 await userSearchPanel.getByRole('button', { name: 'Search', exact: true }).click();
@@ -313,17 +322,20 @@ const statusDialog = page.getByRole('dialog', { name: 'Change account status' })
 await statusDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
 await page.getByText('Account status updated to Suspended.', { exact: true }).waitFor();
 await userPanel.getByLabel('Reason (required)').fill('End compromised refresh chain');
-await userPanel.getByRole('button', { name: 'Revoke session: standalone-r…' }).click();
-const sessionDialog = page.getByRole('dialog', { name: 'Revoke session' });
+await userPanel.getByRole('button', { name: /Revoke sign-in session: standalone-r/ }).click();
+const sessionDialog = page.getByRole('dialog', { name: 'Revoke sign-in session' });
 await sessionDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
-await page.getByText('Session revoked.', { exact: true }).waitFor();
+await page.getByText('Sign-in session revoked.', { exact: true }).waitFor();
 await userPanel.getByLabel('Reason (required)').fill('Compromised browser session');
 await userPanel.getByRole('button', { name: 'Revoke device: Chrome laptop' }).click();
 const deviceDialog = page.getByRole('dialog', { name: 'Revoke device' });
 await deviceDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
 await userPanel.getByText(/Revoked/).first().waitFor();
 
-await page.locator('summary').filter({ hasText: 'Global audit timeline' }).click();
+await page.getByRole('button', { name: 'Event stream Audit and analytics', exact: true }).click();
+for (const label of ['Ban member', 'Unban member', 'Join community', 'Request to join community']) {
+  await page.getByText(label, { exact: true }).waitFor();
+}
 const [download] = await Promise.all([
   page.waitForEvent('download'),
   page.getByRole('button', { name: /Export audit CSV/ }).click(),

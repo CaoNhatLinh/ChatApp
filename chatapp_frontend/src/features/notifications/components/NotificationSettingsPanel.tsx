@@ -8,9 +8,10 @@ import {
   type NotificationSettings,
 } from '@/features/notifications/api/notifications.api';
 import { localizeText } from '@/shared/i18n';
-import { notifyError, notifySuccess } from '@/shared/lib/notification';
+import { notifyError } from '@/shared/lib/notification';
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
+import { BrandText } from '@/shared/ui/BrandWord';
 
 type NotificationDraft = Pick<
   NotificationSettings,
@@ -26,11 +27,11 @@ const NOTIFICATION_LEVELS: Array<{ value: NotificationLevel; label: string; desc
   { value: 'NONE', label: 'Tắt toàn bộ', description: 'Không nhận thông báo ngoài các cảnh báo an toàn bắt buộc.' },
 ];
 
-const CHANNELS: Array<{ key: keyof Pick<NotificationDraft, 'pushEnabled' | 'emailEnabled' | 'desktopEnabled' | 'soundEnabled'>; label: string; description: string }> = [
-  { key: 'pushEnabled', label: 'Thông báo đẩy', description: 'Nhận thông báo khi bạn không mở Nối.' },
-  { key: 'emailEnabled', label: 'Email', description: 'Nhận các thông báo quan trọng qua email.' },
-  { key: 'desktopEnabled', label: 'Thông báo trên máy tính', description: 'Hiển thị thông báo trên desktop khi trình duyệt cho phép.' },
-  { key: 'soundEnabled', label: 'Âm thanh', description: 'Phát âm thanh cho thông báo mới.' },
+const CHANNELS: Array<{ key: keyof Pick<NotificationDraft, 'pushEnabled' | 'emailEnabled' | 'desktopEnabled' | 'soundEnabled'>; label: string; description: string; available: boolean }> = [
+  { key: 'pushEnabled', label: 'Thông báo đẩy', description: 'Cần nhà cung cấp push trước khi có thể gửi.', available: false },
+  { key: 'emailEnabled', label: 'Email', description: 'Gửi email chưa được cấu hình trong phiên bản này.', available: false },
+  { key: 'desktopEnabled', label: 'Thông báo trên máy tính', description: 'Quyền trình duyệt và việc gửi thông báo trên máy tính chưa được kết nối.', available: false },
+  { key: 'soundEnabled', label: 'Âm thanh', description: 'Tính năng phát âm báo chưa được tích hợp.', available: false },
 ];
 
 const isNotificationLevel = (value: string): value is NotificationLevel =>
@@ -62,9 +63,12 @@ export function NotificationSettingsPanel() {
   const mountedRef = useRef(true);
   const saveRequestRef = useRef(0);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    saveRequestRef.current += 1;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveRequestRef.current += 1;
+    };
   }, []);
 
   useEffect(() => {
@@ -120,7 +124,6 @@ export function NotificationSettingsPanel() {
       if (!mountedRef.current || requestId !== saveRequestRef.current) return;
       setSettings({ ...settings, ...normalizedDraft, quietHoursStart: normalizedDraft.quietHoursStart || null, quietHoursEnd: normalizedDraft.quietHoursEnd || null });
       setDraft(normalizedDraft);
-      notifySuccess(localizeText('Đã lưu cài đặt thông báo.'));
     } catch (saveError: unknown) {
       if (!mountedRef.current || requestId !== saveRequestRef.current) return;
       logger.warn('Notification settings save failed', saveError instanceof Error ? saveError.message : String(saveError));
@@ -152,7 +155,7 @@ export function NotificationSettingsPanel() {
 
       <fieldset>
         <legend className="text-sm font-semibold">{localizeText('Mức thông báo toàn cục')}</legend>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">{localizeText('Mức này áp dụng trước khi Nối xét đến từng kênh nhận.')}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground"><BrandText text={localizeText('Mức này áp dụng trước khi Nối xét đến từng kênh nhận.')} /></p>
         <div className="mt-4 grid gap-2">
           {NOTIFICATION_LEVELS.map((level) => (
             <label key={level.value} className="group flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-transparent px-3 py-2.5 transition-colors hover:bg-muted/55 has-[:checked]:border-primary/45 has-[:checked]:bg-primary/7">
@@ -168,16 +171,16 @@ export function NotificationSettingsPanel() {
 
       <fieldset>
         <legend className="text-sm font-semibold">{localizeText('Kênh nhận')}</legend>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">{localizeText('Bật những cách Nối có thể liên hệ với bạn.')}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground"><BrandText text={localizeText('Bật những cách Nối có thể liên hệ với bạn.')} /></p>
         <div className="mt-4 divide-y divide-border border-y border-border">
-          {CHANNELS.map(({ key, label, description }) => (
-            <label key={key} className="flex cursor-pointer items-center justify-between gap-4 py-4">
+          {CHANNELS.map(({ key, label, description, available }) => (
+            <label key={key} className={`flex items-center justify-between gap-4 py-4 ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">{localizeText(label)}</span>
+                <span className="flex flex-wrap items-center gap-2 text-sm font-semibold">{localizeText(label)}{!available ? <small className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{localizeText('Chưa khả dụng')}</small> : null}</span>
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">{localizeText(description)}</span>
               </span>
               <span className="relative shrink-0">
-                <input type="checkbox" className="peer sr-only" checked={draft[key]} onChange={(event) => updateDraft(key, event.target.checked)} />
+                <input type="checkbox" className="peer sr-only" checked={draft[key]} onChange={(event) => updateDraft(key, event.target.checked)} disabled={!available} />
                 <span className="block h-6 w-11 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-2" aria-hidden="true" />
                 <span className="pointer-events-none absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-primary transition-transform peer-checked:translate-x-5">{draft[key] ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}</span>
               </span>
@@ -186,16 +189,16 @@ export function NotificationSettingsPanel() {
         </div>
       </fieldset>
 
-      <details className="group border-y border-border py-4">
+      <details className="group py-1">
         <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-[var(--radius-sm)] text-sm font-semibold marker:hidden">
-          <span>{localizeText('Giờ yên tĩnh')}</span><ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
+          <span className="flex flex-wrap items-center gap-2">{localizeText('Giờ yên tĩnh')}<small className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{localizeText('Chưa khả dụng')}</small></span><ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
         </summary>
-        <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{localizeText('Tạm ngưng thông báo theo giờ địa phương. Để trống để không đặt giờ yên tĩnh.')}</p>
+        <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{localizeText('Máy chủ đã lưu khung giờ, nhưng chưa dùng khung giờ này để hoãn thông báo. Bạn chỉ có thể xem ở đây.')}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Bắt đầu')}</span><Input type="time" value={draft.quietHoursStart ?? ''} onChange={(event) => updateDraft('quietHoursStart', event.target.value)} /></label>
-          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Kết thúc')}</span><Input type="time" value={draft.quietHoursEnd ?? ''} onChange={(event) => updateDraft('quietHoursEnd', event.target.value)} /></label>
+          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Bắt đầu')}</span><Input type="time" value={draft.quietHoursStart ?? ''} onChange={(event) => updateDraft('quietHoursStart', event.target.value)} disabled /></label>
+          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Kết thúc')}</span><Input type="time" value={draft.quietHoursEnd ?? ''} onChange={(event) => updateDraft('quietHoursEnd', event.target.value)} disabled /></label>
         </div>
-        <label className="mt-3 block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" /></label>
+        <label className="mt-3 block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" disabled /></label>
       </details>
 
       <div className="flex items-center justify-between gap-4 border-t border-border pt-5">

@@ -6,6 +6,7 @@ import { getLocale, localizeText } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
 import { notifyError } from '@/shared/lib/notification';
+import { getNotificationCopy } from '../../model/notification-copy';
 
 interface NotificationListProps {
   isOpen: boolean;
@@ -184,12 +185,12 @@ export const NotificationList: React.FC<NotificationListProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="truncate text-sm font-semibold">{notification.title}</h4>
+                      <h4 className="truncate text-sm font-semibold">{getNotificationCopy(notification, getLocale()).title}</h4>
                       {!notification.isRead ? (
                         <span className="shrink-0 h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
                       ) : null}
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground leading-5 line-clamp-2">{notification.body}</p>
+                    <p className="mt-1 text-xs text-muted-foreground leading-5 line-clamp-2">{getNotificationCopy(notification, getLocale()).body}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {getTimeLabel(notification.createdAt)}
                     </p>

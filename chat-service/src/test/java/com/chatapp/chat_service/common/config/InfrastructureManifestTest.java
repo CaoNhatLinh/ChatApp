@@ -36,11 +36,11 @@ class InfrastructureManifestTest {
     void canonicalCqlRetainsRequiredProductionContracts() throws IOException {
         String cql = Files.readString(Path.of("..", "chat_app_complete.cql"));
 
-        // The canonical schema currently defines 79 named access-pattern tables,
+        // The canonical schema currently defines 78 named access-pattern tables,
         // including the bounded global-admin room directory, sanction-expiry and
         // pending-outbox projections.
         // Keep this exact so an accidental deletion or an undocumented table addition fails the guard.
-        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(79);
+        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(78);
         assertThat(cql).contains("CREATE TABLE IF NOT EXISTS audit_events_by_month");
         assertThat(cql.lines().filter(line -> line.startsWith("CREATE TYPE")).count()).isEqualTo(2);
         assertThat(cql).contains(
@@ -67,6 +67,8 @@ class InfrastructureManifestTest {
                 "CREATE TABLE IF NOT EXISTS community_directory_by_filter",
                 "CREATE TABLE IF NOT EXISTS community_join_request_by_user",
                 "CREATE TABLE IF NOT EXISTS community_join_requests_by_conversation",
+                "CREATE TABLE IF NOT EXISTS invite_state_by_token",
+                "resolution_lease_until timestamp",
                 "CREATE TABLE IF NOT EXISTS admin_conversations_by_month",
                 "CREATE TABLE IF NOT EXISTS reports_by_reporter",
                 "CREATE TABLE IF NOT EXISTS user_sanctions_by_expiry_day",
@@ -163,7 +165,7 @@ class InfrastructureManifestTest {
     void analyticsQueryUsesTheFullCassandraPartitionAndStableMetricNames() throws IOException {
         String store = Files.readString(Path.of(
                 "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
-                "repository", "CanonicalCqlStore.java"));
+                "analytics", "CassandraAnalyticsRepository.java"));
 
         assertThat(store)
                 .contains("VALUES (?, ?, ?, now(), ?, ?, ?, ?)")
@@ -180,12 +182,12 @@ class InfrastructureManifestTest {
     void outboxPublisherReadsPendingProjectionAndUsesAtomicLifecycleBatches() throws IOException {
         String store = Files.readString(Path.of(
                 "src", "main", "java", "com", "chatapp", "chat_service", "canonical",
-                "repository", "CanonicalCqlStore.java"));
+                "messaging", "CassandraOutboxRepository.java"));
 
         assertThat(store)
                 .contains("FROM outbox_pending_events_by_partition")
                 .contains("BatchStatement.builder(BatchType.LOGGED)")
-                .contains("deletePendingOutboxEvent.bind")
+                .contains("deletePending.bind")
                 .doesNotContain(".filter(row -> row.getInstant(\"published_at\") == null)");
     }
 }

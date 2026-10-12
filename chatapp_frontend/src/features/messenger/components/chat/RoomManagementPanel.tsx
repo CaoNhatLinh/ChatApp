@@ -1,19 +1,23 @@
 import * as React from 'react';
-import { ChevronDown, Pencil, Plus, RefreshCw, ScrollText, ShieldCheck, Trash2 } from 'lucide-react';
+import { Ban, ChevronDown, Pencil, Plus, RefreshCw, ScrollText, ShieldCheck, Trash2, UserRoundCheck } from 'lucide-react';
 import type { Conversation, ConversationMember } from '@/features/messenger/types/messenger.types';
 import {
     assignConversationRoles,
+    banConversationMember,
     createConversationRole,
     deleteConversationRole,
     getConversationMembers,
     getConversationPermissions,
+    listConversationBans,
     listConversationRoles,
     removeConversationMember,
     transferConversationOwnership,
+    unbanConversationMember,
     updateConversationChatPolicy,
     updateMemberChatPolicy,
     updateConversationRole,
     type ConversationPermissionsView,
+    type ConversationBan,
     type ConversationRole,
 } from '@/features/messenger/api/messenger.api';
 import { useAuthStore } from '@/features/auth/model/auth.store';
@@ -22,6 +26,7 @@ import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { Skeleton } from '@/shared/ui/Skeleton';
+import { Textarea } from '@/shared/ui/Textarea';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { logger } from '@/shared/lib/logger';
@@ -49,11 +54,14 @@ const ROOM_MANAGEMENT_PERMISSIONS = [
     'ROLE_UPDATE',
     'ROLE_DELETE',
     'MEMBER_KICK',
+    'MEMBER_BAN',
     'MEMBER_MUTE',
 ];
 
 type PendingAction =
     | { kind: 'kick'; member: ConversationMember }
+    | { kind: 'ban'; member: ConversationMember }
+    | { kind: 'unban'; ban: ConversationBan }
     | { kind: 'transfer'; member: ConversationMember }
     | { kind: 'delete-role'; role: ConversationRole }
     | null;
@@ -72,10 +80,12 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const [hasMoreMembers, setHasMoreMembers] = React.useState(false);
     const [roles, setRoles] = React.useState<ConversationRole[]>([]);
     const [access, setAccess] = React.useState<ConversationPermissionsView | null>(null);
+    const [bannedMembers, setBannedMembers] = React.useState<ConversationBan[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [loadError, setLoadError] = React.useState(false);
     const [busyKey, setBusyKey] = React.useState<string | null>(null);
     const [pendingAction, setPendingAction] = React.useState<PendingAction>(null);
+    const [banReason, setBanReason] = React.useState('');
     const [showRoleForm, setShowRoleForm] = React.useState(false);
     const [editingRoleId, setEditingRoleId] = React.useState<string | null>(null);
     const [auditOpen, setAuditOpen] = React.useState(false);
@@ -94,12 +104,16 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 listConversationRoles(conversation.conversationId),
                 getConversationPermissions(conversation.conversationId),
             ]);
+            const nextBans = nextAccess.permissions.includes('MEMBER_BAN')
+                ? await listConversationBans(conversation.conversationId)
+                : [];
             if (requestId !== requestRef.current) return;
             setMembers(memberPage.content);
             setMemberCursor(memberPage.nextCursor);
             setHasMoreMembers(memberPage.hasNext);
             setRoles(nextRoles);
             setAccess(nextAccess);
+            setBannedMembers(nextBans);
         } catch (error) {
             if (requestId !== requestRef.current) return;
             setLoadError(true);
@@ -249,12 +263,32 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
     const confirmAction = async () => {
         if (!pendingAction) return;
         const action = pendingAction;
-        setBusyKey(`${action.kind}:${action.kind === 'delete-role' ? action.role.roleId : action.member.userId}`);
+        const actionId = action.kind === 'delete-role'
+            ? action.role.roleId
+            : action.kind === 'unban'
+                ? action.ban.userId
+                : action.member.userId;
+        if (action.kind === 'ban' && !banReason.trim()) {
+            notifyError(localizeText('Hãy ghi lý do cấm thành viên.'));
+            return;
+        }
+        setBusyKey(`${action.kind}:${actionId}`);
         try {
             if (action.kind === 'kick') {
                 await removeConversationMember(conversation.conversationId, action.member.userId);
                 setMembers((current) => current.filter((member) => member.userId !== action.member.userId));
                 notifySuccess(localizeText('Đã xóa thành viên khỏi phòng.'));
+            } else if (action.kind === 'ban') {
+                const created = await banConversationMember(conversation.conversationId, action.member.userId, {
+                    reasonCode: 'ROOM_POLICY',
+                    reasonText: banReason.trim(),
+                });
+                setMembers((current) => current.filter((member) => member.userId !== action.member.userId));
+                setBannedMembers((current) => [created, ...current.filter((ban) => ban.userId !== created.userId)]);
+                setBanReason('');
+            } else if (action.kind === 'unban') {
+                await unbanConversationMember(conversation.conversationId, action.ban.userId);
+                setBannedMembers((current) => current.filter((ban) => ban.userId !== action.ban.userId));
             } else if (action.kind === 'delete-role') {
                 await deleteConversationRole(conversation.conversationId, action.role.roleId);
                 setRoles((current) => current.filter((role) => role.roleId !== action.role.roleId));
@@ -274,19 +308,41 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
         }
     };
 
-    const confirmation = pendingAction ? {
-        title: pendingAction.kind === 'kick'
-            ? localizeText('Xóa thành viên')
-            : pendingAction.kind === 'delete-role'
-                ? localizeText('Xóa vai trò')
-                : localizeText('Chuyển quyền sở hữu'),
-        description: pendingAction.kind === 'kick'
-            ? localizeText('Thành viên sẽ mất quyền truy cập phòng cho đến khi được mời lại.')
-            : pendingAction.kind === 'delete-role'
-                ? localizeText('Vai trò này sẽ bị xóa vĩnh viễn. Chỉ vai trò chưa được gán mới có thể xóa.')
-                : localizeText('Bạn sẽ mất quyền chủ phòng ngay sau khi xác nhận. Thao tác này không thể tự hoàn tác.'),
-        label: pendingAction.kind === 'transfer' ? localizeText('Chuyển quyền') : localizeText('Xóa'),
-    } : null;
+    const confirmation = React.useMemo(() => {
+        if (!pendingAction) return null;
+        switch (pendingAction.kind) {
+            case 'kick':
+                return {
+                    title: localizeText('Xóa thành viên'),
+                    description: localizeText('Thành viên sẽ mất quyền truy cập phòng cho đến khi được mời lại.'),
+                    label: localizeText('Xóa'),
+                };
+            case 'ban':
+                return {
+                    title: localizeText('Cấm thành viên'),
+                    description: localizeText('Thành viên sẽ bị đưa khỏi phòng và không thể quay lại bằng liên kết mời hay nút tham gia.'),
+                    label: localizeText('Cấm khỏi phòng'),
+                };
+            case 'unban':
+                return {
+                    title: localizeText('Gỡ lệnh cấm'),
+                    description: localizeText('Người này có thể được mời hoặc tự tham gia lại sau khi gỡ cấm.'),
+                    label: localizeText('Gỡ cấm'),
+                };
+            case 'delete-role':
+                return {
+                    title: localizeText('Xóa vai trò'),
+                    description: localizeText('Vai trò này sẽ bị xóa vĩnh viễn. Chỉ vai trò chưa được gán mới có thể xóa.'),
+                    label: localizeText('Xóa'),
+                };
+            case 'transfer':
+                return {
+                    title: localizeText('Chuyển quyền sở hữu'),
+                    description: localizeText('Bạn sẽ mất quyền chủ phòng ngay sau khi xác nhận. Thao tác này không thể tự hoàn tác.'),
+                    label: localizeText('Chuyển quyền'),
+                };
+        }
+    }, [pendingAction]);
 
     if (loading) {
         return (
@@ -380,8 +436,36 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 onSaveRoles={saveMemberRoles}
                 onSavePolicy={saveMemberChatPolicy}
                 onKick={(member) => setPendingAction({ kind: 'kick', member })}
+                onBan={(member) => { setBanReason(''); setPendingAction({ kind: 'ban', member }); }}
                 onTransfer={(member) => setPendingAction({ kind: 'transfer', member })}
             />
+
+            {can('MEMBER_BAN') ? (
+                <details className="group rounded-2xl border border-border/70">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 p-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                        <Ban className="h-4 w-4 text-destructive" />
+                        <span className="flex-1">{localizeText('Danh sách cấm')}</span>
+                        <Badge variant="outline">{bannedMembers.length}</Badge>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="space-y-2 border-t border-border/60 p-3">
+                        {bannedMembers.length === 0 ? (
+                            <p className="py-2 text-xs text-muted-foreground">{localizeText('Phòng chưa cấm thành viên nào.')}</p>
+                        ) : bannedMembers.map((ban) => (
+                            <div key={ban.userId} className="flex items-start gap-3 rounded-xl bg-muted/45 p-3">
+                                <Ban className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold">{ban.displayName}</p>
+                                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{ban.reasonText}</p>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" disabled={busyKey !== null} onClick={() => setPendingAction({ kind: 'unban', ban })}>
+                                    <UserRoundCheck className="h-4 w-4" /> {localizeText('Gỡ cấm')}
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </details>
+            ) : null}
 
             {(can('ROLE_CREATE') || can('ROLE_UPDATE') || can('ROLE_DELETE')) ? (
                 <details className="group rounded-2xl border border-border/70">
@@ -491,7 +575,14 @@ export function RoomManagementPanel({ conversation }: RoomManagementPanelProps) 
                 destructive
                 loading={busyKey !== null}
                 onConfirm={confirmAction}
-            />
+            >
+                {pendingAction?.kind === 'ban' ? (
+                    <div>
+                        <label htmlFor="room-ban-reason" className="mb-1.5 block text-xs font-semibold">{localizeText('Lý do cấm')}</label>
+                        <Textarea id="room-ban-reason" value={banReason} maxLength={500} autoFocus onChange={(event) => setBanReason(event.target.value)} placeholder={localizeText('Ghi ngắn gọn để những người quản lý khác hiểu quyết định này.')} />
+                    </div>
+                ) : null}
+            </ConfirmDialog>
         </section>
     );
 }

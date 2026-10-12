@@ -147,6 +147,10 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         if (!existingConversation || !message.sender?.userId) {
             return state;
         }
+        const storedMessage = state.messages[message.conversationId]?.find(
+            current => current.messageId === message.messageId
+        );
+        if (storedMessage?.isDeleted && !message.isDeleted) return state;
 
         const currentUserId = useAuthStore.getState().user?.userId;
         const isFromOtherUser = message.sender.userId !== currentUserId;

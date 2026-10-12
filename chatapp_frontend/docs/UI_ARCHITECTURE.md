@@ -22,7 +22,7 @@ This document describes the single current web surface. It intentionally exclude
 
 - `/app` — realtime conversations and message workspace
 - `/friends` — contacts and friend requests
-- `/search` — canonical user, room, and message search
+- message search — conversation-scoped dialog opened from the active room; people search remains in `/friends`
 - `/profile` — current user profile
 - `/settings` — account and appearance settings
 

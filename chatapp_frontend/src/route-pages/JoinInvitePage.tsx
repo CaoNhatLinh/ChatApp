@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Clock3, Link2Off, ShieldCheck, Users, X } from 'lucide-react';
+import { ArrowRight, Ban, Check, Clock3, Link2Off, ShieldCheck, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { acceptInvite, declineInvite, getInviteViewerState, previewInvite, type InvitePreview } from '@/features/messenger/api/invite.api';
@@ -54,7 +54,10 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                     && viewerState.conversationId) {
                     router.replace(`/app?conversationId=${viewerState.conversationId}`);
                 } else if (viewerState?.status === 'FAILED') {
+                    setResult('FAILED');
                     setActionError(localizeText('Lần tham gia trước chưa hoàn tất. Bạn có thể thử lại.'));
+                } else if (viewerState?.status === 'BANNED') {
+                    setResult('BANNED');
                 }
             })
             .catch((error: unknown) => {
@@ -66,6 +69,35 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
             .finally(() => active && setLoading(false));
         return () => { active = false; };
     }, [authToken, previewRetry, router, token]);
+
+    useEffect(() => {
+        if (!authToken || result !== 'PENDING') return;
+        let active = true;
+        const refreshViewerState = async () => {
+            if (document.visibilityState === 'hidden') return;
+            try {
+                const state = await getInviteViewerState(token);
+                if (!active) return;
+                if ((state.status === 'ACCEPTED' || state.status === 'ALREADY_MEMBER') && state.conversationId) {
+                    router.replace(`/app?conversationId=${state.conversationId}`);
+                } else if (state.status === 'DECLINED' || state.status === 'FAILED') {
+                    setResult(state.status);
+                } else if (state.status === 'BANNED') {
+                    setResult('BANNED');
+                }
+            } catch (error: unknown) {
+                logger.warn('[JoinInvitePage] Failed to refresh pending invite', error instanceof Error ? error.message : String(error));
+            }
+        };
+        const interval = window.setInterval(() => void refreshViewerState(), 5_000);
+        const onVisibilityChange = () => void refreshViewerState();
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+    }, [authToken, result, router, token]);
 
     const requireLogin = () => {
         router.push(`/login?from=${encodeURIComponent(`/join/${token}`)}`);
@@ -111,10 +143,12 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
         return <ShellFrame ambient="subtle"><PublicShellHeader /><div className="grid min-h-[calc(100dvh-4rem)] place-items-center"><LoadingSpinner size="lg" /></div></ShellFrame>;
     }
 
-    const unavailable = !preview || preview.status !== 'ACTIVE';
+    const recoverableReservation = result === 'FAILED' && preview?.status === 'LIMIT_REACHED';
+    const unavailable = !preview || (preview.status !== 'ACTIVE' && !recoverableReservation);
     const unavailableStatus: Exclude<InvitePreview['status'], 'ACTIVE'> = preview && preview.status !== 'ACTIVE' ? preview.status : 'INVALID';
     const declined = result === 'DECLINED';
     const pending = result === 'PENDING';
+    const banned = result === 'BANNED';
 
     return (
         <ShellFrame ambient="subtle">
@@ -148,6 +182,12 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
                             <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                             {localizedStatusCopy[unavailableStatus]}
                         </p>
+                    ) : banned ? (
+                        <div className="text-center" role="status">
+                            <Ban className="mx-auto mb-3 text-destructive" />
+                            <p className="font-bold">{localizeText('Bạn không thể tham gia phòng này.')}</p>
+                            <p className="mt-2 text-sm text-muted-foreground">{localizeText('Lệnh cấm vẫn còn hiệu lực. Liên hệ quản lý phòng nếu bạn cần được xem xét lại.')}</p>
+                        </div>
                     ) : declined ? (
                         <div className="text-center">
                             <X className="mx-auto mb-3 text-muted-foreground" />
@@ -181,7 +221,7 @@ export default function JoinInvitePage({ token }: JoinInvitePageProps) {
 
                     {actionError ? <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">{actionError}</p> : null}
 
-                    {(previewError || unavailable || declined || pending) && (
+                    {(previewError || unavailable || declined || pending || banned) && (
                         <button type="button" onClick={() => router.push('/')} className="focus-ring flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border px-4 py-3 font-semibold hover:bg-muted">
                             <Check className="size-4" /> {localizeText('Về trang chủ')}
                         </button>

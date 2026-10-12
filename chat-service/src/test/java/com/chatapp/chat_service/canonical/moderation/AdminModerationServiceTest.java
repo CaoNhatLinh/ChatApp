@@ -4,6 +4,7 @@ import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
@@ -17,9 +18,12 @@ import static org.mockito.Mockito.*;
 class AdminModerationServiceTest {
     private final ModerationRepository repository = mock(ModerationRepository.class);
     private final CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final ConversationModerationRepository conversationModeration = mock(ConversationModerationRepository.class);
     private final AppAuthorizationService authorization = mock(AppAuthorizationService.class);
     private final CanonicalEventRecorder events = mock(CanonicalEventRecorder.class);
-    private final AdminModerationService service = new AdminModerationService(repository, store, authorization, events);
+    private final AdminModerationService service = new AdminModerationService(
+            repository, store, users, conversationModeration, authorization, events);
 
     @Test
     void reportQueueRequiresReportManage() {
@@ -44,7 +48,7 @@ class AdminModerationServiceTest {
     void sanctionRequiresAnExistingUser() {
         UUID actor = UUID.randomUUID();
         UUID target = UUID.randomUUID();
-        when(store.findUserById(target)).thenReturn(null);
+        when(users.findById(target)).thenReturn(null);
 
         assertThatThrownBy(() -> service.imposeSanction(actor,
                 new AdminModerationService.SanctionRequest(target, "APP", null, "BAN", null, null, "ABUSE", "reason")))
@@ -62,13 +66,13 @@ class AdminModerationServiceTest {
                 Instant.now().minusSeconds(300), Instant.now().plusSeconds(30), actorId,
                 "ABUSE", "test", "REVOKED", actorId, Instant.now());
         when(repository.revokeSanction(actorId, userId, revoked.imposedAt(), sanctionId)).thenReturn(revoked);
-        when(store.findUserById(userId)).thenReturn(new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser(
+        when(users.findById(userId)).thenReturn(new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser(
                 userId, "target", "target", "target@example.com", "target@example.com", "hash",
                 "LOCAL", null, "Target", null, "BANNED", Instant.now(), Instant.now(), null));
         when(repository.hasActiveAppAccountLock(eq(userId), any(Instant.class))).thenReturn(true);
 
         service.revokeSanction(actorId, userId, revoked.imposedAt(), sanctionId, "duplicate sanction");
 
-        verify(store, never()).updateUserAccountStatus(any(), anyString(), any());
+        verify(users, never()).updateAccountStatus(any(), anyString(), any());
     }
 }

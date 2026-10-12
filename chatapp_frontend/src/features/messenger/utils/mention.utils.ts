@@ -52,3 +52,27 @@ export const getMentionQuery = (content: string, cursorPos: number): string | nu
 
     return query;
 };
+
+const MENTION_TOKEN_REGEX = /@\[[^|\]]*\|([^|\]]+)\]/g;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Extracts only canonical user UUIDs from serialized mention tokens. The
+ * special `all` token is returned separately so the API can handle it as an
+ * explicit room-wide mention rather than pretending it is a user UUID.
+ */
+export const extractMentionTargets = (content: string): { userIds: string[]; mentionEveryone: boolean } => {
+    const userIds = new Set<string>();
+    let mentionEveryone = false;
+    MENTION_TOKEN_REGEX.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = MENTION_TOKEN_REGEX.exec(content)) !== null) {
+        const target = match[1].trim();
+        if (target === 'all') {
+            mentionEveryone = true;
+        } else if (UUID_REGEX.test(target)) {
+            userIds.add(target);
+        }
+    }
+    return { userIds: [...userIds], mentionEveryone };
+};

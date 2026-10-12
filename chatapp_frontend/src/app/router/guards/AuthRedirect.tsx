@@ -17,7 +17,7 @@ export const AuthRedirect: React.FC<AuthRedirectProps> = ({ children }) => {
 
   useEffect(() => {
     if (!loading && token && user) {
-      router.replace('/app');
+      router.replace('/friends');
     }
   }, [loading, router, token, user]);
 

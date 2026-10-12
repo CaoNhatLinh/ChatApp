@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.auth.AuthService;
 import com.chatapp.chat_service.canonical.service.RefreshTokenService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.junit.jupiter.api.Test;
@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class CanonicalAuthControllerTest {
 
     @Mock
-    private CanonicalBackendService service;
+    private AuthService authentication;
     @Mock
     private SecurityContextHelper securityContext;
     @Mock
@@ -36,10 +36,11 @@ class CanonicalAuthControllerTest {
                 "access-token",
                 new CanonicalApiContracts.UserResponse(
                         userId, "alice", "alice@example.com", "Alice", null, "ACTIVE", Instant.now(), Instant.now()));
-        when(service.login(new CanonicalApiContracts.LoginRequest("alice", "password123"))).thenReturn(response);
+        when(authentication.login(new CanonicalApiContracts.LoginRequest("alice", "password123"))).thenReturn(response);
         when(refreshTokens.issue(userId)).thenReturn("refresh-token");
         CanonicalAuthController controller = new CanonicalAuthController(
-                service, securityContext, refreshTokens, 60_000, false);
+                authentication, securityContext, refreshTokens,
+                new AuthSessionResponseFactory(refreshTokens, 60_000, false));
 
         ResponseEntity<CanonicalApiContracts.AuthResponse> result = controller.login(
                 new CanonicalApiContracts.LoginRequest("alice", "password123"));
@@ -58,7 +59,8 @@ class CanonicalAuthControllerTest {
     @Test
     void logoutRevokesRefreshTokenAndClearsBothCookies() {
         CanonicalAuthController controller = new CanonicalAuthController(
-                service, securityContext, refreshTokens, 60_000, false);
+                authentication, securityContext, refreshTokens,
+                new AuthSessionResponseFactory(refreshTokens, 60_000, false));
 
         ResponseEntity<Void> result = controller.logout("refresh-token");
 

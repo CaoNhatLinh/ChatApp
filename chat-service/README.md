@@ -13,6 +13,8 @@ mock-success fallback.
 - Elasticsearch cho search projection được phân quyền và có thể rebuild
 - Cloudinary cho binary media khi đã cấu hình provider
 - JWT + STOMP/SockJS cho REST/realtime được xác thực
+- Firebase Admin (tùy cấu hình) chỉ xác minh Google identity; Nối vẫn phát JWT
+  và quản lý refresh session canonical
 
 ## Current scope
 
@@ -44,6 +46,8 @@ additive trong `migrations/` trước khi chạy các projection mới.
 
 Đặt các biến môi trường trong deployment; không commit secret. Tối thiểu cần
 `JWT_SECRET`, Cassandra connection, CORS/WebSocket origins và các broker URL.
+Xem hướng dẫn riêng nếu bật
+[Google auth](../docs/FIREBASE_GOOGLE_AUTH_SETUP.md); mặc định provider bị tắt.
 
 ### 3. Run
 

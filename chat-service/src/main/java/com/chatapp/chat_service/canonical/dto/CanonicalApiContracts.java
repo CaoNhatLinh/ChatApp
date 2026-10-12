@@ -2,6 +2,9 @@ package com.chatapp.chat_service.canonical.dto;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -21,8 +24,7 @@ public final class CanonicalApiContracts {
             @NotBlank @Size(min = 3, max = 32) String username,
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(min = 8, max = 128) String password,
-            @NotBlank @Size(max = 80) String displayName,
-            String authProvider) {
+            @NotBlank @Size(max = 80) String displayName) {
     }
 
     public record LoginRequest(
@@ -85,6 +87,23 @@ public final class CanonicalApiContracts {
     }
 
     public record ConversationMemberRequest(UUID userId, Set<UUID> roleIds, String reason) {
+    }
+
+    public record ConversationBanRequest(
+            @NotBlank @Size(max = 64) String reasonCode,
+            @NotBlank @Size(max = 500) String reasonText,
+            Instant expiresAt) {
+    }
+
+    public record ConversationBanView(
+            UUID userId,
+            String displayName,
+            String avatarUrl,
+            UUID bannedBy,
+            String reasonCode,
+            String reasonText,
+            Instant createdAt,
+            Instant expiresAt) {
     }
 
     public record ConversationMemberView(
@@ -222,9 +241,9 @@ public final class CanonicalApiContracts {
 
     public record MessageSendRequest(
             @NotNull UUID clientMessageId,
-            String messageType,
-            String content,
-            String contentFormat,
+            @NotBlank String messageType,
+            @NotNull @Size(max = 20_000) String content,
+            @NotBlank String contentFormat,
             UUID replyToMessageId,
             UUID replyToSenderId,
             UUID stickerId,
@@ -233,7 +252,8 @@ public final class CanonicalApiContracts {
             String forwardedFromMessageBucket,
             UUID forwardedFromMessageId,
             List<AttachmentRequest> attachments,
-            Set<UUID> mentionedUserIds) {
+            Set<UUID> mentionedUserIds,
+            boolean mentionEveryone) {
     }
 
     public record AttachmentRequest(
@@ -341,16 +361,16 @@ public final class CanonicalApiContracts {
     }
 
     public record InviteLinkCreateRequest(
-            UUID conversationId,
-            String inviteKind,
-            String joinPolicy,
-            String displayName,
-            Instant expiresAt,
-            Integer maxUses,
-            Integer durationMinutes) {
+            @NotNull UUID conversationId,
+            @Pattern(regexp = "LINK|QR") String inviteKind,
+            @Pattern(regexp = "DIRECT_JOIN|REQUEST_APPROVAL") String joinPolicy,
+            @Size(max = 80) String displayName,
+            @Future Instant expiresAt,
+            @Min(1) @Max(1_000_000) Integer maxUses,
+            @Min(1) @Max(525_600) Integer durationMinutes) {
     }
 
-    public record InviteConsumeRequest(String linkToken) {
+    public record InviteConsumeRequest(@NotBlank @Size(max = 512) String linkToken) {
     }
 
     public record InviteLinkView(CqlCanonicalRecords.CanonicalInviteLink invite, String joinUrl) {
@@ -385,7 +405,11 @@ public final class CanonicalApiContracts {
             Instant resolvedAt) {
     }
 
-    public record JoinRequestDecisionRequest(UUID requestedAt, UUID userId, String decision, String reason) {
+    public record JoinRequestDecisionRequest(
+            @NotNull UUID requestedAt,
+            UUID userId,
+            @NotBlank @Pattern(regexp = "APPROVE|DECLINE") String decision,
+            @Size(max = 500) String reason) {
     }
 
     public record FriendRequestCreateRequest(
@@ -411,36 +435,6 @@ public final class CanonicalApiContracts {
     }
 
     public record BlockStatusView(boolean hasBlocked, boolean isBlockedBy) {
-    }
-
-    public record NotificationSettingRequest(
-            @NotBlank @Pattern(regexp = "ALL|MENTIONS|DIRECT_ONLY|NONE") String globalLevel,
-            @NotNull Boolean pushEnabled,
-            @NotNull Boolean emailEnabled,
-            @NotNull Boolean desktopEnabled,
-            @NotNull Boolean soundEnabled,
-            @Pattern(regexp = "(?:[01]\\d|2[0-3]):[0-5]\\d") String quietHoursStart,
-            @Pattern(regexp = "(?:[01]\\d|2[0-3]):[0-5]\\d") String quietHoursEnd,
-            @Size(max = 64) String timezone) {
-    }
-
-    public record DeviceRegistrationRequest(
-            @NotNull UUID deviceId,
-            @NotBlank @Pattern(regexp = "WEB|IOS|ANDROID") String platform,
-            @NotBlank @Pattern(regexp = "FCM|APNS|WEB_PUSH") String pushProvider,
-            @Size(max = 4096) String pushToken,
-            @Size(max = 120) String deviceName,
-            @Size(max = 50) String appVersion) {
-    }
-
-    public record ChatAppearancePreferencesRequest(
-            @NotBlank @Pattern(regexp = "aurora|neon|studio|vapor") String defaultThemeId,
-            @NotBlank @Pattern(regexp = "tiktok|glass|classic") String defaultBubbleStyleId) {
-    }
-
-    public record ConversationAppearancePreferencesRequest(
-            @NotBlank @Pattern(regexp = "aurora|neon|studio|vapor") String themeId,
-            @Size(max = 2048) String customBackgroundUrl) {
     }
 
 }

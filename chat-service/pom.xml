@@ -20,6 +20,7 @@
 		<jjwt.version>0.11.5</jjwt.version>
 		<commons-lang3.version>3.17.0</commons-lang3.version>
 		<cloudinary.version>2.4.0</cloudinary.version>
+		<firebase-admin.version>9.10.0</firebase-admin.version>
 	</properties>
 	
 	<dependencies>
@@ -100,6 +101,18 @@
 			<groupId>com.cloudinary</groupId>
 			<artifactId>cloudinary-http5</artifactId>
 			<version>${cloudinary.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>${firebase-admin.version}</version>
+			<exclusions>
+				<!-- Spring Boot supplies spring-jcl; keeping the original bridge causes duplicate discovery. -->
+				<exclusion>
+					<groupId>commons-logging</groupId>
+					<artifactId>commons-logging</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		
 

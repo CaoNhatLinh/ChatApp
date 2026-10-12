@@ -19,6 +19,7 @@ interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
   destructive?: boolean;
   loading?: boolean;
+  children?: React.ReactNode;
 }
 
 export const ConfirmDialog = ({
@@ -30,6 +31,7 @@ export const ConfirmDialog = ({
   onConfirm,
   destructive = false,
   loading = false,
+  children,
 }: ConfirmDialogProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-md">
@@ -37,6 +39,7 @@ export const ConfirmDialog = ({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
+      {children}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
           {localizeText('Hủy')}

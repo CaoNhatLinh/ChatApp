@@ -23,9 +23,11 @@ feedback without losing history on refresh.
 
 ## Non-goals for this release
 
-Email delivery, social OAuth providers, MFA enrollment, push-provider delivery,
-and a production WebRTC media provider are explicitly outside the local release
-unless an external provider is configured. They remain visible as unresolved
+Email delivery, MFA enrollment, push-provider delivery, and a production WebRTC
+media provider are explicitly outside the local release unless an external
+provider is configured. Google sign-in through Firebase is an optional,
+configuration-gated identity provider; Nối remains authoritative for accounts,
+authorization and sessions. Unconfigured providers remain visible as unresolved
 capabilities rather than mocked as complete.
 
 ## Product assumptions

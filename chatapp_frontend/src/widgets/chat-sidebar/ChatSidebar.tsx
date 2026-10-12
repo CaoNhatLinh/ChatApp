@@ -127,7 +127,7 @@ export const ChatSidebar = () => {
   }, [markEverythingAsRead]);
 
   return (
-    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-white/10 pb-16 text-foreground md:pb-0">
+    <aside className="messenger-sidebar flex h-full w-full max-w-full flex-shrink-0 flex-col border-r border-border/60 pb-16 text-foreground md:pb-0">
       <div className="md:hidden">
         <SidebarHeader
           onOpenCreateRoom={() => setIsCreateRoomModalOpen(true)}
@@ -153,7 +153,6 @@ export const ChatSidebar = () => {
 
       <SidebarFooter
         user={user}
-        onOpenProfile={() => router.push('/profile')}
       />
 
       <SidebarNotificationPanel

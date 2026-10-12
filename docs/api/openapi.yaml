@@ -46,6 +46,78 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/RegisterRequest'}}}
       responses: {'201': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/User'}}}}}
+  /auth/providers:
+    get:
+      tags: [Auth]
+      operationId: getAuthProviderCapabilities
+      security: []
+      summary: Read the identity providers currently available to the client
+      responses:
+        '200':
+          description: Provider capabilities; the response must not be cached
+          headers: {Cache-Control: {schema: {type: string}, description: Always `no-store`}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuthProviderCapabilities'}}}
+  /auth/google/exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeGoogleIdentity
+      security: []
+      summary: Exchange a verified Firebase Google identity for a Nối session or onboarding state
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GoogleTokenRequest'}}}
+      responses:
+        '200':
+          description: Signed in or registration required; Set-Cookie is emitted only for SIGNED_IN
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/RefreshCookie'}
+            Cache-Control: {schema: {type: string}, description: Always `no-store`}
+          content: {application/json: {schema: {$ref: '#/components/schemas/GoogleExchangeResponse'}}}
+        '400': {description: Invalid request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '401': {description: Firebase token is invalid, revoked, or is not a verified Google identity, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '409': {$ref: '#/components/responses/GoogleAuthConflict'}
+        '503': {$ref: '#/components/responses/GoogleAuthUnavailable'}
+  /auth/google/register:
+    post:
+      tags: [Auth]
+      operationId: registerGoogleIdentity
+      security: []
+      summary: Create the canonical Nối account for a verified Google identity
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GoogleRegistrationRequest'}}}
+      responses:
+        '201':
+          description: Canonical account created and session issued
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/RefreshCookie'}
+            Cache-Control: {schema: {type: string}, description: Always `no-store`}
+          content: {application/json: {schema: {$ref: '#/components/schemas/GoogleExchangeResponse'}}}
+        '400': {description: Invalid profile fields, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '401': {description: Firebase token is invalid, revoked, or is not a verified Google identity, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '409': {$ref: '#/components/responses/GoogleAuthConflict'}
+        '503': {$ref: '#/components/responses/GoogleAuthUnavailable'}
+  /auth/identities:
+    get:
+      tags: [Auth]
+      operationId: getConnectedIdentities
+      summary: List identity methods connected to the current canonical account
+      responses:
+        '200': {description: Connected identities, content: {application/json: {schema: {$ref: '#/components/schemas/ConnectedIdentities'}}}}
+        '401': {description: Authentication required, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /auth/identities/google:
+    post:
+      tags: [Auth]
+      operationId: linkGoogleIdentity
+      summary: Link a recent, same-email Google identity after local-password reauthentication
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GoogleLinkRequest'}}}
+      responses:
+        '200': {description: Google identity linked, content: {application/json: {schema: {$ref: '#/components/schemas/ConnectedIdentities'}}}}
+        '401': {description: App authentication or recent reauthentication required, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        '409': {$ref: '#/components/responses/GoogleAuthConflict'}
+        '503': {$ref: '#/components/responses/GoogleAuthUnavailable'}
   /auth/login:
     post:
       tags: [Auth]
@@ -223,6 +295,24 @@ paths:
       tags: [Conversations]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
       responses: {'204': {description: Removed}}
+  /conversations/{conversationId}/bans:
+    get:
+      tags: [Conversations]
+      summary: List active room bans
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 100}}]
+      responses: {'200': {description: Active bans visible to members with MEMBER_BAN, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/ConversationBan'}}}}}}
+  /conversations/{conversationId}/bans/{userId}:
+    put:
+      tags: [Conversations]
+      summary: Ban and remove a room member
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationBanRequest'}}}}
+      responses: {'200': {description: Active room ban, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationBan'}}}}}
+    delete:
+      tags: [Conversations]
+      summary: Remove a room ban
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'204': {description: Ban removed}}
   /conversations/{conversationId}/leave:
     post:
       tags: [Conversations]
@@ -393,17 +483,17 @@ paths:
     post:
       tags: [Invites]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/InviteCreate'}}}}
-      responses: {'201': {description: Invite created}}
+      responses: {'201': {description: Invite created, content: {application/json: {schema: {$ref: '#/components/schemas/InviteLinkView'}}}}}
   /invites/conversation/{conversationId}:
     get:
       tags: [Invites]
-      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {description: Active invite links}}
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: cursor, in: query, schema: {type: string, format: uuid, description: Last invite timeuuid returned by the previous page}}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Invite links with current computed availability, content: {application/json: {schema: {$ref: '#/components/schemas/InviteLinkPage'}}}}}
   /invites/consume:
     post:
       tags: [Invites]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/InviteConsume'}}}}
-      responses: {'200': {description: Invite consumed}}
+      responses: {'200': {description: Invite action result, content: {application/json: {schema: {$ref: '#/components/schemas/InviteConsumeResponse'}}}}}
   /invites/{token}:
     delete:
       tags: [Invites]
@@ -413,7 +503,7 @@ paths:
     post:
       tags: [Invites]
       parameters: [{name: token, in: path, required: true, schema: {type: string}}]
-      responses: {'200': {description: Invite declined}}
+      responses: {'200': {description: Invite declined, content: {application/json: {schema: {$ref: '#/components/schemas/InviteConsumeResponse'}}}}}
   /invites/{token}/status:
     get:
       tags: [Invites]
@@ -426,20 +516,20 @@ paths:
   /invites/conversation/{conversationId}/requests:
     get:
       tags: [Invites]
-      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {description: Pending join requests}}
+      parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: cursor, in: query, schema: {type: string, format: uuid, description: Last request timeuuid returned by the previous page}}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {description: Join requests visible to room managers, content: {application/json: {schema: {$ref: '#/components/schemas/JoinRequestPage'}}}}}
   /invites/conversation/{conversationId}/requests/{requestId}/resolve:
     post:
       tags: [Invites]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: requestId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/JoinRequestDecision'}}}}
-      responses: {'200': {description: Join request resolved}}
+      responses: {'200': {description: Join request resolved, content: {application/json: {schema: {$ref: '#/components/schemas/JoinRequest'}}}}}
   /public/invites/{token}:
     get:
       tags: [Invites]
       security: []
       parameters: [{name: token, in: path, required: true, schema: {type: string}}]
-      responses: {'200': {description: Public preview}}
+      responses: {'200': {description: Public invite preview without viewer-specific state, content: {application/json: {schema: {$ref: '#/components/schemas/InvitePreview'}}}}}
   /notifications:
     get:
       tags: [Notifications]
@@ -722,6 +812,13 @@ components:
     SessionHintCookie:
       description: Non-authorizing startup hint (`novachat_session=1`); it is not a credential and does not grant access.
       schema: {type: string}
+  responses:
+    GoogleAuthConflict:
+      description: Email or Google identity is already owned by another canonical account
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    GoogleAuthUnavailable:
+      description: Google is disabled, token verification failed, or account setup requires retry
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
   parameters:
     UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
     FriendId: {name: friendId, in: path, required: true, schema: {type: string, format: uuid}}
@@ -734,9 +831,23 @@ components:
     Bucket: {name: bucket, in: query, required: true, schema: {type: string, pattern: '^\\d{4}-\\d{2}-\\d{2}-\\d{2}:\\d{2}$'}}
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
   schemas:
-    RegisterRequest: {type: object, required: [username, email, password], properties: {username: {type: string, minLength: 2, maxLength: 64}, email: {type: string, format: email}, password: {type: string, minLength: 8}, displayName: {type: string}}}
+    RegisterRequest: {type: object, required: [username, email, password, displayName], properties: {username: {type: string, minLength: 3, maxLength: 32}, email: {type: string, format: email, maxLength: 254}, password: {type: string, format: password, minLength: 8, maxLength: 128}, displayName: {type: string, minLength: 1, maxLength: 80}}}
     LoginRequest: {type: object, required: [username, password], properties: {username: {type: string}, password: {type: string, format: password}}}
     AuthResponse: {type: object, required: [accessToken, user], properties: {accessToken: {type: string}, user: {$ref: '#/components/schemas/User'}}}
+    AuthProviderCapabilities: {type: object, required: [google], properties: {google: {type: object, required: [enabled], properties: {enabled: {type: boolean}}}}}
+    GoogleTokenRequest: {type: object, required: [idToken], properties: {idToken: {type: string, minLength: 1, maxLength: 16384}}}
+    GoogleRegistrationRequest: {type: object, required: [idToken, username, displayName], properties: {idToken: {type: string, minLength: 1, maxLength: 16384}, username: {type: string, minLength: 3, maxLength: 32, pattern: '^[A-Za-z0-9._-]+$'}, displayName: {type: string, minLength: 1, maxLength: 80}}}
+    GoogleLinkRequest: {type: object, required: [idToken, currentPassword], properties: {idToken: {type: string, minLength: 1, maxLength: 16384}, currentPassword: {type: string, format: password, minLength: 1, maxLength: 128}}}
+    GoogleExchangeResponse:
+      oneOf:
+        - {$ref: '#/components/schemas/GoogleSignedInResponse'}
+        - {$ref: '#/components/schemas/GoogleRegistrationRequiredResponse'}
+      discriminator: {propertyName: status}
+    GoogleSignedInResponse: {type: object, required: [status, session, suggestedDisplayName], properties: {status: {type: string, const: SIGNED_IN}, session: {$ref: '#/components/schemas/AuthResponse'}, suggestedDisplayName: {type: 'null'}}}
+    GoogleRegistrationRequiredResponse: {type: object, required: [status, session, suggestedDisplayName], properties: {status: {type: string, const: REGISTRATION_REQUIRED}, session: {type: 'null'}, suggestedDisplayName: {type: string}}}
+    ConnectedIdentities: {type: object, required: [google], properties: {google: {$ref: '#/components/schemas/GoogleIdentityStatus'}}}
+    GoogleIdentityStatus: {type: object, required: [linked], properties: {linked: {type: boolean}, email: {type: [string, 'null'], format: email}}}
+    ErrorResponse: {type: object, required: [status, code, message, fieldErrors, correlationId, timestamp, path], properties: {status: {type: integer}, code: {type: string}, message: {type: string}, fieldErrors: {type: object, additionalProperties: {type: string}}, correlationId: {type: string}, timestamp: {type: string, format: date-time}, path: {type: string}}}
     User: {type: object, required: [userId, username, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, email: {type: string, format: email}, displayName: {type: string}, avatarUrl: {type: string, format: uri}, accountStatus: {type: string}}}
     UpdateProfileRequest: {type: object, properties: {displayName: {type: string, maxLength: 120}, avatarUrl: {type: string, format: uri}}}
     UserSearchPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/User'}}, nextCursor: {type: string}, hasNext: {type: boolean}}}
@@ -767,11 +878,13 @@ components:
     Conversation: {type: object, required: [conversationId, conversationType, chatMode, slowModeSeconds], properties: {conversationId: {type: string, format: uuid}, conversationType: {type: string}, name: {type: string}, memberCount: {type: integer}, chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
     ConversationListItem: {type: object, required: [conversation, pinned, unreadCount], properties: {conversation: {$ref: '#/components/schemas/Conversation'}, pinned: {type: boolean}, unreadCount: {type: integer}}}
     ConversationPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/ConversationListItem'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
-    CommunitySummary: {type: object, required: [conversationId, name, communityTags, joinPolicy, memberCount, maxMembers, lastActivityAt, membershipStatus], properties: {conversationId: {type: string, format: uuid}, name: {type: string}, description: {type: string, nullable: true}, avatarUrl: {type: string, format: uri, nullable: true}, categoryId: {type: string, nullable: true}, communityTags: {type: array, items: {type: string}}, languageCode: {type: string, nullable: true}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL, CLOSED]}, memberCount: {type: integer}, maxMembers: {type: integer}, lastActivityAt: {type: string, format: date-time}, membershipStatus: {type: string, enum: [AVAILABLE, PENDING, JOINED]}}}
+    CommunitySummary: {type: object, required: [conversationId, name, communityTags, joinPolicy, memberCount, maxMembers, lastActivityAt, membershipStatus], properties: {conversationId: {type: string, format: uuid}, name: {type: string}, description: {type: string, nullable: true}, avatarUrl: {type: string, format: uri, nullable: true}, categoryId: {type: string, nullable: true}, communityTags: {type: array, items: {type: string}}, languageCode: {type: string, nullable: true}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL, CLOSED]}, memberCount: {type: integer}, maxMembers: {type: integer}, lastActivityAt: {type: string, format: date-time}, membershipStatus: {type: string, enum: [AVAILABLE, PENDING, JOINED, BANNED]}}}
     CommunityPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/CommunitySummary'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
-    CommunityJoinResponse: {type: object, required: [status, conversationId], properties: {status: {type: string, enum: [JOINED, PENDING, CAPACITY_REACHED, RETRY_REQUIRED]}, conversationId: {type: string, format: uuid}}}
+    CommunityJoinResponse: {type: object, required: [status, conversationId], properties: {status: {type: string, enum: [JOINED, PENDING, CAPACITY_REACHED, RETRY_REQUIRED, BANNED]}, conversationId: {type: string, format: uuid}}}
     ConversationMember: {type: object, required: [userId, conversationId, role, roleIds, joinedAt, username, displayName, mutedUntil, messageIntervalSeconds], properties: {userId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, role: {type: string, enum: [owner, member]}, roleIds: {type: array, items: {type: string, format: uuid}}, joinedAt: {type: string, format: date-time}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}, mutedUntil: {type: string, format: date-time, nullable: true}, messageIntervalSeconds: {type: integer, minimum: 0, maximum: 604800, nullable: true}}}
     ConversationMemberPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/ConversationMember'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
+    ConversationBanRequest: {type: object, required: [reasonCode, reasonText], properties: {reasonCode: {type: string, minLength: 1, maxLength: 64}, reasonText: {type: string, minLength: 1, maxLength: 500}, expiresAt: {type: string, format: date-time, nullable: true}}}
+    ConversationBan: {type: object, required: [userId, displayName, bannedBy, reasonCode, reasonText, createdAt], properties: {userId: {type: string, format: uuid}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}, bannedBy: {type: string, format: uuid}, reasonCode: {type: string}, reasonText: {type: string}, createdAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time, nullable: true}}}
     ConversationPermissions: {type: object, required: [permissions, owner], properties: {permissions: {type: array, items: {type: string}}, owner: {type: boolean}}}
     RoomAuditEvent: {type: object, required: [eventId, eventType, actorId, targetUserId, messageBucket, messageId, reasonCode, metadata, createdAt], properties: {eventId: {type: string, format: uuid}, eventType: {type: string}, actorId: {type: string, format: uuid, nullable: true}, targetUserId: {type: string, format: uuid, nullable: true}, messageBucket: {type: string, nullable: true}, messageId: {type: string, format: uuid, nullable: true}, reasonCode: {type: string, nullable: true}, metadata: {type: object, additionalProperties: {type: string}}, createdAt: {type: string, format: date-time}}}
     RoomAuditPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/RoomAuditEvent'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
@@ -782,7 +895,7 @@ components:
     ConversationNotificationPolicy: {type: object, required: [defaultNotificationLevel], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}}}
     MemberNotificationPolicy: {type: object, required: [notificationOverride], properties: {notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
     ConversationNotificationPolicyView: {type: object, required: [defaultNotificationLevel, notificationOverride], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}, notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
-    MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, attachments: {type: array}}}
+    MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, mentionedUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}, mentionEveryone: {type: boolean, default: false}, attachments: {type: array}}}
     Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
     MessageReactionView: {type: object, required: [emoji, count, reactedByCurrentUser], properties: {emoji: {type: string}, count: {type: integer, format: int64, minimum: 1}, reactedByCurrentUser: {type: boolean}}}
     MessageInteractionView: {type: object, required: [messageId, reactions], properties: {messageId: {type: string, format: uuid}, reactions: {type: array, items: {$ref: '#/components/schemas/MessageReactionView'}}, latestReadAt: {type: string, format: date-time, nullable: true}}}
@@ -794,10 +907,17 @@ components:
     PollCreate: {type: object, required: [conversationId, clientMessageId, question, options, isMultipleChoice, isAnonymous], properties: {conversationId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid}, question: {type: string, minLength: 1, maxLength: 500}, options: {type: array, minItems: 2, maxItems: 10, uniqueItems: true, items: {type: string, minLength: 1, maxLength: 200}}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, closesAt: {type: string, format: date-time, nullable: true, description: Must be in the future}}}
     Poll: {type: object, required: [pollId, conversationId, messageId, question, options, isMultipleChoice, isAnonymous, isClosed, createdBy, createdAt], properties: {pollId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageId: {type: string, format: uuid}, question: {type: string, maxLength: 500}, options: {type: array, minItems: 2, maxItems: 10, items: {type: string, maxLength: 200}}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, isClosed: {type: boolean}, createdBy: {type: string, format: uuid}, createdAt: {type: string, format: date-time}, closesAt: {type: string, format: date-time, nullable: true}}}
     PollView: {type: object, required: [poll, optionCounts, currentUserOptionIndexes, totalVoters], properties: {poll: {$ref: '#/components/schemas/Poll'}, optionCounts: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}, currentUserOptionIndexes: {type: array, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 9}}, totalVoters: {type: integer, format: int64, minimum: 0}}}
-    InviteCreate: {type: object, required: [conversationId], properties: {conversationId: {type: string, format: uuid}, inviteKind: {type: string, enum: [LINK, QR]}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL]}, maxUses: {type: integer}, expiresAt: {type: string, format: date-time}}}
-    InviteConsume: {type: object, required: [linkToken], properties: {linkToken: {type: string}}}
-    InviteViewerState: {type: object, required: [status], properties: {status: {type: string, enum: [AVAILABLE, PENDING, ACCEPTED, ALREADY_MEMBER, DECLINED, FAILED, INVALID]}, conversationId: {type: string, format: uuid, nullable: true}}}
-    JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, userId: {type: string, format: uuid, description: Required for a public-community request}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string}}}
+    InviteCreate: {type: object, required: [conversationId], properties: {conversationId: {type: string, format: uuid}, inviteKind: {type: string, enum: [LINK, QR], default: LINK}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL], default: DIRECT_JOIN}, displayName: {type: string, maxLength: 120}, maxUses: {type: integer, minimum: 1, maximum: 1000000, nullable: true}, expiresAt: {type: string, format: date-time, description: Must be in the future}, durationMinutes: {type: integer, minimum: 1, maximum: 525600, description: Used when expiresAt is omitted}}}
+    InviteLink: {type: object, required: [linkId, linkToken, conversationId, createdBy, createdAt, inviteKind, joinPolicy, displayName, expiresAt, isActive, usedCount], properties: {linkId: {type: string, format: uuid}, linkToken: {type: string}, conversationId: {type: string, format: uuid}, createdBy: {type: string, format: uuid}, createdAt: {type: string, format: date-time}, inviteKind: {type: string, enum: [LINK, QR]}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL]}, displayName: {type: string}, expiresAt: {type: string, format: date-time}, isActive: {type: boolean}, maxUses: {type: integer, minimum: 1, nullable: true}, usedCount: {type: integer, minimum: 0}, revokedBy: {type: string, format: uuid, nullable: true}, revokedAt: {type: string, format: date-time, nullable: true}}}
+    InviteLinkView: {type: object, required: [invite, joinUrl], properties: {invite: {$ref: '#/components/schemas/InviteLink'}, joinUrl: {type: string, format: uri}}}
+    InviteLinkPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/InviteLink'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
+    InvitePreview: {type: object, required: [status], properties: {status: {type: string, enum: [ACTIVE, INVALID, INACTIVE, REVOKED, EXPIRED, LIMIT_REACHED]}, conversationId: {type: string, format: uuid, nullable: true}, conversationName: {type: string, nullable: true}, conversationType: {type: string, nullable: true}, createdBy: {type: string, format: uuid, nullable: true}, displayName: {type: string, nullable: true}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL], nullable: true}, expiresAt: {type: string, format: date-time, nullable: true}, remainingUses: {type: integer, minimum: 0, nullable: true}}}
+    InviteConsume: {type: object, required: [linkToken], properties: {linkToken: {type: string, minLength: 1, maxLength: 512}}}
+    InviteConsumeResponse: {type: object, required: [status], properties: {status: {type: string, enum: [ACTIVE, INVALID, INACTIVE, REVOKED, EXPIRED, LIMIT_REACHED, ACCEPTED, ALREADY_ACCEPTED, ALREADY_MEMBER, CAPACITY_REACHED, DECLINED, FAILED, PENDING, RETRY_REQUIRED, BANNED]}, conversationId: {type: string, format: uuid, nullable: true}}}
+    InviteViewerState: {type: object, required: [status], properties: {status: {type: string, enum: [AVAILABLE, PENDING, ACCEPTED, ALREADY_MEMBER, DECLINED, FAILED, INVALID, BANNED]}, conversationId: {type: string, format: uuid, nullable: true}}}
+    JoinRequest: {type: object, required: [conversationId, requestedAt, requestId, userId, status], properties: {conversationId: {type: string, format: uuid}, requestedAt: {type: string, format: uuid, description: Cassandra timeuuid cursor}, requestId: {type: string, format: uuid}, userId: {type: string, format: uuid}, linkId: {type: string, format: uuid, nullable: true}, status: {type: string, enum: [PENDING, APPROVING, APPROVED, DECLINED, CANCELLED, FAILED]}, resolvedBy: {type: string, format: uuid, nullable: true}, resolvedAt: {type: string, format: date-time, nullable: true}}}
+    JoinRequestPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/JoinRequest'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
+    JoinRequestDecision: {type: object, required: [requestedAt, decision], properties: {requestedAt: {type: string, format: uuid}, userId: {type: string, format: uuid, description: Required for a public-community request}, decision: {type: string, enum: [APPROVE, DECLINE]}, reason: {type: string, maxLength: 500}}}
     AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
     MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid}, mentionUserId: {type: string, format: uuid}, messageType: {type: string}, fromAt: {type: string, format: date-time}, toAt: {type: string, format: date-time}, hasAttachment: {type: boolean}, isPinned: {type: boolean}, pageCursor: {type: string}, limit: {type: integer, minimum: 1, maximum: 100}}}
     NotificationPage: {type: object, required: [content, hasNext, hasContent], properties: {content: {type: array, items: {$ref: '#/components/schemas/NotificationView'}}, hasNext: {type: boolean}, hasContent: {type: boolean}}}

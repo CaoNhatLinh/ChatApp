@@ -1,6 +1,8 @@
 package com.chatapp.chat_service.canonical.appauth;
 
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.auth.RefreshTokenRepository;
+import com.chatapp.chat_service.canonical.device.DeviceRepository;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
@@ -22,17 +24,23 @@ public class AppRoleAdminService {
 
     private final AppRoleRepository roles;
     private final AppAuthorizationService authorization;
-    private final CanonicalCqlStore users;
+    private final UserRepository users;
+    private final RefreshTokenRepository sessions;
+    private final DeviceRepository devices;
     private final CanonicalEventRecorder events;
 
     public AppRoleAdminService(
             AppRoleRepository roles,
             AppAuthorizationService authorization,
-            CanonicalCqlStore users,
+            UserRepository users,
+            RefreshTokenRepository sessions,
+            DeviceRepository devices,
             CanonicalEventRecorder events) {
         this.roles = roles;
         this.authorization = authorization;
         this.users = users;
+        this.sessions = sessions;
+        this.devices = devices;
         this.events = events;
     }
 
@@ -47,7 +55,7 @@ public class AppRoleAdminService {
         requireReason(reason);
         String roleCode = normalizeRole(requestedRoleCode);
         requireSuperAdminForSuperAdminMutation(actorId, roleCode);
-        if (users.findUserById(userId) == null) {
+        if (users.findById(userId) == null) {
             throw new NotFoundException("user not found");
         }
         if (roles.findRoles(userId).stream().anyMatch(role -> role.roleCode().equals(roleCode))) {
@@ -89,56 +97,60 @@ public class AppRoleAdminService {
         }
         authorization.require(actorId,
                 "ACTIVE".equals(status) ? AppPermission.USER_RESTORE : AppPermission.USER_SUSPEND);
-        var current = users.findUserById(userId);
+        var current = users.findById(userId);
         if (current == null) {
             throw new NotFoundException("user not found");
         }
         if (status.equals(current.accountStatus())) {
             return current;
         }
-        var updated = users.updateUserAccountStatus(userId, status, Instant.now());
+        var updated = users.updateAccountStatus(userId, status, Instant.now());
         events.record(actorId, null, "USER_ACCOUNT_STATUS_UPDATE", "user", userId.toString(), userId, reason,
                 Map.of("accountStatus", String.valueOf(current.accountStatus())),
                 Map.of("accountStatus", status));
         return updated;
     }
 
-    public List<CanonicalCqlStore.RefreshTokenSessionRow> listSessions(UUID actorId, UUID userId, int limit) {
+    public List<RefreshTokenRepository.Session> listSessions(UUID actorId, UUID userId, int limit) {
         authorization.require(actorId, AppPermission.USER_READ);
         requireUser(userId);
-        return users.listRefreshTokens(userId, limit);
+        return sessions.findSessions(userId, limit);
     }
 
     public void revokeSession(UUID actorId, UUID userId, UUID tokenId, String reason) {
         authorization.require(actorId, AppPermission.SESSION_REVOKE);
         requireReason(reason);
         requireUser(userId);
-        if (!users.revokeRefreshTokenForUser(userId, tokenId, Instant.now())) {
+        if (!sessions.revokeForUser(userId, tokenId, Instant.now())) {
             throw new NotFoundException("active session not found");
         }
         events.record(actorId, null, "USER_SESSION_REVOKED", "user", userId.toString(), userId, reason,
                 Map.of("tokenId", tokenId.toString()), Map.of("revoked", "true"));
     }
 
-    public List<CanonicalCqlStore.DeviceSessionRow> listDevices(UUID actorId, UUID userId, int limit) {
+    public List<DeviceRepository.DeviceSession> listDevices(UUID actorId, UUID userId, int limit) {
         authorization.require(actorId, AppPermission.USER_READ);
         requireUser(userId);
-        return users.listDevices(userId, limit);
+        return devices.findByUser(userId, limit);
     }
 
     public void revokeDevice(UUID actorId, UUID userId, UUID deviceId, String reason) {
         authorization.require(actorId, AppPermission.SESSION_REVOKE);
         requireReason(reason);
         requireUser(userId);
-        if (!users.revokeDeviceForUser(userId, deviceId, Instant.now())) {
+        Instant now = Instant.now();
+        if (!devices.deactivate(userId, deviceId, now)) {
             throw new NotFoundException("active device not found");
         }
+        sessions.findSessions(userId, 200).stream()
+                .filter(item -> deviceId.equals(item.deviceId()) && item.revokedAt() == null)
+                .forEach(item -> sessions.revokeForUser(userId, item.tokenId(), now));
         events.record(actorId, null, "USER_DEVICE_REVOKED", "user", userId.toString(), userId, reason,
                 Map.of("deviceId", deviceId.toString()), Map.of("revoked", "true"));
     }
 
     private void requireUser(UUID userId) {
-        if (users.findUserById(userId) == null) {
+        if (users.findById(userId) == null) {
             throw new NotFoundException("user not found");
         }
     }

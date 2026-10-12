@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { User, Lock, UserCircle, UserPlus, ArrowLeft, Mail } from "lucide-react";
+import { User, Lock, UserCircle, ArrowLeft, Mail } from "lucide-react";
 import { useRegisterForm } from "../hooks/useRegisterForm";
 import { AuthField } from "@/features/auth/ui/components/AuthField";
 import { localizeText } from "@/shared/i18n";
+import { Button } from "@/shared/ui/Button";
+import { GoogleAuthPanel } from './GoogleAuthPanel';
 
 export const RegisterForm: React.FC = () => {
+  const [googleOnboarding, setGoogleOnboarding] = useState(false);
   const {
     displayName,
     setDisplayName,
@@ -21,7 +24,9 @@ export const RegisterForm: React.FC = () => {
   } = useRegisterForm();
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <div className="space-y-5">
+      {!googleOnboarding ? (
+        <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <AuthField
         label={localizeText("Họ và tên")}
         icon={<UserCircle size={18} />}
@@ -76,20 +81,13 @@ export const RegisterForm: React.FC = () => {
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={loading}
-        className="focus-ring flex h-11 w-full items-center justify-center gap-3 rounded-[var(--radius-md)] bg-primary py-3 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px disabled:opacity-55"
+        loading={loading}
+        className="h-12 w-full"
       >
-        {loading ? (
-          <div className="w-5 h-5 border-3 border-primary-foreground/35 border-t-primary-foreground rounded-full animate-spin" />
-        ) : (
-          <>
-            <span>{localizeText("Tạo tài khoản")}</span>
-            <UserPlus size={18} />
-          </>
-        )}
-      </button>
+        {loading ? localizeText("Đang tạo tài khoản...") : localizeText("Tạo tài khoản")}
+      </Button>
 
       <div className="pt-2 text-center">
         <Link
@@ -100,7 +98,10 @@ export const RegisterForm: React.FC = () => {
           {localizeText("Quay lại đăng nhập")}
         </Link>
       </div>
-    </form>
+        </form>
+      ) : null}
+      <GoogleAuthPanel onOnboardingChange={setGoogleOnboarding} />
+    </div>
   );
 };
 

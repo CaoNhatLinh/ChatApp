@@ -290,6 +290,14 @@ const captureRoute = async (browser, viewport, capture) => {
   }
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}.png`, fullPage: true });
+  if (viewport.name === 'mobile') {
+    await page.screenshot({ path: `${outputDirectory}/${capture.slug}-${viewport.name}-viewport.png`, fullPage: false });
+    if (capture.slug === 'admin') {
+      await page.getByRole('button', { name: /Khu vực đang mở/ }).click();
+      await page.screenshot({ path: `${outputDirectory}/admin-mobile-workspace-menu.png`, fullPage: false });
+      await page.getByRole('button', { name: /Khu vực đang mở/ }).click();
+    }
+  }
   let settingsModalClosed = null;
   let settingsModalFocusContained = null;
   let settingsModalScrollLocked = null;
@@ -303,6 +311,7 @@ const captureRoute = async (browser, viewport, capture) => {
       const backButton = dialog.getByRole('button', { name: 'Quay lại', exact: true });
       await backButton.waitFor({ state: 'visible' });
       await page.screenshot({ path: `${outputDirectory}/settings-modal-detail-mobile.png`, fullPage: true });
+      await page.screenshot({ path: `${outputDirectory}/settings-modal-detail-mobile-viewport.png`, fullPage: false });
       await backButton.click();
       await appearanceTab.waitFor({ state: 'visible' });
       settingsMobileLayers = true;

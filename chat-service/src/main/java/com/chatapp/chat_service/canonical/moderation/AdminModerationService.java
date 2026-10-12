@@ -3,6 +3,7 @@ package com.chatapp.chat_service.canonical.moderation;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.ConflictException;
@@ -25,16 +26,22 @@ public class AdminModerationService {
 
     private final ModerationRepository repository;
     private final CanonicalCqlStore store;
+    private final UserRepository users;
+    private final ConversationModerationRepository conversationModeration;
     private final AppAuthorizationService authorization;
     private final CanonicalEventRecorder events;
 
     public AdminModerationService(
             ModerationRepository repository,
             CanonicalCqlStore store,
+            UserRepository users,
+            ConversationModerationRepository conversationModeration,
             AppAuthorizationService authorization,
             CanonicalEventRecorder events) {
         this.repository = repository;
         this.store = store;
+        this.users = users;
+        this.conversationModeration = conversationModeration;
         this.authorization = authorization;
         this.events = events;
     }
@@ -83,7 +90,7 @@ public class AdminModerationService {
 
     public List<ModerationRepository.SanctionRow> listSanctions(UUID actorId, UUID userId, int limit) {
         authorization.require(actorId, AppPermission.REPORT_MANAGE);
-        if (store.findUserById(userId) == null) throw new NotFoundException("user not found");
+        if (users.findById(userId) == null) throw new NotFoundException("user not found");
         return repository.listSanctions(userId, limit);
     }
 
@@ -91,18 +98,26 @@ public class AdminModerationService {
         authorization.require(actorId, AppPermission.REPORT_MANAGE);
         if (request == null || request.userId() == null) throw new BadRequestException("userId is required");
         if (actorId.equals(request.userId())) throw new ConflictException("cannot sanction your own account");
-        if (store.findUserById(request.userId()) == null) throw new NotFoundException("user not found");
+        if (users.findById(request.userId()) == null) throw new NotFoundException("user not found");
         String scope = normalize(request.scope(), SANCTION_SCOPES, "scope");
         String type = normalize(request.sanctionType(), SANCTION_TYPES, "sanctionType");
         if ("APP".equals(scope) && request.conversationId() != null) {
             throw new BadRequestException("APP sanctions cannot include conversationId");
         }
-        if ("CONVERSATION".equals(scope) && (request.conversationId() == null
-                || store.findConversation(request.conversationId()) == null)) {
-            throw new NotFoundException("conversation not found");
-        }
-        if ("CONVERSATION".equals(scope) && store.findConversationMember(request.conversationId(), request.userId()) == null) {
-            throw new NotFoundException("conversation member not found");
+        if ("CONVERSATION".equals(scope)) {
+            if (request.conversationId() == null) {
+                throw new NotFoundException("conversation not found");
+            }
+            var conversation = store.findConversation(request.conversationId());
+            if (conversation == null) {
+                throw new NotFoundException("conversation not found");
+            }
+            if (request.userId().equals(conversation.ownerId())) {
+                throw new ConflictException("conversation owner cannot be sanctioned");
+            }
+            if (store.findConversationMember(request.conversationId(), request.userId()) == null) {
+                throw new NotFoundException("conversation member not found");
+            }
         }
         String reasonText = request.reasonText() == null ? "" : request.reasonText().trim();
         if (reasonText.isBlank() || reasonText.length() > 500) {
@@ -123,12 +138,13 @@ public class AdminModerationService {
                 request.userId(), scope, request.conversationId(), type, startsAt, request.expiresAt(),
                 actorId, request.reasonCode(), reasonText);
         if ("APP".equals(scope) && "BAN".equals(type) && !startsAt.isAfter(now)) {
-            store.updateUserAccountStatus(request.userId(), "BANNED", Instant.now());
+            users.updateAccountStatus(request.userId(), "BANNED", Instant.now());
         } else if ("APP".equals(scope) && "SUSPEND".equals(type) && !startsAt.isAfter(now)) {
-            store.updateUserAccountStatus(request.userId(), "SUSPENDED", Instant.now());
+            users.updateAccountStatus(request.userId(), "SUSPENDED", Instant.now());
         } else if ("CONVERSATION".equals(scope) && ("BAN".equals(type) || "SUSPEND".equals(type))) {
-            store.banUserInConversation(request.conversationId(), request.userId(), actorId,
+            conversationModeration.ban(request.conversationId(), request.userId(), actorId,
                     request.reasonCode(), reasonText, request.expiresAt());
+            store.tryRemoveConversationMember(request.conversationId(), request.userId());
         } else if ("CONVERSATION".equals(scope) && "MUTE".equals(type)) {
             store.updateMemberChatPolicy(request.conversationId(), request.userId(), request.expiresAt(), null);
         }
@@ -148,21 +164,21 @@ public class AdminModerationService {
         ModerationRepository.SanctionRow revoked = repository.revokeSanction(actorId, userId, imposedAt, sanctionId);
         if (revoked == null) throw new NotFoundException("active sanction not found");
         if ("APP".equals(revoked.scope()) && ("BAN".equals(revoked.sanctionType()) || "SUSPEND".equals(revoked.sanctionType()))) {
-            var current = store.findUserById(userId);
+            var current = users.findById(userId);
             String expectedStatus = "BAN".equals(revoked.sanctionType()) ? "BANNED" : "SUSPENDED";
             if (current != null && expectedStatus.equalsIgnoreCase(current.accountStatus())
                     && !repository.hasActiveAppAccountLock(userId, Instant.now())) {
-                store.updateUserAccountStatus(userId, "ACTIVE", Instant.now());
+                users.updateAccountStatus(userId, "ACTIVE", Instant.now());
             }
         } else if ("CONVERSATION".equals(revoked.scope()) && ("BAN".equals(revoked.sanctionType()) || "SUSPEND".equals(revoked.sanctionType()))) {
             if (revoked.expiresAt() != null) {
-                store.clearConversationBanIfExpiresAt(revoked.conversationId(), userId, revoked.expiresAt());
+                conversationModeration.clearBanIfUnchanged(revoked.conversationId(), userId, revoked.expiresAt());
             } else {
-                store.clearConversationBan(revoked.conversationId(), userId);
+                conversationModeration.clearBan(revoked.conversationId(), userId);
             }
         } else if ("CONVERSATION".equals(revoked.scope()) && "MUTE".equals(revoked.sanctionType())) {
             if (revoked.expiresAt() != null) {
-                store.clearMemberMuteIfExpiresAt(revoked.conversationId(), userId, revoked.expiresAt());
+                conversationModeration.clearMuteIfUnchanged(revoked.conversationId(), userId, revoked.expiresAt());
             } else {
                 store.updateMemberChatPolicy(revoked.conversationId(), userId, null, null);
             }

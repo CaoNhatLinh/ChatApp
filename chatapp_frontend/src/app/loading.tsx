@@ -1,13 +1,14 @@
 'use client';
 
 import { localizeText, useAppLocale } from '@/shared/i18n';
+import { BrandText } from '@/shared/ui/BrandWord';
 
 export default function Loading() {
   useAppLocale();
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground" aria-live="polite">
       <img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
-      <p className="text-sm font-semibold text-muted-foreground">{localizeText('Đang tải Nối…')}</p>
+      <p className="text-sm font-semibold text-muted-foreground"><BrandText text={localizeText('Đang tải Nối…')} /></p>
     </main>
   );
 }

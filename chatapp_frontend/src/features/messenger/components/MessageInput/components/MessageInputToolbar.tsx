@@ -55,21 +55,21 @@ export const MessageInputToolbar = ({
               <Plus size={20} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="min-w-48 border-white/10 bg-[#111922] text-slate-100">
-            <DropdownMenuItem onSelect={onAttachFile} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+          <DropdownMenuContent align="start" side="top" className="glass min-w-48 border-border/70 bg-card text-foreground">
+            <DropdownMenuItem onSelect={onAttachFile} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
               <Paperclip size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.attachFile}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onAttachMedia} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+            <DropdownMenuItem onSelect={onAttachMedia} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
               <Image size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.attachMedia}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onOpenPoll} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+            <DropdownMenuItem onSelect={onOpenPoll} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
               <BarChart3 size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.createPoll}
             </DropdownMenuItem>
             {canShowVoice ? (
-              <DropdownMenuItem onSelect={onShowVoice} className="gap-2.5 py-2.5 focus:bg-white/8 focus:text-slate-50">
+              <DropdownMenuItem onSelect={onShowVoice} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
                 <Mic size={16} aria-hidden="true" />
                 {MESSENGER_COPY.messageInput.toolbar.callVoice}
               </DropdownMenuItem>

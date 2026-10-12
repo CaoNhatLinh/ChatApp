@@ -1,9 +1,11 @@
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const captureVisualAudit = process.env.VISUAL_AUDIT_CAPTURE === '1';
 const captureDirectory = 'artifacts/ui-audit/current';
+const smokeTheme = process.env.SMOKE_THEME === 'dark' ? 'dark' : 'light';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000501';
@@ -146,9 +148,10 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   return json({ content: [], userDetails: [], hasNext: false });
 });
 
-await page.addInitScript(() => {
+await page.addInitScript((theme) => {
   document.cookie = 'novachat_session=1; Path=/; SameSite=Lax';
-});
+  localStorage.setItem('themePreference', theme);
+}, smokeTheme);
 
 await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded' });
 await page.getByText('Poll Verification', { exact: true }).first().click();
@@ -166,9 +169,10 @@ await page.getByRole('menuitem', { name: 'Tạo bình chọn', exact: true }).cl
 const dialog = page.getByRole('dialog', { name: 'Tạo bình chọn' });
 if (captureVisualAudit) {
   await mkdir(captureDirectory, { recursive: true });
-  await page.screenshot({ path: `${captureDirectory}/poll-create-desktop.png`, fullPage: true });
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: `${captureDirectory}/poll-create-${smokeTheme}-desktop.png`, fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: `${captureDirectory}/poll-create-mobile.png`, fullPage: true });
+  await page.screenshot({ path: `${captureDirectory}/poll-create-${smokeTheme}-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 await dialog.getByLabel('Câu hỏi').fill('Ngày họp tiếp theo?');
@@ -186,7 +190,7 @@ await dialog.waitFor({ state: 'detached' });
 await messageRow.getByRole('button', { name: 'Đóng bình chọn' }).click();
 await messageRow.getByText('Đã đóng', { exact: true }).waitFor();
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await messageRow.getByText('Poll', { exact: true }).waitFor();
 await messageRow.getByText('Closed', { exact: true }).waitFor();
 await page.setViewportSize({ width: 390, height: 844 });

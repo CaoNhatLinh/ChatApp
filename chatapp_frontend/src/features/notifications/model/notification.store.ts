@@ -61,6 +61,7 @@ type NotificationDeleteEvent =
 const notificationTypes = new Set<NotificationRecord['type']>([
   'FRIEND_REQUEST', 'MESSAGE', 'SYSTEM', 'MENTION', 'REACTION',
   'CONVERSATION_INVITE', 'POLL', 'PIN_MESSAGE', 'REPLY',
+  'JOIN_REQUEST_APPROVED', 'JOIN_REQUEST_DECLINED',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.social;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.canonical.service.FriendRequestNotificationService;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ class FriendshipServiceTest {
     @Mock
     private CanonicalEventRecorder eventRecorder;
     @Mock
-    private CanonicalCqlStore cqlStore;
+    private UserRepository cqlStore;
     @Mock
     private FriendshipRepository repository;
     @Mock
@@ -38,7 +38,7 @@ class FriendshipServiceTest {
         when(repository.listFriendshipByStatus(actorId, "ACCEPTED", 25))
                 .thenReturn(List.of(new FriendshipRepository.FriendProjectionRow(
                         friendId, "ACCEPTED", UUID.randomUUID(), Instant.now(), Instant.now())));
-        when(cqlStore.findUserById(friendId)).thenReturn(user(friendId, "friend"));
+        when(cqlStore.findById(friendId)).thenReturn(user(friendId, "friend"));
 
         var response = service().listStatus(actorId, "accepted", 25);
 
@@ -55,7 +55,7 @@ class FriendshipServiceTest {
         when(repository.listBlockedUsers(actorId, 25))
                 .thenReturn(List.of(new FriendshipRepository.BlockRow(
                         actorId, blockedUserId, Instant.now(), "spam")));
-        when(cqlStore.findUserById(blockedUserId)).thenReturn(user(blockedUserId, "blocked"));
+        when(cqlStore.findById(blockedUserId)).thenReturn(user(blockedUserId, "blocked"));
 
         var response = service().listStatus(actorId, "blocked", 25);
 

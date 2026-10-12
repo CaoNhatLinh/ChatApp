@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { User, Lock, Eye, EyeOff, LogIn } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { useLoginForm } from "../hooks/useLoginForm";
 import { AuthField } from "@/features/auth/ui/components/AuthField";
 import { localizeText } from "@/shared/i18n";
+import { Button } from "@/shared/ui/Button";
+import { GoogleAuthPanel } from './GoogleAuthPanel';
 
 export const LoginForm: React.FC = () => {
+  const [googleOnboarding, setGoogleOnboarding] = useState(false);
   const {
     username,
     setUsername,
@@ -19,7 +22,9 @@ export const LoginForm: React.FC = () => {
   } = useLoginForm();
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" noValidate>
+    <div className="space-y-5">
+      {!googleOnboarding ? (
+        <form onSubmit={onSubmit} className="space-y-5" noValidate>
       <AuthField
         label={localizeText("Tên đăng nhập")}
         icon={<User size={18} />}
@@ -40,7 +45,7 @@ export const LoginForm: React.FC = () => {
         onValueChange={(e) => setPassword(e.target.value)}
         disabled={loading}
         required
-        placeholder="••••••••"
+        placeholder={localizeText("Nhập mật khẩu")}
         rightAction={
           <button
             type="button"
@@ -59,22 +64,15 @@ export const LoginForm: React.FC = () => {
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={loading}
-        className="focus-ring flex h-11 w-full items-center justify-center gap-3 rounded-[var(--radius-md)] bg-primary py-3 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px disabled:opacity-55"
+        loading={loading}
+        className="h-12 w-full"
       >
-        {loading ? (
-          <div className="w-5 h-5 border-3 border-primary-foreground/35 border-t-primary-foreground rounded-full animate-spin" />
-        ) : (
-          <>
-            <span>{localizeText("Đăng nhập")}</span>
-            <LogIn size={18} />
-          </>
-        )}
-      </button>
+        {loading ? localizeText("Đang đăng nhập...") : localizeText("Đăng nhập")}
+      </Button>
 
-      <div className="pt-4 text-center">
+      <div className="pt-3 text-center">
         <p className="text-xs text-muted-foreground font-medium">
           {localizeText("Chưa có tài khoản?")} {" "}
           <Link href="/register" className="text-primary font-bold hover:underline">
@@ -82,7 +80,10 @@ export const LoginForm: React.FC = () => {
           </Link>
         </p>
       </div>
-    </form>
+        </form>
+      ) : null}
+      <GoogleAuthPanel onOnboardingChange={setGoogleOnboarding} />
+    </div>
   );
 };
 

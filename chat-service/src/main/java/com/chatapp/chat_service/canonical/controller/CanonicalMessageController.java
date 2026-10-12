@@ -2,7 +2,7 @@ package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.message.MessageService;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -30,11 +30,11 @@ import java.util.UUID;
 public class CanonicalMessageController {
     private static final String BUCKET_PATTERN = "\\d{4}-\\d{2}-\\d{2}-\\d{2}:\\d{2}";
 
-    private final CanonicalBackendService backend;
+    private final MessageService messages;
     private final SecurityContextHelper securityContext;
 
-    public CanonicalMessageController(CanonicalBackendService backend, SecurityContextHelper securityContext) {
-        this.backend = backend;
+    public CanonicalMessageController(MessageService messages, SecurityContextHelper securityContext) {
+        this.messages = messages;
         this.securityContext = securityContext;
     }
 
@@ -42,7 +42,7 @@ public class CanonicalMessageController {
     public ResponseEntity<CanonicalMessage> send(
             @PathVariable UUID conversationId,
             @Valid @RequestBody CanonicalApiContracts.MessageSendRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(backend.sendMessage(actorId(), conversationId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(messages.sendMessage(actorId(), conversationId, request));
     }
 
     @GetMapping
@@ -50,7 +50,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit,
             @RequestParam(required = false) String cursor) {
-        return backend.listMessageHistory(actorId(), conversationId, limit, cursor);
+        return messages.listMessageHistory(actorId(), conversationId, limit, cursor);
     }
 
     @GetMapping("/{messageId}")
@@ -58,7 +58,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.getMessage(actorId(), conversationId, bucket, messageId);
+        return messages.getMessage(actorId(), conversationId, bucket, messageId);
     }
 
     @PutMapping("/{messageId}")
@@ -67,7 +67,7 @@ public class CanonicalMessageController {
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
             @RequestBody CanonicalApiContracts.MessageUpdateRequest request) {
-        return backend.editMessage(actorId(), conversationId, bucket, messageId, request);
+        return messages.editMessage(actorId(), conversationId, bucket, messageId, request);
     }
 
     @DeleteMapping("/{messageId}")
@@ -75,7 +75,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.deleteMessage(actorId(), conversationId, bucket, messageId);
+        return messages.deleteMessage(actorId(), conversationId, bucket, messageId);
     }
 
     @PostMapping("/{messageId}/reactions")
@@ -84,7 +84,7 @@ public class CanonicalMessageController {
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
             @RequestBody CanonicalApiContracts.MessageReactionRequest request) {
-        backend.reaction(actorId(), conversationId, bucket, messageId, request);
+        messages.reaction(actorId(), conversationId, bucket, messageId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -94,7 +94,7 @@ public class CanonicalMessageController {
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
             @RequestParam String emoji) {
-        backend.removeReaction(actorId(), conversationId, bucket, messageId, emoji);
+        messages.removeReaction(actorId(), conversationId, bucket, messageId, emoji);
         return ResponseEntity.noContent().build();
     }
 
@@ -103,7 +103,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        backend.markMessageRead(actorId(), conversationId, bucket, messageId);
+        messages.markMessageRead(actorId(), conversationId, bucket, messageId);
         return ResponseEntity.noContent().build();
     }
 
@@ -114,7 +114,7 @@ public class CanonicalMessageController {
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
             @RequestParam(defaultValue = "25") @Min(1) @Max(50) int limit,
             @RequestParam(required = false) UUID cursor) {
-        return backend.listMessageReadReceipts(actorId(), conversationId, bucket, messageId, limit, cursor);
+        return messages.listMessageReadReceipts(actorId(), conversationId, bucket, messageId, limit, cursor);
     }
 
     @GetMapping("/{messageId}/revisions")
@@ -122,7 +122,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.listMessageRevisions(actorId(), conversationId, bucket, messageId);
+        return messages.listMessageRevisions(actorId(), conversationId, bucket, messageId);
     }
 
     @PostMapping("/{messageId}/pin")
@@ -130,7 +130,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.pinMessage(actorId(), conversationId, bucket, messageId);
+        return messages.pinMessage(actorId(), conversationId, bucket, messageId);
     }
 
     @DeleteMapping("/{messageId}/pin")
@@ -138,7 +138,7 @@ public class CanonicalMessageController {
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return backend.unpinMessage(actorId(), conversationId, bucket, messageId);
+        return messages.unpinMessage(actorId(), conversationId, bucket, messageId);
     }
 
     private UUID actorId() {

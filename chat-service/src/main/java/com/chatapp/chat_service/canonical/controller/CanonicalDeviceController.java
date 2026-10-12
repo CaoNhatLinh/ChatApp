@@ -1,8 +1,8 @@
 package com.chatapp.chat_service.canonical.controller;
 
-import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.device.DeviceService;
+import com.chatapp.chat_service.canonical.device.DeviceRegistrationRequest;
+import com.chatapp.chat_service.canonical.device.DeviceRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -17,23 +17,23 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/devices")
 public class CanonicalDeviceController {
-    private final CanonicalBackendService backend;
+    private final DeviceService devices;
     private final SecurityContextHelper securityContext;
 
-    public CanonicalDeviceController(CanonicalBackendService backend, SecurityContextHelper securityContext) {
-        this.backend = backend;
+    public CanonicalDeviceController(DeviceService devices, SecurityContextHelper securityContext) {
+        this.devices = devices;
         this.securityContext = securityContext;
     }
 
     @PostMapping
-    public CanonicalCqlStore.DeviceSessionRow register(
-            @Valid @RequestBody CanonicalApiContracts.DeviceRegistrationRequest request) {
-        return backend.registerDevice(actorId(), request);
+    public DeviceRepository.DeviceSession register(
+            @Valid @RequestBody DeviceRegistrationRequest request) {
+        return devices.register(actorId(), request);
     }
 
     @PostMapping("/{deviceId}/heartbeat")
     public ResponseEntity<Void> heartbeat(@PathVariable UUID deviceId) {
-        backend.touchDevice(actorId(), deviceId);
+        devices.heartbeat(actorId(), deviceId);
         return ResponseEntity.noContent().build();
     }
 

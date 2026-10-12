@@ -3,7 +3,7 @@ package com.chatapp.chat_service.canonical.service;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.RoomAuditPage;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomEvent;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.audit.AuditRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 class RoomAuditServiceTest {
 
-    private final CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+    private final AuditRepository store = mock(AuditRepository.class);
     private final ConversationAuthorizationService authorization = mock(ConversationAuthorizationService.class);
     private final RoomAuditService service = new RoomAuditService(store, authorization);
 
@@ -32,7 +32,7 @@ class RoomAuditServiceTest {
         UUID secondId = UUID.fromString("c8a4f8b0-65df-11f1-8000-000000000002");
         CanonicalRoomEvent first = event(conversationId, firstId, "ROLE_UPDATED");
         CanonicalRoomEvent second = event(conversationId, secondId, "MEMBER_CHAT_POLICY_UPDATE");
-        when(store.listRoomEvents(conversationId, "2026-08", null, 2))
+        when(store.findRoomEvents(conversationId, "2026-08", null, 2))
                 .thenReturn(List.of(first, second));
 
         RoomAuditPage page = service.list(actorId, conversationId, "2026-08", null, 1);

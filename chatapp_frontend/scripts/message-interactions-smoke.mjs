@@ -10,12 +10,15 @@ const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000401';
 const conversationId = '00000000-0000-0000-0000-000000000402';
 const messageId = '40000000-0000-0000-0000-000000000403';
-const messageBucket = '2026-08-30T12:00:00Z';
+const messageBucket = '2026-08-30-12:03';
 const createdAt = '2026-08-30T12:05:00Z';
 const latestReadAt = '2026-08-30T12:08:00Z';
 const firstReaderId = '40000000-0000-0000-0000-000000000404';
 const secondReaderId = '40000000-0000-0000-0000-000000000405';
+const mentionTargetId = '40000000-0000-0000-0000-000000000406';
 const readReceiptRequests = [];
+const mentionSendRequests = [];
+const memberRequests = [];
 
 const operator = {
   userId: ownerId,
@@ -103,6 +106,36 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       polls: [],
     });
   }
+  if (path.endsWith(`/conversations/${conversationId}/members`) && method === 'GET') {
+    memberRequests.push(request.url());
+    return json({
+      content: [{
+        userId: mentionTargetId,
+        conversationId,
+        role: 'member',
+        roleIds: [],
+        joinedAt: createdAt,
+        username: 'mention-target',
+        displayName: 'Mention Target',
+        avatarUrl: null,
+        mutedUntil: null,
+        messageIntervalSeconds: null,
+      }],
+      nextCursor: null,
+      hasNext: false,
+    });
+  }
+  if (path.endsWith(`/conversations/${conversationId}/messages`) && method === 'POST') {
+    const payload = request.postDataJSON();
+    mentionSendRequests.push(payload);
+    return json({
+      ...message,
+      messageId: '40000000-0000-0000-0000-000000000407',
+      clientMessageId: payload.clientMessageId,
+      content: payload.content,
+      hasMentions: true,
+    }, 201);
+  }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}/read-receipts`) && method === 'GET') {
     const cursor = requestUrl.searchParams.get('cursor');
     readReceiptRequests.push({
@@ -177,6 +210,22 @@ if (JSON.stringify(readReceiptRequests) !== JSON.stringify([
   throw new Error(`Unexpected read receipt requests: ${JSON.stringify(readReceiptRequests)}`);
 }
 
+const composer = page.locator('textarea').last();
+await composer.fill('@mention');
+await page.waitForTimeout(500);
+await page.getByRole('button', { name: /Mention Target/ }).click();
+await composer.fill(`${await composer.inputValue()}hello`);
+await page.getByRole('button', { name: 'Gửi tin' }).click();
+await page.waitForTimeout(250);
+const sentMention = mentionSendRequests.at(-1);
+if (!sentMention
+  || sentMention.mentionedUserIds?.length !== 1
+  || sentMention.mentionedUserIds[0] !== mentionTargetId
+  || sentMention.mentionEveryone !== false
+  || !sentMention.content.includes(`|${mentionTargetId}]`)) {
+  throw new Error(`Mention payload was not canonical: ${JSON.stringify(sentMention)}`);
+}
+
 await messageRow.hover();
 await messageRow.getByRole('button', { name: 'Tùy chọn khác' }).click();
 await page.getByRole('menuitem', { name: 'Ghim' }).click();
@@ -225,7 +274,7 @@ await messageRow.hover();
 await messageRow.getByRole('button', { name: 'More options' }).click();
 await page.getByRole('menuitem', { name: 'Pin' }).waitFor();
 
-const report = { baseUrl, pinRequests, reactionRequests, readReceiptRequests, consoleErrors, requestFailures };
+const report = { baseUrl, pinRequests, reactionRequests, readReceiptRequests, mentionSendRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
@@ -244,6 +293,9 @@ if (
     { cursor: null, limit: '25' },
     { cursor: firstReaderId, limit: '25' },
   ])
+  || mentionSendRequests.length !== 1
+  || mentionSendRequests[0].mentionedUserIds?.[0] !== mentionTargetId
+  || mentionSendRequests[0].mentionEveryone !== false
   || consoleErrors.length
   || requestFailures.length
 ) process.exitCode = 1;

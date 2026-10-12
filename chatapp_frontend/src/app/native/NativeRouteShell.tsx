@@ -4,12 +4,14 @@ import type { ReactNode } from 'react';
 import { AuthProvider } from '@/app/providers/AuthProvider';
 import { PresenceManager } from '@/app/providers/PresenceManager';
 import { ThemeProvider } from '@/app/providers/ThemeProvider';
-import { AppI18nProvider, localizeText } from '@/shared/i18n';
+import { AppI18nProvider } from '@/shared/i18n';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
 import { NetworkStatusBanner } from '@/shared/ui/NetworkStatusBanner';
 import { AppToaster } from '@/shared/ui/AppToaster';
+import { BrandWord } from '@/shared/ui/BrandWord';
 import { useEffect, useState } from 'react';
+import { AuthSessionRecovery } from '@/features/auth/ui/AuthSessionRecovery';
 
 interface NativeRouteShellProps {
   children: ReactNode;
@@ -18,6 +20,7 @@ interface NativeRouteShellProps {
 
 export function NativeRouteShell({ children, sessionAware = false }: NativeRouteShellProps) {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const initializationError = useAuthStore((state) => state.initializationError);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -33,10 +36,10 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
   return (
     <AppI18nProvider>
       {!mounted ? (
-        <div className="page-shell flex min-h-[100dvh] items-center justify-center p-6" aria-busy="true" aria-label={localizeText('Đang khởi tạo Nối')}>
+        <div className="page-shell flex min-h-[100dvh] items-center justify-center p-6" aria-busy="true" aria-label="Đang khởi tạo Nối">
           <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
             <img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />
-            {localizeText('Đang khởi tạo Nối')}
+            Đang khởi tạo <BrandWord variant="lockup" />
           </div>
         </div>
       ) : (
@@ -46,7 +49,7 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
             <DeviceLifecycleManager />
             <NetworkStatusBanner />
             <AppToaster />
-            {children}
+            {sessionAware && initializationError ? <AuthSessionRecovery /> : children}
           </AuthProvider>
         </ThemeProvider>
       )}

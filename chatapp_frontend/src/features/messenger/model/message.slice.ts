@@ -22,20 +22,17 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             isServerMessage = true;
         }
 
-        const now = Date.now();
         if (isServerMessage && message.sender) {
             if (existingIndex !== -1) {
                 updatedMessages = [...currentMessages];
-                updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], ...message };
+                const existing = updatedMessages[existingIndex];
+                updatedMessages[existingIndex] = existing.isDeleted ? existing : { ...existing, ...message };
             } else {
                 const tempIdx = currentMessages.findIndex(
-                    m => (message.clientMessageId && m.clientMessageId === message.clientMessageId)
-                        || (m.messageId && typeof m.messageId === 'string' && m.messageId.startsWith('temp-')
-                            && m.sender?.userId === message.sender?.userId
-                            && m.content === message.content
-                            && m.type === message.type
-                            && m.status === 'sending'
-                            && now - new Date(m.createdAt).getTime() < 120000)
+                    m => Boolean(message.clientMessageId)
+                        && m.clientMessageId === message.clientMessageId
+                        && m.messageId.startsWith('temp-')
+                        && m.sender?.userId === message.sender?.userId
                 );
                 if (tempIdx !== -1) {
                 updatedMessages = [...currentMessages];
@@ -47,7 +44,8 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         } else {
             if (existingIndex !== -1) {
                 updatedMessages = [...currentMessages];
-                updatedMessages[existingIndex] = { ...updatedMessages[existingIndex], ...message };
+                const existing = updatedMessages[existingIndex];
+                updatedMessages[existingIndex] = existing.isDeleted ? existing : { ...existing, ...message };
             } else {
                 updatedMessages = [...currentMessages, message];
             }
@@ -186,6 +184,8 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
     updateMessage: (conversationId, message) => set((state) => {
         const msgs = state.messages[conversationId];
         if (!msgs) return state;
+        const current = msgs.find(existing => existing.messageId === message.messageId);
+        if (current?.isDeleted && !message.isDeleted) return state;
         return {
             messages: {
                 ...state.messages,

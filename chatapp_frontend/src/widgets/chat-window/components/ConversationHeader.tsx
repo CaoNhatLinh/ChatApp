@@ -51,11 +51,11 @@ export const ConversationHeader = ({
             <ChevronLeft size={21} />
           </Button>
           <div className="relative">
-            <Avatar className="h-10 w-10 border border-white/10">
+            <Avatar className="h-10 w-10 border border-border/70 bg-background/45">
               <AvatarImage src={conversation.otherParticipant?.avatarUrl} alt="" />
               <AvatarFallback><DefaultUserAvatar alt={localizeText("Ảnh đại diện mặc định")} /></AvatarFallback>
             </Avatar>
-            {!isGroup && isOtherOnline ? <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d1720] bg-emerald-400" aria-label={localizeText("Đang trực tuyến")} /> : null}
+            {!isGroup && isOtherOnline ? <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" aria-label={localizeText("Đang trực tuyến")} /> : null}
           </div>
           <div className="min-w-0">
             <h2 className="truncate text-lg font-semibold tracking-tight">{title}</h2>

@@ -3,7 +3,7 @@ import { MessageItem } from "@/features/messenger/components/chat/MessageItem";
 import { TypingIndicator } from "@/features/messenger/components/chat/ui/TypingIndicator";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import type { Message } from "@/features/messenger/types/messenger.types";
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type { RoomVisualComputed } from "@/features/settings/constants/chat-theme.constants";
 import { motion } from "framer-motion";
 import { UI_MOTION_CONFIG, UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
@@ -23,6 +23,11 @@ interface MessageHistoryProps {
   onRetry: (messageId: string) => void;
 }
 
+type RoomHistoryStyle = CSSProperties & {
+  '--room-signal': string;
+  '--room-signal-foreground': string;
+};
+
 export const MessageHistory = ({
   activeConversationId,
   messages,
@@ -38,14 +43,16 @@ export const MessageHistory = ({
   onRetry,
 }: MessageHistoryProps) => {
   const roomBackground = roomVisual?.backgroundImage;
-  const roomStyle = roomVisual?.backgroundOverlay
+  const roomStyle: RoomHistoryStyle | undefined = roomVisual?.backgroundOverlay
     ? {
         backgroundImage: roomBackground
           ? `${roomVisual.backgroundOverlay}, url("${roomBackground}")`
           : roomVisual.backgroundOverlay,
         backgroundSize: roomBackground ? "cover" : undefined,
         backgroundPosition: roomBackground ? "center" : undefined,
-      }
+        '--room-signal': roomVisual.signalColor,
+        '--room-signal-foreground': roomVisual.signalForeground,
+      } as RoomHistoryStyle
     : undefined;
 
   return (
@@ -64,7 +71,7 @@ export const MessageHistory = ({
           <button
             onClick={onLoadMore}
             disabled={loading}
-            className="focus-ring inline-flex items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+            className="signal-control focus-ring inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-primary/25 bg-primary/5 px-4 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
             type="button"
           >
             {loading ? <Loader2 size={12} className="animate-spin" /> : MESSENGER_COPY.messageHistory.loadMore}

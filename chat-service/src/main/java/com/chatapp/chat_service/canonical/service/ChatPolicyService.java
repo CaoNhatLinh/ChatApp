@@ -5,6 +5,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalCon
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.moderation.ModerationRepository;
+import com.chatapp.chat_service.canonical.moderation.ConversationModerationRepository;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import com.chatapp.chat_service.common.exception.TooManyRequestsException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,16 +28,16 @@ public class ChatPolicyService {
             """, Long.class);
 
     private final StringRedisTemplate redis;
-    private final CanonicalCqlStore store;
+    private final ConversationModerationRepository conversationModeration;
     private final ModerationRepository moderation;
 
     @Autowired
     public ChatPolicyService(
             StringRedisTemplate redis,
-            CanonicalCqlStore store,
+            ConversationModerationRepository conversationModeration,
             ModerationRepository moderation) {
         this.redis = redis;
-        this.store = store;
+        this.conversationModeration = conversationModeration;
         this.moderation = moderation;
     }
 
@@ -45,7 +46,7 @@ public class ChatPolicyService {
             CanonicalConversationMember member,
             Set<ConversationPermission> permissions,
             UUID requestId) {
-        if (store.isConversationBanned(
+        if (conversationModeration.isBanned(
                 conversation.conversationId(), member.userId(), Instant.now())) {
             throw new ForbiddenException("member is banned from this conversation");
         }

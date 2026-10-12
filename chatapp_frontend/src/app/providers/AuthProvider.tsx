@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useShallow((state) => ({
       user: state.user,
       loading: state.loading,
+      initializationError: state.initializationError,
       token: state.token,
       login: state.login,
       logout: state.logout,

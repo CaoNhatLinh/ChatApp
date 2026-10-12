@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { prepareMessageSend, completeMessageSend } from './messageSendAttempt';
+import { getSessionGeneration, SessionChangedError } from '@/shared/auth/access-token';
 import { useShallow } from 'zustand/react/shallow';
 import { useMessengerStore, EMPTY_TYPING } from '@/features/messenger/model/messenger.store';
 import { realtimeService } from '@/shared/websocket/realtime-service';
@@ -473,20 +475,24 @@ export const useMessenger = (): UseMessengerResult => {
     const sendMessage = useCallback(async (
         content: string,
         type: MessageType = 'TEXT',
-        options?: Partial<Pick<SendMessageRequest, 'clientMessageId' | 'replyToId' | 'attachments'>>
+        options?: Partial<Pick<SendMessageRequest, 'clientMessageId' | 'replyToId' | 'mentions' | 'mentionEveryone' | 'attachments'>>
     ) => {
         const trimmedContent = content.trim();
         if (!activeConversationId || !user || (!trimmedContent && (!options?.attachments || options.attachments.length === 0))) return;
 
-        const clientMessageId = options?.clientMessageId ?? crypto.randomUUID();
-        const request: SendMessageRequest = {
-            clientMessageId,
+        const generation = getSessionGeneration();
+        const payload: Omit<SendMessageRequest, 'clientMessageId'> = {
             conversationId: activeConversationId,
             content: trimmedContent,
             type,
             replyToId: options?.replyToId,
+            mentions: options?.mentions,
+            mentionEveryone: options?.mentionEveryone,
             attachments: options?.attachments
         };
+        const clientMessageId = options?.clientMessageId ?? await prepareMessageSend(user.userId, payload);
+        if (generation !== getSessionGeneration()) throw new SessionChangedError();
+        const request: SendMessageRequest = { ...payload, clientMessageId };
 
         const tempId = `temp-${clientMessageId}`;
         const tempMessage: Message = {
@@ -510,7 +516,16 @@ export const useMessenger = (): UseMessengerResult => {
         upsertConversationFromMessage(tempMessage);
 
         try {
-            await sendMessageHttp(request);
+            const confirmed = await sendMessageHttp(request);
+            if (generation !== getSessionGeneration()) throw new SessionChangedError();
+            const delivered: Message = {
+                ...confirmed,
+                attachments: confirmed.attachments?.length ? confirmed.attachments : tempMessage.attachments,
+                status: 'sent',
+            };
+            addMessage(activeConversationId, delivered);
+            upsertConversationFromMessage(delivered);
+            if (!options?.clientMessageId) completeMessageSend(user.userId, activeConversationId, clientMessageId);
         } catch (err: unknown) {
             logger.error('[useMessenger] Error sending message', err instanceof Error ? err.message : String(err));
             updateMessageStatus(activeConversationId, tempId, 'failed');

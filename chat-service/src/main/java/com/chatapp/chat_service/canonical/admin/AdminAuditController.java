@@ -1,6 +1,6 @@
 package com.chatapp.chat_service.canonical.admin;
 
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.audit.AuditRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,7 +27,7 @@ public class AdminAuditController {
     }
 
     @GetMapping
-    public List<CanonicalCqlStore.AuditEventRow> list(
+    public List<AuditRepository.AuditEvent> list(
             @RequestParam(required = false) String month,
             @RequestParam(defaultValue = "50") int limit) {
         return audit.list(securityContext.getCurrentUserId(), month, limit);

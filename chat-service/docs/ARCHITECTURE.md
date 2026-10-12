@@ -17,11 +17,11 @@
 - **Cloudinary** is the configured binary provider; Cassandra stores immutable
   attachment snapshots and lifecycle metadata.
 
-The outbox publisher reads `outbox_pending_events_by_partition`, a pending-only
-Cassandra projection, so published rows cannot starve newer events behind a
-`LIMIT`. The immutable outbox row and pending-index lifecycle are updated in
-logged batches; Kafka acknowledgement is still required before removal from
-the pending index.
+The outbox publisher reads `outbox_pending_events_by_partition` through a small
+`OutboxRepository`, so published rows cannot starve newer events behind a
+`LIMIT`. Kafka sends each bounded poll batch concurrently. Results are still
+applied per event, and acknowledgement is required before removal from the
+pending index.
 
 ## Canonical write flow
 
@@ -32,6 +32,23 @@ rate-limit checks -> Cassandra authoritative write + projections + audit/outbox
 Every query is bounded by its declared partition key and cursor. No Cassandra
 scan, `ALLOW FILTERING`, offset pagination, in-memory fake store or legacy API
 alias is part of the runtime.
+
+## Module boundaries
+
+The runtime remains a modular monolith. `auth`, `user`, `device`, `appearance`,
+`notification`, `community`, `invite`, `message` and `poll` own their
+controllers, validation and application orchestration. `ConversationService`
+owns only conversation lifecycle, membership and room policy. `MessageService`
+owns message commands, history, interactions, read state and message-triggered
+notifications. Shared membership repair is exposed through
+`ConversationMembershipService` instead of duplicating projection writes.
+
+Application orchestration must not depend directly on Spring WebSocket or Kafka
+clients. It publishes through application-owned ports. STOMP adapters own
+realtime destination assembly, while the Kafka adapter owns producer records,
+batch dispatch and acknowledgement. Cassandra outbox polling owns only bounded
+pending-event lifecycle.
+See ADR 0011.
 
 ## Realtime and calls
 

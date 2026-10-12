@@ -3,7 +3,7 @@ package com.chatapp.chat_service.canonical.admin;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.message.MessageRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 class AdminMessageServiceTest {
-    private final CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+    private final MessageRepository store = mock(MessageRepository.class);
     private final AppAuthorizationService authorization = mock(AppAuthorizationService.class);
     private final CanonicalEventRecorder events = mock(CanonicalEventRecorder.class);
     private final AdminMessageService service = new AdminMessageService(store, authorization, events);
@@ -36,8 +36,8 @@ class AdminMessageServiceTest {
                 conversationId, bucket, messageId, UUID.randomUUID(), "TEXT", "hello", "PLAIN",
                 null, null, null, null, null, null, null, null, false, null, null, null,
                 false, false, false, Instant.now(), UUID.randomUUID());
-        when(store.findMessage(conversationId, bucket, messageId)).thenReturn(message);
-        when(store.listMessageRevisions(conversationId, bucket, messageId)).thenReturn(List.of());
+        when(store.find(conversationId, bucket, messageId)).thenReturn(message);
+        when(store.findRevisions(conversationId, bucket, messageId)).thenReturn(List.of());
 
         var result = service.inspect(actorId, conversationId, bucket, messageId, "trust and safety review");
 
@@ -59,6 +59,6 @@ class AdminMessageServiceTest {
                 .isInstanceOf(BadRequestException.class);
         assertThatThrownBy(() -> service.inspect(actorId, conversationId, "2026-08-29-14:03", messageId, "  "))
                 .isInstanceOf(BadRequestException.class);
-        verify(store, never()).findMessage(any(), anyString(), any());
+        verify(store, never()).find(any(), anyString(), any());
     }
 }

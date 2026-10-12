@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.canonical.controller;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
-import com.chatapp.chat_service.canonical.service.CanonicalBackendService;
+import com.chatapp.chat_service.canonical.invite.InviteService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/public/invites")
 public class PublicInviteController {
-    private final CanonicalBackendService backend;
+    private final InviteService invites;
 
-    public PublicInviteController(CanonicalBackendService backend) {
-        this.backend = backend;
+    public PublicInviteController(InviteService invites) {
+        this.invites = invites;
     }
 
     @GetMapping("/{token}")
     public CanonicalApiContracts.InvitePreview preview(@PathVariable String token) {
-        return backend.previewInvite(token);
+        return invites.preview(token);
     }
 }

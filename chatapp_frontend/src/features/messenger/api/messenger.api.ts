@@ -503,6 +503,7 @@ export const sendMessageHttp = async (data: SendMessageRequest): Promise<Message
         contentFormat: 'PLAIN',
         replyToMessageId: data.replyToId,
         mentionedUserIds: data.mentions,
+        mentionEveryone: data.mentionEveryone ?? false,
         attachments
     });
     return mapToMessage(response.data);
@@ -782,6 +783,39 @@ export const addConversationMember = async (
 
 export const removeConversationMember = async (conversationId: string, userId: string): Promise<void> => {
     await apiClient.delete(`/conversations/${conversationId}/members/${userId}`);
+};
+
+export interface ConversationBan {
+    userId: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    bannedBy: string;
+    reasonCode: string;
+    reasonText: string;
+    createdAt: string;
+    expiresAt?: string | null;
+}
+
+export const listConversationBans = async (conversationId: string): Promise<ConversationBan[]> => {
+    const response = await apiClient.get<ConversationBan[]>(`/conversations/${conversationId}/bans`);
+    if (!Array.isArray(response.data)) throw new Error('Canonical conversation ban list is invalid');
+    return response.data;
+};
+
+export const banConversationMember = async (
+    conversationId: string,
+    userId: string,
+    request: { reasonCode: string; reasonText: string; expiresAt?: string },
+): Promise<ConversationBan> => {
+    const response = await apiClient.put<ConversationBan>(
+        `/conversations/${conversationId}/bans/${userId}`,
+        request,
+    );
+    return response.data;
+};
+
+export const unbanConversationMember = async (conversationId: string, userId: string): Promise<void> => {
+    await apiClient.delete(`/conversations/${conversationId}/bans/${userId}`);
 };
 
 export const leaveConversation = async (conversationId: string): Promise<void> => {

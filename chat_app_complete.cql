@@ -97,13 +97,13 @@ CREATE TABLE IF NOT EXISTS user_id_by_email (
   created_at timestamp
 );
 
-/* Required for a verified external login lookup; provider + subject is unique. */
-CREATE TABLE IF NOT EXISTS user_id_by_external_identity (
+/* One bounded partition per verified external identity; provider + subject is unique. */
+CREATE TABLE IF NOT EXISTS external_identity_owner_by_key (
   auth_provider text,
   external_subject text,
   user_id uuid,
   created_at timestamp,
-  PRIMARY KEY ((auth_provider), external_subject)
+  PRIMARY KEY ((auth_provider, external_subject))
 );
 
 /* Prefix projection for the member picker. Write prefixes of length 2..20 only. */
@@ -434,6 +434,7 @@ CREATE TABLE IF NOT EXISTS community_join_request_by_user (
   resolution_decision text,
   resolved_by uuid,
   resolved_at timestamp,
+  resolution_lease_until timestamp,
   updated_at timestamp,
   PRIMARY KEY ((conversation_id), user_id)
 );
@@ -823,22 +824,33 @@ CREATE TABLE IF NOT EXISTS notification_deliveries_by_notification (
   PRIMARY KEY ((user_id, notification_month, notification_id), device_id)
 );
 
-/* Link token is the lookup key; token must be random, unguessable and hashed if policy requires. */
-CREATE TABLE IF NOT EXISTS invitation_links_by_token (
-  link_token text PRIMARY KEY,
-  link_id uuid,
-  conversation_id uuid,
-  created_by uuid,
-  created_at timestamp,
-  invite_kind text,                  /* LINK, QR */
-  join_policy text,                  /* DIRECT_JOIN, REQUEST_APPROVAL */
-  display_name text,
-  expires_at timestamp,
-  is_active boolean,
-  max_uses int,
-  used_count int,
-  revoked_by uuid,
-  revoked_at timestamp
+/*
+ * Token metadata and recipient commands share one partition. Conditional
+ * batches can therefore commit a use-count reservation and the recipient
+ * ACCEPTED state atomically, including across process termination.
+ */
+CREATE TABLE IF NOT EXISTS invite_state_by_token (
+  link_token text,
+  recipient_id uuid,
+  link_id uuid static,
+  conversation_id uuid static,
+  created_by uuid static,
+  created_at timestamp static,
+  invite_kind text static,            /* LINK, QR */
+  join_policy text static,            /* DIRECT_JOIN, REQUEST_APPROVAL */
+  display_name text static,
+  expires_at timestamp static,
+  is_active boolean static,
+  max_uses int static,
+  used_count int static,
+  revoked_by uuid static,
+  revoked_at timestamp static,
+  request_id uuid,
+  requested_at timeuuid,
+  status text,                        /* PENDING, ACCEPTED, DECLINED, FAILED */
+  first_requested_at timestamp,
+  updated_at timestamp,
+  PRIMARY KEY ((link_token), recipient_id)
 );
 
 CREATE TABLE IF NOT EXISTS invitation_links_by_conversation (
@@ -866,17 +878,6 @@ CREATE TABLE IF NOT EXISTS invitation_joins_by_link (
   PRIMARY KEY ((link_id), joined_at, user_id)
 ) WITH CLUSTERING ORDER BY (joined_at DESC, user_id ASC);
 
-/* LWT on this row makes repeated click/retry of the same link idempotent. */
-CREATE TABLE IF NOT EXISTS invite_join_by_link_user (
-  link_id uuid,
-  user_id uuid,
-  request_id uuid,
-  status text,                       /* PENDING, ACCEPTED, DECLINED, REJECTED, FAILED */
-  first_requested_at timestamp,
-  updated_at timestamp,
-  PRIMARY KEY ((link_id), user_id)
-);
-
 CREATE TABLE IF NOT EXISTS join_requests_by_conversation (
   conversation_id uuid,
   requested_at timeuuid,
@@ -888,6 +889,7 @@ CREATE TABLE IF NOT EXISTS join_requests_by_conversation (
   resolution_decision text,          /* APPROVE or DECLINE while a manager owns the resolution */
   resolved_by uuid,
   resolved_at timestamp,
+  resolution_lease_until timestamp,
   PRIMARY KEY ((conversation_id), requested_at, request_id)
 ) WITH CLUSTERING ORDER BY (requested_at DESC, request_id ASC);
 

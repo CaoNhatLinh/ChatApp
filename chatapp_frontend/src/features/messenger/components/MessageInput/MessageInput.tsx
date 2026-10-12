@@ -12,7 +12,7 @@ import { Button } from "@/shared/ui/Button";
 import { CreatePollModal } from "../Poll/CreatePollModal";
 import { friendApi } from "@/features/relationships/api/friends.api";
 import { createPoll } from "../../api/poll.api";
-import { getMentionQuery, insertMention } from "../../utils/mention.utils";
+import { extractMentionTargets, getMentionQuery, insertMention } from "../../utils/mention.utils";
 import { MessageInputBlockedState } from "./components/MessageInputBlockedState";
 import { MessageInputDraftPanel } from "./components/MessageInputDraftPanel";
 import { MessageInputToolbar } from "./components/MessageInputToolbar";
@@ -263,7 +263,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, [draftText, editingMessage, sendTyping]);
 
-  const showSuccess = useCallback((message: string) => notifySuccess(message), []);
   const showError = useCallback((message: string) => notifyError(message), []);
   const showWarning = useCallback((message: string, options?: Parameters<typeof notifyWarning>[1]) => notifyWarning(message, options), []);
 
@@ -327,21 +326,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         await editMessage(editingMessage.messageId, trimmedText);
         onCancelEdit?.();
         clearEditingText();
-        showSuccess(MESSENGER_COPY.messageInput.actionSuccess.editSuccess);
       } else {
         const hasImageOrVideo = attachments.some((attachment) => {
           const contentType = attachment.contentType ?? attachment.mimeType ?? "";
           return contentType.startsWith("image/") || contentType.startsWith("video/");
         });
         const messageType = attachments.length > 0 ? (hasImageOrVideo ? "IMAGE" : "FILE") : "TEXT";
+        const mentionTargets = extractMentionTargets(trimmedText);
         await sendMessage(trimmedText, messageType, {
           replyToId: replyingTo?.messageId,
+          mentions: mentionTargets.userIds,
+          mentionEveryone: mentionTargets.mentionEveryone,
           attachments,
         });
         onCancelReply?.();
         clearDraft();
         setSelectedFiles([]);
-        showSuccess(MESSENGER_COPY.messageInput.actionSuccess.sendSuccess);
       }
 
       setShowEmojiPicker(false);
@@ -369,7 +369,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     buildValidFiles,
     uploadMessageFiles,
     showError,
-    showSuccess,
     showWarning,
     clearDraft,
     clearEditingText,
@@ -378,13 +377,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
     try {
       await createPoll(data);
-      showSuccess(MESSENGER_COPY.messageInput.actionSuccess.copyPollCreated);
     } catch (error: unknown) {
       logger.error("[MessageInput] Failed to create poll", error instanceof Error ? error.message : String(error));
       showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.copyPollCreateError));
       throw error;
     }
-  }, [showError, showSuccess]);
+  }, [showError]);
 
   const handleFilesSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -467,11 +465,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   if (blockStatusLoading) {
-    return <div className="flex items-center justify-center rounded-[2rem] border border-border/50 bg-card/75 p-4 text-sm text-muted-foreground" role="status">{localizeText('Đang kiểm tra trạng thái chặn...')}</div>;
+    return <div className="chat-composer-state flex items-center justify-center rounded-[var(--radius-md)] border border-border/60 bg-card/75 p-4 text-sm text-muted-foreground" role="status">{localizeText('Đang kiểm tra trạng thái chặn...')}</div>;
   }
 
   if (blockStatusError) {
-    return <div className="flex items-center justify-between gap-3 rounded-[2rem] border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="alert"><span>{localizeText('Không thể kiểm tra trạng thái chặn.')}</span><Button type="button" variant="outline" size="sm" onClick={() => setBlockStatusRetry((value) => value + 1)}>{localizeText('Thử lại')}</Button></div>;
+    return <div className="chat-composer-state flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive" role="alert"><span>{localizeText('Không thể kiểm tra trạng thái chặn.')}</span><Button type="button" variant="outline" size="sm" onClick={() => setBlockStatusRetry((value) => value + 1)}>{localizeText('Thử lại')}</Button></div>;
   }
 
   if (blockStatus?.hasBlocked || blockStatus?.isBlockedBy) {
@@ -494,7 +492,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           animate={UI_MOTION_CONFIG.animateState}
           variants={UI_MOTION_VARIANTS.slideInFromBottom}
         >
-          <div className="neo-shadow rounded-2xl overflow-hidden glass border-2 border-border/50">
+          <div className="chat-emoji-popover overflow-hidden glass border border-border/60">
             <EmojiPicker
               onEmojiClick={onEmojiClick}
               theme={Theme.AUTO}
@@ -521,7 +519,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         />
       )}
 
-      <div className="glass p-2 rounded-[2rem] neo-shadow flex flex-col gap-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300 focus-within:ring-2 ring-primary/20">
+      <div className="chat-composer glass flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border/65 p-2 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 focus-within:ring-2 focus-within:ring-primary/20">
         <MessageInputDraftPanel
           replyingTo={replyingTo}
           editingMessage={editingMessage}

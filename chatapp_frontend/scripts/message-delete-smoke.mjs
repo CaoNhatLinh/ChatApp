@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
@@ -6,7 +7,7 @@ const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000201';
 const conversationId = '00000000-0000-0000-0000-000000000202';
 const messageId = '20000000-0000-0000-0000-000000000203';
-const messageBucket = '2026-08-30T10:00:00Z';
+const messageBucket = '2026-08-30-10:03';
 const now = '2026-08-30T10:05:00Z';
 const originalContent = 'Nội dung riêng tư phải biến mất';
 
@@ -117,7 +118,7 @@ await vietnameseDialog.getByText('Tin nhắn sẽ bị xóa khỏi cuộc trò c
 await vietnameseDialog.getByRole('button', { name: 'Hủy' }).click();
 if (deleteRequests.length !== 0) throw new Error('Cancel must not delete the message');
 
-await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
+await switchLocaleInSettings(page);
 await messageRow.hover();
 await messageRow.getByRole('button', { name: 'More options' }).click();
 await page.getByRole('menuitem', { name: 'Delete message' }).click();

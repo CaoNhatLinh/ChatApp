@@ -1,6 +1,6 @@
 package com.chatapp.chat_service.canonical.appauth;
 
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,12 +16,12 @@ public class AppRoleBootstrap implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AppRoleBootstrap.class);
     private final String bootstrapUserId;
     private final AppRoleRepository roles;
-    private final CanonicalCqlStore users;
+    private final UserRepository users;
 
     public AppRoleBootstrap(
             @Value("${app.bootstrap.super-admin-user-id:}") String bootstrapUserId,
             AppRoleRepository roles,
-            CanonicalCqlStore users) {
+            UserRepository users) {
         this.bootstrapUserId = bootstrapUserId;
         this.roles = roles;
         this.users = users;
@@ -33,7 +33,7 @@ public class AppRoleBootstrap implements ApplicationRunner {
             return;
         }
         UUID userId = UUID.fromString(bootstrapUserId.trim());
-        if (users.findUserById(userId) == null) {
+        if (users.findById(userId) == null) {
             throw new IllegalStateException("APP_BOOTSTRAP_SUPER_ADMIN_USER_ID does not reference an existing user");
         }
         if (roles.findRoles(userId).stream().noneMatch(role -> "SUPER_ADMIN".equals(role.roleCode()))) {

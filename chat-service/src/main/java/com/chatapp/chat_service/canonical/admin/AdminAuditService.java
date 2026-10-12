@@ -2,7 +2,7 @@ package com.chatapp.chat_service.canonical.admin;
 
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.audit.AuditRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.springframework.stereotype.Service;
 
@@ -15,15 +15,15 @@ import java.util.stream.Collectors;
 
 @Service
 public class AdminAuditService {
-    private final CanonicalCqlStore store;
+    private final AuditRepository audit;
     private final AppAuthorizationService authorization;
 
-    public AdminAuditService(CanonicalCqlStore store, AppAuthorizationService authorization) {
-        this.store = store;
+    public AdminAuditService(AuditRepository audit, AppAuthorizationService authorization) {
+        this.audit = audit;
         this.authorization = authorization;
     }
 
-    public List<CanonicalCqlStore.AuditEventRow> list(UUID actorId, String month, int limit) {
+    public List<AuditRepository.AuditEvent> list(UUID actorId, String month, int limit) {
         authorization.require(actorId, AppPermission.AUDIT_READ);
         String normalizedMonth = month == null || month.isBlank()
                 ? YearMonth.now(java.time.ZoneOffset.UTC).toString() : month.trim();
@@ -32,15 +32,15 @@ public class AdminAuditService {
         } catch (DateTimeParseException exception) {
             throw new BadRequestException("month must use YYYY-MM format");
         }
-        return store.listAuditEvents(normalizedMonth, Math.max(1, Math.min(limit, 200)));
+        return audit.findAuditEvents(normalizedMonth, Math.max(1, Math.min(limit, 200)));
     }
 
     public String export(UUID actorId, String month, int limit) {
-        List<CanonicalCqlStore.AuditEventRow> events = list(actorId, month, limit);
+        List<AuditRepository.AuditEvent> events = list(actorId, month, limit);
         StringBuilder csv = new StringBuilder()
                 .append("eventMonth,eventId,action,resourceType,resourceId,actorId,conversationId,targetUserId,")
                 .append("outcome,reasonCode,requestId,createdAt,beforeState,afterState\n");
-        for (CanonicalCqlStore.AuditEventRow event : events) {
+        for (AuditRepository.AuditEvent event : events) {
             appendRow(csv,
                     event.eventMonth(), event.eventId(), event.action(), event.resourceType(), event.resourceId(),
                     event.actorId(), event.conversationId(), event.targetUserId(), event.outcome(), event.reasonCode(),

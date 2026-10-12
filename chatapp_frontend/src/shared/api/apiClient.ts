@@ -1,14 +1,22 @@
 import axios from 'axios';
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { logger } from '../lib/logger';
 import { runtimeEnv } from '../config/runtimeEnv';
-import { clearAccessToken, clearSessionHint, getAccessToken, hasSessionHint, setAccessToken } from '../auth/access-token';
+import { clearAccessToken, clearSessionHint, getAccessToken, getSessionGeneration, hasSessionHint, setAccessToken, SessionChangedError } from '../auth/access-token';
 
 const API_BASE_URL = runtimeEnv.apiBaseUrl;
 
+type SessionRequestConfig = InternalAxiosRequestConfig & {
+    _authRetry?: boolean;
+    _sessionGeneration?: number;
+};
+
+const isStaleSessionRequest = (config: SessionRequestConfig | undefined): boolean =>
+    config?._sessionGeneration !== undefined && config._sessionGeneration !== getSessionGeneration();
+
 class ApiClient {
     private instance: AxiosInstance;
-    private refreshRequest: Promise<string> | null = null;
+    private refreshRequest: { generation: number; promise: Promise<string> } | null = null;
 
     constructor() {
         this.instance = axios.create({
@@ -27,6 +35,9 @@ class ApiClient {
         // Request Interceptor
         this.instance.interceptors.request.use(
             (config) => {
+                const sessionConfig = config as SessionRequestConfig;
+                if (isStaleSessionRequest(sessionConfig)) throw new SessionChangedError();
+                sessionConfig._sessionGeneration = getSessionGeneration();
                 const token = getAccessToken();
                 if (token && config.headers) {
                     config.headers.Authorization = `Bearer ${token}`;
@@ -47,6 +58,7 @@ class ApiClient {
         // Response Interceptor
         this.instance.interceptors.response.use(
             (response) => {
+                if (isStaleSessionRequest(response.config as SessionRequestConfig)) throw new SessionChangedError();
                 if (runtimeEnv.isDevelopment) {
                     logger.debug(`API Response ${response.status}: ${response.config.url}`);
                 }
@@ -60,28 +72,48 @@ class ApiClient {
 
                 const axiosError = error;
                 const status = axiosError.response?.status;
+                const config = axiosError.config as SessionRequestConfig | undefined;
+                if (isStaleSessionRequest(config)) return Promise.reject(new SessionChangedError());
 
                 if (status === 401 && typeof window !== 'undefined') {
-                    const config = axiosError.config as (AxiosRequestConfig & { _authRetry?: boolean }) | undefined;
-                    const isAuthEndpoint = config?.url?.includes('/auth/login')
+                    const isCredentialEndpoint = config?.url?.includes('/auth/login')
                         || config?.url?.includes('/auth/register')
+                        || config?.url?.includes('/auth/google/exchange')
+                        || config?.url?.includes('/auth/google/register')
                         || config?.url?.includes('/auth/refresh')
                         || config?.url?.includes('/auth/logout');
-                    if (config && !config._authRetry && !isAuthEndpoint && (getAccessToken() || hasSessionHint())) {
+                    const responseData = axiosError.response?.data as unknown;
+                    const responseCode = typeof responseData === 'object'
+                        && responseData !== null
+                        && 'code' in responseData
+                        && typeof responseData.code === 'string'
+                        ? responseData.code
+                        : '';
+                    const isIdentityConfirmationFailure = responseCode === 'REAUTHENTICATION_REQUIRED'
+                        || responseCode === 'GOOGLE_TOKEN_INVALID';
+                    if (config && !config._authRetry && !isCredentialEndpoint
+                        && !isIdentityConfirmationFailure && (getAccessToken() || hasSessionHint())) {
                         config._authRetry = true;
                         try {
                             await this.refreshAccessToken();
-                            return await this.instance(config);
                         } catch (refreshError) {
-                            logger.warn('Refresh token rejected; clearing in-memory session');
-                            clearAccessToken();
-                            clearSessionHint();
-                            window.location.href = '/login';
+                            const refreshStatus = axios.isAxiosError(refreshError)
+                                ? refreshError.response?.status
+                                : undefined;
+                            if (refreshStatus === 401 || refreshStatus === 403) {
+                                logger.warn('Refresh token rejected; clearing in-memory session');
+                                clearAccessToken();
+                                clearSessionHint();
+                                window.location.href = '/login';
+                            }
+                            // A transport outage is recoverable and does not revoke the session.
                             return Promise.reject(refreshError instanceof Error ? refreshError : new Error(String(refreshError)));
                         }
+                        // Replay errors belong to the operation, not the successful refresh.
+                        return this.instance(config);
                     }
 
-                    if (!isAuthEndpoint) {
+                    if (!isCredentialEndpoint && !isIdentityConfirmationFailure) {
                         logger.warn('Unauthorized access - session expired');
                         clearAccessToken();
                         clearSessionHint();
@@ -102,19 +134,22 @@ class ApiClient {
         );
     }
 
-    private refreshAccessToken(): Promise<string> {
-        if (!this.refreshRequest) {
-            this.refreshRequest = this.instance.post<{ accessToken: string }>('/auth/refresh')
+    public refreshAccessToken(): Promise<string> {
+        const generation = getSessionGeneration();
+        if (!this.refreshRequest || this.refreshRequest.generation !== generation) {
+            const request: Promise<string> = this.instance.post<{ accessToken: string }>('/auth/refresh')
                 .then((response) => {
+                    if (generation !== getSessionGeneration()) throw new SessionChangedError();
                     setAccessToken(response.data.accessToken);
                     return response.data.accessToken;
                 })
                 .finally(() => {
-                    this.refreshRequest = null;
+                    if (this.refreshRequest?.promise === request) this.refreshRequest = null;
                 });
+            this.refreshRequest = { generation, promise: request };
         }
 
-        return this.refreshRequest;
+        return this.refreshRequest.promise;
     }
 
     public get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {

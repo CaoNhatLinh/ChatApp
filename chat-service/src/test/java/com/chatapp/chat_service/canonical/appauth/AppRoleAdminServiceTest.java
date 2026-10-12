@@ -1,7 +1,9 @@
 package com.chatapp.chat_service.canonical.appauth;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.auth.RefreshTokenRepository;
+import com.chatapp.chat_service.canonical.device.DeviceRepository;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
@@ -17,9 +19,12 @@ import static org.mockito.Mockito.*;
 class AppRoleAdminServiceTest {
     private final AppRoleRepository roles = mock(AppRoleRepository.class);
     private final AppAuthorizationService authorization = mock(AppAuthorizationService.class);
-    private final CanonicalCqlStore users = mock(CanonicalCqlStore.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final RefreshTokenRepository sessions = mock(RefreshTokenRepository.class);
+    private final DeviceRepository devices = mock(DeviceRepository.class);
     private final CanonicalEventRecorder events = mock(CanonicalEventRecorder.class);
-    private final AppRoleAdminService service = new AppRoleAdminService(roles, authorization, users, events);
+    private final AppRoleAdminService service = new AppRoleAdminService(
+            roles, authorization, users, sessions, devices, events);
 
     @Test
     void roleGrantRequiresAnAuditReason() {
@@ -52,14 +57,14 @@ class AppRoleAdminServiceTest {
     void sessionInventoryRequiresUserReadAndNeverReturnsTokenHash() {
         UUID actorId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        when(users.findUserById(userId)).thenReturn(new CanonicalCqlStoreTestUserFactory().user(userId));
-        var session = new CanonicalCqlStore.RefreshTokenSessionRow(
+        when(users.findById(userId)).thenReturn(new CanonicalCqlStoreTestUserFactory().user(userId));
+        var session = new RefreshTokenRepository.Session(
                 UUID.randomUUID(), UUID.randomUUID(), null, Instant.now().plusSeconds(60), null, null);
-        when(users.listRefreshTokens(userId, 10)).thenReturn(List.of(session));
+        when(sessions.findSessions(userId, 10)).thenReturn(List.of(session));
 
         assertThat(service.listSessions(actorId, userId, 10)).containsExactly(session);
         verify(authorization).require(actorId, AppPermission.USER_READ);
-        verify(users).listRefreshTokens(userId, 10);
+        verify(sessions).findSessions(userId, 10);
     }
 
     private static final class CanonicalCqlStoreTestUserFactory {

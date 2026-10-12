@@ -11,7 +11,7 @@ export interface InvitePreview {
 }
 
 export type InviteConsumeStatus = InvitePreview['status'] | 'ACCEPTED' | 'ALREADY_ACCEPTED'
-    | 'ALREADY_MEMBER' | 'CAPACITY_REACHED' | 'DECLINED' | 'FAILED' | 'PENDING' | 'RETRY_REQUIRED';
+    | 'ALREADY_MEMBER' | 'CAPACITY_REACHED' | 'DECLINED' | 'FAILED' | 'PENDING' | 'RETRY_REQUIRED' | 'BANNED';
 
 export interface InviteConsumeResponse {
     status: InviteConsumeStatus;
@@ -19,7 +19,7 @@ export interface InviteConsumeResponse {
 }
 
 export interface InviteViewerState {
-    status: 'AVAILABLE' | 'PENDING' | 'ACCEPTED' | 'ALREADY_MEMBER' | 'DECLINED' | 'FAILED' | 'INVALID';
+    status: 'AVAILABLE' | 'PENDING' | 'ACCEPTED' | 'ALREADY_MEMBER' | 'DECLINED' | 'FAILED' | 'INVALID' | 'BANNED';
     conversationId?: string | null;
 }
 
@@ -56,18 +56,24 @@ export interface JoinRequestView {
     resolvedAt?: string | null;
 }
 
+export interface CursorPage<T> {
+    content: T[];
+    nextCursor?: string | null;
+    hasNext: boolean;
+}
+
 const PREVIEW_STATUSES = new Set<InvitePreview['status']>([
     'ACTIVE', 'INVALID', 'INACTIVE', 'REVOKED', 'EXPIRED', 'LIMIT_REACHED',
 ]);
 const CONSUME_STATUSES = new Set<InviteConsumeStatus>([
     ...PREVIEW_STATUSES, 'ACCEPTED', 'ALREADY_ACCEPTED', 'ALREADY_MEMBER',
-    'CAPACITY_REACHED', 'DECLINED', 'FAILED', 'PENDING', 'RETRY_REQUIRED',
+    'CAPACITY_REACHED', 'DECLINED', 'FAILED', 'PENDING', 'RETRY_REQUIRED', 'BANNED',
 ]);
 const JOIN_REQUEST_STATUSES = new Set<JoinRequestView['status']>([
     'PENDING', 'APPROVING', 'APPROVED', 'DECLINED', 'CANCELLED', 'FAILED',
 ]);
 const VIEWER_STATUSES = new Set<InviteViewerState['status']>([
-    'AVAILABLE', 'PENDING', 'ACCEPTED', 'ALREADY_MEMBER', 'DECLINED', 'FAILED', 'INVALID',
+    'AVAILABLE', 'PENDING', 'ACCEPTED', 'ALREADY_MEMBER', 'DECLINED', 'FAILED', 'INVALID', 'BANNED',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -183,3 +189,21 @@ export const parseJoinRequest = (value: unknown): JoinRequestView => {
     }
     return value as unknown as JoinRequestView;
 };
+
+const parseCursorPage = <T>(value: unknown, parseItem: (item: unknown) => T): CursorPage<T> => {
+    if (!isRecord(value) || !Array.isArray(value.content)
+        || !isNullableString(value.nextCursor) || typeof value.hasNext !== 'boolean') {
+        throw new Error('Cursor page response is invalid');
+    }
+    return {
+        content: value.content.map(parseItem),
+        nextCursor: value.nextCursor,
+        hasNext: value.hasNext,
+    };
+};
+
+export const parseInvitePage = (value: unknown): CursorPage<InviteLinkRecord> =>
+    parseCursorPage(value, parseInviteRecord);
+
+export const parseJoinRequestPage = (value: unknown): CursorPage<JoinRequestView> =>
+    parseCursorPage(value, parseJoinRequest);

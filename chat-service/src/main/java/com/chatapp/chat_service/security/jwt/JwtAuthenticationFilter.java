@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.chatapp.chat_service.security.core.AppUserPrincipal;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final AppAuthorizationService appAuthorization;
-    private final CanonicalCqlStore users;
+    private final UserRepository users;
 
     public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, AppAuthorizationService appAuthorization) {
         this(tokenProvider, appAuthorization, null);
@@ -44,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public JwtAuthenticationFilter(
             JwtTokenProvider tokenProvider,
             AppAuthorizationService appAuthorization,
-            CanonicalCqlStore users) {
+            UserRepository users) {
         this.tokenProvider = tokenProvider;
         this.appAuthorization = appAuthorization;
         this.users = users;
@@ -86,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UUID userId = tokenProvider.extractUserId(token);
             String username = tokenProvider.extractUsername(token);
             if (users != null) {
-                var currentUser = users.findUserById(userId);
+                var currentUser = users.findById(userId);
                 if (currentUser == null || !"ACTIVE".equalsIgnoreCase(currentUser.accountStatus())) {
                     log.warn("Rejected JWT for inactive or missing account {}", userId);
                     return;

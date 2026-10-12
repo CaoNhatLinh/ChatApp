@@ -31,7 +31,7 @@ export const MessengerLayoutShell = ({
   const handleOverlayClick = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   return (
-    <section lang={locale} className="messenger-workspace relative h-full w-full overflow-visible bg-background text-foreground">
+    <section lang={locale} className="messenger-workspace app-shell relative h-full w-full overflow-visible bg-background text-foreground">
       {showMobileMenu ? <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
         className={cn("focus-ring surface fixed left-4 top-4 z-50 h-10 w-10 items-center justify-center rounded-full text-primary md:hidden", mobileSidebarFullScreen && isSidebarOpen ? "hidden" : "flex")}
@@ -44,7 +44,7 @@ export const MessengerLayoutShell = ({
       <div className="relative flex h-full w-full">
         {navigationRail}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="hidden h-16 shrink-0 items-center border-b border-white/10 bg-[#0b141c]/95 px-5 backdrop-blur md:flex" aria-label={localizeText("Thanh điều hướng chung")}>
+          <header className="app-global-header hidden h-16 shrink-0 items-center px-5 md:flex" aria-label={localizeText("Thanh điều hướng chung")}>
             <div className="ml-auto">
               <Button
                 type="button"
@@ -53,10 +53,10 @@ export const MessengerLayoutShell = ({
                 onClick={() => router.push("/app?notifications=1")}
                 aria-label={localizeText("Thông báo")}
                 title={localizeText("Thông báo")}
-                className="relative rounded-full text-slate-300 hover:bg-white/8 hover:text-white"
+                className="relative rounded-[var(--radius-sm)] text-muted-foreground hover:bg-accent/70 hover:text-foreground"
               >
                 <Bell size={19} />
-                {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-[#0b141c]" aria-hidden="true" /> : null}
+                {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background" aria-hidden="true" /> : null}
               </Button>
             </div>
           </header>

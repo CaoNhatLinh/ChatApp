@@ -1,8 +1,8 @@
 package com.chatapp.chat_service.canonical.service;
 
+import com.chatapp.chat_service.canonical.messaging.RealtimePublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -13,10 +13,10 @@ public class FriendRequestNotificationService {
     private static final Logger log = LoggerFactory.getLogger(FriendRequestNotificationService.class);
     private static final String QUEUE_DESTINATION = "/queue/friend-requests";
 
-    private final SimpMessagingTemplate messagingTemplate;
+    private final RealtimePublisher realtime;
 
-    public FriendRequestNotificationService(SimpMessagingTemplate messagingTemplate) {
-        this.messagingTemplate = messagingTemplate;
+    public FriendRequestNotificationService(RealtimePublisher realtime) {
+        this.realtime = realtime;
     }
 
     public void sendFriendRequestSent(UUID recipientId, UUID senderId, UUID requestId) {
@@ -40,11 +40,7 @@ public class FriendRequestNotificationService {
                 Instant.now().toString()
         );
         try {
-            messagingTemplate.convertAndSendToUser(
-                    targetUserId.toString(),
-                    QUEUE_DESTINATION,
-                    payload
-            );
+            realtime.publishToUser(targetUserId, QUEUE_DESTINATION, payload);
         } catch (Exception exception) {
             log.error("Failed to send friend request realtime notification to user {}", targetUserId, exception);
         }

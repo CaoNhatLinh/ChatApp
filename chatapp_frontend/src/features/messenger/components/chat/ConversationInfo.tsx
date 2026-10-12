@@ -147,7 +147,6 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
             } satisfies ConversationNotificationPolicyView;
             setNotificationPolicy(nextPolicy);
             updateConversationNotificationPolicy(conversationId, nextPolicy);
-            notifySuccess(localizeText('Đã cập nhật cài đặt thông báo của phòng.'));
         } catch (error: unknown) {
             if (!isCurrentMutation()) return;
             logger.error('[ConversationInfo] Notification policy save failed', error instanceof Error ? error.message : String(error));
@@ -229,13 +228,13 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
 
     return (
         <motion.div
-            className="flex h-full w-[100dvw] max-w-full shrink-0 flex-col bg-[#0d1720] sm:w-[320px] sm:border-l sm:border-white/10 md:w-[286px]"
+            className="flex h-full w-[100dvw] max-w-full shrink-0 flex-col bg-card text-card-foreground sm:w-[320px] sm:border-l sm:border-border/70 md:w-[286px]"
             initial={UI_MOTION_CONFIG.initialState}
             animate={UI_MOTION_CONFIG.animateState}
             variants={UI_MOTION_VARIANTS.slideInFromRight}
         >
             {/* Header */}
-            <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
+            <div className="flex h-16 items-center justify-between border-b border-border/70 px-4">
                 <h3 className="text-sm font-semibold">{MESSENGER_COPY.conversationInfo.title}</h3>
                 <Button
                     variant="ghost"
@@ -252,7 +251,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                 {/* Profile Overview */}
                 <div className="flex flex-col items-center space-y-3 text-center">
                     <div className="relative">
-                        <Avatar className="h-20 w-20 border border-white/10">
+                        <Avatar className="h-20 w-20 border border-border/70">
                             <AvatarImage src={activeConv.otherParticipant?.avatarUrl} />
                             <AvatarFallback className="bg-primary/10">
                                 <DefaultUserAvatar alt={localizeText('Ảnh đại diện mặc định')} />
@@ -270,7 +269,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </div>
                 </div>
 
-                <div className="border-y border-white/10 py-2">
+                <div className="border-y border-border/70 py-2">
                     <div className="flex items-center justify-between py-2 text-sm">
                         <span className="text-muted-foreground">{activeConv.type === 'dm' ? localizeText('Cuộc trò chuyện riêng') : localizeText('Thành viên')}</span>
                         <span>{activeConv.type === 'dm' ? '1' : activeConv.memberCount}</span>
@@ -281,11 +280,11 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     </div>
                 </div>
 
-                <Button type="button" variant="outline" className="w-full border-white/10 bg-white/5 text-slate-100 hover:bg-white/10" onClick={() => setShowAdvanced((current) => !current)}>
+                <Button type="button" variant="outline" className="w-full border-border/70 bg-background/45 text-foreground hover:bg-muted/65" aria-expanded={showAdvanced} aria-controls="conversation-advanced-options" onClick={() => setShowAdvanced((current) => !current)}>
                     {showAdvanced ? localizeText('Thu gọn tùy chọn') : localizeText('Tùy chọn cuộc trò chuyện')}
                 </Button>
 
-                {showAdvanced ? <div className="space-y-6">
+                {showAdvanced ? <div id="conversation-advanced-options" className="space-y-6">
                     <section className="space-y-2" aria-labelledby="conversation-appearance-title">
                         <div>
                             <h4 id="conversation-appearance-title" className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest mb-1 px-1">
@@ -295,7 +294,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                                 {localizeText('Tùy chỉnh này chỉ hiển thị với bạn.')}
                             </p>
                         </div>
-                        <Button type="button" variant="outline" className="w-full border-white/10 bg-white/5 text-slate-100 hover:bg-white/10" onClick={onOpenAppearance}>
+                        <Button type="button" variant="outline" className="w-full border-border/70 bg-background/45 text-foreground hover:bg-muted/65" onClick={onOpenAppearance}>
                             <Palette className="h-4 w-4" /> {localizeText('Tùy chỉnh giao diện cá nhân')}
                         </Button>
                     </section>

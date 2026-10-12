@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { motion, useReducedMotion, useScroll, useSpring } from "framer-motion";
 import { ThemeToggle } from "@/features/settings/ui/ThemeToggle";
 import { cn } from "@/shared/lib/cn";
 import { type ReactNode } from "react";
 import { UI_COPY } from "@/shared/constants/ui-copy";
-import { BrandMark } from "@/shared/ui/Brand";
+import { BrandLockup } from "@/shared/ui/Brand";
 import { LanguageToggle } from "@/shared/ui/LanguageToggle";
 import { localizeText, useAppLocale } from "@/shared/i18n";
 
@@ -25,18 +26,29 @@ const PublicShellHeader = ({
 }: PublicShellHeaderProps) => {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const scrollProgress = useSpring(scrollYProgress, { stiffness: 170, damping: 34, mass: 0.18 });
   useAppLocale();
+
+  useEffect(() => {
+    const syncHeaderState = () => setHasScrolled(window.scrollY > 12);
+    syncHeaderState();
+    window.addEventListener("scroll", syncHeaderState, { passive: true });
+    return () => window.removeEventListener("scroll", syncHeaderState);
+  }, []);
   const defaultActions = (
     <>
       <Link
         href="/login"
-        className="focus-ring inline-flex items-center rounded-[var(--radius-md)] border border-border bg-transparent px-4 py-2 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
+        className="signal-control focus-ring inline-flex items-center rounded-[var(--radius-md)] border border-border bg-transparent px-4 py-2 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
       >
         {localizeText(UI_COPY.shell.publicActions.login)}
       </Link>
       <Link
         href="/register"
-        className="focus-ring inline-flex items-center rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px"
+        className="signal-control focus-ring inline-flex items-center rounded-[var(--radius-md)] bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-px"
       >
         {localizeText(UI_COPY.shell.publicActions.register)}
       </Link>
@@ -44,15 +56,15 @@ const PublicShellHeader = ({
   );
 
   return (
-    <header className={cn("site-nav sticky top-0 z-30", topClassName)}>
+    <header className={cn("site-nav sticky top-0 z-30", hasScrolled && "site-nav-scrolled", topClassName)}>
       <div className="layout-shell flex w-full items-center justify-between gap-6 py-3">
         <div className="flex min-w-0 items-center gap-5">
           <Link
             href="/"
+            aria-label={localizeText("Về trang chủ")}
             className="focus-ring flex shrink-0 items-center gap-2 text-base font-bold tracking-[-0.02em] transition-colors hover:text-primary"
           >
-            <BrandMark />
-            <span>{title}</span>
+            <BrandLockup title={title} />
           </Link>
           <nav aria-label={localizeText("Điều hướng công khai")} className="hidden items-center gap-1 md:flex">
             {primaryNavItems.map((item) => (
@@ -67,6 +79,7 @@ const PublicShellHeader = ({
                       : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )
                 }
+                aria-current={pathname === item.to ? "page" : undefined}
               >
                 {localizeText(item.label)}
               </Link>
@@ -90,7 +103,7 @@ const PublicShellHeader = ({
           <div className="hidden flex-wrap justify-end gap-2 sm:flex">
             {actions ?? defaultActions}
           </div>
-          <Link href="/register" className="focus-ring hidden rounded-[var(--radius-md)] bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground min-[28rem]:inline-flex sm:hidden">
+          <Link href="/register" className="signal-control focus-ring hidden rounded-[var(--radius-md)] bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground min-[28rem]:inline-flex sm:hidden">
             {localizeText(UI_COPY.shell.publicActions.register)}
           </Link>
         </div>
@@ -112,16 +125,17 @@ const PublicShellHeader = ({
               </Link>
             ))}
             <div className="mt-2 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
-              <Link href="/login" onClick={() => setMobileNavOpen(false)} className="focus-ring rounded-[var(--radius-md)] border border-border px-3 py-2.5 text-center text-sm font-semibold hover:border-primary hover:text-primary">
+              <Link href="/login" onClick={() => setMobileNavOpen(false)} className="signal-control focus-ring rounded-[var(--radius-md)] border border-border px-3 py-2.5 text-center text-sm font-semibold hover:border-primary hover:text-primary">
                 {localizeText(UI_COPY.shell.publicActions.login)}
               </Link>
-              <Link href="/register" onClick={() => setMobileNavOpen(false)} className="focus-ring rounded-[var(--radius-md)] bg-primary px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground">
+              <Link href="/register" onClick={() => setMobileNavOpen(false)} className="signal-control focus-ring rounded-[var(--radius-md)] bg-primary px-3 py-2.5 text-center text-sm font-semibold text-primary-foreground">
                 {localizeText(UI_COPY.shell.publicActions.register)}
               </Link>
             </div>
           </nav>
         </div>
       ) : null}
+      {reduceMotion ? null : <motion.div aria-hidden="true" className="site-nav-progress" style={{ scaleX: scrollProgress }} />}
     </header>
   );
 };

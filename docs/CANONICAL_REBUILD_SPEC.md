@@ -27,7 +27,7 @@ conceptual aggregates own persistence:
 
 | Aggregate | Canonical tables | Invariants |
 | --- | --- | --- |
-| Identity | `users_by_*`, `user_id_by_external_identity`, `app_roles_by_user`, `user_devices_by_user` | App roles are separate from room roles; local and external identities have direct lookups. |
+| Identity | `users_by_*`, `external_identity_owner_by_key`, `app_roles_by_user`, `user_devices_by_user` | App roles are separate from room roles; local and external identities have direct lookups. |
 | Social | friendship/block/presence projections | Friendship, personal blocks and transient online state are separate from moderation bans. |
 | Room | `conversations_by_id`, `conversation_members_*`, `conversations_by_user`, `pinned_conversation_slots_by_user` | A user sees only their rooms; three LWT-claimed slots enforce max 3 personal pinned rooms. |
 | Message | `messages_by_conversation_bucket`, reactions, mentions, revisions, attachments, `pinned_message_slots_by_conversation` | Sender/client id makes send retry idempotent; time-and-shard buckets prevent hot/unbounded partitions; five LWT-claimed slots enforce max 5 pinned messages per room. |

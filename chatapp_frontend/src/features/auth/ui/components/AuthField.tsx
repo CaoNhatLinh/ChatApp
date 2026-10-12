@@ -24,8 +24,8 @@ export const AuthField = ({
   const fieldId = id ?? generatedId;
 
   return (
-    <div className="space-y-2 group">
-      <label htmlFor={fieldId} className="text-sm font-semibold text-foreground">
+    <div className="group space-y-2">
+      <label htmlFor={fieldId} className="block text-sm font-semibold leading-5 text-foreground">
         {label}
       </label>
       <div className="relative">
@@ -37,7 +37,7 @@ export const AuthField = ({
           type={inputType}
           value={value}
           onChange={onValueChange}
-          className={`focus-ring h-11 w-full rounded-[var(--radius-md)] border border-border bg-background py-3 pl-11 pr-12 text-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] placeholder:text-muted-foreground ${className}`}
+          className={`focus-ring h-12 w-full rounded-[var(--radius-md)] border border-border bg-background px-4 py-3 pl-11 pr-12 text-sm leading-5 transition-[color,background-color,border-color,box-shadow,transform,opacity] placeholder:text-muted-foreground ${className}`}
           {...props}
         />
         {rightAction ? (

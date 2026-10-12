@@ -2,7 +2,6 @@ import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/features/auth/model/auth.store';
-import { useAuthCheck } from '@/features/auth/hooks/useAuthCheck';
 import { motion } from "framer-motion";
 import { UI_MOTION_VARIANTS } from "@/shared/constants/ui-motion-variants";
 import { UI_MOTION_CONFIG } from "@/shared/constants/ui-motion-variants";
@@ -13,17 +12,15 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, loading, token } = useAuthStore();
+  const { user, loading, token, initializationError } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
 
-  useAuthCheck();
-
   useEffect(() => {
-    if (!loading && (!token || !user)) {
+    if (!loading && !initializationError && (!token || !user)) {
       router.replace(`/login?from=${encodeURIComponent(pathname || '/app')}`);
     }
-  }, [loading, pathname, router, token, user]);
+  }, [initializationError, loading, pathname, router, token, user]);
 
   if (loading) {
     return (

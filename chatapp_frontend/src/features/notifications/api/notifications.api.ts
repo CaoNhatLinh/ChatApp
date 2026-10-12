@@ -9,7 +9,9 @@ export type NotificationType =
   | 'CONVERSATION_INVITE'
   | 'POLL'
   | 'PIN_MESSAGE'
-  | 'REPLY';
+  | 'REPLY'
+  | 'JOIN_REQUEST_APPROVED'
+  | 'JOIN_REQUEST_DECLINED';
 
 export interface NotificationRecord {
   notificationId: string;

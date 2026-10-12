@@ -2,7 +2,7 @@ package com.chatapp.chat_service.security.jwt;
 
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockFilterChain;
@@ -33,13 +33,13 @@ class JwtAuthenticationFilterTest {
     void inactiveAccountCannotAuthenticateAnExistingJwt() throws Exception {
         JwtTokenProvider tokens = mock(JwtTokenProvider.class);
         AppAuthorizationService permissions = mock(AppAuthorizationService.class);
-        CanonicalCqlStore users = mock(CanonicalCqlStore.class);
+        UserRepository users = mock(UserRepository.class);
         JwtAuthenticationFilter statusAwareFilter = new JwtAuthenticationFilter(tokens, permissions, users);
         UUID userId = UUID.randomUUID();
         when(tokens.isTokenValid("token")).thenReturn(true);
         when(tokens.extractUserId("token")).thenReturn(userId);
         when(tokens.extractUsername("token")).thenReturn("blocked");
-        when(users.findUserById(userId)).thenReturn(new CqlCanonicalRecords.CanonicalUser(
+        when(users.findById(userId)).thenReturn(new CqlCanonicalRecords.CanonicalUser(
                 userId, "blocked", "blocked", "blocked@example.com", "blocked@example.com", "hash",
                 "PASSWORD", null, "Blocked", null, "BANNED", Instant.now(), Instant.now(), null));
 

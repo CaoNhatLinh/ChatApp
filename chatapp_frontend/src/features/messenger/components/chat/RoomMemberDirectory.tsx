@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, Crown, UserMinus } from 'lucide-react';
+import { Ban, ChevronDown, Crown, UserMinus } from 'lucide-react';
 import { Virtuoso } from 'react-virtuoso';
 import type { ConversationMember } from '@/features/messenger/types/messenger.types';
 import type { ConversationPermissionsView, ConversationRole } from '@/features/messenger/api/messenger.api';
@@ -46,6 +46,7 @@ interface RoomMemberDirectoryProps {
   onSaveRoles: (member: ConversationMember, roleIds: string[]) => Promise<void>;
   onSavePolicy: (member: ConversationMember, value: RoomMemberPolicyValue) => Promise<void>;
   onKick: (member: ConversationMember) => void;
+  onBan: (member: ConversationMember) => void;
   onTransfer: (member: ConversationMember) => void;
 }
 
@@ -61,6 +62,7 @@ interface RoomMemberRowProps {
   onSaveRoles: RoomMemberDirectoryProps['onSaveRoles'];
   onSavePolicy: RoomMemberDirectoryProps['onSavePolicy'];
   onKick: RoomMemberDirectoryProps['onKick'];
+  onBan: RoomMemberDirectoryProps['onBan'];
   onTransfer: RoomMemberDirectoryProps['onTransfer'];
 }
 
@@ -127,6 +129,7 @@ function RoomMemberRow({
   onSaveRoles,
   onSavePolicy,
   onKick,
+  onBan,
   onTransfer,
 }: RoomMemberRowProps) {
   const memberRoles = member.roleIds.map((roleId) => roles.find((role) => role.roleId === roleId)).filter(Boolean) as ConversationRole[];
@@ -134,8 +137,9 @@ function RoomMemberRow({
   const isSelf = member.userId === currentUserId;
   const canAssignRoles = access.permissions.includes('ROLE_ASSIGN');
   const canKick = access.permissions.includes('MEMBER_KICK');
+  const canBan = access.permissions.includes('MEMBER_BAN');
   const canMute = access.permissions.includes('MEMBER_MUTE');
-  const hasMemberActions = !isOwner && (canAssignRoles || canKick || canMute || access.owner);
+  const hasMemberActions = !isOwner && (canAssignRoles || canKick || canBan || canMute || access.owner);
 
   if (!hasMemberActions) {
     return (
@@ -229,6 +233,11 @@ function RoomMemberRow({
                 <UserMinus className="h-4 w-4" /> {localizeText('Xóa khỏi phòng')}
               </Button>
             ) : null}
+            {canBan && !isSelf ? (
+              <Button type="button" variant="destructive" size="sm" disabled={busyKey !== null} onClick={() => onBan(member)}>
+                <Ban className="h-4 w-4" /> {localizeText('Cấm khỏi phòng')}
+              </Button>
+            ) : null}
           </div>
       </div>
     </details>
@@ -248,6 +257,7 @@ export function RoomMemberDirectory(props: RoomMemberDirectoryProps) {
     onSaveRoles,
     onSavePolicy,
     onKick,
+    onBan,
     onTransfer,
   } = props;
   const [expandedMemberId, setExpandedMemberId] = React.useState<string | null>(null);
@@ -276,9 +286,10 @@ export function RoomMemberDirectory(props: RoomMemberDirectoryProps) {
       onSaveRoles={onSaveRoles}
       onSavePolicy={onSavePolicy}
       onKick={onKick}
+      onBan={onBan}
       onTransfer={onTransfer}
     />
-  ), [access, busyKey, conversationId, currentUserId, expandedMemberId, handleExpandedChange, onKick, onSavePolicy, onSaveRoles, onTransfer, roles]);
+  ), [access, busyKey, conversationId, currentUserId, expandedMemberId, handleExpandedChange, onBan, onKick, onSavePolicy, onSaveRoles, onTransfer, roles]);
 
   if (members.length === 0) {
     return <p className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">{localizeText('Phòng chưa có thành viên.')}</p>;

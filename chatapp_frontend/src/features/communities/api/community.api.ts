@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/api/apiClient';
 
-export type CommunityMembershipStatus = 'AVAILABLE' | 'PENDING' | 'JOINED';
+export type CommunityMembershipStatus = 'AVAILABLE' | 'PENDING' | 'JOINED' | 'BANNED';
 
 export interface CommunitySummary {
   conversationId: string;
@@ -33,7 +33,7 @@ export interface CommunityQuery {
 }
 
 export interface CommunityJoinResponse {
-  status: 'JOINED' | 'PENDING' | 'CAPACITY_REACHED' | 'RETRY_REQUIRED';
+  status: 'JOINED' | 'PENDING' | 'CAPACITY_REACHED' | 'RETRY_REQUIRED' | 'BANNED';
   conversationId: string;
 }
 

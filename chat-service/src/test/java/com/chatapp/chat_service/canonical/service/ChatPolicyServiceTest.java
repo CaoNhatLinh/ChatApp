@@ -4,7 +4,7 @@ import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
 import com.chatapp.chat_service.canonical.moderation.ModerationRepository;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.moderation.ConversationModerationRepository;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,14 +21,14 @@ import static org.mockito.Mockito.when;
 
 class ChatPolicyServiceTest {
     private StringRedisTemplate redis;
-    private CanonicalCqlStore store;
+    private ConversationModerationRepository store;
     private ModerationRepository moderation;
     private ChatPolicyService policy;
 
     @BeforeEach
     void setUp() {
         redis = mock(StringRedisTemplate.class);
-        store = mock(CanonicalCqlStore.class);
+        store = mock(ConversationModerationRepository.class);
         moderation = mock(ModerationRepository.class);
         policy = new ChatPolicyService(redis, store, moderation);
     }
@@ -58,7 +58,7 @@ class ChatPolicyServiceTest {
 
     @Test
     void activeApplicationSanctionBlocksSend() {
-        CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+        ConversationModerationRepository store = mock(ConversationModerationRepository.class);
         ModerationRepository moderation = mock(ModerationRepository.class);
         when(moderation.hasActiveAppSanction(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
@@ -73,8 +73,8 @@ class ChatPolicyServiceTest {
 
     @Test
     void conversationBanBlocksSend() {
-        CanonicalCqlStore store = mock(CanonicalCqlStore.class);
-        when(store.isConversationBanned(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        ConversationModerationRepository store = mock(ConversationModerationRepository.class);
+        when(store.isBanned(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
         ChatPolicyService bannedPolicy = new ChatPolicyService(mock(StringRedisTemplate.class), store, mock(ModerationRepository.class));
 

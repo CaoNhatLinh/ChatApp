@@ -1,7 +1,7 @@
 package com.chatapp.chat_service.realtime;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,7 +17,7 @@ import java.util.UUID;
 @Service
 public class TypingService {
     private final ConversationAuthorizationService authorization;
-    private final CanonicalCqlStore store;
+    private final UserRepository store;
     private final StringRedisTemplate redis;
     private final SimpMessagingTemplate messaging;
     private final ObjectMapper objectMapper;
@@ -26,7 +26,7 @@ public class TypingService {
 
     public TypingService(
             ConversationAuthorizationService authorization,
-            CanonicalCqlStore store,
+            UserRepository store,
             StringRedisTemplate redis,
             SimpMessagingTemplate messaging,
             ObjectMapper objectMapper,
@@ -55,7 +55,7 @@ public class TypingService {
         } else {
             redis.delete(key);
         }
-        CanonicalUser user = store.findUserById(actorId);
+        CanonicalUser user = store.findById(actorId);
         if (user == null) {
             throw new IllegalStateException("authenticated user does not exist");
         }

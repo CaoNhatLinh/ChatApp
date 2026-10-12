@@ -1,7 +1,8 @@
 package com.chatapp.chat_service.canonical.service;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.auth.RefreshTokenRepository;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import org.junit.jupiter.api.Test;
@@ -24,21 +25,23 @@ import static org.mockito.Mockito.when;
 class RefreshTokenServiceTest {
 
     @Mock
-    private CanonicalCqlStore store;
+    private RefreshTokenRepository store;
+    @Mock
+    private UserRepository users;
     @Mock
     private JwtTokenProvider tokenProvider;
 
     @Test
     void issueStoresOnlyHashAndReturnsOpaqueToken() {
         UUID userId = UUID.randomUUID();
-        RefreshTokenService service = new RefreshTokenService(store, tokenProvider, 86_400_000L);
+        RefreshTokenService service = new RefreshTokenService(store, users, tokenProvider, 86_400_000L);
 
         String rawToken = service.issue(userId);
 
         assertThat(rawToken).startsWith(rawToken.substring(0, rawToken.indexOf('.')) + ".");
         assertThat(rawToken.substring(rawToken.indexOf('.') + 1)).hasSizeGreaterThan(20);
         ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
-        verify(store).insertRefreshToken(any(), any(), any(), tokenHash.capture(), any());
+        verify(store).save(any(), any(), any(), tokenHash.capture(), any());
         assertThat(tokenHash.getValue()).doesNotContain(rawToken);
     }
 
@@ -46,9 +49,9 @@ class RefreshTokenServiceTest {
     void rotateRejectsARevokedToken() {
         UUID tokenId = UUID.randomUUID();
         String rawToken = tokenId + ".secret-value";
-        when(store.findRefreshTokenOwner(tokenId)).thenReturn(new CanonicalCqlStore.RefreshTokenOwnerRow(
+        when(store.findOwner(tokenId)).thenReturn(new RefreshTokenRepository.TokenOwner(
                 tokenId, UUID.randomUUID(), "wrong-hash", Instant.now().plusSeconds(60), Instant.now()));
-        RefreshTokenService service = new RefreshTokenService(store, tokenProvider, 86_400_000L);
+        RefreshTokenService service = new RefreshTokenService(store, users, tokenProvider, 86_400_000L);
 
         assertThatThrownBy(() -> service.rotate(rawToken))
                 .isInstanceOf(ForbiddenException.class)
@@ -58,18 +61,18 @@ class RefreshTokenServiceTest {
     @Test
     void rotateReturnsAReplacementAndIssuesANewAccessToken() {
         UUID userId = UUID.randomUUID();
-        RefreshTokenService service = new RefreshTokenService(store, tokenProvider, 86_400_000L);
+        RefreshTokenService service = new RefreshTokenService(store, users, tokenProvider, 86_400_000L);
         String rawToken = service.issue(userId);
         UUID tokenId = UUID.fromString(rawToken.substring(0, rawToken.indexOf('.')));
         ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
-        verify(store).insertRefreshToken(any(), any(), any(), tokenHash.capture(), any());
-        when(store.findRefreshTokenOwner(tokenId)).thenReturn(new CanonicalCqlStore.RefreshTokenOwnerRow(
+        verify(store).save(any(), any(), any(), tokenHash.capture(), any());
+        when(store.findOwner(tokenId)).thenReturn(new RefreshTokenRepository.TokenOwner(
                 tokenId, userId, tokenHash.getValue(), Instant.now().plusSeconds(60), null));
-        when(store.revokeRefreshToken(any(), any(), any())).thenReturn(true);
+        when(store.revoke(any(), any(), any())).thenReturn(true);
         CanonicalUser user = new CanonicalUser(
                 userId, "alice", "alice", "alice@example.com", "alice@example.com", "hash", "LOCAL", null,
                 "Alice", null, "ACTIVE", Instant.now(), Instant.now(), null);
-        when(store.findUserById(userId)).thenReturn(user);
+        when(users.findById(userId)).thenReturn(user);
         when(tokenProvider.generateToken("alice", userId)).thenReturn("access-token");
 
         RefreshTokenService.RefreshSession session = service.refresh(rawToken);
@@ -82,44 +85,44 @@ class RefreshTokenServiceTest {
     @Test
     void rotateRejectsInactiveAccountBeforeConsumingRefreshToken() {
         UUID userId = UUID.randomUUID();
-        RefreshTokenService service = new RefreshTokenService(store, tokenProvider, 86_400_000L);
+        RefreshTokenService service = new RefreshTokenService(store, users, tokenProvider, 86_400_000L);
         String rawToken = service.issue(userId);
         UUID tokenId = UUID.fromString(rawToken.substring(0, rawToken.indexOf('.')));
         ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
-        verify(store).insertRefreshToken(any(), any(), any(), tokenHash.capture(), any());
-        when(store.findRefreshTokenOwner(tokenId)).thenReturn(new CanonicalCqlStore.RefreshTokenOwnerRow(
+        verify(store).save(any(), any(), any(), tokenHash.capture(), any());
+        when(store.findOwner(tokenId)).thenReturn(new RefreshTokenRepository.TokenOwner(
                 tokenId, userId, tokenHash.getValue(), Instant.now().plusSeconds(60), null));
-        when(store.findUserById(userId)).thenReturn(new CanonicalUser(
+        when(users.findById(userId)).thenReturn(new CanonicalUser(
                 userId, "blocked", "blocked", "blocked@example.com", "blocked@example.com", "hash", "LOCAL", null,
                 "Blocked", null, "SUSPENDED", Instant.now(), Instant.now(), null));
 
         assertThatThrownBy(() -> service.rotate(rawToken))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("user account is unavailable");
-        verify(store, never()).revokeRefreshToken(any(), any(), any());
+        verify(store, never()).revoke(any(), any(), any());
     }
 
     @Test
     void rotateCompensatesReplacementWhenOldTokenCasLoses() {
         UUID userId = UUID.randomUUID();
-        RefreshTokenService service = new RefreshTokenService(store, tokenProvider, 86_400_000L);
+        RefreshTokenService service = new RefreshTokenService(store, users, tokenProvider, 86_400_000L);
         String rawToken = service.issue(userId);
         UUID tokenId = UUID.fromString(rawToken.substring(0, rawToken.indexOf('.')));
         ArgumentCaptor<String> tokenHash = ArgumentCaptor.forClass(String.class);
-        verify(store).insertRefreshToken(any(), any(), any(), tokenHash.capture(), any());
-        when(store.findRefreshTokenOwner(tokenId)).thenReturn(new CanonicalCqlStore.RefreshTokenOwnerRow(
+        verify(store).save(any(), any(), any(), tokenHash.capture(), any());
+        when(store.findOwner(tokenId)).thenReturn(new RefreshTokenRepository.TokenOwner(
                 tokenId, userId, tokenHash.getValue(), Instant.now().plusSeconds(60), null));
-        when(store.findUserById(userId)).thenReturn(new CanonicalUser(
+        when(users.findById(userId)).thenReturn(new CanonicalUser(
                 userId, "alice", "alice", "alice@example.com", "alice@example.com", "hash", "LOCAL", null,
                 "Alice", null, "ACTIVE", Instant.now(), Instant.now(), null));
-        when(store.revokeRefreshToken(any(), any(), any())).thenReturn(false, true);
+        when(store.revoke(any(), any(), any())).thenReturn(false, true);
 
         assertThatThrownBy(() -> service.rotate(rawToken))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessage("refresh token was already used");
         ArgumentCaptor<UUID> revokedTokenId = ArgumentCaptor.forClass(UUID.class);
         verify(store, org.mockito.Mockito.times(2))
-                .revokeRefreshToken(revokedTokenId.capture(), any(), any());
+                .revoke(revokedTokenId.capture(), any(), any());
         assertThat(revokedTokenId.getAllValues()).contains(tokenId);
         assertThat(revokedTokenId.getAllValues().get(1)).isNotEqualTo(tokenId);
     }

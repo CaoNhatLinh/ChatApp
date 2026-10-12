@@ -2,10 +2,12 @@ import apiClient from '@/shared/api/apiClient';
 import {
     parseInviteConsumeResponse,
     parseInvitePreview,
-    parseInviteRecord,
+    parseInvitePage,
     parseInviteViewerState,
     parseInviteView,
     parseJoinRequest,
+    parseJoinRequestPage,
+    type CursorPage,
     type InviteConsumeResponse,
     type InviteLinkRecord,
     type InviteLinkView,
@@ -51,20 +53,18 @@ export const createInvite = async (
     return parseInviteView(response.data);
 };
 
-export const listInvites = async (conversationId: string): Promise<InviteLinkRecord[]> => {
-    const response = await apiClient.get(`/invites/conversation/${conversationId}`);
-    if (!Array.isArray(response.data)) throw new Error('Invite list response is invalid');
-    return response.data.map(parseInviteRecord);
+export const listInvites = async (conversationId: string, cursor?: string): Promise<CursorPage<InviteLinkRecord>> => {
+    const response = await apiClient.get(`/invites/conversation/${conversationId}`, { params: { cursor, limit: 20 } });
+    return parseInvitePage(response.data);
 };
 
 export const revokeInvite = async (token: string): Promise<void> => {
     await apiClient.delete(`/invites/${encodeURIComponent(token)}`);
 };
 
-export const listJoinRequests = async (conversationId: string): Promise<JoinRequestView[]> => {
-    const response = await apiClient.get(`/invites/conversation/${conversationId}/requests`);
-    if (!Array.isArray(response.data)) throw new Error('Join request list response is invalid');
-    return response.data.map(parseJoinRequest);
+export const listJoinRequests = async (conversationId: string, cursor?: string): Promise<CursorPage<JoinRequestView>> => {
+    const response = await apiClient.get(`/invites/conversation/${conversationId}/requests`, { params: { cursor, limit: 20 } });
+    return parseJoinRequestPage(response.data);
 };
 
 export const resolveJoinRequest = async (

@@ -1,10 +1,10 @@
-import { Check, Palette, RotateCcw, Upload } from 'lucide-react';
+import { Check, ImageIcon, Palette, RotateCcw, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
 import { localizeText } from '@/shared/i18n';
-import { notifyError, notifySuccess } from '@/shared/lib/notification';
 import {
   CHAT_BUBBLE_PRESETS,
   CHAT_THEME_COPY,
@@ -40,11 +40,20 @@ interface RoomThemePanelProps {
 }
 
 const getThemePreviewClassName = (themeId: RoomThemeId) => {
-  if (themeId === 'studio') return 'bg-gradient-to-br from-[#f7f9fc] via-[#e8eef3] to-[#dfe8ee]';
-  if (themeId === 'neon') return 'bg-gradient-to-br from-[#192938] via-[#0b1722] to-[#f45c20]';
-  if (themeId === 'vapor') return 'bg-gradient-to-br from-[#1b2731] via-[#101b26] to-[#304354]';
-  return 'bg-gradient-to-br from-[#263d45] via-[#111e28] to-[#f45c20]';
+  return `room-theme-preview room-theme-preview-${themeId}`;
 };
+
+const ThemePresetPreview = ({ themeId }: { themeId: RoomThemeId }) => (
+  <span className={`room-theme-miniature ${getThemePreviewClassName(themeId)}`} aria-hidden="true">
+    <span className="room-theme-miniature__orbit" />
+    <span className="room-theme-miniature__signal"><i /><i /><i /></span>
+    <span className="room-theme-miniature__messages">
+      <i className="room-theme-miniature__peer" />
+      <i className="room-theme-miniature__own" />
+      <i className="room-theme-miniature__peer room-theme-miniature__short" />
+    </span>
+  </span>
+);
 
 const analyzeImageTreatment = (file: File): Promise<CustomBackgroundTreatment> => new Promise((resolve, reject) => {
   const objectUrl = URL.createObjectURL(file);
@@ -111,6 +120,7 @@ export const RoomThemePanel = ({
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [resetConversationDraft, setResetConversationDraft] = useState(false);
+  const [panelNotice, setPanelNotice] = useState<{ tone: 'error' | 'success'; message: string } | null>(null);
 
   useEffect(() => {
     setDraftThemeId(activeRoomThemeId);
@@ -125,6 +135,7 @@ export const RoomThemePanel = ({
     setPendingBackgroundFile(null);
     setPendingPreviewUrl(null);
     setResetConversationDraft(false);
+    setPanelNotice(null);
   }, [activeBackgroundImage, activeBackgroundTreatment, activeRoomThemeId, defaultBubbleStyleId]);
 
   useEffect(() => () => {
@@ -162,7 +173,7 @@ export const RoomThemePanel = ({
     try {
       normalizedBackground = normalizeRoomBackgroundUrl(draftBackgroundUrl);
     } catch {
-      notifyError(localizeText('Hình nền phải là URL http(s) hợp lệ.'));
+      setPanelNotice({ tone: 'error', message: localizeText('Hình nền phải là URL http(s) hợp lệ.') });
       return;
     }
 
@@ -171,14 +182,14 @@ export const RoomThemePanel = ({
       try {
         normalizedBackground = await uploadChatBackground(pendingBackgroundFile);
       } catch {
-        notifyError(localizeText('Không thể tải ảnh nền lên. Vui lòng thử lại.'));
+        setPanelNotice({ tone: 'error', message: localizeText('Không thể tải ảnh nền lên. Vui lòng thử lại.') });
         setIsUploadingImage(false);
         return;
       }
     }
 
     if (themeMode === 'custom' && !normalizedBackground && !resetConversationDraft) {
-      notifyError(localizeText('Tùy chỉnh cần có ảnh nền.'));
+      setPanelNotice({ tone: 'error', message: localizeText('Chọn ảnh hoặc dán URL trước khi lưu.') });
       setIsUploadingImage(false);
       return;
     }
@@ -198,7 +209,7 @@ export const RoomThemePanel = ({
       onSetDefaultRoomTheme(draftThemeId);
     }
     onSetBubbleStyle(draftBubbleStyleId);
-    notifySuccess(hasActiveConversation ? CHAT_THEME_STATUS.conversationSaved : CHAT_THEME_STATUS.defaultsUpdated);
+    setPanelNotice({ tone: 'success', message: hasActiveConversation ? CHAT_THEME_STATUS.conversationSaved : CHAT_THEME_STATUS.defaultsUpdated });
     setIsUploadingImage(false);
     onSaved?.();
   };
@@ -211,16 +222,17 @@ export const RoomThemePanel = ({
     setPendingBackgroundFile(null);
     setPendingPreviewUrl(null);
     setResetConversationDraft(true);
+    setPanelNotice(null);
   };
 
   const handleBackgroundFile = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      notifyError(localizeText('Chỉ chấp nhận tệp hình ảnh.'));
+      setPanelNotice({ tone: 'error', message: localizeText('Chỉ chấp nhận tệp hình ảnh.') });
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      notifyError(localizeText('Ảnh nền không được vượt quá 10MB.'));
+      setPanelNotice({ tone: 'error', message: localizeText('Ảnh nền không được vượt quá 10MB.') });
       return;
     }
     const previewUrl = URL.createObjectURL(file);
@@ -229,6 +241,7 @@ export const RoomThemePanel = ({
     setDraftBackgroundUrl('');
     setThemeMode('custom');
     setResetConversationDraft(false);
+    setPanelNotice(null);
     setIsAnalyzingImage(true);
     try {
       setDraftBackgroundTreatment(await analyzeImageTreatment(file));
@@ -241,12 +254,18 @@ export const RoomThemePanel = ({
 
   const customPreviewUrl = pendingPreviewUrl || draftBackgroundUrl || null;
   const themeOptions = ROOM_THEME_PRESETS.filter((theme) => theme.mode === themeMode);
+  const selectedBubbleStyle = CHAT_BUBBLE_PRESETS.find((bubble) => bubble.id === draftBubbleStyleId) ?? CHAT_BUBBLE_PRESETS[0];
+  const selectedTheme = ROOM_THEME_PRESETS.find((theme) => theme.id === draftThemeId) ?? ROOM_THEME_PRESETS[0];
+  const previewUsesDarkInk = themeMode === 'light';
 
   return (
-    <SurfacePanel className="mx-4 rounded-xl border-border/40 bg-card/90 px-3 py-3 sm:px-5 sm:py-4">
+    <SurfacePanel className="signal-surface rounded-none border-0 bg-transparent px-4 py-4 shadow-none sm:px-7 sm:py-6">
       <div className="mb-4 flex items-start justify-between gap-3 border-b border-border/50 pb-3">
         <div>
-          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] bg-primary/12 text-primary" aria-hidden="true">
+              <Palette size={15} />
+            </span>
             {CHAT_THEME_COPY.panelTitle}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -263,9 +282,43 @@ export const RoomThemePanel = ({
         ) : null}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div
+        className={`relative mb-6 min-h-48 overflow-hidden rounded-[var(--radius-lg)] border border-border/60 ${themeMode === 'custom' ? '' : getThemePreviewClassName(draftThemeId)}`}
+        style={{
+          ...(themeMode === 'custom' && customPreviewUrl ? { backgroundImage: `${CUSTOM_BACKGROUND_OVERLAYS[draftBackgroundTreatment]}, url("${customPreviewUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+          '--room-signal': selectedTheme.signalColor,
+          '--room-signal-foreground': selectedTheme.signalForeground,
+        } as CSSProperties}
+        aria-label={localizeText('Xem trước giao diện cuộc trò chuyện')}
+      >
+        <div className="absolute inset-0 bg-background/10" />
+        <div className={`relative z-10 grid min-h-56 gap-5 p-5 sm:grid-cols-[0.7fr_1.3fr] sm:p-6 ${previewUsesDarkInk ? 'text-slate-950' : 'text-white'}`}>
+          <div className="flex flex-col justify-between">
+            <div>
+              <p className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] opacity-65"><Sparkles size={12} />{localizeText('Xem trước trực tiếp')}</p>
+              <p className="mt-2 text-lg font-semibold">{conversationName || localizeText('Cuộc trò chuyện mới')}</p>
+            </div>
+            <p className="mt-6 max-w-xs text-xs leading-5 opacity-65">{localizeText('Thử từng lựa chọn. Chỉ khi bấm lưu thì giao diện mới được áp dụng.')}</p>
+          </div>
+          <div className="flex flex-col justify-end gap-2.5" aria-hidden="true">
+            <div className={`max-w-[82%] px-3.5 py-2.5 text-xs ${selectedBubbleStyle.peerClass}`}>
+              <p className="leading-5">{localizeText('Tối nay mình chốt phần nào trước?')}</p>
+              <p className="mt-1 text-[9px] opacity-55">20:14</p>
+            </div>
+            <div className={`ml-auto max-w-[76%] px-3.5 py-2.5 text-xs ${selectedBubbleStyle.ownClass}`}>
+              <p className="leading-5">{localizeText('Mình hoàn thiện luồng tin nhắn trước nhé.')}</p>
+              <p className="mt-1 text-right text-[9px] opacity-60">20:15 · {localizeText('Đã xem')}</p>
+            </div>
+            <div className={`max-w-[58%] px-3.5 py-2 text-xs ${selectedBubbleStyle.peerClass}`}>
+              <p>{localizeText('Ừ, bắt đầu thôi.')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="space-y-2" aria-labelledby="room-theme-options">
-          <label id="room-theme-options" className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+          <label id="room-theme-options" className="text-xs font-semibold text-muted-foreground">
             {hasActiveConversation ? CHAT_THEME_COPY.roomThemeLabel : CHAT_THEME_COPY.defaultThemeLabel}
           </label>
           <div className="grid grid-cols-3 gap-1 rounded-lg bg-background/70 p-1">
@@ -299,7 +352,7 @@ export const RoomThemePanel = ({
               {localizeText('Dùng ảnh nền riêng cho cuộc trò chuyện này. Ảnh sẽ được tự động cân bằng độ sáng để chữ luôn dễ đọc.')}
             </div>
           ) : null}
-          <div className="grid gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {themeOptions.map((theme) => {
               const active = draftThemeId === theme.id;
               return (
@@ -311,17 +364,20 @@ export const RoomThemePanel = ({
                     setDraftThemeId(theme.id);
                     setResetConversationDraft(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-[border-color,background-color,transform] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary bg-primary/10' : 'border-border/45 hover:bg-background/50'}`}
+                  className={`room-theme-option group relative grid w-full grid-cols-[1fr_auto] gap-x-3 gap-y-2 overflow-hidden rounded-[var(--radius-md)] border p-2.5 text-left transition-[border-color,background-color,transform,box-shadow] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'is-active border-primary/80 bg-primary/10 shadow-[0_0_0_1px_var(--signal-glow)]' : 'border-border/55 bg-background/35 hover:border-primary/45 hover:bg-background/60'}`}
                 >
-                  <span className={`relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 ${getThemePreviewClassName(theme.id)}`} aria-hidden="true">
-                    <span className="absolute bottom-1 left-1 h-1.5 w-7 rounded-full bg-white/45" />
-                    <span className="absolute bottom-1 right-1 h-2.5 w-5 rounded-full bg-primary" />
+                  <ThemePresetPreview themeId={theme.id} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black tracking-[-0.015em]">{localizeText(theme.name)}</span>
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      <i className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.signalColor }} aria-hidden="true" />
+                      {localizeText(theme.character)}
+                    </span>
+                    <span className="mt-1.5 block text-[11px] leading-[1.45] text-muted-foreground">{localizeText(theme.description)}</span>
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black">{localizeText(theme.name)}</span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{localizeText(theme.description)}</span>
+                  <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-transparent group-hover:border-primary/60'}`}>
+                    <Check aria-hidden="true" className="h-3 w-3" strokeWidth={3} />
                   </span>
-                  {active ? <Check aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" /> : null}
                 </button>
               );
             })}
@@ -334,7 +390,7 @@ export const RoomThemePanel = ({
         </section>
 
         <section className="space-y-2" aria-labelledby="bubble-style-options">
-          <label id="bubble-style-options" className="text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+          <label id="bubble-style-options" className="text-xs font-semibold text-muted-foreground">
             {CHAT_THEME_COPY.defaultBubbleLabel}
           </label>
           <div className="grid gap-2">
@@ -346,7 +402,7 @@ export const RoomThemePanel = ({
                   type="button"
                   aria-pressed={active}
                   onClick={() => setDraftBubbleStyleId(bubble.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-[border-color,background-color,transform] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary bg-primary/10' : 'border-border/45 hover:bg-background/50'}`}
+                  className={`room-theme-option flex w-full items-center gap-3 rounded-[var(--radius-md)] border p-2 text-left transition-[border-color,background-color,transform,box-shadow] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary/80 bg-primary/10 shadow-[0_0_0_1px_var(--signal-glow)]' : 'border-transparent bg-background/35 hover:bg-background/60'}`}
                 >
                   <span className="flex w-20 shrink-0 flex-col gap-1" aria-hidden="true">
                     <span className={`ml-auto block h-4 w-12 rounded-lg ${bubble.ownClass}`} />
@@ -388,6 +444,32 @@ export const RoomThemePanel = ({
               aria-label={CHAT_THEME_COPY.roomBackgroundLabel}
               className="mb-2"
             />
+            {themeMode === 'custom' ? (
+              <fieldset className="mb-3">
+                <legend className="mb-2 text-[11px] font-semibold text-muted-foreground">{localizeText('Độ phủ để đọc tin nhắn')}</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['soft', 'strong'] as const).map((treatment) => {
+                    const active = draftBackgroundTreatment === treatment;
+                    return (
+                      <button
+                        key={treatment}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => {
+                          setDraftBackgroundTreatment(treatment);
+                          setResetConversationDraft(false);
+                          setPanelNotice(null);
+                        }}
+                        className={`flex items-center gap-2 rounded-[var(--radius-sm)] border px-3 py-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border/60 hover:border-primary/35'}`}
+                      >
+                        <span className={`h-7 w-7 rounded-full border border-border/50 ${treatment === 'strong' ? 'bg-slate-950/80' : 'bg-slate-500/35'}`} aria-hidden="true" />
+                        <span><strong className="block">{treatment === 'soft' ? localizeText('Nhẹ') : localizeText('Rõ')}</strong><small className="opacity-65">{treatment === 'soft' ? localizeText('Ảnh còn nổi bật') : localizeText('Ưu tiên chữ')}</small></span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <label className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] border border-border px-3 py-2 text-xs font-semibold transition-colors hover:border-primary hover:text-primary">
                 <Upload size={14} aria-hidden="true" />
@@ -415,7 +497,15 @@ export const RoomThemePanel = ({
         </section>
       </div>
 
-      <div className="mt-5 flex justify-end border-t border-border/50 pt-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+        <div className="min-h-5" aria-live="polite">
+          {panelNotice ? (
+            <p className={`inline-flex items-center gap-2 text-xs font-semibold ${panelNotice.tone === 'error' ? 'text-destructive' : 'text-success'}`}>
+              {panelNotice.tone === 'success' ? <Check size={14} aria-hidden="true" /> : <ImageIcon size={14} aria-hidden="true" />}
+              {panelNotice.message}
+            </p>
+          ) : isDirty ? <p className="text-xs text-muted-foreground">{localizeText('Bản xem trước chưa được lưu.')}</p> : null}
+        </div>
         <Button type="button" onClick={() => void handleSave()} disabled={!isDirty || isAnalyzingImage || isUploadingImage}>
           {localizeText('Lưu thay đổi')}
         </Button>

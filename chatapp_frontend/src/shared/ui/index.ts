@@ -8,12 +8,16 @@ export { Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, Dialog
 export { ConfirmDialog } from './ConfirmDialog';
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuGroup, DropdownMenuPortal, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuRadioGroup } from './DropdownMenu';
 export { Input } from './Input';
+export { Select } from './Select';
 export { Skeleton, SkeletonLine } from './Skeleton';
 export { NetworkStatusBanner } from './NetworkStatusBanner';
 export { LoadingSpinner } from './LoadingSpinner';
+export { ModalShell } from './ModalShell';
 export { SurfacePanel } from './SurfacePanel';
 export { SectionHeader } from './SectionHeader';
 export { EmptyState } from './EmptyState';
 export { Textarea } from './Textarea';
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './Tooltip';
 export { BrandMark, BrandLockup } from './Brand';
+export { BrandText, BrandWord } from './BrandWord';
 export { LanguageToggle } from './LanguageToggle';

@@ -3,6 +3,7 @@ package com.chatapp.chat_service.canonical.moderation;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationMember;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,8 @@ public class SanctionExpiryScheduler {
 
     private final ModerationRepository repository;
     private final CanonicalCqlStore store;
+    private final UserRepository users;
+    private final ConversationModerationRepository conversationModeration;
     private final CanonicalEventRecorder events;
     private final int lookbackDays;
     private final int batchSize;
@@ -32,11 +35,15 @@ public class SanctionExpiryScheduler {
     public SanctionExpiryScheduler(
             ModerationRepository repository,
             CanonicalCqlStore store,
+            UserRepository users,
+            ConversationModerationRepository conversationModeration,
             CanonicalEventRecorder events,
             @Value("${app.moderation.expiry-lookback-days:31}") int lookbackDays,
             @Value("${app.moderation.expiry-batch-size:100}") int batchSize) {
         this.repository = repository;
         this.store = store;
+        this.users = users;
+        this.conversationModeration = conversationModeration;
         this.events = events;
         this.lookbackDays = Math.max(1, Math.min(31, lookbackDays));
         this.batchSize = Math.max(1, Math.min(200, batchSize));
@@ -83,14 +90,14 @@ public class SanctionExpiryScheduler {
         if (sanction.conversationId() == null) return;
         if ("BAN".equals(sanction.sanctionType()) || "SUSPEND".equals(sanction.sanctionType())) {
             // The expiry-qualified CAS leaves an overlapping later ban intact.
-            store.clearConversationBanIfExpiresAt(
+            conversationModeration.clearBanIfUnchanged(
                     sanction.conversationId(), sanction.userId(), sanction.expiresAt());
         } else if ("MUTE".equals(sanction.sanctionType())) {
             CanonicalConversationMember member = store.findConversationMember(
                     sanction.conversationId(), sanction.userId());
             if (member != null && member.mutedUntil() != null && !member.mutedUntil().isAfter(now)) {
                 // A CAS prevents a newer mute from being cleared by this delayed run.
-                store.clearMemberMuteIfExpiresAt(
+                conversationModeration.clearMuteIfUnchanged(
                         sanction.conversationId(), sanction.userId(), member.mutedUntil());
             }
         }
@@ -100,11 +107,11 @@ public class SanctionExpiryScheduler {
         if (!"BAN".equals(sanction.sanctionType()) && !"SUSPEND".equals(sanction.sanctionType())) return;
         // Do not restore an account while another timed app sanction is active.
         if (repository.hasActiveAppAccountLock(sanction.userId(), now)) return;
-        CanonicalUser current = store.findUserById(sanction.userId());
+        CanonicalUser current = users.findById(sanction.userId());
         if (current == null) return;
         String expectedStatus = "BAN".equals(sanction.sanctionType()) ? "BANNED" : "SUSPENDED";
         if (expectedStatus.equalsIgnoreCase(current.accountStatus())) {
-            store.updateUserAccountStatus(sanction.userId(), "ACTIVE", now);
+            users.updateAccountStatus(sanction.userId(), "ACTIVE", now);
         }
     }
 }

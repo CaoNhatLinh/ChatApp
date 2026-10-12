@@ -50,7 +50,7 @@ pixel values.
 
 - Brand: `/`, `/about`, `/help`, `/privacy`, `/terms`.
 - Auth: `/login`, `/register`.
-- Product: `/app`, `/friends`, `/search`, `/profile`, `/settings`.
+- Product: `/app`, `/friends`, `/profile`, `/settings`; message search opens as a dialog from the active conversation.
 - Operator: `/admin`.
 - Recovery and invite: `/403`, Next `not-found.tsx`, `/join/:token`.
 

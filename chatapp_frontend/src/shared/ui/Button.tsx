@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import { type VariantProps } from 'class-variance-authority';
 import { cn } from '@/shared/lib/cn';
 import { Loader2 } from 'lucide-react';
@@ -20,10 +20,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
       >
-        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-        {children}
+        {loading && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />}
+        {asChild ? <Slottable>{children}</Slottable> : children}
       </Comp>
     );
   }

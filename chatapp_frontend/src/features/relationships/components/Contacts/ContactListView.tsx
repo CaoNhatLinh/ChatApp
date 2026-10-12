@@ -106,7 +106,6 @@ export const ContactListView = () => {
       await selectConversation(conversation.conversationId);
       setSidebarOpen(false);
       setActiveView("chat");
-      notifySuccess(FRIEND_COPY.actions.openChatSuccess);
     } catch (error) {
       logger.error("[ContactListView] Open conversation failed", error instanceof Error ? error.message : String(error));
       notifyError(getUserFacingErrorMessage(error, FRIEND_COPY.actions.openChatFailed));

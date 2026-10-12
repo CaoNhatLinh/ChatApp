@@ -1,6 +1,8 @@
 # Nối (ChatApp) - Monorepo
 
-Welcome to the **Nối** repository. This is a complete, real-time chat application designed with a microservices-inspired architecture, featuring a robust backend and a modern frontend interface.
+Nối is a real-time conversation app built with a Spring Boot modular monolith
+and a Next.js frontend. Feature readiness and remaining integration checks are
+tracked in the [readiness checklist](./tasks/readiness/todo.md).
 
 ## 📂 Project Structure
 
@@ -16,6 +18,10 @@ room-local admin role; room-local conversation roles remain a separate domain.
 ---
 
 ## 🚀 Quick Setup
+
+Windows + VS Code: follow the [complete local setup guide](./docs/LOCAL_WINDOWS_SETUP.md)
+for JDK selection, Docker health checks, database initialization/migrations and
+Firebase credentials. It also records the remaining live verification gates.
 
 ### 1. Start the Backend Infrastructure
 The default Compose manifest starts the canonical local stack: Cassandra plus
@@ -47,6 +53,10 @@ npm install           # Or yarn / pnpm install
 npm run dev           # Or yarn dev
 ```
 
+From the repository root, `npm run dev`, `npm run build` and `npm run validate`
+delegate to the frontend. They do not start or verify the backend infrastructure;
+run the Maven and Compose commands above separately.
+
 ---
 
 ## 📖 Detailed Documentation
@@ -58,11 +68,13 @@ Each module has its own detailed documentation. Please refer to them for specifi
 - 🔗 **[Social & Messaging Technical Guide](./TECHNICAL_SOCIAL_MESSAGING.md)**
 - 🔗 **[Product brief](./PRODUCT.md)**
 - 🔗 **[Feature inventory](./docs/FEATURE_INVENTORY.md)**
+- 🔗 **[Readiness plan](./tasks/readiness/plan.md)**, **[form/state requirements](./tasks/readiness/forms-and-states.md)** and **[current evidence](./tasks/readiness/review.md)**
 - 🔗 **[Traceability matrix](./docs/TRACEABILITY_MATRIX.md)**
 - 🔗 **[End-to-end work plan](./docs/AGENT_WORK_PLAN.md)**
 - 🔗 **[Global admin console plan](./docs/ADMIN_PLAN.md)**
 - 🔗 **[Final documentation self-review](./docs/SELF_REVIEW_STATUS.md)**
 - 🔗 **[OpenAPI contract](./docs/api/openapi.yaml)** and **[AsyncAPI realtime contract](./docs/api/asyncapi.yaml)**
+- 🔗 **[Firebase Google auth setup](./docs/FIREBASE_GOOGLE_AUTH_SETUP.md)**
 
 ## 🤝 Contributing
 For contributing guidelines and coding standards, please read the **[CONTRIBUTING.md](./chat-service/CONTRIBUTING.md)** file inside the `chat-service` folder.

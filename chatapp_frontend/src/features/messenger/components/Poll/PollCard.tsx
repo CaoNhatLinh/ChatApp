@@ -9,7 +9,7 @@ import { enUS, vi } from 'date-fns/locale';
 import { localizeText, useAppLocale } from '@/shared/i18n';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { logger } from '@/shared/lib/logger';
-import { notifyError, notifySuccess } from '@/shared/lib/notification';
+import { notifyError } from '@/shared/lib/notification';
 
 interface PollCardProps {
     poll: PollData;
@@ -102,7 +102,6 @@ export const PollCard: React.FC<PollCardProps> = ({ poll }) => {
             // Synchronize local state with fresh server data
             setSelectedOptions(updatedPoll.currentUserVotes ?? []);
             setLocalPoll(updatedPoll);
-            notifySuccess(localizeText('Đã ghi nhận bình chọn.'));
         } catch (error: unknown) {
             logger.error('[PollCard] Vote failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
@@ -124,7 +123,6 @@ export const PollCard: React.FC<PollCardProps> = ({ poll }) => {
 
             setSelectedOptions([]);
             setLocalPoll(updatedPoll);
-            notifySuccess(localizeText('Đã hủy bình chọn.'));
         } catch (error: unknown) {
             logger.error('[PollCard] Remove vote failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
@@ -139,7 +137,6 @@ export const PollCard: React.FC<PollCardProps> = ({ poll }) => {
             const updatedPoll = await closePoll(localPoll.pollId);
             updatePollData(localPoll.conversationId, updatedPoll);
             setLocalPoll(updatedPoll);
-            notifySuccess(localizeText('Đã đóng bình chọn.'));
         } catch (error: unknown) {
             logger.error('[PollCard] Close poll failed', error instanceof Error ? error.message : String(error));
             notifyError(getUserFacingErrorMessage(error, localizeText('Không thể cập nhật bình chọn.')));
@@ -261,7 +258,7 @@ export const PollCard: React.FC<PollCardProps> = ({ poll }) => {
                 <div className={cn(
                     "rounded-md border px-2 py-1 text-[11px] font-medium",
                     localPoll.isAnonymous
-                        ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                        ? "border-border/70 bg-muted/55 text-muted-foreground"
                         : "bg-green-500/10 text-green-500 border-green-500/20"
                 )}>
                     {localizeText(localPoll.isAnonymous ? 'Bình chọn ẩn danh' : 'Bình chọn công khai')}

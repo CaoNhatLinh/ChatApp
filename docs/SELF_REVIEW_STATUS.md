@@ -1,5 +1,15 @@
 # Final documentation and flow self-review (2026-08-28)
 
+## Current verification update (2026-09-07)
+
+The latest working tree passes Java 20 Maven (165 tests, 0 failures), frontend
+validate/build, 1,065-key locale copy and error-copy gates, locale/admin/
+notification browser smoke, UI-quality checks at 320/390/768/1024/1440px, and
+the available contacts, room, invite, message, poll, community, presence,
+search and network journeys. The admin copy and documentation now use the
+conversation-scoped search model; remaining clean-stack and provider gates
+below are still externally blocked.
+
 ## Follow-up self-review (2026-08-30, brand and locale runtime increment)
 
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
@@ -31,10 +41,10 @@ browser evidence after the integrated global-admin increment.
 | Feature completeness | Partial | `docs/FEATURE_INVENTORY.md`, `docs/ADMIN_PLAN.md` | Long-range analytics/SLO, export, language moderation/appeals and provider-backed delivery are not complete | Keep remaining modules explicitly planned; do not expose fake controls |
 | Flow completeness | Partial | `docs/USER_FLOWS.md`, `docs/TRACEABILITY_MATRIX.md` | Authenticated two-account realtime/admin flows need live dependencies | Keep public/deep-link smoke as verified evidence and mark clean-stack proof pending |
 | Code-doc consistency | Pass for implemented slices | `docs/api/openapi.yaml`, `docs/contracts/canonical-api.yaml`, controllers and frontend admin API | Remaining endpoint slices still need live integration proof | Canonical contract files are the only supported API surface |
-| Runtime consistency | Partial | Next build and Playwright smoke pass; Maven 155 tests pass | Cassandra/Redis/Kafka/Elasticsearch are unavailable on this host | Report infrastructure as externally blocked, never as mock success |
+| Runtime consistency | Partial | Next build and Playwright smoke pass; Maven 165 tests pass | Cassandra/Redis/Kafka/Elasticsearch are unavailable on this host | Report infrastructure as externally blocked, never as mock success |
 | Permission coverage | Pass at implemented admin boundary | `AppAuthorizationService`, `Admin*Service`, `/api/admin/overview`, `docs/SECURITY.md` | Full analyst/support privacy matrix remains | Server remains authoritative; UI only hides controls from capability snapshot |
 | Failure and recovery | Partial | forbidden/unavailable/empty states in `AdminPage.tsx`; bounded limits in services | Provider outage, replay, backup/restore and authenticated browser recovery remain | Track under plan Phase 4–7 and keep bounded queries |
-| Test traceability | Pass for current increment | `CanonicalAuthControllerTest`, `AdminConversationServiceTest`, `AdminAuditServiceTest`, `ReportServiceTest`, `AdminModerationServiceTest`, `AppRoleAdminServiceTest`, `AdminAnalyticsServiceTest`, `SanctionExpirySchedulerTest`, `RefreshTokenServiceTest`, `ChatPolicyServiceTest`, `CanonicalBackendServiceMessageTest`, `CanonicalBackendServiceConversationTest`, `ConversationAuthorizationServiceTest`, `JwtAuthenticationFilterTest`, `CanonicalContractManifestTest`, `InfrastructureManifestTest`, `NotificationSettingsPolicyTest`, `NotificationPolicyEvaluatorTest` | Integration and multi-account E2E remain | Maven = 155 tests; OpenAPI/AsyncAPI uniqueness = 95 REST paths / 20 STOMP destinations; browser smoke = zero console/request failures |
+| Test traceability | Pass for current increment | `CanonicalAuthControllerTest`, `AdminConversationServiceTest`, `AdminAuditServiceTest`, `ReportServiceTest`, `AdminModerationServiceTest`, `AppRoleAdminServiceTest`, `AdminAnalyticsServiceTest`, `SanctionExpirySchedulerTest`, `RefreshTokenServiceTest`, `ChatPolicyServiceTest`, `MessageServiceTest`, `ConversationServiceTest`, `CanonicalArchitectureTest`, `ConversationAuthorizationServiceTest`, `JwtAuthenticationFilterTest`, `CanonicalContractManifestTest`, `InfrastructureManifestTest`, `NotificationSettingsPolicyTest`, `NotificationPolicyEvaluatorTest` | Integration and multi-account E2E remain | Maven = 165 tests; OpenAPI/AsyncAPI uniqueness = 95 REST paths / 20 STOMP destinations; browser smoke = zero console/request failures |
 
 ## Corrections made during this review
 
@@ -887,7 +897,7 @@ Correction in this increment:
 | Review dimension | Result | Evidence | Remaining gap | Correction / decision |
 | --- | --- | --- | --- | --- |
 | API contract | Pass for the implemented filter path | `MessageSearchFilters` and `searchMessages` map attachment and pin predicates to the backend `MessageSearchRequest`; message-type options keep stable API enum values even when their labels are translated; the page requires a valid conversation UUID because the service authorizes one conversation at a time | Live Elasticsearch query and authorization proof remain pending | Do not send unsupported global message-search requests or invent a client fallback |
-| Filter completeness | Pass for the current backend matrix | `/search` now exposes sender, reply sender, mention, message type, date range, attachment presence, and pin status | Room search and index rebuild workflow remain unimplemented | Keep the UI limited to fields represented by the canonical backend contract |
+| Filter completeness | Pass for the current backend matrix | The conversation-scoped message-search dialog exposes sender, reply sender, mention, message type, date range, attachment presence, and pin status | Room search and index rebuild workflow remain unimplemented | Keep the UI limited to fields represented by the canonical backend contract |
 | State and recovery | Pass | Missing conversation context is shown as a disabled-search state; invalid UUID/date input remains localized and stale requests are invalidated before every branch | Authenticated browser coverage with real conversation data remains blocked | Preserve local navigation results while preventing unauthorized message requests |
 | Bilingual and accessibility coverage | Pass | New labels/options are in the localized copy registry; native labeled selects use keyboard-reachable controls and `test:e2e:search` verifies EN labels/options; locale smoke covers the new keys | Full authenticated screen-reader walkthrough remains pending | Translate product copy only; keep enum/API values stable |
 | Traceability | Pass | `SearchPage.tsx`, messenger API/copy registries, `resources.ts`, feature/function/UI inventories and this entry are synchronized | Live provider/index evidence remains partial | Keep the conversation requirement explicit in UI and documentation |
@@ -1510,3 +1520,12 @@ Correction in this increment:
 | Recovery and progressive disclosure | Pass at browser boundary | `MessageReadReceiptDialog` has loading, empty, retry, load-more and close states; `test:e2e:message-interactions` asserts both pages and preserves the message row | Live transport retry and multi-session consistency remain pending | Keep the message page stable while the detail dialog loads |
 | Locale and responsive behavior | Pass for exercised flow | Dialog copy and accessible names use the runtime locale; existing full-screen mobile dialog behavior is reused; the smoke switches VI→EN after the interaction flow | Manual screen-reader and physical-device review remain pending | Show seen-by details only on explicit action, not in every message row |
 | Regression safety | Pass for available gates | Java suite, frontend validate, i18n registry, build and message-interaction smoke pass with no unexpected console/request failures | Clean Cassandra/STOMP integration remains pending | Keep HTTP/browser evidence distinct from provider-backed evidence |
+
+# Follow-up self-review (2026-08-30, canonical mention delivery)
+
+| Review dimension | Result | Evidence | Remaining gap | Correction / decision |
+| --- | --- | --- | --- | --- |
+| Payload correctness | Pass at service/browser boundary | The composer serializes mention tokens into UUIDs; the service rejects non-members and expands `@all` from the authoritative room member set; Java tests cover both branches and `test:e2e:message-interactions` asserts the exact JSON payload | Live Cassandra mention-index and STOMP delivery remain pending | Never trust client-supplied display names or accept an ID outside the current room |
+| Notification/event scope | Pass by implementation | Resolved mention IDs are used for `hasMentions`, mention-index writes, message events and member notifications; the actor remains excluded by existing notification routing | Provider-backed notification delivery remains pending | Keep one resolved set across persistence, event and notification paths |
+| Progressive disclosure | Pass | Existing mention picker remains query-driven and compact; no new always-visible metadata was added to message rows | Keyboard/physical-device review remains pending | Keep advanced mention state inside the composer interaction |
+| Regression safety | Pass for available gates | Targeted Java message tests, frontend type-check/lint and message-interaction browser smoke pass with no console/request failures | Full clean-provider integration remains pending | Treat mention support as HTTP/browser verified, not Cassandra/STOMP verified |

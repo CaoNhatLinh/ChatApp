@@ -35,5 +35,5 @@ when present. If creation fails, the modal stays open with the user's draft. The
 UI exposes optional settings progressively and does not render a voter-detail
 panel.
 
-Verification: `CanonicalBackendServiceMessageTest`, the full Java 20 suite,
+Verification: `MessageServiceTest`, the full Java 20 suite,
 frontend validation/build, copy coverage, and `test:e2e:polls`.

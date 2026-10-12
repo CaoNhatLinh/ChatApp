@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.service;
 
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.auth.RefreshTokenRepository;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
@@ -20,15 +21,18 @@ import java.util.UUID;
 public class RefreshTokenService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final CanonicalCqlStore store;
+    private final RefreshTokenRepository tokens;
+    private final UserRepository users;
     private final JwtTokenProvider tokenProvider;
     private final long refreshLifetimeMs;
 
     public RefreshTokenService(
-            CanonicalCqlStore store,
+            RefreshTokenRepository tokens,
+            UserRepository users,
             JwtTokenProvider tokenProvider,
             @Value("${app.auth.refresh-lifetime-ms:2592000000}") long refreshLifetimeMs) {
-        this.store = store;
+        this.tokens = tokens;
+        this.users = users;
         this.tokenProvider = tokenProvider;
         this.refreshLifetimeMs = refreshLifetimeMs;
     }
@@ -37,14 +41,14 @@ public class RefreshTokenService {
         UUID tokenId = UUID.randomUUID();
         String secret = randomSecret();
         Instant expiresAt = Instant.now().plusMillis(refreshLifetimeMs);
-        store.insertRefreshToken(userId, com.datastax.oss.driver.api.core.uuid.Uuids.timeBased(), tokenId,
+        tokens.save(userId, com.datastax.oss.driver.api.core.uuid.Uuids.timeBased(), tokenId,
                 hash(tokenId + "." + secret), expiresAt);
         return tokenId + "." + secret;
     }
 
     public RotatedToken rotate(String rawToken) {
         TokenParts parts = parse(rawToken);
-        CanonicalCqlStore.RefreshTokenOwnerRow owner = store.findRefreshTokenOwner(parts.tokenId());
+        RefreshTokenRepository.TokenOwner owner = tokens.findOwner(parts.tokenId());
         Instant now = Instant.now();
         if (owner == null || owner.revokedAt() != null || owner.expiresAt() == null
                 || !owner.expiresAt().isAfter(now)
@@ -52,7 +56,7 @@ public class RefreshTokenService {
                 hash(rawToken).getBytes(StandardCharsets.UTF_8))) {
             throw new ForbiddenException("refresh token is invalid or expired");
         }
-        CanonicalUser currentUser = store.findUserById(owner.userId());
+        CanonicalUser currentUser = users.findById(owner.userId());
         if (currentUser == null || !"ACTIVE".equalsIgnoreCase(currentUser.accountStatus())) {
             // Do not rotate/revoke a valid refresh token for a suspended or
             // banned account. This keeps account recovery and operator revoke
@@ -61,12 +65,12 @@ public class RefreshTokenService {
         }
         String replacement = issue(owner.userId());
         UUID replacementId = UUID.fromString(replacement.substring(0, replacement.indexOf('.')));
-        if (!store.revokeRefreshToken(parts.tokenId(), replacementId, now)) {
+        if (!tokens.revoke(parts.tokenId(), replacementId, now)) {
             // The replacement is inserted before the old-token CAS so it can
             // carry the replacement pointer. If the old token was consumed by
             // another request, revoke the newly inserted token as compensation
             // instead of leaving an orphaned active session.
-            store.revokeRefreshToken(replacementId, null, now);
+            tokens.revoke(replacementId, null, now);
             throw new ForbiddenException("refresh token was already used");
         }
         return new RotatedToken(replacement, owner.userId());
@@ -78,10 +82,10 @@ public class RefreshTokenService {
         }
         try {
             TokenParts parts = parse(rawToken);
-            CanonicalCqlStore.RefreshTokenOwnerRow owner = store.findRefreshTokenOwner(parts.tokenId());
+            RefreshTokenRepository.TokenOwner owner = tokens.findOwner(parts.tokenId());
             if (owner != null && MessageDigest.isEqual(owner.tokenHash().getBytes(StandardCharsets.UTF_8),
                     hash(rawToken).getBytes(StandardCharsets.UTF_8))) {
-                store.revokeRefreshToken(parts.tokenId(), null, Instant.now());
+                tokens.revoke(parts.tokenId(), null, Instant.now());
             }
         } catch (RuntimeException ignored) {
             // Logout is idempotent; malformed client cookies are treated as already revoked.
@@ -90,7 +94,7 @@ public class RefreshTokenService {
 
     public RefreshSession refresh(String rawToken) {
         RotatedToken replacement = rotate(rawToken);
-        CanonicalUser user = store.findUserById(replacement.userId());
+        CanonicalUser user = users.findById(replacement.userId());
         if (user == null) {
             throw new ForbiddenException("user account is unavailable");
         }

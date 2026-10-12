@@ -90,9 +90,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             lang={locale}
             data-message-id={dataMessageId}
             className={cn(
-                "flex w-full gap-3",
+                "flex w-full gap-2.5 sm:gap-3",
                 isPoll ? "justify-center" : (isOwn ? "flex-row-reverse" : "flex-row"),
-                isHighlighted ? "ring-2 ring-primary ring-offset-2 rounded-2xl" : undefined
+                isHighlighted ? "rounded-[var(--radius-md)] ring-2 ring-primary ring-offset-2" : undefined
             )}
             initial={UI_MOTION_CONFIG.initialState}
             animate={UI_MOTION_CONFIG.animateState}
@@ -128,7 +128,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             {/* Message Content Area */}
             <div className={cn(
                 "flex flex-col",
-                isPoll ? "max-w-[85%]" : "max-w-[70%]",
+                isPoll ? "max-w-[94%] sm:max-w-[85%]" : "max-w-[82%] sm:max-w-[72%] lg:max-w-[68%]",
                 isOwn ? "items-end" : "items-start"
             )}>
                 {showAvatar && !isOwn && !isPoll && message.sender.displayName && (
@@ -148,17 +148,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                         message.poll && <PollCard poll={message.poll} />
                     ) : (
                         <div className={cn(
-                            "px-4 py-3 relative transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-300",
+                            "relative px-4 py-3 transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200",
                             isOwn
-                                ? roomBubbleStyle?.ownClass ?? "bg-primary text-primary-foreground rounded-3xl rounded-tr-none neo-shadow hover:translate-x-[-2px] hover:translate-y-[-2px]"
-                                : roomBubbleStyle?.peerClass ?? "glass rounded-3xl rounded-tl-none hover:bg-background/40"
+                                ? roomBubbleStyle?.ownClass ?? "chat-bubble-own bg-primary text-primary-foreground rounded-[var(--radius-md)] rounded-tr-sm shadow-[0_6px_14px_-12px_var(--signal-glow)] hover:translate-x-[-1px] hover:translate-y-[-1px]"
+                                : roomBubbleStyle?.peerClass ?? "chat-bubble-peer glass rounded-[var(--radius-md)] rounded-tl-sm hover:bg-background/40"
                         )}>
                             {message.replyTo && !message.isDeleted && (
                                 <button
                                     type="button"
                                     onClick={() => handleAction('jump-reply')}
                                     className={cn(
-                                        'mb-2 w-full rounded-2xl px-3 py-2 text-left text-xs border',
+                                        'mb-2 w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-xs border',
                                         isOwn ? 'bg-primary-foreground/10 border-primary-foreground/10 text-primary-foreground/80' : 'bg-primary/5 border-primary/10 text-foreground/70'
                                     )}
                                 >
@@ -215,11 +215,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                             )}
 
                             <div className={cn(
-                                "absolute -bottom-5 flex items-center gap-1 transition-opacity whitespace-nowrap",
-                                isFailed ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-                                isOwn ? "right-2" : "left-2"
+                                "chat-bubble-meta mt-2 flex items-center gap-1.5 whitespace-nowrap text-[9px] opacity-60 transition-opacity group-hover:opacity-85",
+                                isFailed && "opacity-100",
+                                isOwn ? "justify-end" : "justify-start"
                             )}>
-                                <span className="text-[9px] font-bold uppercase tracking-tighter">
+                                <span className="font-semibold tracking-[0.04em]">
                                     {format(createdAt, 'HH:mm')}
                                 </span>
                                 {!message.isDeleted && message.updatedAt && message.updatedAt !== message.createdAt && (
@@ -330,7 +330,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                 </div>
 
                 {!message.isDeleted && message.messageBucket && message.reactions && message.reactions.length > 0 && (
-                    <div className={cn("px-2 pt-5", isOwn ? "flex justify-end" : "") }>
+                    <div className={cn("px-2 pt-1.5", isOwn ? "flex justify-end" : "") }>
                         <ReactionBadgeList
                             reactions={message.reactions}
                             messageId={message.messageId}

@@ -129,7 +129,7 @@ const rawMessengerCopy = {
     sendMessageFailed: "Không thể gửi tin nhắn.",
   },
     messageInput: {
-    placeholder: "Viết tin nhắn của bạn... (gõ @ để nhắc tên)",
+    placeholder: "Viết tin nhắn của bạn...",
     toolbar: {
       attachFile: "Đính kèm file",
       attachMedia: "Đính kèm ảnh / video",
@@ -224,7 +224,7 @@ const rawMessengerCopy = {
   search: {
     messageFilter: {
       emptyMessage: "Không có kết quả phù hợp.",
-      typeLabel: "Loại",
+      typeLabel: "Loại tin nhắn",
       messageTypeOptions: [
         { value: "", label: "Tất cả" },
         { value: "TEXT", label: "Văn bản" },
@@ -254,8 +254,6 @@ const rawMessengerCopy = {
       loadMoreLabel: "Tải thêm kết quả",
       loadingMoreLabel: "Đang tải thêm kết quả...",
       loadMoreError: "Không thể tải thêm kết quả tìm kiếm. Vui lòng thử lại.",
-      disabledHint:
-        "Vui lòng mở một cuộc trò chuyện để dùng tìm kiếm nâng cao tin nhắn.",
     },
   },
   createRoomModal: {

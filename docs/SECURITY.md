@@ -1,7 +1,12 @@
 # Security model
 
-- Explicit auth allow-list: register/login/refresh/logout, health/public invite,
-  websocket handshake; `/auth/me` and product data require authentication.
+- Explicit auth allow-list: local register/login/refresh/logout, provider
+  capability, Google exchange/register, health/public invite and websocket
+  handshake; `/auth/me`, identity linking and product data require authentication.
+- Firebase verifies optional Google identity only. The server requires a verified
+  email and `google.com` sign-in provider, checks revoked ID tokens, keys the
+  durable mapping by Firebase UID, and never auto-merges by email. Linking also
+  requires the current local password and a Google `auth_time` within five minutes.
 - Access JWTs default to 15 minutes. Refresh tokens are random opaque values,
   hashed at rest, rotated on use, and revoked with a Cassandra conditional update.
 - Refresh cookies are HttpOnly, SameSite=Lax, scoped to `/api/auth`, and

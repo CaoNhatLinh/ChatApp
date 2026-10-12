@@ -1,10 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { ReactNode, FC } from 'react';
 import { ThemeContext, type ThemeContextType, type ThemePreference } from '@/app/providers/theme';
 import { logger } from '@/shared/lib/logger';
 
 const prefersDark = (): boolean =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+const subscribeToSystemTheme = (onChange: () => void): (() => void) => {
+  const query = window.matchMedia('(prefers-color-scheme: dark)');
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -25,7 +31,8 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
       return 'system';
     }
   });
-  const isDarkMode = themePreference === 'dark' || (themePreference === 'system' && prefersDark());
+  const systemIsDark = useSyncExternalStore(subscribeToSystemTheme, prefersDark, () => false);
+  const isDarkMode = themePreference === 'dark' || (themePreference === 'system' && systemIsDark);
 
   const setPreference = useCallback((preference: ThemePreference) => {
     setThemePreference(preference);
@@ -47,17 +54,7 @@ export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
     } else {
       html.removeAttribute('data-theme');
     }
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      if (themePreference === 'system') {
-        setThemePreference('system');
-      }
-    };
-
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-
-  }, [isDarkMode, themePreference]);
+  }, [isDarkMode]);
 
   const contextValue: ThemeContextType = {
     themePreference,

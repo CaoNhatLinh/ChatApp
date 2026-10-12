@@ -1,7 +1,8 @@
 package com.chatapp.chat_service.canonical.appauth;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.auth.RefreshTokenRepository;
+import com.chatapp.chat_service.canonical.device.DeviceRepository;
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,7 +36,7 @@ public class AdminUserController {
     }
 
     @GetMapping("/sessions")
-    public java.util.List<CanonicalCqlStore.RefreshTokenSessionRow> listSessions(
+    public java.util.List<RefreshTokenRepository.Session> listSessions(
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "50") int limit) {
         return users.listSessions(actorId(), userId, limit);
@@ -51,7 +52,7 @@ public class AdminUserController {
     }
 
     @GetMapping("/devices")
-    public java.util.List<CanonicalCqlStore.DeviceSessionRow> listDevices(
+    public java.util.List<DeviceRepository.DeviceSession> listDevices(
             @PathVariable UUID userId,
             @RequestParam(defaultValue = "50") int limit) {
         return users.listDevices(actorId(), userId, limit);

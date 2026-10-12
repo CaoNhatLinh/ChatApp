@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
-const paths = ['/', '/login', '/about', '/403', '/search?conversationId=00000000-0000-0000-0000-000000000001', '/settings?tab=reports', '/admin'];
+const paths = ['/', '/login', '/about', '/403', '/settings?tab=reports', '/admin'];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 const consoleErrors = [];

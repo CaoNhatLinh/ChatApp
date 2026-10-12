@@ -3,7 +3,7 @@ package com.chatapp.chat_service.canonical.admin;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppPermission;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAnalyticsPoint;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.analytics.AnalyticsRepository;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
@@ -16,9 +16,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 class AdminAnalyticsServiceTest {
-    private final CanonicalCqlStore store = mock(CanonicalCqlStore.class);
+    private final AnalyticsRepository analytics = mock(AnalyticsRepository.class);
     private final AppAuthorizationService authorization = mock(AppAuthorizationService.class);
-    private final AdminAnalyticsService service = new AdminAnalyticsService(store, authorization);
+    private final AdminAnalyticsService service = new AdminAnalyticsService(analytics, authorization);
 
     @Test
     void analyticsRequiresPermissionAndUsesBoundedRange() {
@@ -26,11 +26,11 @@ class AdminAnalyticsServiceTest {
         LocalDate day = LocalDate.of(2026, 8, 28);
         CanonicalAnalyticsPoint point = new CanonicalAnalyticsPoint(
                 day, "MESSAGE_SENT", 1, UUID.randomUUID(), UUID.randomUUID(), null, java.util.Map.of());
-        when(store.listAnalytics(day, "MESSAGE_SENT", 10)).thenReturn(List.of(point));
+        when(analytics.find(day, "MESSAGE_SENT", 10)).thenReturn(List.of(point));
 
         assertThat(service.list(actorId, day, day, "MESSAGE_SENT", 10)).containsExactly(point);
         verify(authorization).require(actorId, AppPermission.ANALYTICS_READ);
-        verify(store).listAnalytics(day, "MESSAGE_SENT", 10);
+        verify(analytics).find(day, "MESSAGE_SENT", 10);
     }
 
     @Test
@@ -43,6 +43,6 @@ class AdminAnalyticsServiceTest {
         assertThatThrownBy(() -> service.list(actorId, start, start, "SECRETS", 10))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessage("unsupported analytics event type");
-        verifyNoInteractions(store);
+        verifyNoInteractions(analytics);
     }
 }

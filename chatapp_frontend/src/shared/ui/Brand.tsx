@@ -1,4 +1,5 @@
 import { cn } from '@/shared/lib/cn';
+import { BrandWord } from '@/shared/ui/BrandWord';
 
 interface BrandMarkProps {
   className?: string;
@@ -29,7 +30,7 @@ export function BrandLockup({ title = 'Nối', className, markClassName }: Brand
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
       <BrandMark className={markClassName} />
-      <span>{title}</span>
+      {title === 'Nối' ? <BrandWord variant="lockup" /> : <span className="brand-wordmark">{title}</span>}
     </span>
   );
 }

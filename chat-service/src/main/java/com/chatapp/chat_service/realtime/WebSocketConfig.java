@@ -12,12 +12,15 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompAuthenticationInterceptor authenticationInterceptor;
+    private final StompOutboundAuthorizationInterceptor outboundAuthorizationInterceptor;
     private final String[] allowedOriginPatterns;
 
     public WebSocketConfig(
             StompAuthenticationInterceptor authenticationInterceptor,
+            StompOutboundAuthorizationInterceptor outboundAuthorizationInterceptor,
             @Value("${app.websocket.allowed-origin-patterns:http://localhost:5173}") String allowedOriginPatterns) {
         this.authenticationInterceptor = authenticationInterceptor;
+        this.outboundAuthorizationInterceptor = outboundAuthorizationInterceptor;
         this.allowedOriginPatterns = allowedOriginPatterns.split(",");
     }
 
@@ -38,5 +41,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authenticationInterceptor);
+    }
+
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(outboundAuthorizationInterceptor);
     }
 }

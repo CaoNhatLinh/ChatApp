@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.common.exception;
 
 import com.chatapp.chat_service.common.dto.ErrorResponse;
+import com.chatapp.chat_service.canonical.auth.GoogleAuthFlowException;
 import com.chatapp.chat_service.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -19,6 +20,12 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(GoogleAuthFlowException.class)
+    public ResponseEntity<ErrorResponse> handleGoogleAuth(
+            GoogleAuthFlowException ex, HttpServletRequest request) {
+        return response(ex.status(), ex.code(), ex.getMessage(), Map.of(), request);
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage(), Map.of(), request);

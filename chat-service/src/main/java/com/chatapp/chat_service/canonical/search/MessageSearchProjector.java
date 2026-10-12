@@ -27,7 +27,7 @@ public class MessageSearchProjector {
     public void project(String json) throws Exception {
         JsonNode event = objectMapper.readTree(json);
         String eventType = text(event, "eventType");
-        if (!Set.of("MESSAGE_SEND", "MESSAGE_EDIT", "MESSAGE_DELETE").contains(eventType)) {
+        if (!Set.of("MESSAGE_SEND", "MESSAGE_EDIT", "MESSAGE_DELETE", "MESSAGE_PIN", "MESSAGE_UNPIN").contains(eventType)) {
             return;
         }
         JsonNode payload = event.path("payload");

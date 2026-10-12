@@ -20,7 +20,7 @@ export const SidebarHeader = ({
             onClick={onOpenCreateRoom}
             aria-label={MESSENGER_COPY.sidebar.header.createRoomAriaLabel}
             title={MESSENGER_COPY.sidebar.header.createRoomTitle}
-            className="border-white/10 bg-transparent text-foreground hover:bg-white/6"
+            className="border-border/70 bg-transparent text-foreground hover:bg-muted/60"
           >
             <Plus size={18} />
           </Button>

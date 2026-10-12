@@ -2,7 +2,7 @@ package com.chatapp.chat_service.canonical.social;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
-import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
+import com.chatapp.chat_service.canonical.user.UserRepository;
 import com.chatapp.chat_service.canonical.service.FriendRequestNotificationService;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
@@ -22,13 +22,13 @@ import java.util.stream.Collectors;
 @Service
 public class FriendshipService {
     private final CanonicalEventRecorder eventRecorder;
-    private final CanonicalCqlStore cqlStore;
+    private final UserRepository cqlStore;
     private final FriendshipRepository repository;
     private final FriendRequestNotificationService friendRequestNotificationService;
 
     public FriendshipService(
             CanonicalEventRecorder eventRecorder,
-            CanonicalCqlStore cqlStore,
+            UserRepository cqlStore,
             FriendshipRepository repository,
             FriendRequestNotificationService friendRequestNotificationService) {
         this.eventRecorder = eventRecorder;
@@ -44,11 +44,11 @@ public class FriendshipService {
         if (actorId.equals(recipientId)) {
             throw new BadRequestException("cannot send request to self");
         }
-        CanonicalUser actor = cqlStore.findUserById(actorId);
+        CanonicalUser actor = cqlStore.findById(actorId);
         if (actor == null || !"ACTIVE".equalsIgnoreCase(actor.accountStatus())) {
             throw new NotFoundException("actor not found");
         }
-        CanonicalUser recipient = cqlStore.findUserById(recipientId);
+        CanonicalUser recipient = cqlStore.findById(recipientId);
         if (recipient == null || !"ACTIVE".equalsIgnoreCase(recipient.accountStatus())) {
             throw new NotFoundException("recipient not found");
         }
@@ -197,7 +197,7 @@ public class FriendshipService {
 
     public CanonicalApiContracts.FriendshipStatusResponse listIncomingRequests(UUID actorId, int limit) {
         var requests = repository.listIncomingRequests(actorId, limit).stream()
-                .map(row -> cqlStore.findUserById(row.requesterId()))
+                .map(row -> cqlStore.findById(row.requesterId()))
                 .map(this::toSummary)
                 .toList();
         return new CanonicalApiContracts.FriendshipStatusResponse("PENDING", actorId, requests);
@@ -216,7 +216,7 @@ public class FriendshipService {
         otherFriends.retainAll(actorFriends);
         return otherFriends.stream()
                 .limit(limit)
-                .map(cqlStore::findUserById)
+                .map(cqlStore::findById)
                 .map(this::toSummary)
                 .toList();
     }
@@ -231,7 +231,7 @@ public class FriendshipService {
         if (actorId.equals(otherUserId)) {
             throw new BadRequestException("cannot block self");
         }
-        CanonicalUser other = cqlStore.findUserById(otherUserId);
+        CanonicalUser other = cqlStore.findById(otherUserId);
         if (other == null) {
             throw new NotFoundException("user not found");
         }
@@ -393,7 +393,7 @@ public class FriendshipService {
         if (userId == null) {
             throw new IllegalStateException("friend projection is missing userId");
         }
-        return toSummary(cqlStore.findUserById(userId));
+        return toSummary(cqlStore.findById(userId));
     }
 
     private CanonicalApiContracts.FriendUserSummary toSummary(CanonicalUser user) {
