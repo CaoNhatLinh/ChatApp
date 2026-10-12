@@ -23,6 +23,12 @@ Windows + VS Code: follow the [complete local setup guide](./docs/LOCAL_WINDOWS_
 for JDK selection, Docker health checks, database initialization/migrations and
 Firebase credentials. It also records the remaining live verification gates.
 
+Once Docker Desktop and JDK 20+ are installed, run `npm run local`
+from this repository root to start infrastructure, initialize the current schema
+on an empty database, and run backend/frontend in one terminal. No migrations or
+data deletion are performed automatically. Missing local `.env` files are created
+from examples with a random JWT key; existing configurations are preserved.
+
 ### 1. Start the Backend Infrastructure
 The default Compose manifest starts the canonical local stack: Cassandra plus
 schema initialization, Redis, Kafka and Elasticsearch. Cloudinary remains an

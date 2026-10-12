@@ -10,6 +10,42 @@ hiện tại không chứa container backend/frontend.
 
 ## 1. Chuẩn bị máy
 
+### Khởi động bằng một lệnh
+
+Sau khi cài/mở Docker Desktop và có JDK 20+ cùng Node,
+mở terminal tại root repo:
+
+```powershell
+Set-Location E:\WORKSPACE\ChatApp
+npm run local
+```
+
+Launcher bật bốn dịch vụ Docker và chờ healthy, nạp duy nhất
+`chat_app_complete.cql` nếu Cassandra chưa có bảng/UDT Nối, kiểm tra bảng/cột/type
+canonical, rồi chạy backend và frontend trong cùng terminal. Frontend dependencies
+được cài bằng `npm ci` nếu Next chưa được cài. Mở `http://localhost:3000` sau khi
+launcher báo sẵn sàng. Dùng Ctrl+C để dừng app jobs; Docker và volume vẫn giữ.
+Khi chưa có `.env`, launcher tạo cấu hình local từ example và khóa JWT ngẫu nhiên;
+không ghi đè file đã có. Google/Cloudinary mặc định tắt trên máy mới cho tới khi
+bạn cấu hình credential thật.
+
+Máy mới dùng schema hiện tại, không chạy các file migration, không nạp dữ liệu
+cũ. Nếu gặp schema không khớp, launcher dừng; nó không xóa database hay tự sửa
+cấu trúc. Guard bảng/cột/type không thay kiểm thử đầy đủ primary keys hoặc dữ liệu.
+Các hướng dẫn migration bên dưới chỉ dành cho người nâng cấp database có sẵn,
+không áp dụng cho setup máy mới này.
+
+JDK nằm ở đường dẫn khác có thể chọn một lần trong terminal:
+
+```powershell
+$env:JAVA_HOME='C:\duong-dan\jdk-21'
+npm run local
+```
+
+Kiểm tra điều kiện mà không chạy container/app:
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1 -CheckOnly`.
+Launcher Windows không cài Docker/JDK tự động và không thay đổi cấu hình hệ thống.
+
 1. Cài [Docker Desktop cho Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
    dùng Linux containers và WSL 2 engine. Bật virtualization theo yêu cầu Docker.
    Mở Docker Desktop và chờ engine chạy. Nếu Windows cần cài WSL, làm theo

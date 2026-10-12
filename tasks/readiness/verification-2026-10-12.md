@@ -46,3 +46,18 @@ fixture test pass. Cloudinary/TURN cũng cần provider và kiểm thử riêng.
 
 Commit/push là lưu snapshot công việc hiện tại, không phải tuyên bố release
 production hay đã review đầy đủ mọi dòng code.
+
+## Bổ sung launcher một lệnh
+
+- Root `npm run local` gọi Windows launcher trong `scripts/start-local.ps1`.
+- Máy mới nạp duy nhất canonical `chat_app_complete.cql`; không tự chạy migration
+  hoặc xóa dữ liệu. File `.env` thiếu được tạo với mặc định local và JWT random.
+- Guard kiểm tra 78 bảng / 676 cột, type/static và 2 UDT / 20 fields từ schema;
+  đây không phải kiểm chứng đầy đủ primary keys hay migration dữ liệu cũ.
+- Windows PowerShell parser và `scripts/test-local-schema.ps1`: PASS, gồm thiếu
+  cột, sai type, sai static và parsing output JSON của cqlsh.
+- Maven `-Dtest=InfrastructureManifestTest test`: PASS, 9 tests. Guard mới xác
+  nhận bảng trong truy vấn runtime của các class import CqlSession có trong schema.
+- Background-job runtime và cleanup native child: PASS với process test riêng.
+- `npm run local` trên host hiện tại dừng đúng ở preflight Docker chưa được cài;
+  chưa chạy được luồng Docker/schema/backend/frontend thật. Không ghi đây là live PASS.

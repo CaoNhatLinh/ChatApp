@@ -7,10 +7,36 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InfrastructureManifestTest {
+
+    @Test
+    void canonicalSchemaContainsEveryTableReferencedByCassandraRepositories() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        var tables = new HashSet<String>();
+        var declarations = Pattern.compile("CREATE TABLE IF NOT EXISTS ([a-z_]+)").matcher(schema);
+        while (declarations.find()) tables.add(declarations.group(1));
+        var queryTable = Pattern.compile("(?:FROM|INTO|UPDATE)\\s+([a-z_]+)");
+        var referenced = new HashSet<String>();
+        try (var paths = Files.walk(Path.of("src", "main", "java"))) {
+            for (Path path : paths.filter(Files::isRegularFile)
+                    .filter(p -> p.toString().endsWith(".java")).toList()) {
+                String source = Files.readString(path);
+                if (!source.contains("import com.datastax.oss.driver.api.core.CqlSession;")) continue;
+                var queries = queryTable.matcher(source);
+                while (queries.find()) {
+                    String table = queries.group(1);
+                    assertThat(tables).as("Query table %s in %s", table, path).contains(table);
+                    referenced.add(table);
+                }
+            }
+        }
+        assertThat(referenced).as("Guard must actually inspect runtime queries").hasSizeGreaterThan(50);
+    }
 
     @Test
     void composeManifestsKeepEveryRequiredLocalService() throws IOException {

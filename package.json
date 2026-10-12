@@ -4,6 +4,7 @@
   "description": "Nối — realtime conversations, communities and app administration",
   "private": true,
   "scripts": {
+    "local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
     "dev": "npm --prefix chatapp_frontend run dev",
     "build": "npm --prefix chatapp_frontend run build",
     "validate": "npm --prefix chatapp_frontend run validate",
