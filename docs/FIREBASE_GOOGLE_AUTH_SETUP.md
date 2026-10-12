@@ -64,9 +64,9 @@ bị sót không chuyển production sang xác minh token giả.
 
 Schema canonical phải có các bảng/field identity đang nằm trong
 `chat_app_complete.cql`, đặc biệt `external_identity_owner_by_key` và các field
-`auth_provider`, `external_subject` của user. Với database đã tồn tại, chỉ chạy
-migration additive `migrations/V_firebase_google_identity.cql` đã review; không
-xóa/recreate dữ liệu production.
+`auth_provider`, `external_subject` của user. Máy mới chỉ nạp schema canonical
+này; không cần migration Google riêng. Không dùng schema init để nâng cấp database
+cũ hoặc xóa/recreate dữ liệu production. Xem [quyết định hợp nhất schema](SCHEMA_CONSOLIDATION.md).
 
 ## 5. Chạy và kiểm tra
 

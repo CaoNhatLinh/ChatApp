@@ -39,8 +39,9 @@ docker compose up -d
 ```
 
 Manifest mặc định và `docker-compose-full.yml` đều khởi động Cassandra + schema
-init, Redis, Kafka và Elasticsearch. Existing keyspaces phải apply các migration
-additive trong `migrations/` trước khi chạy các projection mới.
+init, Redis, Kafka và Elasticsearch. Máy mới nạp duy nhất `chat_app_complete.cql`,
+đã chứa toàn bộ cấu trúc canonical hiện tại. Không có script nâng cấp database
+legacy trong repo; launcher dừng khi schema không khớp, không tự xóa dữ liệu.
 
 ### 2. Configure application
 

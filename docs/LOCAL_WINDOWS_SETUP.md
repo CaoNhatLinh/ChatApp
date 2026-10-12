@@ -32,8 +32,9 @@ bạn cấu hình credential thật.
 Máy mới dùng schema hiện tại, không chạy các file migration, không nạp dữ liệu
 cũ. Nếu gặp schema không khớp, launcher dừng; nó không xóa database hay tự sửa
 cấu trúc. Guard bảng/cột/type không thay kiểm thử đầy đủ primary keys hoặc dữ liệu.
-Các hướng dẫn migration bên dưới chỉ dành cho người nâng cấp database có sẵn,
-không áp dụng cho setup máy mới này.
+Các script migration cũ đã được loại bỏ sau khi đối chiếu schema/code; xem
+[bảng hợp nhất](SCHEMA_CONSOLIDATION.md). Không hỗ trợ nâng cấp database legacy
+bằng launcher này.
 
 JDK nằm ở đường dẫn khác có thể chọn một lần trong terminal:
 
@@ -113,22 +114,11 @@ chưa được gán; lỗi kết nối hoặc `red` cần điều tra.
 
 ### Database đã có dữ liệu
 
-`CREATE IF NOT EXISTS` không nâng cấp các bảng cũ. Không chạy toàn bộ migration
-theo alphabet: có file ALTER/DROP và có file rebuild cần kế hoạch dữ liệu riêng.
-Sao lưu trước, kiểm tra schema hiện tại rồi chỉ áp dụng migration còn thiếu.
-Đặc biệt kiểm tra các thay đổi identity Google và invite state machine.
-
-Ví dụ nạp **một migration đã được xác nhận phù hợp**, từ terminal root:
-
-```powershell
-Set-Location E:\WORKSPACE\ChatApp
-docker cp .\migrations\V_firebase_google_identity.cql chat-cassandra:/tmp/google-identity.cql
-docker exec chat-cassandra cqlsh -k chat_app -f /tmp/google-identity.cql
-```
-
-Ví dụ này không có nghĩa chỉ một file là đủ cho mọi database cũ. Schema mới đã
-có các thay đổi này; không chạy lại ALTER đã tồn tại. Chưa có migration runner
-tự động xác định version database.
+`CREATE IF NOT EXISTS` không nâng cấp bảng cũ. Repo hiện phục vụ máy mới với
+schema canonical, không còn các migration legacy. Nếu dùng lại một volume có
+schema khác, launcher dừng và không chỉnh sửa dữ liệu. Không bỏ qua kiểm tra
+schema để ép runtime chạy. Việc chuyển dữ liệu cũ, nếu cần trong tương lai, là
+một công việc riêng cần backup và kế hoạch đã kiểm thử.
 
 Không dùng `chat-service/update_cassandra.ps1`: script cũ gọi tên container
 không khớp manifest hiện tại và không phải quy trình migration đã kiểm chứng.

@@ -52,9 +52,9 @@ when the membership capacity claim loses a race.
   capacity/idempotency boundary.
 - Conditional statements in the batch must always target the same conversation
   partition.
-- Existing keyspaces must apply
-  `migrations/V_add_conversation_membership_state.cql` before running this code.
-  Runtime code does not infer or backfill old counts.
+- Current fresh installs initialize membership state directly from
+  `chat_app_complete.cql`. Historical upgrade scripts were removed in the
+  2026-10-12 schema consolidation; runtime does not infer or backfill old counts.
 - Clean-stack Cassandra application and contention/load proof remain release
   gates.
 

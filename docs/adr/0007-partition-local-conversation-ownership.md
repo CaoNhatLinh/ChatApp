@@ -31,8 +31,8 @@ derived per-user/admin projections without appending another audit event.
 - Ownership and OWNER permission change atomically at one Cassandra boundary.
 - Role, remove and transfer commands may return a conflict after concurrent
   state changes; the caller must refresh and retry.
-- Existing keyspaces must apply
-  `migrations/V_add_conversation_owner_state.cql` before this runtime starts.
+- Fresh installs initialize owner state directly from `chat_app_complete.cql`;
+  historical upgrade scripts were removed in the 2026-10-12 consolidation.
   Missing owner state is an integrity error; runtime code does not infer it from
   old metadata.
 - Projection repair remains idempotent and does not change ownership authority.

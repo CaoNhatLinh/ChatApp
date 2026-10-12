@@ -61,3 +61,16 @@ production hay đã review đầy đủ mọi dòng code.
 - Background-job runtime và cleanup native child: PASS với process test riêng.
 - `npm run local` trên host hiện tại dừng đúng ở preflight Docker chưa được cài;
   chưa chạy được luồng Docker/schema/backend/frontend thật. Không ghi đây là live PASS.
+
+## Hợp nhất schema cho máy mới
+
+Đã đối chiếu 17 migration CQL với schema/code. Các thay đổi còn dùng đã có
+trong schema canonical; loại bỏ hai định nghĩa legacy (`users` và
+`message_revisions`) thay vì đưa chúng vào schema mới. Xóa 17 script migration,
+cập nhật hướng dẫn Firebase/local/data model và ghi quyết định trong
+`docs/SCHEMA_CONSOLIDATION.md`. Không xóa hay thay đổi database/volume.
+
+Schema guard PowerShell vẫn PASS. Toàn bộ Maven suite có 227 tests PASS,
+0 failures/errors/skipped. InfrastructureManifestTest có 10 tests PASS,
+bao gồm truy vấn runtime tham chiếu bảng đã định nghĩa và schema standalone
+không cần script upgrade. Live Cassandra vẫn chưa được kiểm chứng trên host này.

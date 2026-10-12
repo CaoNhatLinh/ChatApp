@@ -43,6 +43,6 @@ cannot read the updating role. A failed update restores the original row to
   same race, and stale editors receive a conflict instead of overwriting data.
 - The two authority partitions are not presented as a cross-table transaction;
   the revision barrier makes their ordering explicit.
-- Existing role rows are not inferred or copied. Apply
-  `migrations/V_rebuild_conversation_role_authority.cql` and recreate intended
-  room roles explicitly before enabling the runtime.
+- Existing role rows are not inferred or copied. Fresh installs create the
+  code-keyed authority directly from `chat_app_complete.cql`. Historical rebuild
+  scripts were removed in the 2026-10-12 schema consolidation.

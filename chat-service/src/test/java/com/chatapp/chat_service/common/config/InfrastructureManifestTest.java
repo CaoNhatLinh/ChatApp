@@ -15,6 +15,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InfrastructureManifestTest {
 
     @Test
+    void freshCanonicalSchemaDoesNotDependOnLegacyUpgradeScripts() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        assertThat(Pattern.compile("(?m)^\\s*(ALTER|DROP)\\s", Pattern.CASE_INSENSITIVE)
+                .matcher(schema).find()).isFalse();
+        assertThat(schema).contains(
+                "CREATE TABLE IF NOT EXISTS users_by_id (",
+                "CREATE TABLE IF NOT EXISTS message_revisions_by_message (",
+                "CREATE TABLE IF NOT EXISTS external_identity_owner_by_key (",
+                "CREATE TABLE IF NOT EXISTS invite_state_by_token (");
+        assertThat(schema).doesNotContain(
+                "CREATE TABLE IF NOT EXISTS users (",
+                "CREATE TABLE IF NOT EXISTS message_revisions (");
+        Path historicalScripts = Path.of("..", "migrations");
+        if (Files.exists(historicalScripts)) {
+            try (var paths = Files.walk(historicalScripts)) {
+                assertThat(paths.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".cql")).toList()).isEmpty();
+            }
+        }
+    }
+
+    @Test
     void canonicalSchemaContainsEveryTableReferencedByCassandraRepositories() throws IOException {
         String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
         var tables = new HashSet<String>();

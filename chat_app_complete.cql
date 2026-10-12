@@ -4,8 +4,9 @@
  * Purpose
  * -------
  * This is the single source of truth for a NEW environment. It deliberately
- * does not alter or drop an existing keyspace. Existing installations must be
- * migrated with a separate, tested data migration.
+ * does not alter or drop an existing keyspace. All currently supported schema
+ * additions are defined here. This repository targets fresh canonical installs;
+ * legacy upgrade scripts are not shipped or executed by the local launcher.
  *
  * Design rules
  * ------------

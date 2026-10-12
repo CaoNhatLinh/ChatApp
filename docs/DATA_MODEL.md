@@ -1,5 +1,9 @@
 # Data model and consistency
 
+Fresh deployments use only `chat_app_complete.cql`. Historical upgrade scripts
+were removed after consolidation; see [schema consolidation](SCHEMA_CONSOLIDATION.md).
+The runtime does not read or migrate legacy schemas.
+
 Identity, membership, messages, notifications, invites, polls, moderation, and
 audit rows are query-shaped Cassandra projections. Writes that affect more than
 one projection also append an outbox/audit event. Message sends are idempotent
@@ -9,25 +13,24 @@ marker; raw tokens never enter Cassandra.
 
 Global operators use `admin_conversations_by_month`, a bounded monthly
 projection keyed by `(month, created_at, conversation_id)`. It is written when a
-canonical room is created and refreshed by membership, global policy, and archive mutations; a
-clean deployment must run the documented backfill before claiming historical
-room coverage.
+canonical room is created and refreshed by membership, global policy, and archive
+mutations. Fresh deployments populate this projection through current runtime
+writes; they do not import historical rooms.
 
 Room capacity is authoritative in the static `member_count` and `max_members`
 columns of `conversation_members_by_conversation`. Add/remove commands use a
 single-partition conditional logged batch so the member row and count change
 together. `conversations_by_id` does not carry a second count, and a missing
-membership state is rejected instead of inferred. Existing keyspaces must apply
-`migrations/V_add_conversation_membership_state.cql`; see
-`docs/adr/0005-partition-local-membership-capacity.md`.
+membership state is rejected instead of inferred. The canonical initialization
+schema contains these columns; see ADR 0005.
 
 The same membership partition owns static `owner_id` and `owner_updated_at`.
 Ownership transfer conditionally changes both affected role sets and the static
 owner values in one logged batch. `conversations_by_id` has no owner copy;
 canonical room hydration combines metadata time with the ownership timestamp.
 Member removal and ordinary role assignment use conditional writes so neither
-can overwrite a concurrent transfer. Apply
-`migrations/V_add_conversation_owner_state.cql`; see ADR 0007.
+can overwrite a concurrent transfer. These columns are initialized directly in
+the canonical schema; see ADR 0007.
 
 Room role definitions are code-keyed rows in
 `conversation_roles_by_conversation`; `custom_role_count` is static catalog
@@ -35,8 +38,8 @@ authority for the 50-role bound. Creation uses one conditional batch for count
 and code uniqueness. Deletion uses `ACTIVE`/`DELETING` state plus the membership
 partition's static `role_revision`: assignment and ownership transfer CAS the
 revision they used to read role definitions. This is an ordering barrier, not a
-cross-table transaction. Apply
-`migrations/V_rebuild_conversation_role_authority.cql`; see ADR 0008.
+cross-table transaction. The canonical schema defines the current role authority
+without rebuilding a legacy table; see ADR 0008.
 
 Public community discovery uses `community_directory_by_filter`, a derived
 16-shard projection keyed by one canonical language/category/tag filter and
@@ -47,12 +50,12 @@ authoritative in `community_join_request_by_user`, one row per room and user;
 `community_join_requests_by_conversation` is its newest-first operator/history
 projection. Resolution uses a conditional `PENDING` → `APPROVING` claim; the claiming
 operator can safely resume an interrupted approval before completing it. No
-request path reads the removed bucket/tag discovery tables. Existing keyspaces
-must apply `migrations/V_add_community_directory.cql`; see ADR 0006.
+request path reads the removed bucket/tag discovery tables. These projections
+are included in the canonical initialization schema; see ADR 0006.
 
-Invite recipients are idempotent per `(link_id, user_id)` in
-`invite_join_by_link_user`. A failed command may be conditionally reclaimed as
-`PENDING`; accepted or declined rows are not overwritten. Manager resolution
+Invite recipients use the current authority `invite_state_by_token`, partitioned
+by `link_token` with `recipient_id` as the clustering key. Link metadata and use
+count are static in that partition. Manager resolution
 uses `join_requests_by_conversation` with a conditional `PENDING` to
 `APPROVING` claim that stores both `resolved_by` and `resolution_decision`, so
 the same operator may resume only the same interrupted decision. Public invite
@@ -65,17 +68,15 @@ target type, reason, and description so the user-facing history does not need an
 unsafe cross-partition lookup. Rows that do not satisfy the canonical schema
 are outside the runtime read path and must be repaired before use.
 
-For an existing keyspace, apply `migrations/V_add_reporter_projection_details.cql`
-with `cqlsh` before enabling the report-history tab. Fresh installs get the
-columns from `chat_app_complete.cql` during schema initialization.
+Fresh installs get the reporter projection columns from `chat_app_complete.cql`
+during schema initialization. Legacy rows are not an alternative runtime contract.
 
 Timed APP/CONVERSATION sanctions are additionally projected into
 `user_sanctions_by_expiry_day`, partitioned by UTC expiry date and clustered by
 `expires_at`. `SanctionExpiryScheduler` reads only a bounded lookback window and
 uses a conditional status claim; side effects use expiry-qualified CAS writes so
-a delayed worker cannot clear a newer ban or mute. Existing keyspaces must
-apply `migrations/V_add_sanction_expiry_projection.cql` before enabling the
-scheduler.
+a delayed worker cannot clear a newer ban or mute. The expiry projection is
+included in the canonical schema used by fresh installations.
 
 Global investigations use `audit_events_by_month`, keyed by UTC `event_month`
 and descending `event_id`. It stores the immutable action, actor/resource,
@@ -88,9 +89,8 @@ keeps the immutable event and publish metadata, while
 acknowledgement. The writer inserts both rows in one logged batch; a successful
 publish updates the immutable row and deletes the pending row in one logged
 batch, while a failed attempt increments both counters. This avoids Cassandra
-post-`LIMIT` filtering starvation without making Kafka authoritative. Existing
-keyspaces must apply `migrations/V_add_outbox_pending_projection.cql` before
-enabling the publisher.
+post-`LIMIT` filtering starvation without making Kafka authoritative. Both
+projections are initialized directly from the canonical schema.
 
 Redis keys (`chat:typing:*`, `chat:presence:*`, `chat:presence:session:*`, and
 rate-limit keys) are ephemeral and must always have TTLs. A presence session

@@ -32,6 +32,7 @@ the small public membership-state contract.
 - Directory rows are projections; stale keys cannot make an archived room
   visible because canonical state is re-read.
 - There is no runtime branch for the removed bucket/tag discovery designs.
-- Existing keyspaces must apply `migrations/V_add_community_directory.cql`.
-- Clean Cassandra migration, LWT contention and multi-user browser journeys
+- Current fresh installs initialize these tables from `chat_app_complete.cql`;
+  historical upgrade scripts were removed in the 2026-10-12 consolidation.
+- Clean Cassandra initialization, LWT contention and multi-user browser journeys
   remain release gates.
