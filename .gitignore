@@ -1,5 +1,7 @@
 # Antigravity & Agent config
 .agent/
+.impeccable/
+/chatapp_frontend/public/noi-community-settings.webp.json
 GEMINI.md
 ERRORS.md
 PRODUCTION_AUDIT_REPORT1.md
@@ -19,6 +21,7 @@ node_modules/
 
 # Local credentials
 **/.env
+**/.env.*
 !**/.env.example
 .secrets/
 *-firebase-adminsdk-*.json

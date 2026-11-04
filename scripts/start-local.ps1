@@ -52,9 +52,6 @@ try {
         }
     }
     $npmPath = (Get-Command npm.cmd -ErrorAction Stop).Source
-    if (-not $PSBoundParameters.ContainsKey('JdkPath') -and (Test-Path 'C:\Program Files\Java\jdk-20\bin\java.exe')) {
-        $JdkPath = 'C:\Program Files\Java\jdk-20'
-    }
     if (-not $JdkPath -or -not (Test-Path (Join-Path $JdkPath 'bin/java.exe'))) {
         $JdkPath = 'C:\Program Files\Java\jdk-20'
     }
@@ -64,7 +61,7 @@ try {
         $javaVersion = (& (Join-Path $JdkPath 'bin/java.exe') -version 2>&1 | Out-String)
     } finally { $ErrorActionPreference = 'Stop' }
     if ($javaVersion -notmatch 'version "(\d+)\.' -or [int]$Matches[1] -lt 20) {
-        throw 'JAVA_HOME points to Java older than 20. Select the installed JDK 20 with -JdkPath.'
+        throw 'Select an installed JDK 20 or newer with -JdkPath or JAVA_HOME.'
     }
     $backendEnv = Join-Path $backendPath '.env'
     if (-not (Test-Path $backendEnv)) {

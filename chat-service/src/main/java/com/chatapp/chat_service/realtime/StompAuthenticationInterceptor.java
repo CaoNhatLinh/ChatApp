@@ -3,6 +3,9 @@ package com.chatapp.chat_service.realtime;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
 import com.chatapp.chat_service.canonical.user.UserRepository;
+import com.chatapp.chat_service.canonical.call.CallDelivery;
+import com.chatapp.chat_service.canonical.call.CallDeliveryHeaders;
+import com.chatapp.chat_service.canonical.call.CallLifecycleService;
 import com.chatapp.chat_service.security.core.AppUserPrincipal;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
 import org.springframework.messaging.Message;
@@ -28,11 +31,12 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
     private static final Set<String> COMMANDS = Set.of(
             "/app/typing", "/app/heartbeat", "/app/online-status", "/app/presence.logout",
             "/app/presence.subscribe", "/app/presence.unsubscribe", "/app/presence.batch",
-            "/app/call.start", "/app/call.join", "/app/call.leave", "/app/call.signal", "/app/call.end");
+            "/app/call.start", "/app/call.join", "/app/call.leave", "/app/call.signal", "/app/call.end",
+            "/app/call.fail", "/app/call.heartbeat", "/app/call.sync");
     private static final Set<String> USER_QUEUES = Set.of(
             "/user/queue/presence", "/user/queue/presence-sync", "/user/queue/presence-batch",
             "/user/queue/notifications", "/user/queue/notification-read", "/user/queue/notification-delete",
-            "/user/queue/friend-requests", "/user/queue/conversation-list-update");
+            "/user/queue/friend-requests", "/user/queue/conversation-list-update", "/user/queue/call-results", "/user/queue/calls");
     private static final Pattern CONVERSATION_TOPIC = Pattern.compile(
             "^/topic/conversation/([0-9a-fA-F-]{36})(?:/(typing|calls|reactions|read|polls|pins|attachments))?$");
     private static final Pattern USER_TOPIC = Pattern.compile(
@@ -41,6 +45,7 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
     private final ConversationAuthorizationService authorization;
     private final AppAuthorizationService appAuthorization;
     private final UserRepository users;
+    private final CallLifecycleService calls;
     private final ConcurrentHashMap<String, SessionAccess> sessions = new ConcurrentHashMap<>();
 
     @Autowired
@@ -48,11 +53,13 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
             JwtTokenProvider tokens,
             ConversationAuthorizationService authorization,
             AppAuthorizationService appAuthorization,
-            UserRepository users) {
+            UserRepository users,
+            CallLifecycleService calls) {
         this.tokens = tokens;
         this.authorization = authorization;
         this.appAuthorization = appAuthorization;
         this.users = users;
+        this.calls = calls;
     }
 
     @Override
@@ -146,6 +153,15 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
             var conversation = CONVERSATION_TOPIC.matcher(destination);
             if (conversation.matches()) {
                 authorization.requireMember(UUID.fromString(conversation.group(1)), session.userId());
+            }
+            boolean roomCalls = conversation.matches() && "calls".equals(conversation.group(2));
+            boolean privateCalls = destination.startsWith("/queue/calls-user")
+                    || "/user/queue/calls".equals(headers.getHeader(SimpMessageHeaderAccessor.ORIGINAL_DESTINATION));
+            if (roomCalls || privateCalls) {
+                var delivery = CallDeliveryHeaders.read(message.getHeaders());
+                if (roomCalls && !UUID.fromString(conversation.group(1)).equals(delivery.conversationId())) return false;
+                if (privateCalls && delivery.kind() != CallDelivery.Kind.STATE) return false;
+                calls.requireDelivery(session.userId(), delivery);
             }
             var userTopic = USER_TOPIC.matcher(destination);
             return !userTopic.matches() || session.userId().equals(UUID.fromString(userTopic.group(1)));

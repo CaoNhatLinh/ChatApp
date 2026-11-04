@@ -43,7 +43,7 @@ const message = {
   messageId,
   senderId: ownerId,
   content: 'Chúng ta gặp ở đâu?',
-  messageType: 'POLL',
+  revision: 0, messageType: 'POLL',
   contentFormat: 'PLAIN_TEXT',
   pollId,
   isDeleted: false,

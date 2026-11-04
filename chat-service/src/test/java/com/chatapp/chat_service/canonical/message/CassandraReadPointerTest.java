@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.message;
 
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
 import com.datastax.oss.driver.api.core.cql.*;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,7 @@ class CassandraReadPointerTest {
     @Mock PreparedStatement load;
     @Mock PreparedStatement advance;
     @Mock BoundStatement readStatement;
-    @Mock BoundStatement writeStatement;
+    @Mock(answer = org.mockito.Answers.RETURNS_SELF) BoundStatement writeStatement;
     @Mock ResultSet readResult;
     @Mock ResultSet writeResult;
     @Mock Row row;
@@ -35,6 +36,7 @@ class CassandraReadPointerTest {
         when(session.prepare(startsWith("UPDATE"))).thenReturn(advance);
         pointer = new CassandraReadPointer(session);
         when(load.bind(room, reader)).thenReturn(readStatement);
+        when(readStatement.setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).thenReturn(readStatement);
         when(session.execute(readStatement)).thenReturn(readResult);
     }
 
@@ -47,14 +49,14 @@ class CassandraReadPointerTest {
         when(advance.bind(any(), any(), any(), any(), any(), any())).thenReturn(writeStatement);
         when(session.execute(writeStatement)).thenReturn(writeResult);
         when(writeResult.wasApplied()).thenReturn(false);
-        assertThat(pointer.advance(room, reader, target, Instant.now())).isFalse();
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isFalse();
         verify(session, times(1)).execute(writeStatement);
     }
 
     @Test
     void missingMembershipCannotBeRecreatedByRead() {
         when(readResult.one()).thenReturn(null);
-        assertThat(pointer.advance(room, reader, target, Instant.now())).isFalse();
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isFalse();
         verifyNoInteractions(advance);
     }
 
@@ -63,7 +65,7 @@ class CassandraReadPointerTest {
         when(readResult.one()).thenReturn(row);
         when(row.getInstant("joined_at")).thenReturn(Instant.EPOCH);
         when(row.getUuid("last_read_message_id")).thenReturn(target);
-        assertThat(pointer.advance(room, reader, target, Instant.now())).isTrue();
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isTrue();
         verifyNoInteractions(advance);
     }
 
@@ -74,7 +76,27 @@ class CassandraReadPointerTest {
         when(advance.bind(any(), any(), any(), any(), any(), any())).thenReturn(writeStatement);
         when(session.execute(writeStatement)).thenReturn(writeResult);
         when(writeResult.wasApplied()).thenReturn(true);
-        assertThat(pointer.advance(room, reader, target, Instant.now())).isTrue();
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isTrue();
         verify(advance).bind(eq(target), any(), eq(room), eq(reader), isNull(), eq(Instant.EPOCH));
+    }
+
+    @Test
+    void retriesCannotAdvanceAReplacementMembership() {
+        when(readResult.one()).thenReturn(row);
+        when(row.getInstant("joined_at")).thenReturn(Instant.EPOCH, Instant.EPOCH.plusSeconds(1));
+        when(advance.bind(any(), any(), any(), any(), any(), any())).thenReturn(writeStatement);
+        when(session.execute(writeStatement)).thenReturn(writeResult);
+        when(writeResult.wasApplied()).thenReturn(false);
+
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isFalse();
+        verify(session, times(1)).execute(writeStatement);
+    }
+
+    @Test
+    void replacementMembershipBeforeFirstReadDoesNotRepairAnEqualPointer() {
+        when(readResult.one()).thenReturn(row);
+        when(row.getInstant("joined_at")).thenReturn(Instant.EPOCH.plusSeconds(1));
+        assertThat(pointer.advance(room, reader, target, Instant.EPOCH, Instant.now())).isFalse();
+        verifyNoInteractions(advance);
     }
 }

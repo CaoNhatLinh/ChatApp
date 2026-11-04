@@ -258,7 +258,7 @@ public class GoogleAuthService {
     private void ensureDefaultNotificationSettings(UUID userId, Instant now) {
         if (notifications.findSettings(userId) == null) {
             notifications.saveSettings(new CanonicalNotificationSettings(
-                    userId, "ALL", true, true, true, true, null, null, "UTC", now));
+                    userId, "ALL", true, false, true, true, null, null, "UTC", now));
         }
     }
 

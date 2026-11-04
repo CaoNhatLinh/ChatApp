@@ -2,6 +2,7 @@ package com.chatapp.chat_service.canonical.admin;
 
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,17 +28,17 @@ public class AdminConversationController {
     }
 
     @GetMapping
-    public List<AdminConversationDirectoryRepository.AdminConversationSummary> list(
+    public ResponseEntity<List<AdminConversationDirectoryRepository.AdminConversationSummary>> list(
             @RequestParam(required = false) String month,
             @RequestParam(defaultValue = "50") int limit) {
-        return conversations.list(actorId(), month, limit);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(conversations.list(actorId(), month, limit));
     }
 
     @GetMapping("/{conversationId}")
-    public AdminConversationDirectoryRepository.AdminConversationSummary detail(
+    public ResponseEntity<AdminConversationDirectoryRepository.AdminConversationSummary> detail(
             @PathVariable UUID conversationId,
             @RequestParam(defaultValue = "200") int limit) {
-        return conversations.detail(actorId(), conversationId, limit);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(conversations.detail(actorId(), conversationId, limit));
     }
 
     @PutMapping("/{conversationId}/chat-policy")

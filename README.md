@@ -3,6 +3,8 @@
 Nối is a real-time conversation app built with a Spring Boot modular monolith
 and a Next.js frontend. Feature readiness and remaining integration checks are
 tracked in the [readiness checklist](./tasks/readiness/todo.md).
+Recent feature delivery and remaining verification are tracked in the
+[implementation checklist](./tasks/todo.md).
 
 ## 📂 Project Structure
 
@@ -19,11 +21,11 @@ room-local admin role; room-local conversation roles remain a separate domain.
 
 ## 🚀 Quick Setup
 
-Windows + VS Code: follow the [complete local setup guide](./docs/LOCAL_WINDOWS_SETUP.md)
-for JDK selection, Docker health checks, database initialization/migrations and
-Firebase credentials. It also records the remaining live verification gates.
+For Windows and VS Code, follow the [local setup guide](./docs/LOCAL_WINDOWS_SETUP.md)
+for JDK selection, Docker health checks, fresh Cassandra initialization,
+provider configuration and verification.
 
-Once Docker Desktop and JDK 20+ are installed, run `npm run local`
+Once Docker Desktop, JDK 20+ and Node.js 22 are installed, run `npm run local`
 from this repository root to start infrastructure, initialize the current schema
 on an empty database, and run backend/frontend in one terminal. No migrations or
 data deletion are performed automatically. Missing local `.env` files are created
@@ -37,7 +39,7 @@ external provider configured through environment variables.
 Navigate to the backend directory and start the core infrastructure:
 ```bash
 cd chat-service
-docker-compose up -d
+docker compose up -d
 ```
 
 The explicit `docker-compose-full.yml` manifest has the same required services
@@ -46,7 +48,6 @@ for CI or deployment scripts.
 ### 2. Run the Backend Service
 Ensure you have Java 20+ installed. Still inside the `chat-service` directory:
 ```bash
-./mvnw clean install
 ./mvnw spring-boot:run
 ```
 *The backend server will run on `http://localhost:8084`*
@@ -55,8 +56,8 @@ Ensure you have Java 20+ installed. Still inside the `chat-service` directory:
 Open a new terminal, navigate to the frontend directory, install dependencies, and start the development server:
 ```bash
 cd chatapp_frontend
-npm install           # Or yarn / pnpm install
-npm run dev           # Or yarn dev
+npm ci
+npm run dev
 ```
 
 From the repository root, `npm run dev`, `npm run build` and `npm run validate`
@@ -81,6 +82,7 @@ Each module has its own detailed documentation. Please refer to them for specifi
 - 🔗 **[Final documentation self-review](./docs/SELF_REVIEW_STATUS.md)**
 - 🔗 **[OpenAPI contract](./docs/api/openapi.yaml)** and **[AsyncAPI realtime contract](./docs/api/asyncapi.yaml)**
 - 🔗 **[Firebase Google auth setup](./docs/FIREBASE_GOOGLE_AUTH_SETUP.md)**
+- 🔗 **[Feature flows](./docs/flows/README.md)**, **[verification commands](./docs/TESTING.md)** and **[Cassandra schema](./docs/SCHEMA_CONSOLIDATION.md)**
 
 ## 🤝 Contributing
 For contributing guidelines and coding standards, please read the **[CONTRIBUTING.md](./chat-service/CONTRIBUTING.md)** file inside the `chat-service` folder.

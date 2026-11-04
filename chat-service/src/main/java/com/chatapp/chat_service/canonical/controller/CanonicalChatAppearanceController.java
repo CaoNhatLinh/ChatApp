@@ -73,6 +73,7 @@ public class CanonicalChatAppearanceController {
                 preferences.conversationId(),
                 preferences.themeId(),
                 preferences.customBackgroundUrl(),
+                preferences.backgroundAssetId(),
                 preferences.updatedAt());
     }
 
@@ -86,6 +87,7 @@ public class CanonicalChatAppearanceController {
             UUID conversationId,
             String themeId,
             String customBackgroundUrl,
+            String backgroundAssetId,
             Instant updatedAt) {
     }
 }

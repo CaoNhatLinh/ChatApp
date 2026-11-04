@@ -7,6 +7,8 @@ import { useFriendStore } from "@/features/relationships/model/friend.store";
 import { useMessengerStore } from "@/features/messenger/model/messenger.store";
 import { useNotificationStore } from "@/features/notifications/model/notification.store";
 import { usePresenceStore } from "@/features/presence/model/presence.store";
+import { useIncomingCallStore } from '@/features/calls/model/incoming-call.store';
+import { clearPendingReportKeys } from '@/features/moderation/model/reportRetryStorage';
 import { logger } from '@/shared/lib/logger';
 import { clearAccessToken, clearSessionHint, getAccessToken, getSessionGeneration, hasSessionHint, setAccessToken, SessionChangedError } from '@/shared/auth/access-token';
 
@@ -36,6 +38,8 @@ const disconnectSession = () => {
 };
 
 const resetCrossFeatureState = () => {
+  clearPendingReportKeys();
+  useIncomingCallStore.getState().resetState();
   useFriendStore.getState().reset();
   useMessengerStore.getState().resetState();
   usePresenceStore.getState().clearPresences();

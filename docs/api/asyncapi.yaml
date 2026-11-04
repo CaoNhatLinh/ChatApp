@@ -29,13 +29,18 @@ channels:
   conversationPolls:
     address: /topic/conversation/{conversationId}/polls
     messages: {poll: {$ref: '#/components/messages/PollAggregateEvent'}}
-  conversationAttachments:
-    address: /topic/conversation/{conversationId}/attachments
-    messages: {attachment: {$ref: '#/components/messages/AttachmentEvent'}}
   conversationCalls:
     address: /topic/conversation/{conversationId}/calls
     parameters: {conversationId: {description: Conversation UUID, location: $message.payload#/conversationId}}
     messages: {call: {$ref: '#/components/messages/CallEvent'}}
+  userCallResults:
+    address: /user/queue/call-results
+    description: Correlated call-command results for the originating authenticated STOMP session only.
+    messages: {result: {$ref: '#/components/messages/CallResult'}}
+  userCallStates:
+    address: /user/queue/calls
+    description: STATE-only updates to both authority participants' currently connected authenticated sessions, even without an open room topic. No SDP/ICE. Exact room/participant/current-membership/block/deadline and both canonical accounts still ACTIVE are checked again on outbound delivery. Broker handoff is not offline delivery or a pending-call listing.
+    messages: {state: {$ref: '#/components/messages/CallStateUpdate'}}
   userNotifications:
     address: /user/queue/notifications
     messages: {notification: {$ref: '#/components/messages/NotificationEvent'}}
@@ -90,11 +95,22 @@ channels:
   appCallEnd:
     address: /app/call.end
     messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallFail:
+    address: /app/call.fail
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallHeartbeat:
+    address: /app/call.heartbeat
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
+  appCallSync:
+    address: /app/call.sync
+    messages: {call: {$ref: '#/components/messages/CallCommand'}}
 operations:
   receiveConversationMessage: {action: receive, channel: {$ref: '#/channels/conversationMessages'}, messages: [{$ref: '#/channels/conversationMessages/messages/message'}]}
   receiveTyping: {action: receive, channel: {$ref: '#/channels/conversationTyping'}, messages: [{$ref: '#/channels/conversationTyping/messages/typing'}]}
   receivePollAggregate: {action: receive, channel: {$ref: '#/channels/conversationPolls'}, messages: [{$ref: '#/channels/conversationPolls/messages/poll'}]}
   receiveCall: {action: receive, channel: {$ref: '#/channels/conversationCalls'}, messages: [{$ref: '#/channels/conversationCalls/messages/call'}]}
+  receiveCallResult: {action: receive, channel: {$ref: '#/channels/userCallResults'}, messages: [{$ref: '#/channels/userCallResults/messages/result'}]}
+  receiveCallState: {action: receive, channel: {$ref: '#/channels/userCallStates'}, messages: [{$ref: '#/channels/userCallStates/messages/state'}]}
   receiveNotification: {action: receive, channel: {$ref: '#/channels/userNotifications'}, messages: [{$ref: '#/channels/userNotifications/messages/notification'}]}
   receiveNotificationRead: {action: receive, channel: {$ref: '#/channels/userNotificationRead'}, messages: [{$ref: '#/channels/userNotificationRead/messages/read'}]}
   receiveNotificationDelete: {action: receive, channel: {$ref: '#/channels/userNotificationDelete'}, messages: [{$ref: '#/channels/userNotificationDelete/messages/delete'}]}
@@ -110,6 +126,9 @@ operations:
   sendCallLeave: {action: send, channel: {$ref: '#/channels/appCallLeave'}, messages: [{$ref: '#/channels/appCallLeave/messages/call'}]}
   sendCallSignal: {action: send, channel: {$ref: '#/channels/appCallSignal'}, messages: [{$ref: '#/channels/appCallSignal/messages/call'}]}
   sendCallEnd: {action: send, channel: {$ref: '#/channels/appCallEnd'}, messages: [{$ref: '#/channels/appCallEnd/messages/call'}]}
+  sendCallFail: {action: send, channel: {$ref: '#/channels/appCallFail'}, messages: [{$ref: '#/channels/appCallFail/messages/call'}]}
+  sendCallHeartbeat: {action: send, channel: {$ref: '#/channels/appCallHeartbeat'}, messages: [{$ref: '#/channels/appCallHeartbeat/messages/call'}]}
+  sendCallSync: {action: send, channel: {$ref: '#/channels/appCallSync'}, messages: [{$ref: '#/channels/appCallSync/messages/call'}]}
 components:
   messages:
     MessageEvent:
@@ -136,7 +155,17 @@ components:
     ReadEvent:
       payload: {type: object, required: [messageId, readerId, readAt], properties: {messageId: {type: string}, messageBucket: {type: string}, readerId: {type: string}, readAt: {type: string, format: date-time}}}
     PinEvent:
-      payload: {type: object, required: [messageId, pinnedBy, action], properties: {messageId: {type: string}, messageBucket: {type: string}, pinnedBy: {type: string}, action: {type: string, enum: [PIN, UNPIN]}}}
+      payload:
+        type: object
+        description: Full immutable pin snapshot. Ignore equal/older revisions; do not reduce it to a partial PIN/UNPIN action.
+        required: [conversationId, revision, pins]
+        properties:
+          conversationId: {type: string, format: uuid}
+          revision: {type: string, pattern: '^(0|[1-9][0-9]{0,18})$', maxLength: 19}
+          pins:
+            type: array
+            maxItems: 5
+            items: {type: object, required: [messageId, messageBucket], properties: {messageId: {type: string, format: uuid}, messageBucket: {type: string}}}
     PollAggregateEvent:
       payload:
         type: object
@@ -146,8 +175,6 @@ components:
           poll: {type: object, required: [pollId, conversationId, messageId, question, options, isClosed, isMultipleChoice, isAnonymous, createdBy, createdAt], properties: {pollId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageId: {type: string, format: uuid}, question: {type: string}, options: {type: array, items: {type: string}}, isClosed: {type: boolean}, isMultipleChoice: {type: boolean}, isAnonymous: {type: boolean}, createdBy: {type: string, format: uuid}, createdAt: {type: string, format: date-time}, closesAt: {type: string, format: date-time, nullable: true}}}
           optionCounts: {type: object, additionalProperties: {type: integer, format: int64, minimum: 0}}
           totalVoters: {type: integer, format: int64, minimum: 0}
-    AttachmentEvent:
-      payload: {type: object, required: [messageId, attachment, addedBy], properties: {messageId: {type: string}, messageBucket: {type: string}, attachment: {type: object}, addedBy: {type: string}}}
     NotificationEvent:
       payload: {type: object, required: [notificationId, userId, type, title, body, isRead, createdAt], properties: {notificationId: {type: string}, userId: {type: string}, type: {type: string}, title: {type: string}, body: {type: string}, isRead: {type: boolean}, createdAt: {type: string, format: date-time}, metadata: {type: object}}}
     NotificationReadEvent:
@@ -186,10 +213,105 @@ components:
     PresenceLogoutCommand:
       payload: {type: object}
     CallCommand:
-      payload: {type: object, required: [conversationId, callId, targetUserId], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid, description: Direct-call peer and event recipient}, signal: {type: object, description: Native WebRTC SDP or ICE envelope}}}
+      payload:
+        type: object
+        required: [requestId, conversationId, callId, targetUserId]
+        description: START requires callType; SIGNAL requires signal. Retry an uncertain START with the same callId and identity. Actor is authenticated, never supplied by this payload.
+        properties:
+          requestId: {type: string, format: uuid}
+          conversationId: {type: string, format: uuid}
+          callId: {type: string, format: uuid, description: Nonzero immutable call identity, scoped to this conversation}
+          targetUserId: {type: string, format: uuid, description: Exact authority peer}
+          callType: {type: string, enum: [VOICE, VIDEO]}
+          signal: {$ref: '#/components/schemas/CallSignal'}
     CallEvent:
-      payload: {type: object, required: [conversationId, callId, actorId, action, targetUserId, occurredAt], properties: {conversationId: {type: string, format: uuid}, callId: {type: string, format: uuid}, actorId: {type: string, format: uuid}, action: {type: string, enum: [START, JOIN, LEAVE, SIGNAL, END]}, callType: {type: string, enum: [VOICE, VIDEO]}, mediaRegion: {type: string}, maxParticipants: {type: integer, const: 2}, targetUserId: {type: string, format: uuid}, signal: {type: object}, occurredAt: {type: string, format: date-time}}}
+      payload:
+        oneOf:
+          - $ref: '#/components/schemas/CallStateEvent'
+          - $ref: '#/components/schemas/CallSignalEvent'
+    CallStateUpdate:
+      payload:
+        $ref: '#/components/schemas/CallStateEvent'
+    CallResult:
+      payload:
+        type: object
+        required: [requestId, conversationId, callId, action, accepted, errorCode, state]
+        description: UNAVAILABLE can follow a committed mutation. Timeout/malformed result is uncertain, never permission to invent a new call ID. Invalid uncorrelatable commands may return null identifiers.
+        properties:
+          requestId: {type: string, format: uuid, nullable: true}
+          conversationId: {type: string, format: uuid, nullable: true}
+          callId: {type: string, format: uuid, nullable: true}
+          action: {type: string, enum: [START, JOIN, LEAVE, END, FAIL, HEARTBEAT, SYNC, SIGNAL]}
+          accepted: {type: boolean}
+          errorCode: {type: string, enum: [INVALID, FORBIDDEN, NOT_FOUND, CONFLICT, UNAVAILABLE], nullable: true}
+          state: {$ref: '#/components/schemas/CallSnapshot', nullable: true}
   schemas:
+    CallStateEvent:
+      type: object
+      additionalProperties: false
+      required: [action, conversationId, callId, occurredAt, state]
+      description: Recoverable latest-state broker handoff, not subscriber delivery or a log of every transition. May repeat/reorder; order by state.version. System timeouts have no invented participant actor.
+      properties:
+        action: {type: string, enum: [STATE]}
+        conversationId: {type: string, format: uuid}
+        callId: {type: string, format: uuid}
+        occurredAt: {type: string, format: date-time}
+        state: {$ref: '#/components/schemas/CallSnapshot'}
+    CallSignalEvent:
+      type: object
+      additionalProperties: false
+      required: [action, conversationId, callId, occurredAt, state, actorId, targetUserId, signal]
+      description: Ephemeral accepted-call SDP/ICE, attributed to the authenticated participant. Never persisted or recovered.
+      properties:
+        action: {type: string, enum: [SIGNAL]}
+        conversationId: {type: string, format: uuid}
+        callId: {type: string, format: uuid}
+        occurredAt: {type: string, format: date-time}
+        state: {$ref: '#/components/schemas/CallSnapshot'}
+        actorId: {type: string, format: uuid}
+        targetUserId: {type: string, format: uuid}
+        signal: {$ref: '#/components/schemas/CallSignal'}
+    CallSnapshot:
+      type: object
+      required: [conversationId, callId, callerId, calleeId, callType, status, createdAt, acceptedAt, endedAt, deadline, revision, version]
+      description: ACCEPTED is consent/signaling, not verified media connectivity or a measured media duration.
+      properties:
+        conversationId: {type: string, format: uuid}
+        callId: {type: string, format: uuid}
+        callerId: {type: string, format: uuid}
+        calleeId: {type: string, format: uuid}
+        callType: {type: string, enum: [VOICE, VIDEO]}
+        status: {type: string, enum: [RINGING, ACCEPTED, CANCELLED, DECLINED, MISSED, ENDED, FAILED]}
+        createdAt: {type: string, format: date-time}
+        acceptedAt: {type: string, format: date-time, nullable: true}
+        endedAt: {type: string, format: date-time, nullable: true}
+        deadline: {type: string, format: date-time}
+        revision: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+    CallSignal:
+      oneOf:
+        - type: object
+          required: [kind, description]
+          properties:
+            kind: {type: string, const: sdp}
+            description:
+              type: object
+              required: [type, sdp]
+              properties:
+                type: {type: string, enum: [offer, answer], description: Caller offers; callee answers}
+                sdp: {type: string, minLength: 1, maxLength: 65536}
+        - type: object
+          required: [kind, candidate]
+          properties:
+            kind: {type: string, const: ice}
+            candidate:
+              type: object
+              required: [candidate]
+              properties:
+                candidate: {type: string, maxLength: 8192}
+                sdpMid: {type: string, maxLength: 256, nullable: true}
+                usernameFragment: {type: string, maxLength: 256, nullable: true}
+                sdpMLineIndex: {type: integer, minimum: 0, maximum: 65535, nullable: true}
     PresenceEvent:
       type: object
       required: [userId, online, status, timestamp]
@@ -203,9 +325,10 @@ components:
         lastActiveAgo: {type: string, nullable: true}
     MessageEvent:
       type: object
-      required: [eventType, conversationId, messageId, messageBucket, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt]
+      required: [eventType, conversationId, messageId, messageBucket, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt, revision]
       properties:
         eventType: {type: string, enum: [MESSAGE_SEND, MESSAGE_EDIT, MESSAGE_DELETE]}
+        revision: {type: integer, minimum: 0, maximum: 2147483647, description: Same stored content/deletion revision as HTTP; do not use event arrival time to determine content order. Independent reaction/read/pin projections have separate commands.}
         conversationId: {type: string}
         messageId: {type: string}
         messageBucket: {type: string}
@@ -215,13 +338,20 @@ components:
         contentFormat: {type: string}
         clientMessageId: {type: string, format: uuid, nullable: true}
         replyToMessageId: {type: string, format: uuid, nullable: true}
+        replyToMessageBucket: {type: string, nullable: true, description: Exact parent bucket; paired with replyToMessageId. Cleared on public deletion.}
         replyToSenderId: {type: string, format: uuid, nullable: true}
         stickerId: {type: string, format: uuid, nullable: true}
+        gif:
+          type: object
+          nullable: true
+          description: Identity only, redacted to null after deletion. Resolve media directly from provider on the client.
+          required: [provider, providerGifId]
+          properties:
+            provider: {type: string, enum: [GIPHY]}
+            providerGifId: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$'}
         pollId: {type: string, format: uuid, nullable: true}
         systemEventId: {type: string, format: uuid, nullable: true}
-        forwardedFromConversationId: {type: string, format: uuid, nullable: true}
-        forwardedFromMessageBucket: {type: string, nullable: true}
-        forwardedFromMessageId: {type: string, format: uuid, nullable: true}
+        forwarded: {type: boolean, description: Marker only; private source keys are not broadcast. Resolve source through the authorized point HTTP endpoint. False after deletion.}
         isDeleted: {type: boolean}
         deletedBy: {type: string, format: uuid, nullable: true}
         deletedAt: {type: string, format: date-time, nullable: true}

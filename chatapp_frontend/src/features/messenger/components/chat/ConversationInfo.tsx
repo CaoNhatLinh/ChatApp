@@ -50,9 +50,10 @@ interface ConversationInfoProps {
     isOpen: boolean;
     onClose: () => void;
     onOpenAppearance: () => void;
+    onOpenSharedContent: () => void;
 }
 
-export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onClose, onOpenAppearance }) => {
+export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onClose, onOpenAppearance, onOpenSharedContent }) => {
     const { conversations, activeConversationId } = useMessenger();
     const updateConversationNotificationPolicy = useMessengerStore(
         (state) => state.updateConversationNotificationPolicy,
@@ -240,6 +241,7 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                     variant="ghost"
                     size="icon"
                     onClick={onClose}
+                    aria-label={localizeText('Đóng thông tin cuộc trò chuyện')}
                     className="rounded-xl hover:bg-primary/10 text-muted-foreground hover:text-primary transition-[color,background-color,border-color,box-shadow,transform,opacity]"
                 >
                     <X size={20} />
@@ -274,10 +276,9 @@ export const ConversationInfo: React.FC<ConversationInfoProps> = ({ isOpen, onCl
                         <span className="text-muted-foreground">{activeConv.type === 'dm' ? localizeText('Cuộc trò chuyện riêng') : localizeText('Thành viên')}</span>
                         <span>{activeConv.type === 'dm' ? '1' : activeConv.memberCount}</span>
                     </div>
-                    <div className="flex items-center justify-between py-2 text-sm">
-                        <span className="text-muted-foreground">{localizeText('Tệp và nội dung dùng chung')}</span>
-                        <span className="text-muted-foreground">—</span>
-                    </div>
+                    <Button variant="ghost" className="w-full justify-between" onClick={onOpenSharedContent}>
+                        {localizeText('Tệp và nội dung dùng chung')} <span aria-hidden="true">→</span>
+                    </Button>
                 </div>
 
                 <Button type="button" variant="outline" className="w-full border-border/70 bg-background/45 text-foreground hover:bg-muted/65" aria-expanded={showAdvanced} aria-controls="conversation-advanced-options" onClick={() => setShowAdvanced((current) => !current)}>

@@ -2,6 +2,7 @@ package com.chatapp.chat_service.canonical.repository;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.community.CommunityDirectoryFilter;
+import com.chatapp.chat_service.canonical.message.MessageOrder;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
@@ -13,8 +14,11 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalNot
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalPoll;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.model.ConversationMember;
+import com.chatapp.chat_service.canonical.conversation.ConversationUnreadPolicy;
 import com.chatapp.chat_service.common.exception.ConflictException;
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
+import com.datastax.oss.driver.api.core.DriverException;
 import com.datastax.oss.driver.api.core.cql.BatchStatement;
 import com.datastax.oss.driver.api.core.cql.BatchStatementBuilder;
 import com.datastax.oss.driver.api.core.cql.BatchType;
@@ -36,10 +40,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class CanonicalCqlStore {
+    private static final Logger LOG = LoggerFactory.getLogger(CanonicalCqlStore.class);
+    private static final int PREVIEW_WRITE_ATTEMPTS = 4;
+    private static final int DIRECTORY_MOVE_ATTEMPTS = 3;
 
     private final CqlSession session;
     private final UserDefinedType messageSummaryType;
@@ -49,7 +58,10 @@ public class CanonicalCqlStore {
     private final PreparedStatement saveConversation;
     private final PreparedStatement updateConversationChatPolicy;
     private final PreparedStatement updateConversationNotificationPolicy;
+    private final PreparedStatement loadConversationLastMessage;
     private final PreparedStatement updateConversationLastMessage;
+    private final PreparedStatement clearReadProjection;
+    private final PreparedStatement loadProjectionAtActivity;
     private final PreparedStatement loadConversation;
     private final PreparedStatement saveCommunityDirectoryEntry;
     private final PreparedStatement listCommunityDirectory;
@@ -57,6 +69,7 @@ public class CanonicalCqlStore {
     private final PreparedStatement claimCommunityJoinRequest;
     private final PreparedStatement loadCommunityJoinClaim;
     private final PreparedStatement saveCommunityJoinRequestProjection;
+    private final PreparedStatement saveUserJoinRequestProjection;
     private final PreparedStatement listCommunityJoinRequests;
     private final PreparedStatement listCommunityJoinRequestsBefore;
     private final PreparedStatement replaceCommunityJoinRequest;
@@ -78,17 +91,21 @@ public class CanonicalCqlStore {
     private final PreparedStatement listConversationMembers;
     private final PreparedStatement listConversationMembersAfter;
     private final PreparedStatement updateMemberChatPolicy;
+    private final PreparedStatement updateObservedMemberChatPolicy;
     private final PreparedStatement updateMemberNotificationPolicy;
     private final PreparedStatement saveConversationProjection;
-    private final PreparedStatement updateConversationProjectionRoles;
+    private final PreparedStatement insertConversationProjectionIfAbsent;
+    private final PreparedStatement deleteObservedConversationProjection;
+    private final PreparedStatement updateObservedConversationPreview;
     private final PreparedStatement updateMemberRolesIfUnchanged;
     private final PreparedStatement advanceConversationRoleRevision;
-    private final PreparedStatement updateConversationProjectionNotification;
     private final PreparedStatement listConversationsByUser;
-    private final PreparedStatement listConversationsByUserAfter;
+    private final PreparedStatement listConversationsByUserAtActivityAfter;
+    private final PreparedStatement listConversationsByUserBeforeActivity;
     private final PreparedStatement listUnpinnedConversationsByUser;
     private final PreparedStatement deleteConversationProjection;
     private final PreparedStatement pinConversationSlot;
+    private final PreparedStatement renewConversationPinSlot;
     private final PreparedStatement unpinConversationSlot;
     private final PreparedStatement listPinSlots;
     private final PreparedStatement queryConversationProjectionPinned;
@@ -147,6 +164,11 @@ public class CanonicalCqlStore {
                      resolution_decision, resolved_by, resolved_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """);
+        this.saveUserJoinRequestProjection = session.prepare("""
+                INSERT INTO join_requests_by_user
+                    (user_id, requested_at, request_id, conversation_id, status, resolved_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """);
         this.listCommunityJoinRequests = session.prepare("""
                 SELECT * FROM community_join_requests_by_conversation
                 WHERE conversation_id = ? LIMIT ?
@@ -196,10 +218,15 @@ public class CanonicalCqlStore {
                 UPDATE conversations_by_id SET default_notification_level = ?, updated_at = ?
                 WHERE conversation_id = ?
                 """);
+        this.loadConversationLastMessage = session.prepare("""
+                SELECT conversation_type, last_message FROM conversations_by_id
+                WHERE conversation_id = ?
+                """);
         this.updateConversationLastMessage = session.prepare("""
                 UPDATE conversations_by_id
-                SET last_message = ?, last_activity_at = ?, updated_at = ?
+                SET last_message = ?, last_activity_at = ?
                 WHERE conversation_id = ?
+                IF conversation_type = ? AND last_message = ?
                 """);
         this.saveConversationMember = session.prepare("""
                 INSERT INTO conversation_members_by_conversation
@@ -263,21 +290,46 @@ public class CanonicalCqlStore {
                 UPDATE conversation_members_by_conversation
                 SET muted_until = ?, message_interval_seconds = ?
                 WHERE conversation_id = ? AND user_id = ?
+                IF EXISTS
+                """);
+        this.updateObservedMemberChatPolicy = session.prepare("""
+                UPDATE conversation_members_by_conversation
+                SET muted_until = ?, message_interval_seconds = ?
+                WHERE conversation_id = ? AND user_id = ?
+                IF joined_at = ? AND muted_until = ? AND message_interval_seconds = ? AND owner_id = ?
                 """);
         this.updateMemberNotificationPolicy = session.prepare("""
                 UPDATE conversation_members_by_conversation
                 SET notification_override = ?
                 WHERE conversation_id = ? AND user_id = ?
+                IF joined_at = ? AND notification_override = ?
                 """);
-        this.saveConversationProjection = session.prepare("""
+        String insertProjection = """
                 INSERT INTO conversations_by_user
                     (user_id, is_pinned, last_activity_at, conversation_id, conversation_type, visibility,
                      role_ids, joined_at, last_message, unread_count, notification_override)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """);
-        this.updateConversationProjectionRoles = session.prepare("""
-                UPDATE conversations_by_user SET role_ids = ?
+                """;
+        this.saveConversationProjection = session.prepare(insertProjection);
+        this.insertConversationProjectionIfAbsent = session.prepare(insertProjection + "IF NOT EXISTS");
+        this.deleteObservedConversationProjection = session.prepare("""
+                DELETE FROM conversations_by_user
                 WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
+                IF joined_at = ? AND last_message = ? AND unread_count = ?
+                """);
+        this.updateObservedConversationPreview = session.prepare("""
+                UPDATE conversations_by_user SET last_message = ?, unread_count = ?
+                WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
+                IF joined_at = ? AND last_message = ? AND unread_count = ?
+                """);
+        this.clearReadProjection = session.prepare("""
+                UPDATE conversations_by_user SET unread_count = 0
+                WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
+                IF last_message = ? AND joined_at = ?
+                """);
+        this.loadProjectionAtActivity = session.prepare("""
+                SELECT * FROM conversations_by_user
+                WHERE user_id = ? AND is_pinned IN (true, false) AND last_activity_at = ? AND conversation_id = ?
                 """);
         this.updateMemberRolesIfUnchanged = session.prepare("""
                 UPDATE conversation_members_by_conversation SET role_ids = ?
@@ -287,18 +339,19 @@ public class CanonicalCqlStore {
                 UPDATE conversation_members_by_conversation SET role_revision = ?
                 WHERE conversation_id = ? IF role_revision = ?
                 """);
-        this.updateConversationProjectionNotification = session.prepare("""
-                UPDATE conversations_by_user SET notification_override = ?
-                WHERE user_id = ? AND is_pinned = ? AND last_activity_at = ? AND conversation_id = ?
-                """);
         this.listConversationsByUser = session.prepare("""
                 SELECT * FROM conversations_by_user
                 WHERE user_id = ? AND is_pinned IN (true, false) LIMIT ?
                 """);
-        this.listConversationsByUserAfter = session.prepare("""
+        this.listConversationsByUserAtActivityAfter = session.prepare("""
                 SELECT * FROM conversations_by_user
                 WHERE user_id = ? AND is_pinned = ?
-                  AND (last_activity_at, conversation_id) < (?, ?)
+                  AND last_activity_at = ? AND conversation_id > ?
+                LIMIT ?
+                """);
+        this.listConversationsByUserBeforeActivity = session.prepare("""
+                SELECT * FROM conversations_by_user
+                WHERE user_id = ? AND is_pinned = ? AND last_activity_at < ?
                 LIMIT ?
                 """);
         this.listUnpinnedConversationsByUser = session.prepare("""
@@ -313,15 +366,21 @@ public class CanonicalCqlStore {
                 INSERT INTO pinned_conversation_slots_by_user (user_id, pin_slot, conversation_id, pinned_at)
                 VALUES (?, ?, ?, now()) IF NOT EXISTS
                 """);
+        this.renewConversationPinSlot = session.prepare("""
+                UPDATE pinned_conversation_slots_by_user SET pinned_at = now()
+                WHERE user_id = ? AND pin_slot = ?
+                IF conversation_id = ? AND pinned_at = ?
+                """);
         this.unpinConversationSlot = session.prepare("""
                 DELETE FROM pinned_conversation_slots_by_user
                 WHERE user_id = ? AND pin_slot = ?
+                IF conversation_id = ? AND pinned_at = ?
                 """);
         this.listPinSlots = session.prepare("""
                 SELECT * FROM pinned_conversation_slots_by_user WHERE user_id = ?
                 """);
         this.queryConversationProjectionPinned = session.prepare("""
-                SELECT conversation_id, conversation_type, visibility, role_ids, joined_at, last_activity_at, notification_override, last_message, unread_count
+                SELECT conversation_id, is_pinned, conversation_type, visibility, role_ids, joined_at, last_activity_at, notification_override, last_message, unread_count
                 FROM conversations_by_user
                 WHERE user_id = ? AND is_pinned = true
                 """);
@@ -531,6 +590,9 @@ public class CanonicalCqlStore {
     }
 
     private void saveCommunityJoinRequestProjection(CommunityJoinRequestRow request, Instant updatedAt) {
+        session.execute(saveUserJoinRequestProjection.bind(
+                request.userId(), request.requestedAt(), request.requestId(), request.conversationId(),
+                request.status(), request.resolvedAt()));
         session.execute(saveCommunityJoinRequestProjection.bind(
                 request.conversationId(), request.requestedAt(), request.requestId(), request.userId(),
                 request.status(), request.reason(), request.resolutionDecision(), request.resolvedBy(),
@@ -552,11 +614,24 @@ public class CanonicalCqlStore {
             CanonicalMessage message,
             String senderDisplayName,
             List<ConversationMember> members) {
+        UdtValue summary = advanceConversationLastMessage(message, conversationPreviewSummary(message, senderDisplayName));
+        if (summary == null) return;
+        for (ConversationMember member : members) {
+            advanceConversationDirectory(message, summary, member);
+        }
+    }
+
+    public void repairCanonicalConversationPreview(CanonicalMessage message, String senderDisplayName) {
+        advanceConversationLastMessage(message, conversationPreviewSummary(message, senderDisplayName));
+    }
+
+    private UdtValue conversationPreviewSummary(CanonicalMessage message, String senderDisplayName) {
         String contentPreview = message.content() == null
                 ? null
                 : message.content().substring(0, Math.min(280, message.content().length()));
-        UdtValue summary = messageSummaryType.newValue()
+        return messageSummaryType.newValue()
                 .setUuid("message_id", message.messageId())
+                .setString("message_bucket", message.messageBucket())
                 .setUuid("sender_id", message.senderId())
                 .setString("sender_display_name", senderDisplayName)
                 .setString("content_preview", contentPreview)
@@ -564,25 +639,85 @@ public class CanonicalCqlStore {
                 .setInstant("created_at", message.createdAt())
                 .setBoolean("is_deleted", Boolean.TRUE.equals(message.isDeleted()))
                 .setBoolean("has_attachments", Boolean.TRUE.equals(message.hasAttachments()));
+    }
 
-        session.execute(updateConversationLastMessage.bind(
-                summary, message.createdAt(), message.createdAt(), message.conversationId()));
-        for (ConversationMember member : members) {
-            Row old = findAnyConversationProjectionRow(member.userId(), message.conversationId());
-            if (old == null) {
-                continue;
+    private void advanceConversationDirectory(CanonicalMessage message, UdtValue summary, ConversationMember member) {
+        UUID userId = member.userId();
+        UUID roomId = message.conversationId();
+        for (int attempt = 0; attempt < DIRECTORY_MOVE_ATTEMPTS; attempt++) {
+            Row old = findAnyConversationProjectionRow(userId, roomId);
+            if (old == null || member.joinedAt() == null || !member.joinedAt().equals(old.getInstant("joined_at"))) return;
+            UdtValue previous = old.getUdtValue("last_message");
+            UUID previousId = previous == null ? null : previous.getUuid("message_id");
+            if (previousId != null && MessageOrder.compare(message.messageId(), previousId) <= 0) return;
+            Integer oldUnread = old.isNull("unread_count") ? null : old.getInt("unread_count");
+            int unread = ConversationUnreadPolicy.onMessage(oldUnread == null ? 0 : oldUnread, previousId,
+                    message.messageId(), member.lastReadMessageId(), userId.equals(message.senderId()));
+            if (writeConversationDirectoryPreview(message, summary, member, old, previous, oldUnread, unread)) return;
+        }
+        LOG.warn("Conversation directory preview did not advance after repeated write contention");
+    }
+
+    private boolean writeConversationDirectoryPreview(CanonicalMessage message, UdtValue summary, ConversationMember member,
+                                                       Row old, UdtValue previous, Integer oldUnread, int unread) {
+        UUID userId = member.userId();
+        UUID roomId = message.conversationId();
+        boolean pinned = old.getBoolean("is_pinned");
+        Instant oldActivity = old.getInstant("last_activity_at");
+        Instant newActivity = message.createdAt().truncatedTo(ChronoUnit.MILLIS);
+        Instant joinedAt = member.joinedAt();
+        if (newActivity.equals(oldActivity)) {
+            var update = updateObservedConversationPreview.bind(summary, unread, userId, pinned, oldActivity,
+                            roomId, joinedAt, previous, oldUnread)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                    .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                    .setIdempotent(false);
+            return session.execute(update).wasApplied();
+        }
+        return moveObservedConversationProjection(userId, roomId, old, pinned, newActivity, summary, unread);
+    }
+
+    private boolean moveObservedConversationProjection(UUID userId, UUID roomId, Row source, boolean destinationPinned,
+                                                        Instant destinationActivity, UdtValue summary, Integer unread) {
+        Instant joinedAt = source.getInstant("joined_at");
+        Integer oldUnread = source.isNull("unread_count") ? null : source.getInt("unread_count");
+        var batch = BatchStatement.builder(BatchType.LOGGED)
+                .addStatement(deleteObservedConversationProjection.bind(userId, source.getBoolean("is_pinned"),
+                        source.getInstant("last_activity_at"), roomId, joinedAt, source.getUdtValue("last_message"), oldUnread))
+                .addStatement(insertConversationProjectionIfAbsent.bind(userId, destinationPinned, destinationActivity, roomId,
+                        source.getString("conversation_type"), source.getString("visibility"), source.getSet("role_ids", UUID.class),
+                        joinedAt, summary, unread, source.getString("notification_override")))
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                .build()
+                .setIdempotent(false);
+        return session.execute(batch).wasApplied();
+    }
+
+    private UdtValue advanceConversationLastMessage(CanonicalMessage message, UdtValue summary) {
+        UUID conversationId = message.conversationId();
+        Instant createdAt = message.createdAt();
+        for (int attempt = 0; ; attempt++) {
+            Row current = session.execute(loadConversationLastMessage.bind(conversationId)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+            if (current == null) return null;
+            String conversationType = current.getString("conversation_type");
+            if (conversationType == null) return null;
+            UdtValue previous = current.getUdtValue("last_message");
+            UUID previousId = previous == null ? null : previous.getUuid("message_id");
+            // An exact retry can repair the room pointer while the creator is still sending.
+            if (message.messageId().equals(previousId)) return previous;
+            if (previousId != null && MessageOrder.compare(message.messageId(), previousId) < 0) return null;
+            if (attempt == PREVIEW_WRITE_ATTEMPTS) {
+                // The message already committed. Leave delivery and notification effects reachable.
+                LOG.warn("Conversation preview did not advance after repeated write contention");
+                return null;
             }
-            boolean pinned = old.getBoolean("is_pinned");
-            int unreadCount = member.userId().equals(message.senderId())
-                    ? 0
-                    : Math.max(0, old.getInt("unread_count")) + 1;
-            session.execute(deleteConversationProjection.bind(
-                    member.userId(), pinned, old.getInstant("last_activity_at"), message.conversationId()));
-            session.execute(saveConversationProjection.bind(
-                    member.userId(), pinned, message.createdAt(), message.conversationId(),
-                    old.getString("conversation_type"), old.getString("visibility"),
-                    old.getSet("role_ids", UUID.class), old.getInstant("joined_at"), summary,
-                    unreadCount, old.getString("notification_override")));
+            var advance = updateConversationLastMessage.bind(summary, createdAt, conversationId, conversationType, previous)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                    .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                    .setIdempotent(false);
+            if (session.execute(advance).wasApplied()) return summary;
         }
     }
 
@@ -723,21 +858,25 @@ public class CanonicalCqlStore {
     public void updateMemberChatPolicy(
             UUID conversationId, UUID userId, Instant mutedUntil, Integer messageIntervalSeconds) {
         session.execute(updateMemberChatPolicy.bind(
-                mutedUntil, messageIntervalSeconds, conversationId, userId));
+                        mutedUntil, messageIntervalSeconds, conversationId, userId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL));
     }
 
-    public void updateMemberNotificationPolicy(
-            UUID conversationId, UUID userId, String notificationOverride) {
-        session.execute(updateMemberNotificationPolicy.bind(notificationOverride, conversationId, userId));
-        Row projection = findAnyConversationProjectionRow(userId, conversationId);
-        if (projection != null) {
-            session.execute(updateConversationProjectionNotification.bind(
-                    notificationOverride,
-                    userId,
-                    projection.getBoolean("is_pinned"),
-                    projection.getInstant("last_activity_at"),
-                    conversationId));
-        }
+    public boolean updateObservedMemberChatPolicy(CanonicalConversationMember member, UUID ownerId,
+                                                  Instant mutedUntil, Integer interval) {
+        if (member.joinedAt() == null || ownerId == null || ownerId.equals(member.userId())) return false;
+        return session.execute(updateObservedMemberChatPolicy.bind(mutedUntil, interval, member.conversationId(),
+                        member.userId(), member.joinedAt(), member.mutedUntil(), member.messageIntervalSeconds(), ownerId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)).wasApplied();
+    }
+
+    public boolean updateMemberNotificationPolicy(CanonicalConversationMember member, String notificationOverride) {
+        return session.execute(updateMemberNotificationPolicy.bind(notificationOverride, member.conversationId(),
+                        member.userId(), member.joinedAt(), member.notificationOverride())
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)).wasApplied();
     }
 
     private void deleteConversationMembershipProjection(UUID userId, UUID conversationId) {
@@ -790,29 +929,52 @@ public class CanonicalCqlStore {
         ));
     }
 
-    public List<ConversationProjectionRow> listConversationProjectionByUser(
+    public ConversationProjectionPage scanConversationProjectionByUser(
+            UUID userId, ConversationProjectionCursor cursor, int limit) {
+        List<Row> fetched = readConversationProjectionRows(userId, cursor, limit + 1);
+        boolean hasNext = fetched.size() > limit;
+        List<Row> scanned = hasNext ? fetched.subList(0, limit) : fetched;
+        Row last = scanned.isEmpty() ? null : scanned.get(scanned.size() - 1);
+        ConversationProjectionCursor next = hasNext && last != null
+                ? new ConversationProjectionCursor(last.getBoolean("is_pinned"),
+                    last.getInstant("last_activity_at"), last.getUuid("conversation_id")) : null;
+        return new ConversationProjectionPage(scanned.stream().map(this::mapConversationProjection)
+                .filter(row -> row.conversation() != null).toList(), next, hasNext);
+    }
+
+    private List<Row> readConversationProjectionRows(
             UUID userId, ConversationProjectionCursor cursor, int limit) {
         List<Row> rows;
         if (cursor == null) {
             rows = session.execute(listConversationsByUser.bind(userId, limit)).all();
         } else {
-            rows = new ArrayList<>(session.execute(listConversationsByUserAfter.bind(
+            // Time descends but UUID ascends: finish the current time before older rows.
+            rows = new ArrayList<>(session.execute(listConversationsByUserAtActivityAfter.bind(
                     userId, cursor.pinned(), cursor.lastActivityAt(), cursor.conversationId(), limit)).all());
+            if (rows.size() < limit) {
+                rows.addAll(session.execute(listConversationsByUserBeforeActivity.bind(
+                        userId, cursor.pinned(), cursor.lastActivityAt(), limit - rows.size())).all());
+            }
             if (cursor.pinned() && rows.size() < limit) {
                 rows.addAll(session.execute(listUnpinnedConversationsByUser.bind(
                         userId, limit - rows.size())).all());
             }
         }
-        return rows.stream()
-                .map(this::mapConversationProjection)
-                .filter(row -> row.conversation() != null)
-                .toList();
+        return rows;
     }
 
     private ConversationProjectionRow mapConversationProjection(Row row) {
-        UdtValue summary = row.getUdtValue("last_message");
+        return mapConversationProjection(row, row.getBoolean("is_pinned"));
+    }
+
+    private ConversationProjectionRow mapConversationProjection(Row row, boolean pinned) {
+        UUID conversationId = row.getUuid("conversation_id");
+        Row canonical = session.execute(loadConversation.bind(conversationId)).one();
+        var conversation = canonical == null ? null : mapConversation(canonical, requireMembershipState(conversationId));
+        UdtValue summary = canonical == null ? null : canonical.getUdtValue("last_message");
         LastMessageProjection lastMessage = summary == null ? null : new LastMessageProjection(
                 summary.getUuid("message_id"),
+                summary.getString("message_bucket"),
                 summary.getUuid("sender_id"),
                 summary.getString("sender_display_name"),
                 summary.getString("content_preview"),
@@ -821,25 +983,13 @@ public class CanonicalCqlStore {
                 summary.getBoolean("is_deleted"),
                 summary.getBoolean("has_attachments"));
         return new ConversationProjectionRow(
-                findConversation(row.getUuid("conversation_id")),
-                row.getBoolean("is_pinned"),
+                conversation,
+                pinned,
                 row.getInt("unread_count"),
                 row.getInstant("joined_at"),
                 row.getString("notification_override"),
                 lastMessage,
                 row.getInstant("last_activity_at"));
-    }
-
-    public void updateConversationProjectionRoles(UUID userId, UUID conversationId, Set<UUID> roleIds) {
-        Row row = findAnyConversationProjectionRow(userId, conversationId);
-        if (row != null) {
-            session.execute(updateConversationProjectionRoles.bind(
-                    roleIds,
-                    userId,
-                    row.getBoolean("is_pinned"),
-                    row.getInstant("last_activity_at"),
-                    conversationId));
-        }
     }
 
     public boolean updateMemberRolesIfUnchanged(
@@ -861,110 +1011,235 @@ public class CanonicalCqlStore {
         return requireMembershipState(conversationId).roleRevision();
     }
 
-    public boolean tryPinConversation(UUID userId, UUID conversationId, int targetPinSlot) {
+    public enum ConversationPinResult { PINNED, ALREADY_PINNED, OCCUPIED }
+
+    public ConversationPinResult tryPinConversation(UUID userId, UUID conversationId, int targetPinSlot) {
         if (targetPinSlot < 0 || targetPinSlot > 2) {
-            return false;
+            throw new IllegalArgumentException("invalid conversation pin slot");
         }
-        if (isConversationAlreadyPinned(userId, conversationId)) {
-            return true;
-        }
+        Row existing = findConversationPinSlot(userId, conversationId);
         Row row = findAnyConversationProjectionRow(userId, conversationId);
         if (row == null) {
-            return false;
+            throw new ConflictException("conversation directory is changing; retry pinning");
         }
-        if (!session.execute(pinConversationSlot.bind(userId, (byte) targetPinSlot, conversationId)).wasApplied()) {
-            return false;
+        if (existing != null) {
+            // A concurrent stale-slot cleanup must not release this explicit pin.
+            byte slot = existing.getByte("pin_slot");
+            UUID generation = existing.getUuid("pinned_at");
+            if (slot < 0 || slot > 2 || generation == null) {
+                throw new IllegalStateException("conversation pin slot is missing its canonical identity");
+            }
+            if (!session.execute(renewConversationPinSlot.bind(userId, slot, conversationId, generation)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                    .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                    .setIdempotent(false)).wasApplied()) {
+                throw new ConflictException("conversation pin changed; retry pinning");
+            }
+            syncConversationProjectionPin(userId, conversationId, row, true);
+            return ConversationPinResult.ALREADY_PINNED;
+        }
+        if (!session.execute(pinConversationSlot.bind(userId, (byte) targetPinSlot, conversationId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                .setIdempotent(false)).wasApplied()) {
+            return ConversationPinResult.OCCUPIED;
         }
 
-        session.execute(deleteConversationProjection.bind(
-                userId,
-                false,
-                row.getInstant("last_activity_at"),
-                conversationId
-        ));
-        session.execute(saveConversationProjection.bind(
-                userId,
-                true,
-                row.getInstant("last_activity_at"),
-                conversationId,
-                row.getString("conversation_type"),
-                row.getString("visibility"),
-                row.getSet("role_ids", UUID.class),
-                row.getInstant("joined_at"),
-                row.getUdtValue("last_message"),
-                row.getInt("unread_count"),
-                row.getString("notification_override")
-        ));
-        return true;
+        syncConversationProjectionPin(userId, conversationId, row, true);
+        return ConversationPinResult.PINNED;
+    }
+
+    private void syncConversationProjectionPin(UUID userId, UUID roomId, Row initial, boolean pinned) {
+        try {
+            Row row = initial;
+            Instant joinedAt = null;
+            for (int attempt = 0; attempt < DIRECTORY_MOVE_ATTEMPTS; attempt++) {
+                if (row == null) {
+                    row = pinned ? findAnyConversationProjectionRow(userId, roomId)
+                            : findConversationProjectionByPinnedSlot(userId, roomId);
+                }
+                if (row == null || row.getBoolean("is_pinned") == pinned) return;
+                if (attempt == 0) joinedAt = row.getInstant("joined_at");
+                if (joinedAt == null || !joinedAt.equals(row.getInstant("joined_at"))) return;
+                if (isConversationAlreadyPinned(userId, roomId) != pinned) return;
+                Integer unread = row.isNull("unread_count") ? null : row.getInt("unread_count");
+                if (moveObservedConversationProjection(userId, roomId, row, pinned, row.getInstant("last_activity_at"),
+                        row.getUdtValue("last_message"), unread)) return;
+                row = null;
+            }
+            LOG.warn("Conversation directory pin did not move after repeated write contention");
+        } catch (DriverException failure) {
+            // The slot already committed; directory repair must not suppress the command outcome.
+            LOG.warn("Conversation directory pin move failed ({})", failure.getClass().getSimpleName());
+        }
+    }
+
+    public boolean reclaimInaccessibleConversationPins(UUID userId) {
+        var observed = session.execute(listPinSlots.bind(userId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).all();
+        boolean released = false;
+        for (Row slot : observed) {
+            byte index = slot.getByte("pin_slot");
+            UUID conversationId = slot.getUuid("conversation_id");
+            UUID generation = slot.getUuid("pinned_at");
+            if (index < 0 || index > 2 || conversationId == null || generation == null) continue;
+            Row member = session.execute(loadConversationMember.bind(conversationId, userId)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+            if (member == null && releaseConversationPin(userId, index, conversationId, generation)) {
+                released = true;
+            }
+        }
+        return released;
     }
 
     public boolean unpinConversation(UUID userId, UUID conversationId) {
-        Integer pinSlot = findConversationPinSlot(userId, conversationId);
-        if (pinSlot == null) {
+        Row slot = findConversationPinSlot(userId, conversationId);
+        if (slot == null) {
+            syncConversationProjectionPin(userId, conversationId, null, false);
             return false;
         }
-        unpinConversation(userId, pinSlot);
+        byte pinSlot = slot.getByte("pin_slot");
+        UUID generation = slot.getUuid("pinned_at");
+        if (pinSlot < 0 || pinSlot > 2 || generation == null) {
+            throw new IllegalStateException("conversation pin slot is missing its canonical identity");
+        }
+        if (!releaseConversationPin(userId, pinSlot, conversationId, generation)) {
+            throw new ConflictException("conversation pin changed; reload before unpinning");
+        }
+
+        syncConversationProjectionPin(userId, conversationId, null, false);
         return true;
     }
 
-    private void unpinConversation(UUID userId, int pinSlot) {
-        if (pinSlot < 0 || pinSlot > 2) {
-            return;
-        }
-        Row slotRow = findConversationPinSlot(userId, (byte) pinSlot);
-        if (slotRow == null) {
-            return;
-        }
-
-        UUID conversationId = slotRow.getUuid("conversation_id");
-        session.execute(unpinConversationSlot.bind(userId, (byte) pinSlot));
-
-        var pinnedRow = findConversationProjectionByPinnedSlot(userId, conversationId);
-        if (pinnedRow != null) {
-            session.execute(deleteConversationProjection.bind(
-                    userId,
-                    true,
-                    pinnedRow.getInstant("last_activity_at"),
-                    conversationId
-            ));
-            session.execute(saveConversationProjection.bind(
-                    userId,
-                    false,
-                    pinnedRow.getInstant("last_activity_at"),
-                    conversationId,
-                    pinnedRow.getString("conversation_type"),
-                    pinnedRow.getString("visibility"),
-                    pinnedRow.getSet("role_ids", UUID.class),
-                    pinnedRow.getInstant("joined_at"),
-                    pinnedRow.getUdtValue("last_message"),
-                    pinnedRow.getInt("unread_count"),
-                    pinnedRow.getString("notification_override")
-            ));
-        }
+    private boolean releaseConversationPin(UUID userId, byte slot, UUID room, UUID pinnedAt) {
+        var release = unpinConversationSlot.bind(userId, slot, room, pinnedAt)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)
+                .setIdempotent(false);
+        return session.execute(release).wasApplied();
     }
 
     private boolean isConversationAlreadyPinned(UUID userId, UUID conversationId) {
         return findConversationPinSlot(userId, conversationId) != null;
     }
 
-    private Integer findConversationPinSlot(UUID userId, UUID conversationId) {
-        var rows = session.execute(listPinSlots.bind(userId)).all();
-        for (Row row : rows) {
+    public Set<UUID> findPinnedConversationIds(UUID userId) {
+        return loadConversationPinSlots(userId).stream()
+                .map(row -> row.getUuid("conversation_id"))
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    public void repairConversationProjectionPin(UUID userId, ConversationProjectionRow observed, boolean pinned) {
+        if (observed.pinned() == pinned || observed.lastActivityAt() == null || observed.joinedAt() == null) return;
+        if (!observed.lastActivityAt().equals(observed.conversation().lastActivityAt())) return;
+        UUID roomId = observed.conversation().conversationId();
+        try {
+            Row source = findObservedProjection(userId, roomId, observed);
+            if (source == null || findProjectionMember(userId, roomId, observed.joinedAt()) == null) return;
+            if (isConversationAlreadyPinned(userId, roomId) != pinned) return;
+
+            Integer unread = source.isNull("unread_count") ? null : source.getInt("unread_count");
+            moveObservedConversationProjection(userId, roomId, source, pinned, observed.lastActivityAt(),
+                    source.getUdtValue("last_message"), unread);
+        } catch (DriverException failure) {
+            LOG.warn("Conversation directory pin repair failed ({})", failure.getClass().getSimpleName());
+        }
+    }
+
+    public void repairConversationProjectionActivity(UUID userId, ConversationProjectionRow observed, boolean pinned) {
+        Instant previousActivity = observed.lastActivityAt();
+        Instant listedActivity = observed.conversation().lastActivityAt();
+        if (observed.joinedAt() == null || previousActivity == null || listedActivity == null
+                || !previousActivity.isBefore(listedActivity)) return;
+        UUID roomId = observed.conversation().conversationId();
+        try {
+            Row canonical = session.execute(loadConversation.bind(roomId)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+            if (canonical == null) return;
+            Instant activity = canonical.getInstant("last_activity_at");
+            UdtValue latest = canonical.getUdtValue("last_message");
+            if (!listedActivity.equals(activity) || latest == null) return;
+            UUID latestId = latest.getUuid("message_id");
+            Row source = findObservedProjection(userId, roomId, observed);
+            if (source == null) return;
+            Row member = findProjectionMember(userId, roomId, observed.joinedAt());
+            if (member == null || !ConversationUnreadPolicy.covered(latestId, member.getUuid("last_read_message_id"))) return;
+            UdtValue previous = source.getUdtValue("last_message");
+            UUID previousId = previous == null ? null : previous.getUuid("message_id");
+            if (previousId != null && MessageOrder.compare(previousId, latestId) > 0) return;
+            if (!loadProjectionPlanes(userId, roomId, activity).isEmpty()) return;
+            if (isConversationAlreadyPinned(userId, roomId) != pinned) return;
+
+            moveObservedConversationProjection(userId, roomId, source, pinned, activity, latest, 0);
+        } catch (DriverException failure) {
+            LOG.warn("Conversation directory activity repair failed ({})", failure.getClass().getSimpleName());
+        }
+    }
+
+    private Row findObservedProjection(UUID userId, UUID roomId, ConversationProjectionRow observed) {
+        var rows = loadProjectionPlanes(userId, roomId, observed.lastActivityAt());
+        if (rows.size() != 1) return null;
+        Row source = rows.get(0);
+        return source.getBoolean("is_pinned") == observed.pinned() && observed.joinedAt().equals(source.getInstant("joined_at"))
+                ? source : null;
+    }
+
+    private List<Row> loadProjectionPlanes(UUID userId, UUID roomId, Instant activity) {
+        return session.execute(loadProjectionAtActivity.bind(userId, activity, roomId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).all();
+    }
+
+    private Row findProjectionMember(UUID userId, UUID roomId, Instant joinedAt) {
+        Row member = session.execute(loadConversationMember.bind(roomId, userId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+        return member != null && joinedAt.equals(member.getInstant("joined_at")) ? member : null;
+    }
+
+    private List<Row> loadConversationPinSlots(UUID userId) {
+        return session.execute(listPinSlots.bind(userId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).all();
+    }
+
+    private Row findConversationPinSlot(UUID userId, UUID conversationId) {
+        for (Row row : loadConversationPinSlots(userId)) {
             if (conversationId.equals(row.getUuid("conversation_id"))) {
-                return (int) row.getByte("pin_slot");
+                return row;
             }
         }
         return null;
     }
 
-    private Row findConversationPinSlot(UUID userId, byte pinSlot) {
-        var rows = session.execute(listPinSlots.bind(userId)).all();
-        for (Row row : rows) {
-            if (pinSlot == row.getByte("pin_slot")) {
-                return row;
-            }
+    public ConversationProjectionRow findConversationProjectionAtActivity(UUID userId, CanonicalConversation conversation) {
+        if (conversation.lastActivityAt() == null) return null;
+        // At most the pinned/unpinned pair at this exact activity key, never the user's full directory.
+        var rows = session.execute(loadProjectionAtActivity.bind(
+                userId, conversation.lastActivityAt(), conversation.conversationId())).iterator();
+        if (!rows.hasNext()) return null;
+        Row row = rows.next();
+        boolean pinned = isConversationAlreadyPinned(userId, conversation.conversationId());
+        if (rows.hasNext()) {
+            Row alternate = rows.next();
+            if (row.getBoolean("is_pinned") != pinned) row = alternate;
         }
-        return null;
+        return mapConversationProjection(row, pinned);
+    }
+
+    public void clearReadConversationProjection(UUID userId, UUID conversationId, UUID readMessageId, Instant joinedAt) {
+        if (joinedAt == null) return;
+        var conversation = findConversation(conversationId);
+        if (conversation == null || conversation.lastActivityAt() == null) return;
+        // Two exact clustering keys, not a scan through all of this user's rooms.
+        for (Row row : session.execute(loadProjectionAtActivity.bind(userId, conversation.lastActivityAt(), conversationId))) {
+            if (!joinedAt.equals(row.getInstant("joined_at"))) continue;
+            UdtValue summary = row.getUdtValue("last_message");
+            if (summary == null || !ConversationUnreadPolicy.covered(summary.getUuid("message_id"), readMessageId)) continue;
+            // A moving projection must not be recreated or cleared after newer content replaces it.
+            session.execute(clearReadProjection.bind(userId, row.getBoolean("is_pinned"),
+                    row.getInstant("last_activity_at"), conversationId, summary, joinedAt)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                    .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL));
+        }
     }
 
     private Row findAnyConversationProjectionRow(UUID userId, UUID conversationId) {
@@ -1083,8 +1358,13 @@ public class CanonicalCqlStore {
             UUID conversationId) {
     }
 
+    public record ConversationProjectionPage(
+            List<ConversationProjectionRow> content, ConversationProjectionCursor nextCursor, boolean hasNext) {
+    }
+
     public record LastMessageProjection(
             UUID messageId,
+            String messageBucket,
             UUID senderId,
             String senderDisplayName,
             String contentPreview,

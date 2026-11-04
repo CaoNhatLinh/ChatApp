@@ -54,7 +54,7 @@ public class PollService {
         CanonicalMessage pollMessage = messages.sendMessage(actorId, request.conversationId(),
                 new CanonicalApiContracts.MessageSendRequest(
                         request.clientMessageId(), "POLL", request.question().trim(), "PLAIN",
-                        null, null, null, pollId, null, null, null, List.of(), Set.of(), false));
+                        null, null, null, pollId, null, null, null, List.of(), Set.of(), false, null));
         CanonicalPoll existing = polls.findById(pollId);
         if (existing != null) {
             if (!matches(existing, request)) {

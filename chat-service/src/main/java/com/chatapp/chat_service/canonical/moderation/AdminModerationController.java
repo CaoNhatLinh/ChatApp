@@ -1,6 +1,8 @@
 package com.chatapp.chat_service.canonical.moderation;
 
 import com.chatapp.chat_service.security.core.SecurityContextHelper;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,6 +40,15 @@ public class AdminModerationController {
             @PathVariable UUID reportId,
             @RequestBody AdminModerationService.ResolveReportRequest request) {
         return moderation.resolveReport(actorId(), reportId, request);
+    }
+
+    @GetMapping("/reports/{reportId}")
+    public ResponseEntity<ModerationRepository.ReportRow> getReport(
+            @PathVariable UUID reportId,
+            @RequestParam UUID reporterId,
+            @RequestParam UUID createdAtKey) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(moderation.getReport(actorId(), reportId, reporterId, createdAtKey));
     }
 
     @GetMapping("/users/{userId}/sanctions")

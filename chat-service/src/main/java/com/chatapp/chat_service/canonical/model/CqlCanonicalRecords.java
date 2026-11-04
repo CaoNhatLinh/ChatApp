@@ -71,6 +71,8 @@ public final class CqlCanonicalRecords {
             Instant lastReadAt) {
     }
 
+    public record GifReference(String provider, String providerGifId) { }
+
     public record CanonicalMessage(
             UUID conversationId,
             String messageBucket,
@@ -84,9 +86,9 @@ public final class CqlCanonicalRecords {
             UUID stickerId,
             UUID pollId,
             UUID systemEventId,
-            UUID forwardedFromConversationId,
-            String forwardedFromMessageBucket,
-            UUID forwardedFromMessageId,
+            @com.fasterxml.jackson.annotation.JsonIgnore UUID forwardedFromConversationId,
+            @com.fasterxml.jackson.annotation.JsonIgnore String forwardedFromMessageBucket,
+            @com.fasterxml.jackson.annotation.JsonIgnore UUID forwardedFromMessageId,
             Boolean isDeleted,
             UUID deletedBy,
             Instant deletedAt,
@@ -95,7 +97,15 @@ public final class CqlCanonicalRecords {
             Boolean hasMentions,
             Boolean isPinned,
             Instant createdAt,
-            UUID clientMessageId) {
+            UUID clientMessageId,
+            GifReference gif,
+            String replyToMessageBucket,
+            int revision) {
+        public CanonicalMessage {
+            if (revision < 0) throw new IllegalArgumentException("message revision must be nonnegative");
+        }
+        @com.fasterxml.jackson.annotation.JsonProperty("forwarded")
+        public boolean forwarded() { return forwardedFromMessageId != null && !Boolean.TRUE.equals(isDeleted); }
     }
 
     public record CanonicalAttachment(

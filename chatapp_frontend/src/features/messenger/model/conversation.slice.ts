@@ -3,19 +3,18 @@
 import type { MessengerSlice, ConversationSlice } from './messenger.store.types';
 import type { Conversation, Message } from '@/features/messenger/types/messenger.types';
 import { useAuthStore } from '@/features/auth/model/auth.store';
-
-const toTimestamp = (value?: string): number => {
-    const parsed = Date.parse(value ?? '');
-    return Number.isNaN(parsed) ? 0 : parsed;
-};
+import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
+import { isOlderMessageSnapshot } from './message-snapshot';
+import { compareMessageIds } from './message-order';
+import { conversationTimestamp, reconcileConversationPage } from './conversation-directory';
 
 const conversationComparator = (left: Conversation, right: Conversation): number => {
     if (left.isPinned !== right.isPinned) {
         return left.isPinned ? -1 : 1;
     }
 
-    const leftTime = toTimestamp(left.lastActivityAt);
-    const rightTime = toTimestamp(right.lastActivityAt);
+    const leftTime = conversationTimestamp(left.lastActivityAt);
+    const rightTime = conversationTimestamp(right.lastActivityAt);
     if (leftTime !== rightTime) {
         return rightTime - leftTime;
     }
@@ -26,17 +25,6 @@ const conversationComparator = (left: Conversation, right: Conversation): number
 const sortConversations = (conversations: Conversation[]): Conversation[] => (
     [...conversations].sort(conversationComparator)
 );
-
-const mergeConversations = (stateConversations: Conversation[], incomingConversations: Conversation[]): Conversation[] => {
-    const byId = new Map<string, Conversation>();
-    stateConversations.forEach((conversation) => {
-        byId.set(conversation.conversationId, conversation);
-    });
-    incomingConversations.forEach((conversation) => {
-        byId.set(conversation.conversationId, conversation);
-    });
-    return sortConversations(Array.from(byId.values()));
-};
 
 const updateConversationFromMessage = (
     conversation: Conversation,
@@ -55,7 +43,8 @@ const updateConversationFromMessage = (
             messageId: message.messageId,
             senderId: message.sender.userId,
             senderName,
-            content: message.content,
+            content: message.isDeleted ? MESSENGER_COPY.messageStatus.deleted : message.content,
+            revision: message.revision,
             type: message.type,
             createdAt: message.createdAt
         },
@@ -68,22 +57,23 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
     conversations: [],
     conversationsPagination: { hasNext: false, nextCursor: null, loading: false },
     activeConversationId: null,
+    conversationEntry: null,
+    setConversationEntry: (entry) => set({ conversationEntry: entry }, false, 'setConversationEntry'),
     isInitialized: false,
     friendRequestCount: 0,
 
     setActiveView: (view) => set({ activeView: view }, false, 'setActiveView'),
 
     setConversations: (conversations, pagination) => {
-        const merged = mergeConversations([], conversations);
-        set({
-            conversations: merged,
+        set((state) => ({
+            conversations: sortConversations(reconcileConversationPage(state.conversations, conversations, false)),
             conversationsPagination: { ...pagination, loading: false },
             isInitialized: true,
-        }, false, 'setConversations');
+        }), false, 'setConversations');
     },
 
     appendConversations: (conversations, pagination) => set((state) => ({
-        conversations: mergeConversations(state.conversations, conversations),
+        conversations: sortConversations(reconcileConversationPage(state.conversations, conversations, true)),
         conversationsPagination: { ...pagination, loading: false },
     }), false, 'appendConversations'),
 
@@ -91,14 +81,17 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         conversationsPagination: { ...state.conversationsPagination, loading },
     }), false, 'setConversationsLoading'),
 
-    setActiveConversation: (id) => set({ activeConversationId: id, activeView: 'chat' }, false, 'setActiveConversation'),
+    setActiveConversation: (id) => set(state => ({
+        activeConversationId: id,
+        activeView: 'chat',
+        conversationEntry: null,
+        initialMessageHistory: state.activeConversationId === id ? state.initialMessageHistory : null,
+        olderMessageHistory: state.activeConversationId === id ? state.olderMessageHistory : null,
+    }), false, 'setActiveConversation'),
 
     hoistConversation: (conversation: Conversation) => set((state) => {
         return {
-            conversations: sortConversations([
-                ...state.conversations.filter((item) => item.conversationId !== conversation.conversationId),
-                conversation
-            ])
+            conversations: sortConversations(reconcileConversationPage(state.conversations, [conversation], true))
         };
     }, false, 'hoistConversation'),
 
@@ -143,6 +136,7 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
     }, false, 'unpinConversation'),
 
     upsertConversationFromMessage: (message) => set((state) => {
+        if (state.unavailableMessageHistory[message.conversationId]) return state;
         const existingConversation = state.conversations.find(c => c.conversationId === message.conversationId);
         if (!existingConversation || !message.sender?.userId) {
             return state;
@@ -150,15 +144,26 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         const storedMessage = state.messages[message.conversationId]?.find(
             current => current.messageId === message.messageId
         );
-        if (storedMessage?.isDeleted && !message.isDeleted) return state;
+        if (isOlderMessageSnapshot(storedMessage, message)) return state;
+        const accepted = storedMessage ?? message;
+        const preview = existingConversation.lastMessage;
+        if (preview?.messageId === accepted.messageId && preview.revision !== undefined
+            && accepted.revision !== undefined && accepted.revision < preview.revision) return state;
+        const confirmsPending = accepted.clientMessageId
+            && preview?.messageId === `temp-${accepted.clientMessageId}`;
+        if (preview?.messageId !== accepted.messageId && !confirmsPending
+            && (conversationTimestamp(accepted.createdAt) < conversationTimestamp(existingConversation.lastActivityAt)
+                || preview && compareMessageIds(accepted.messageId, preview.messageId) === -1)) return state;
 
         const currentUserId = useAuthStore.getState().user?.userId;
         const isFromOtherUser = message.sender.userId !== currentUserId;
-        const shouldIncreaseUnread = isFromOtherUser && state.activeConversationId !== message.conversationId;
+        const shouldIncreaseUnread = isFromOtherUser && !message.isDeleted && (!message.updatedAt || message.updatedAt === message.createdAt)
+            && existingConversation.lastMessage?.messageId !== message.messageId
+            && conversationTimestamp(message.createdAt) >= conversationTimestamp(existingConversation.lastActivityAt);
 
         const updatedConversation = updateConversationFromMessage(
             existingConversation,
-            message,
+            accepted,
             shouldIncreaseUnread
         );
 
@@ -192,10 +197,15 @@ export const createConversationSlice: MessengerSlice<ConversationSlice> = (set) 
         conversations: [],
         conversationsPagination: { hasNext: false, nextCursor: null, loading: false },
         activeConversationId: null,
+        conversationEntry: null,
         friendRequestCount: 0,
         isInitialized: false,
         messages: {},
+        messagePinStates: {},
         messagesPagination: {},
+        initialMessageHistory: null,
+        olderMessageHistory: null,
+        unavailableMessageHistory: {},
         typingUsers: {},
         loading: false,
         error: null,

@@ -1,6 +1,9 @@
 package com.chatapp.chat_service.realtime;
 
 import com.chatapp.chat_service.canonical.appauth.AppAuthorizationService;
+import com.chatapp.chat_service.canonical.call.CallLifecycleService;
+import com.chatapp.chat_service.canonical.call.CallDelivery;
+import com.chatapp.chat_service.canonical.call.CallDeliveryHeaders;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.security.core.AppUserPrincipal;
 import com.chatapp.chat_service.security.jwt.JwtTokenProvider;
@@ -25,8 +28,9 @@ class StompAuthenticationInterceptorTest {
     private final ConversationAuthorizationService authorization = mock(ConversationAuthorizationService.class);
     private final JwtTokenProvider tokens = mock(JwtTokenProvider.class);
     private final UserRepository users = mock(UserRepository.class);
+    private final CallLifecycleService calls = mock(CallLifecycleService.class);
     private final StompAuthenticationInterceptor interceptor = new StompAuthenticationInterceptor(
-            tokens, authorization, mock(AppAuthorizationService.class), users);
+            tokens, authorization, mock(AppAuthorizationService.class), users, calls);
     private final UUID userId = UUID.randomUUID();
 
     @BeforeEach
@@ -92,6 +96,57 @@ class StompAuthenticationInterceptorTest {
         assertNotNull(interceptor.preSend(frame(StompCommand.SEND, "/app/typing", true), null));
         assertThrows(IllegalArgumentException.class,
                 () -> interceptor.preSend(frame(StompCommand.SEND, "/app/typing", false), null));
+    }
+
+    @Test
+    void callControlAndPrivateResultsRequireAnActiveAuthenticatedSession() {
+        for (String action : new String[]{"start", "join", "leave", "end", "fail", "heartbeat", "sync", "signal"}) {
+            assertNotNull(interceptor.preSend(frame(StompCommand.SEND, "/app/call." + action, true), null));
+            assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SEND, "/app/call." + action, false), null));
+        }
+        assertNotNull(interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/user/queue/call-results", true), null));
+        assertNotNull(interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/user/queue/calls", true), null));
+        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/user/other/queue/calls", true), null));
+        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/queue/calls", true), null));
+        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/queue/call-results", true), null));
+        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SUBSCRIBE, "/user/other/queue/call-results", true), null));
+        when(users.findById(userId)).thenReturn(null);
+        assertThrows(IllegalArgumentException.class, () -> interceptor.preSend(frame(StompCommand.SEND, "/app/call.sync", true), null));
+    }
+    @Test void callDeliveryRequiresTrustedScopeAndRevalidatesCurrentAuthority() {
+        connect();
+        var scope = new CallDelivery(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), CallDelivery.Kind.STATE);
+        assertFalse(interceptor.canDeliver(delivery("/queue/calls-user-session")));
+        var message = callDelivery("/queue/calls-user-session", scope);
+        assertTrue(interceptor.canDeliver(message)); verify(calls).requireDelivery(userId, scope);
+        doThrow(new IllegalStateException("storage unavailable")).when(calls).requireDelivery(userId, scope);
+        assertFalse(interceptor.canDeliver(message));
+    }
+    @Test void privateCallQueueCannotDeliverSignalsAndRoomScopeCannotBeForged() {
+        connect();
+        var scope = new CallDelivery(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), CallDelivery.Kind.SIGNAL);
+        assertFalse(interceptor.canDeliver(callDelivery("/queue/calls-user-session", scope)));
+        assertFalse(interceptor.canDeliver(callDelivery("/topic/conversation/" + UUID.randomUUID() + "/calls", scope)));
+        verifyNoInteractions(calls);
+        assertTrue(interceptor.canDeliver(callDelivery("/topic/conversation/" + scope.conversationId() + "/calls", scope)));
+        verify(calls).requireDelivery(userId, scope);
+    }
+    @Test void nativeClientHeadersCannotStandInForServerDeliveryMetadata() {
+        connect();
+        var headers = StompHeaderAccessor.create(StompCommand.MESSAGE);
+        headers.setSessionId("session"); headers.setDestination("/queue/calls-user-session");
+        headers.setNativeHeader("noiCallRoom", UUID.randomUUID().toString());
+        headers.setNativeHeader("noiCallId", UUID.randomUUID().toString());
+        headers.setNativeHeader("noiCallRevision", UUID.randomUUID().toString());
+        headers.setNativeHeader("noiCallKind", "STATE");
+        assertFalse(interceptor.canDeliver(MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders())));
+        verifyNoInteractions(calls);
+    }
+    private Message<byte[]> callDelivery(String destination, CallDelivery delivery) {
+        var message = MessageBuilder.createMessage(new byte[0], CallDeliveryHeaders.of(delivery));
+        var headers = SimpMessageHeaderAccessor.wrap(message);
+        headers.setSessionId("session"); headers.setDestination(destination);
+        return MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders());
     }
 
     @Test

@@ -9,9 +9,12 @@ import { localizeText } from '@/shared/i18n';
  * text that is not covered by the app locale.
  */
 export const getUserFacingErrorMessage = (error: unknown, fallback: string): string => {
-  if (axios.isAxiosError(error)) {
+  if (axios.isAxiosError<{ code?: unknown }>(error)) {
     const status = error.response?.status;
     if (status === 401) return localizeText('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    if (status === 403 && error.response?.data?.code === 'COMMUNITY_CREATION_DISABLED') {
+      return localizeText('Tạm dừng tạo cộng đồng mới. Bạn vẫn có thể trò chuyện trong các phòng hiện có. Thử lại sau nhé.');
+    }
     if (status === 403) return localizeText('Bạn không có quyền thực hiện thao tác này.');
     if (status === 404) return localizeText('Dữ liệu không còn tồn tại hoặc đã bị xóa.');
     if (status === 409) return localizeText('Thao tác bị xung đột. Tải lại rồi thử lại.');

@@ -83,6 +83,7 @@ const formatNotificationPreview = (content: string): string => {
 export const getConversationLastMessagePreview = (conversation: Conversation): string => {
   const message = conversation.lastMessage;
   if (!message) {
+    if (conversation.hasLastMessage) return localizeText('Chưa xem được tin gần nhất');
     return localizeText(MESSENGER_COPY.conversationPreview.emptyMessage);
   }
 
@@ -108,6 +109,8 @@ export const getConversationLastMessagePreview = (conversation: Conversation): s
       return actor + localizeText('đã gửi video');
     case 'STICKER':
       return actor + localizeText('đã gửi sticker');
+    case 'GIF':
+      return actor + localizeText('đã gửi GIF');
     case 'TEXT':
       if (!rawContent) {
         return actor + MESSENGER_COPY.conversationPreview.emptyTextMessage;

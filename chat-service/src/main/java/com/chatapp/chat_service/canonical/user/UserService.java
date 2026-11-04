@@ -2,6 +2,7 @@ package com.chatapp.chat_service.canonical.user;
 
 import com.chatapp.chat_service.canonical.auth.UserResponseMapper;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
+import com.chatapp.chat_service.canonical.media.ManagedImageReference;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
@@ -21,10 +22,12 @@ import java.util.UUID;
 public class UserService {
     private final UserRepository users;
     private final CanonicalEventRecorder eventRecorder;
+    private final ManagedImageReference managedImages;
 
-    public UserService(UserRepository users, CanonicalEventRecorder eventRecorder) {
+    public UserService(UserRepository users, CanonicalEventRecorder eventRecorder, ManagedImageReference managedImages) {
         this.users = users;
         this.eventRecorder = eventRecorder;
+        this.managedImages = managedImages;
     }
 
     public CanonicalApiContracts.PublicUserResponse getPublicUser(UUID actorId, UUID userId) {
@@ -70,6 +73,7 @@ public class UserService {
         if (current == null) {
             throw new NotFoundException("user not found");
         }
+        managedImages.retain(request.avatarUrl());
         CanonicalUser updated = users.updateProfile(
                 actorId, request.displayName().trim(), request.avatarUrl(), Instant.now());
         eventRecorder.record(

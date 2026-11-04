@@ -25,6 +25,10 @@ import { getUserFacingErrorMessage } from "@/shared/lib/user-facing-error";
 import { logger } from "@/shared/lib/logger";
 import { MAX_MESSAGE_CONTENT_LENGTH } from "@/features/messenger/constants/messageLimits";
 import { useMessageComposerText } from "@/features/messenger/hooks/useMessageComposerText";
+import { useComposerSendRecovery } from "@/features/messenger/hooks/useComposerSendRecovery";
+import { ComposerUploadUnavailableError } from "@/features/messenger/model/composerUploadCache";
+import { StickerPicker } from '@/features/stickers/components/StickerPicker';
+import { GifPicker } from '@/features/gifs/components/GifPicker';
 
 interface MessageInputProps {
   replyingTo?: Message | null;
@@ -37,6 +41,11 @@ interface MessageInputProps {
 
 const MAX_FILES_PER_MESSAGE = 10;
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const UNAVAILABLE_UPLOAD_COPY = {
+  DELETED: "Tệp đã bị xóa.",
+  DELETING: "Tệp đang được xóa. Hãy chọn tệp khác.",
+  QUARANTINED: "Tệp không thể gửi. Hãy chọn tệp khác.",
+} as const;
 const ALLOWED_MEDIA_TYPES = ["image/", "video/", "audio/"];
 const ALLOWED_EXACT_TYPES = new Set([
   "application/pdf",
@@ -92,7 +101,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [unavailableUpload, setUnavailableUpload] = useState<ComposerUploadUnavailableError | null>(null);
+  const uploadNotice = !editingMessage && unavailableUpload && selectedFiles.includes(unavailableUpload.file)
+    ? unavailableUpload
+    : null;
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [blockStatus, setBlockStatus] = useState<{ hasBlocked: boolean; isBlockedBy: boolean } | null>(null);
   const [blockStatusLoading, setBlockStatusLoading] = useState(false);
@@ -100,6 +115,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [blockStatusRetry, setBlockStatusRetry] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isUnblocking, setIsUnblocking] = useState(false);
+  const { begin: beginSendAttempt, changed: markComposerChanged, forget: forgetUpload, isActive: isComposerActive } = useComposerSendRecovery({
+    userId: user?.userId,
+    conversationId: activeConversationId,
+    contextKey: JSON.stringify([editingMessage?.messageId, replyingTo?.messageId, replyingTo?.messageBucket]),
+    upload: uploadMessageFiles,
+    onConfirmed: ({ clearDraft: clearUnchangedDraft, files }) => {
+      if (files.length) {
+        setSelectedFiles(current => current.filter(file => !files.includes(file)));
+        setUnavailableUpload(current => current && files.includes(current.file) ? null : current);
+      }
+      if (clearUnchangedDraft) { onCancelReply?.(); clearDraft(); }
+    },
+  });
 
   const fetchBlockedUsers = useFriendStore((state) => state.fetchBlockedUsers);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -160,8 +188,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       notifyWarning(MESSENGER_COPY.messageInput.actionError.messageTooLong);
       return false;
     }
+    markComposerChanged();
     return updateText(nextText);
-  }, [updateText]);
+  }, [updateText, markComposerChanged]);
 
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextText = event.target.value;
@@ -285,13 +314,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       showError(MESSENGER_COPY.messageInput.actionError.noConversationToSend);
       return;
     }
-    if (isSendingRef.current) return;
+    if (isSendingRef.current || uploadNotice) return;
 
     clearTypingState();
     setMentionQuery(null);
     setIsSending(true);
     isSendingRef.current = true;
     const trimmedText = text.trim();
+    const attempt = beginSendAttempt();
 
     try {
       let attachments: Attachment[] = [];
@@ -308,24 +338,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           return;
         }
 
-        const uploadedAttachments = await uploadMessageFiles(validFiles);
-        if (!uploadedAttachments || uploadedAttachments.length === 0) {
-          showError(MESSENGER_COPY.messageInput.actionSuccess.uploadFailed);
-          return;
-        }
-
-        if (uploadedAttachments.length < validFiles.length) {
-          const rejectedCount = validFiles.length - uploadedAttachments.length;
-          showError(MESSENGER_COPY.messageInput.actionSuccess.uploadShortage(rejectedCount));
-        }
-
-        attachments = uploadedAttachments;
+        attachments = await attempt.resolve(validFiles);
       }
 
+      if (!attempt.isCurrent()) return;
       if (editingMessage) {
         await editMessage(editingMessage.messageId, trimmedText);
-        onCancelEdit?.();
-        clearEditingText();
+        if (attempt.isCurrent()) { onCancelEdit?.(); clearEditingText(); }
       } else {
         const hasImageOrVideo = attachments.some((attachment) => {
           const contentType = attachment.contentType ?? attachment.mimeType ?? "";
@@ -335,13 +354,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         const mentionTargets = extractMentionTargets(trimmedText);
         await sendMessage(trimmedText, messageType, {
           replyToId: replyingTo?.messageId,
+          replyToMessageBucket: replyingTo?.messageBucket,
           mentions: mentionTargets.userIds,
           mentionEveryone: mentionTargets.mentionEveryone,
           attachments,
+          uploadIds: attachments.length ? attempt.getConfirmedUploadIds() : undefined,
+          onPrepared: attempt.prepared,
         });
-        onCancelReply?.();
-        clearDraft();
-        setSelectedFiles([]);
       }
 
       setShowEmojiPicker(false);
@@ -349,11 +368,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         textareaRef.current.style.height = "auto";
       }
     } catch (error: unknown) {
+      if (!isComposerActive() || (error instanceof DOMException && error.name === 'AbortError')) return;
+      if (error instanceof ComposerUploadUnavailableError) {
+        setUnavailableUpload(error);
+        return;
+      }
+      attempt.rejected(error);
       logger.error("[MessageInput] Failed to send message", error instanceof Error ? error.message : String(error));
       showError(getUserFacingErrorMessage(error, MESSENGER_COPY.messageInput.actionSuccess.sendFailure));
     } finally {
       isSendingRef.current = false;
-      setIsSending(false);
+      if (isComposerActive()) setIsSending(false);
     }
   }, [
     activeConversationId,
@@ -361,17 +386,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     editMessage,
     editingMessage,
     onCancelEdit,
-    onCancelReply,
     replyingTo?.messageId,
+    replyingTo?.messageBucket,
     selectedFiles,
     sendMessage,
     text,
     buildValidFiles,
-    uploadMessageFiles,
+    beginSendAttempt,
+    isComposerActive,
     showError,
     showWarning,
-    clearDraft,
     clearEditingText,
+    uploadNotice,
   ]);
 
   const handleCreatePoll = useCallback(async (data: CreatePollRequest) => {
@@ -398,6 +424,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       event.target.value = "";
       return;
     }
+
+    markComposerChanged();
 
     setSelectedFiles((current) => {
       const remainingSlots = MAX_FILES_PER_MESSAGE - current.length;
@@ -426,7 +454,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const removeSelectedFile = (index: number) => {
-    setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    const file = selectedFiles[index];
+    if (!file) return;
+    forgetUpload(file);
+    setUnavailableUpload(current => current?.file === file ? null : current);
+    setSelectedFiles(current => current.filter(selected => selected !== file));
+  };
+
+  const resolveUploadNotice = () => {
+    if (!uploadNotice) return;
+    if (uploadNotice.status === "DELETED") {
+      forgetUpload(uploadNotice.file);
+      setUnavailableUpload(null);
+    } else {
+      removeSelectedFile(selectedFiles.indexOf(uploadNotice.file));
+    }
+    textareaRef.current?.focus();
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -485,6 +528,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div className="relative">
+      {showGifPicker && !editingMessage ? <GifPicker
+        disabled={isSending}
+        onClose={() => { setShowGifPicker(false); textareaRef.current?.focus(); }}
+        onSend={async gif => {
+          if (isSendingRef.current || !activeConversationId) return;
+          isSendingRef.current = true; setIsSending(true); clearTypingState();
+          try { await sendMessage('', 'GIF', { gif, replyToId: replyingTo?.messageId, replyToMessageBucket: replyingTo?.messageBucket }); onCancelReply?.(); }
+          finally { isSendingRef.current = false; setIsSending(false); }
+        }}
+      /> : null}
+      {showStickerPicker && !editingMessage ? <StickerPicker
+        disabled={isSending}
+        onClose={() => { setShowStickerPicker(false); textareaRef.current?.focus(); }}
+        onSend={async stickerId => {
+          if (isSendingRef.current || !activeConversationId) return;
+          isSendingRef.current = true;
+          setIsSending(true);
+          clearTypingState();
+          try {
+            await sendMessage('', 'STICKER', { stickerId, replyToId: replyingTo?.messageId, replyToMessageBucket: replyingTo?.messageBucket });
+            onCancelReply?.();
+          } finally { isSendingRef.current = false; setIsSending(false); }
+        }}
+      /> : null}
       {showEmojiPicker && (
         <motion.div
           className="absolute bottom-full mb-4 left-0 z-50"
@@ -529,6 +596,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onRemoveFile={removeSelectedFile}
         />
 
+        {uploadNotice && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+            <div role="alert" className="min-w-0 flex-1 break-words">
+              <p className="font-medium">{uploadNotice.file.name}</p>
+              <p className="text-muted-foreground">{localizeText(UNAVAILABLE_UPLOAD_COPY[uploadNotice.status])}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={resolveUploadNotice}>
+              {localizeText(uploadNotice.status === "DELETED" ? "Đặt lại lượt tải" : "Bỏ tệp")}
+            </Button>
+          </div>
+        )}
+
         <input ref={fileInputRef} type="file" className="hidden" multiple onChange={handleFilesSelected} />
         <input
           ref={mediaInputRef}
@@ -542,16 +621,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <MessageInputToolbar
             onAttachFile={() => fileInputRef.current?.click()}
             onAttachMedia={() => mediaInputRef.current?.click()}
-            onOpenPoll={() => setShowPollModal(true)}
-            onToggleEmoji={() => setShowEmojiPicker((isOpen) => !isOpen)}
+            onOpenPoll={() => { setShowGifPicker(false); setShowStickerPicker(false); setShowPollModal(true); }}
+            onOpenSticker={() => { setShowGifPicker(false); setShowEmojiPicker(false); setShowStickerPicker(true); }}
+            onOpenGif={() => { setShowStickerPicker(false); setShowEmojiPicker(false); setShowGifPicker(true); }}
+            onToggleEmoji={() => { setShowGifPicker(false); setShowStickerPicker(false); setShowEmojiPicker((isOpen) => !isOpen); }}
             showEmojiPicker={showEmojiPicker}
             onShowVoice={() => onStartCall("VOICE")}
             canShowVoice={canStartCall}
             onSend={() => void handleSend()}
-          canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending}
+          canSend={Boolean(text.trim() || selectedFiles.length > 0) && !isSending && !uploadNotice}
           isEditing={Boolean(editingMessage)}
         >
-          <div className="flex-1 px-2 py-1">
+          <div className="min-w-0 flex-1 px-2 py-1">
             <Textarea
               ref={textareaRef}
               value={text}

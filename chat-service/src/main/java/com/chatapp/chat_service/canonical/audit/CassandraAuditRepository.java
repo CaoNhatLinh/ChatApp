@@ -3,6 +3,8 @@ package com.chatapp.chat_service.canonical.audit;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomAuditEvent;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalRoomEvent;
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
+import com.datastax.oss.driver.api.core.cql.BoundStatement;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import org.springframework.stereotype.Repository;
 
@@ -71,7 +73,7 @@ public class CassandraAuditRepository implements AuditRepository {
 
     @Override
     public void saveRoomEvent(CanonicalRoomAuditEvent event) {
-        session.execute(saveRoomEvent.bind(
+        save(event, saveRoomEvent.bind(
                 event.conversationId(), event.eventMonth(), event.eventId(), event.action(), event.actorId(),
                 event.targetUserId(), null, null, event.reasonCode(), metadata(event), event.createdAt()));
     }
@@ -91,18 +93,23 @@ public class CassandraAuditRepository implements AuditRepository {
 
     @Override
     public void saveAuditEvent(CanonicalRoomAuditEvent event) {
-        session.execute(saveAuditByActor.bind(
+        save(event, saveAuditByActor.bind(
                 event.actorId(), event.eventMonth(), event.eventId(), event.action(), event.resourceType(),
                 event.resourceId(), event.conversationId(), event.targetUserId(), event.outcome(),
                 event.reasonCode(), event.beforeState(), event.afterState(), event.requestId(), event.ipHash(),
                 event.userAgentHash(), event.createdAt()));
-        session.execute(saveAuditByResource.bind(
+        save(event, saveAuditByResource.bind(
                 event.resourceType(), event.resourceId(), event.eventMonth(), event.eventId(), event.actorId(),
                 event.action(), event.outcome(), event.createdAt()));
-        session.execute(saveAuditByMonth.bind(
+        save(event, saveAuditByMonth.bind(
                 event.eventMonth(), event.eventId(), event.action(), event.resourceType(), event.resourceId(),
                 event.actorId(), event.conversationId(), event.targetUserId(), event.outcome(), event.reasonCode(),
                 event.beforeState(), event.afterState(), event.requestId(), event.createdAt()));
+    }
+
+    private void save(CanonicalRoomAuditEvent event, BoundStatement statement) {
+        session.execute(("REPORT_STATUS_UPDATE".equals(event.action()) || "REPORT_CREATED".equals(event.action()))
+                ? statement.setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM) : statement);
     }
 
     @Override

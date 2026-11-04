@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import {
   getNotificationSettings,
+  getNotificationChannels,
   updateNotificationSettings,
   type NotificationSettings,
 } from '@/features/notifications/api/notifications.api';
@@ -12,6 +13,7 @@ import { notifyError } from '@/shared/lib/notification';
 import { logger } from '@/shared/lib/logger';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { BrandText } from '@/shared/ui/BrandWord';
+import { EmailHistorySection } from './EmailHistorySection';
 
 type NotificationDraft = Pick<
   NotificationSettings,
@@ -55,6 +57,7 @@ const toDraft = (settings: NotificationSettings): NotificationDraft => {
 
 export function NotificationSettingsPanel() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [emailAvailable, setEmailAvailable] = useState(false);
   const [draft, setDraft] = useState<NotificationDraft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,9 +78,10 @@ export function NotificationSettingsPanel() {
     let active = true;
     setLoading(true);
     setError(null);
-    void getNotificationSettings()
-      .then((result) => {
+    void Promise.all([getNotificationSettings(), getNotificationChannels()])
+      .then(([result, channels]) => {
         if (!active) return;
+        setEmailAvailable(channels.emailAvailable);
         setSettings(result);
         setDraft(toDraft(result));
       })
@@ -141,6 +145,12 @@ export function NotificationSettingsPanel() {
     return <div className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert"><div className="flex min-w-0 items-start gap-3"><AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{error ?? localizeText('Không thể tải cài đặt thông báo.')}</span></div><Button type="button" size="sm" variant="outline" onClick={() => setRetryToken((current) => current + 1)}>{localizeText('Thử lại')}</Button></div>;
   }
 
+  const channels = CHANNELS.map((channel) => channel.key === 'emailEnabled'
+    ? { ...channel, available: emailAvailable, description: emailAvailable
+      ? 'Nhận email khi có thông báo mới. Hiện chỉ mở cho tài khoản được phép thử.'
+      : 'Email chưa mở cho tài khoản này. Cần cấu hình Resend và địa chỉ nhận được phép.' }
+    : channel);
+
   return (
     <section className="space-y-8" aria-labelledby="notification-settings-title">
       <header className="border-b border-border pb-6">
@@ -173,14 +183,14 @@ export function NotificationSettingsPanel() {
         <legend className="text-sm font-semibold">{localizeText('Kênh nhận')}</legend>
         <p className="mt-1 text-sm leading-6 text-muted-foreground"><BrandText text={localizeText('Bật những cách Nối có thể liên hệ với bạn.')} /></p>
         <div className="mt-4 divide-y divide-border border-y border-border">
-          {CHANNELS.map(({ key, label, description, available }) => (
+          {channels.map(({ key, label, description, available }) => (
             <label key={key} className={`flex items-center justify-between gap-4 py-4 ${available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
               <span className="min-w-0">
                 <span className="flex flex-wrap items-center gap-2 text-sm font-semibold">{localizeText(label)}{!available ? <small className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{localizeText('Chưa khả dụng')}</small> : null}</span>
                 <span className="mt-1 block text-xs leading-5 text-muted-foreground">{localizeText(description)}</span>
               </span>
               <span className="relative shrink-0">
-                <input type="checkbox" className="peer sr-only" checked={draft[key]} onChange={(event) => updateDraft(key, event.target.checked)} disabled={!available} />
+                <input type="checkbox" className="peer sr-only" checked={draft[key]} onChange={(event) => updateDraft(key, event.target.checked)} disabled={!available || saving} />
                 <span className="block h-6 w-11 rounded-full bg-muted transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-2" aria-hidden="true" />
                 <span className="pointer-events-none absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-primary transition-transform peer-checked:translate-x-5">{draft[key] ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : null}</span>
               </span>
@@ -191,20 +201,22 @@ export function NotificationSettingsPanel() {
 
       <details className="group py-1">
         <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-[var(--radius-sm)] text-sm font-semibold marker:hidden">
-          <span className="flex flex-wrap items-center gap-2">{localizeText('Giờ yên tĩnh')}<small className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{localizeText('Chưa khả dụng')}</small></span><ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
+          <span className="flex flex-wrap items-center gap-2">{localizeText('Giờ yên tĩnh')}{!emailAvailable ? <small className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{localizeText('Chưa khả dụng')}</small> : null}</span><ChevronDown size={17} aria-hidden="true" className="transition-transform group-open:rotate-180" />
         </summary>
-        <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{localizeText('Máy chủ đã lưu khung giờ, nhưng chưa dùng khung giờ này để hoãn thông báo. Bạn chỉ có thể xem ở đây.')}</p>
+        <p className="mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{localizeText(emailAvailable ? 'Email sẽ chờ đến hết giờ yên tĩnh. Thông báo trong app vẫn hiện như thường.' : 'Giờ yên tĩnh chỉ áp dụng cho email. Email chưa mở cho tài khoản này.')}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Bắt đầu')}</span><Input type="time" value={draft.quietHoursStart ?? ''} onChange={(event) => updateDraft('quietHoursStart', event.target.value)} disabled /></label>
-          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Kết thúc')}</span><Input type="time" value={draft.quietHoursEnd ?? ''} onChange={(event) => updateDraft('quietHoursEnd', event.target.value)} disabled /></label>
+          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Bắt đầu')}</span><Input type="time" value={draft.quietHoursStart ?? ''} onChange={(event) => updateDraft('quietHoursStart', event.target.value)} disabled={!emailAvailable || saving} /></label>
+          <label className="space-y-1.5 text-sm font-semibold"><span>{localizeText('Kết thúc')}</span><Input type="time" value={draft.quietHoursEnd ?? ''} onChange={(event) => updateDraft('quietHoursEnd', event.target.value)} disabled={!emailAvailable || saving} /></label>
         </div>
-        <label className="mt-3 block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" disabled /></label>
+        <label className="mt-3 block space-y-1.5 text-sm font-semibold"><span>{localizeText('Múi giờ')}</span><Input value={draft.timezone ?? ''} onChange={(event) => updateDraft('timezone', event.target.value)} placeholder="UTC" disabled={!emailAvailable || saving} /></label>
       </details>
 
       <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
         <p className="text-xs text-muted-foreground">{isDirty ? localizeText('Bạn có thay đổi chưa lưu.') : localizeText('Mọi thay đổi đã được lưu.')}</p>
         <Button type="button" onClick={() => void handleSave()} loading={saving} disabled={!isDirty}>{localizeText('Lưu thay đổi')}</Button>
       </div>
+
+      <EmailHistorySection />
     </section>
   );
 }

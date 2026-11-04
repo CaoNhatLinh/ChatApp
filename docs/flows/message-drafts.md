@@ -79,3 +79,32 @@ sequenceDiagram
 
 Remaining distributed proof belongs to canonical message persistence and
 realtime delivery, not to this device-local draft flow.
+
+## Unconfirmed attachment commands (2026-10-23)
+
+Source dimensions/duration now survive canonical upload/send mapping. A failed
+local optimistic message retains an in-memory `pendingSend` command snapshot;
+bubble retry sends that exact original command/ID in its original room, including
+mention/reply/sticker/GIF/attachment fields. It does not reconstruct a command from
+display text or create a new ID fallback. Confirmation clears the snapshot.
+
+The snapshot is not persisted with drafts or stored as plaintext in the per-tab
+fingerprint store. Attachment reload recovery, reuse of uploaded batches on a
+composer retry and draft-aware selected-file cleanup after bubble retry remain
+separate work. Evidence: `tasks/attachment-metadata-verification-2026-10-23.md`.
+
+## Composer upload recovery follow-up (2026-10-23)
+
+Confirmed per-file upload metadata is now reused within the mounted actor/room
+composer. A failure in a later upload does not discard earlier confirmed progress
+or send a partial attachment list. Message-send retry keeps the same assets and
+original canonical command identity when the draft has not changed.
+
+The local preparation callback is not sent to the backend or fingerprint store.
+Canonical confirmation removes only File objects belonging to that send. Text and
+reply are cleared only for the unchanged revision/context; new text/files remain.
+Scope disposal aborts client HTTP and prevents late old-room sending/cleanup.
+
+This does not persist selected File objects across unmount/reload, reconcile an
+unconfirmed provider outcome or establish provider rollback. Evidence and remaining
+M2/M3 gates: `tasks/composer-upload-recovery-verification-2026-10-23.md`.

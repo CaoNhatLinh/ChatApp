@@ -8,6 +8,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationSettingsPolicyTest {
     @Test
+    void quietHoursRequireBothTimesOrNeitherAndDoNotAllowAllDayMute() {
+        NotificationSettingsPolicy.requireQuietHoursPair("22:00", "07:00");
+        NotificationSettingsPolicy.requireQuietHoursPair(null, "");
+        assertThatThrownBy(() -> NotificationSettingsPolicy.requireQuietHoursPair("22:00", null))
+                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> NotificationSettingsPolicy.requireQuietHoursPair("22:00", "22:00"))
+                .isInstanceOf(BadRequestException.class);
+    }
+    @Test
     void acceptsCanonicalLevelsCaseInsensitively() {
         assertThat(NotificationSettingsPolicy.requireLevel(" direct_only ")).isEqualTo("DIRECT_ONLY");
     }

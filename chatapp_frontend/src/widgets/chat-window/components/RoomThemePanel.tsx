@@ -5,6 +5,8 @@ import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { SurfacePanel } from '@/shared/ui/SurfacePanel';
 import { localizeText } from '@/shared/i18n';
+import { useTheme } from '@/app/providers/theme';
+import type { AppearanceDraft } from '@/features/settings/model/useRoomThemeState';
 import {
   CHAT_BUBBLE_PRESETS,
   CHAT_THEME_COPY,
@@ -30,12 +32,7 @@ interface RoomThemePanelProps {
   activeBackgroundImage: string;
   activeBackgroundTreatment?: CustomBackgroundTreatment;
   hasConversationOverride: boolean;
-  onSetDefaultRoomTheme: (themeId: RoomThemeId) => void;
-  onSetRoomTheme: (themeId: RoomThemeId) => void;
-  onSetBubbleStyle: (bubbleStyleId: ChatBubbleStyleId) => void;
-  onSetBackgroundImage: (imageUrl: string, treatment?: CustomBackgroundTreatment) => void;
-  onClearConversationTheme: () => void;
-  onClearConversationBackground: () => void;
+  onSave: (draft: AppearanceDraft) => Promise<void>;
   onSaved?: () => void;
 }
 
@@ -97,46 +94,27 @@ export const RoomThemePanel = ({
   activeBackgroundImage,
   activeBackgroundTreatment,
   hasConversationOverride,
-  onSetDefaultRoomTheme,
-  onSetRoomTheme,
-  onSetBubbleStyle,
-  onSetBackgroundImage,
-  onClearConversationTheme,
-  onClearConversationBackground,
+  onSave,
   onSaved,
 }: RoomThemePanelProps) => {
+  const { isDarkMode } = useTheme();
   const hasActiveConversation = Boolean(conversationId);
   const [draftThemeId, setDraftThemeId] = useState<RoomThemeId>(activeRoomThemeId);
   const [draftBubbleStyleId, setDraftBubbleStyleId] = useState<ChatBubbleStyleId>(defaultBubbleStyleId);
   const [draftBackgroundUrl, setDraftBackgroundUrl] = useState(activeBackgroundImage);
   const [draftBackgroundTreatment, setDraftBackgroundTreatment] = useState<CustomBackgroundTreatment>(activeBackgroundTreatment ?? 'strong');
-  const [themeMode, setThemeMode] = useState<RoomThemeMode | 'custom'>(
+  const [themeMode, setThemeMode] = useState<RoomThemeMode | 'custom' | 'system'>(
     activeBackgroundImage
       ? 'custom'
-      : ROOM_THEME_PRESETS.find((theme) => theme.id === activeRoomThemeId)?.mode ?? 'dark',
+      : activeRoomThemeId === 'system' ? 'system' : ROOM_THEME_PRESETS.find((theme) => theme.id === activeRoomThemeId)?.mode ?? 'dark',
   );
   const [pendingBackgroundFile, setPendingBackgroundFile] = useState<File | null>(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [resetConversationDraft, setResetConversationDraft] = useState(false);
   const [panelNotice, setPanelNotice] = useState<{ tone: 'error' | 'success'; message: string } | null>(null);
-
-  useEffect(() => {
-    setDraftThemeId(activeRoomThemeId);
-    setDraftBubbleStyleId(defaultBubbleStyleId);
-    setDraftBackgroundUrl(activeBackgroundImage);
-    setDraftBackgroundTreatment(activeBackgroundTreatment ?? 'strong');
-    setThemeMode(
-      activeBackgroundImage
-        ? 'custom'
-        : ROOM_THEME_PRESETS.find((theme) => theme.id === activeRoomThemeId)?.mode ?? 'dark',
-    );
-    setPendingBackgroundFile(null);
-    setPendingPreviewUrl(null);
-    setResetConversationDraft(false);
-    setPanelNotice(null);
-  }, [activeBackgroundImage, activeBackgroundTreatment, activeRoomThemeId, defaultBubbleStyleId]);
 
   useEffect(() => () => {
     if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
@@ -147,7 +125,7 @@ export const RoomThemePanel = ({
       draftThemeId !== activeRoomThemeId ||
       themeMode !== (activeBackgroundImage
         ? 'custom'
-        : ROOM_THEME_PRESETS.find((theme) => theme.id === activeRoomThemeId)?.mode ?? 'dark') ||
+        : activeRoomThemeId === 'system' ? 'system' : ROOM_THEME_PRESETS.find((theme) => theme.id === activeRoomThemeId)?.mode ?? 'dark') ||
       draftBubbleStyleId !== defaultBubbleStyleId ||
       draftBackgroundUrl.trim() !== activeBackgroundImage.trim() ||
       Boolean(pendingBackgroundFile) ||
@@ -169,7 +147,9 @@ export const RoomThemePanel = ({
   );
 
   const handleSave = async () => {
+    if (isSaving) return;
     let normalizedBackground: string | null;
+    let backgroundAssetId: string | undefined;
     try {
       normalizedBackground = normalizeRoomBackgroundUrl(draftBackgroundUrl);
     } catch {
@@ -180,7 +160,9 @@ export const RoomThemePanel = ({
     setIsUploadingImage(Boolean(pendingBackgroundFile));
     if (pendingBackgroundFile) {
       try {
-        normalizedBackground = await uploadChatBackground(pendingBackgroundFile);
+        const uploaded = await uploadChatBackground(pendingBackgroundFile);
+        normalizedBackground = uploaded.url;
+        backgroundAssetId = uploaded.assetId;
       } catch {
         setPanelNotice({ tone: 'error', message: localizeText('Không thể tải ảnh nền lên. Vui lòng thử lại.') });
         setIsUploadingImage(false);
@@ -194,29 +176,24 @@ export const RoomThemePanel = ({
       return;
     }
 
-    if (hasActiveConversation) {
-      if (resetConversationDraft) {
-        onClearConversationTheme();
-      } else {
-        onSetRoomTheme(draftThemeId);
-        if (normalizedBackground) {
-          onSetBackgroundImage(normalizedBackground, draftBackgroundTreatment);
-        } else if (activeBackgroundImage) {
-          onClearConversationBackground();
-        }
-      }
-    } else {
-      onSetDefaultRoomTheme(draftThemeId);
+    setIsSaving(true);
+    try {
+      await onSave({ themeId: draftThemeId, bubbleStyleId: draftBubbleStyleId,
+        backgroundUrl: normalizedBackground, backgroundAssetId,
+        backgroundTreatment: draftBackgroundTreatment, resetRoom: resetConversationDraft });
+      setPanelNotice({ tone: 'success', message: hasActiveConversation ? CHAT_THEME_STATUS.conversationSaved : CHAT_THEME_STATUS.defaultsUpdated });
+      onSaved?.();
+    } catch {
+      setPanelNotice({ tone: 'error', message: localizeText('Không thể lưu giao diện phòng. Vui lòng thử lại.') });
+    } finally {
+      setIsSaving(false);
+      setIsUploadingImage(false);
     }
-    onSetBubbleStyle(draftBubbleStyleId);
-    setPanelNotice({ tone: 'success', message: hasActiveConversation ? CHAT_THEME_STATUS.conversationSaved : CHAT_THEME_STATUS.defaultsUpdated });
-    setIsUploadingImage(false);
-    onSaved?.();
   };
 
   const handleResetDraft = () => {
     setDraftThemeId(defaultRoomThemeId);
-    setThemeMode(ROOM_THEME_PRESETS.find((theme) => theme.id === defaultRoomThemeId)?.mode ?? 'dark');
+    setThemeMode(defaultRoomThemeId === 'system' ? 'system' : ROOM_THEME_PRESETS.find((theme) => theme.id === defaultRoomThemeId)?.mode ?? 'dark');
     setDraftBackgroundUrl('');
     setDraftBackgroundTreatment('strong');
     setPendingBackgroundFile(null);
@@ -253,10 +230,10 @@ export const RoomThemePanel = ({
   };
 
   const customPreviewUrl = pendingPreviewUrl || draftBackgroundUrl || null;
-  const themeOptions = ROOM_THEME_PRESETS.filter((theme) => theme.mode === themeMode);
+  const themeOptions = ROOM_THEME_PRESETS.filter((theme) => theme.id === 'system' || theme.mode === themeMode);
   const selectedBubbleStyle = CHAT_BUBBLE_PRESETS.find((bubble) => bubble.id === draftBubbleStyleId) ?? CHAT_BUBBLE_PRESETS[0];
   const selectedTheme = ROOM_THEME_PRESETS.find((theme) => theme.id === draftThemeId) ?? ROOM_THEME_PRESETS[0];
-  const previewUsesDarkInk = themeMode === 'light';
+  const previewUsesDarkInk = themeMode !== 'custom' && (draftThemeId === 'system' ? !isDarkMode : themeMode === 'light');
 
   return (
     <SurfacePanel className="signal-surface rounded-none border-0 bg-transparent px-4 py-4 shadow-none sm:px-7 sm:py-6">
@@ -321,8 +298,8 @@ export const RoomThemePanel = ({
           <label id="room-theme-options" className="text-xs font-semibold text-muted-foreground">
             {hasActiveConversation ? CHAT_THEME_COPY.roomThemeLabel : CHAT_THEME_COPY.defaultThemeLabel}
           </label>
-          <div className="grid grid-cols-3 gap-1 rounded-lg bg-background/70 p-1">
-            {(['light', 'dark', 'custom'] as const).map((mode) => (
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-background/70 p-1 sm:grid-cols-4">
+            {(['system', 'light', 'dark', 'custom'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -330,7 +307,8 @@ export const RoomThemePanel = ({
                 onClick={() => {
                   setThemeMode(mode);
                   if (mode !== 'custom') {
-                    const firstTheme = ROOM_THEME_PRESETS.find((theme) => theme.mode === mode);
+                    if (mode === 'system') setDraftThemeId('system');
+                    const firstTheme = ROOM_THEME_PRESETS.find((theme) => theme.id !== 'system' && theme.mode === mode);
                     if (firstTheme && ROOM_THEME_PRESETS.find((theme) => theme.id === draftThemeId)?.mode !== mode) {
                       setDraftThemeId(firstTheme.id);
                     }
@@ -343,7 +321,7 @@ export const RoomThemePanel = ({
                 }}
                 className={`rounded-md px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${themeMode === mode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
               >
-                {mode === 'light' ? localizeText('Sáng') : mode === 'dark' ? localizeText('Tối') : localizeText('Tùy chỉnh')}
+                {mode === 'system' ? localizeText('Theo ứng dụng') : mode === 'light' ? localizeText('Sáng') : mode === 'dark' ? localizeText('Tối') : localizeText('Tùy chỉnh')}
               </button>
             ))}
           </div>
@@ -362,6 +340,7 @@ export const RoomThemePanel = ({
                   aria-pressed={active}
                   onClick={() => {
                     setDraftThemeId(theme.id);
+                    setThemeMode(theme.id === 'system' ? 'system' : theme.mode);
                     setResetConversationDraft(false);
                   }}
                   className={`room-theme-option group relative grid w-full grid-cols-[1fr_auto] gap-x-3 gap-y-2 overflow-hidden rounded-[var(--radius-md)] border p-2.5 text-left transition-[border-color,background-color,transform,box-shadow] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${active ? 'is-active border-primary/80 bg-primary/10 shadow-[0_0_0_1px_var(--signal-glow)]' : 'border-border/55 bg-background/35 hover:border-primary/45 hover:bg-background/60'}`}
@@ -506,7 +485,7 @@ export const RoomThemePanel = ({
             </p>
           ) : isDirty ? <p className="text-xs text-muted-foreground">{localizeText('Bản xem trước chưa được lưu.')}</p> : null}
         </div>
-        <Button type="button" onClick={() => void handleSave()} disabled={!isDirty || isAnalyzingImage || isUploadingImage}>
+        <Button type="button" onClick={() => void handleSave()} disabled={!isDirty || isAnalyzingImage || isUploadingImage || isSaving} loading={isSaving}>
           {localizeText('Lưu thay đổi')}
         </Button>
       </div>

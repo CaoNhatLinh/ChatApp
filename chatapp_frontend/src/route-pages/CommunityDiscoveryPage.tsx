@@ -18,6 +18,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { Input } from '@/shared/ui/Input';
 import { Skeleton } from '@/shared/ui/Skeleton';
 import { BrandText } from '@/shared/ui/BrandWord';
+import { OwnJoinRequests } from '@/features/communities/components/OwnJoinRequests';
 
 const PAGE_SIZE = 24;
 const SEARCH_DELAY_MS = 300;
@@ -34,6 +35,7 @@ export const CommunityDiscoveryPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string>();
   const [busyCommunityId, setBusyCommunityId] = useState<string>();
+  const [joinRequestRevision, setJoinRequestRevision] = useState(0);
   const requestIdRef = useRef(0);
 
   const load = useCallback(async (cursor?: string) => {
@@ -107,6 +109,7 @@ export const CommunityDiscoveryPage = () => {
         return;
       }
       const membershipStatus = result.status === 'PENDING' ? 'PENDING' : 'JOINED';
+      setJoinRequestRevision((revision) => revision + 1);
       setCommunities((current) => current.map((item) => item.conversationId === community.conversationId
         ? { ...item, membershipStatus }
         : item));
@@ -137,6 +140,7 @@ export const CommunityDiscoveryPage = () => {
         </div>
       </section>
 
+      <OwnJoinRequests revision={joinRequestRevision} />
       <section className="mt-8" aria-labelledby="community-results-title">
         <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div>

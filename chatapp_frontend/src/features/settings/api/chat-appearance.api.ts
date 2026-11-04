@@ -14,6 +14,7 @@ export interface ChatAppearancePreferences {
 export interface ConversationAppearancePreference {
   conversationId: string;
   themeId: RoomThemeId;
+  backgroundAssetId?: string | null;
   customBackgroundUrl?: string | null;
   updatedAt: string;
 }
@@ -26,11 +27,16 @@ interface ChatAppearancePreferencesResponse {
 
 interface BackgroundUploadResponse {
   success: boolean;
-  file?: { url?: string; contentType?: string; resourceType?: string };
+  file?: { assetId?: string; url?: string; contentType?: string };
+}
+
+interface UploadedChatBackground {
+  assetId: string;
+  url: string;
 }
 
 const isRoomThemeId = (value: string): value is RoomThemeId => (
-  value === 'aurora' || value === 'neon' || value === 'studio' || value === 'vapor'
+  value === 'system' || value === 'aurora' || value === 'neon' || value === 'studio' || value === 'vapor'
 );
 
 const isBubbleStyleId = (value: string): value is ChatBubbleStyleId => (
@@ -76,10 +82,12 @@ export const saveConversationAppearancePreference = async (
   conversationId: string,
   themeId: RoomThemeId,
   customBackgroundUrl: string | null,
+  backgroundAssetId: string | null,
 ): Promise<void> => {
   await apiClient.put(`/preferences/chat/rooms/${conversationId}`, {
     themeId,
     customBackgroundUrl: normalizeRoomBackgroundUrl(customBackgroundUrl),
+    backgroundAssetId,
   });
 };
 
@@ -87,7 +95,7 @@ export const resetConversationAppearancePreference = async (conversationId: stri
   await apiClient.delete(`/preferences/chat/rooms/${conversationId}`);
 };
 
-export const uploadChatBackground = async (file: File): Promise<string> => {
+export const uploadChatBackground = async (file: File): Promise<UploadedChatBackground> => {
   if (!file.type.startsWith('image/')) {
     throw new Error('Only image files can be used as a chat background');
   }
@@ -101,12 +109,12 @@ export const uploadChatBackground = async (file: File): Promise<string> => {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   const uploaded = response.data.file;
-  if (!response.data.success || !uploaded?.url || !uploaded.contentType?.startsWith('image/')) {
+  if (!response.data.success || !uploaded?.assetId || !uploaded.url || !uploaded.contentType?.startsWith('image/')) {
     throw new Error('The uploaded background image is unavailable');
   }
   const normalizedUrl = normalizeRoomBackgroundUrl(uploaded.url);
   if (!normalizedUrl) {
     throw new Error('The uploaded background image URL is invalid');
   }
-  return normalizedUrl;
+  return { assetId: uploaded.assetId, url: normalizedUrl };
 };

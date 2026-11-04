@@ -91,7 +91,7 @@ export const AppNavigationRail = ({
 
   return (
     <>
-      <aside className="app-navigation-rail hidden min-h-[100dvh] self-stretch w-20 shrink-0 flex-col items-center py-4 md:flex" aria-label={localizeText('Điều hướng ứng dụng')}>
+      <aside className="app-navigation-rail hidden min-h-[var(--app-viewport-height,100dvh)] self-stretch w-20 shrink-0 flex-col items-center py-4 md:flex" aria-label={localizeText('Điều hướng ứng dụng')}>
         <div className="flex min-h-0 w-full flex-1 flex-col items-center">
           <nav className="flex flex-col items-center gap-2" aria-label={localizeText('Điều hướng không gian')}>
             <Link

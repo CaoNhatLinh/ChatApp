@@ -84,6 +84,14 @@ public final class NotificationSettingsPolicy {
         return normalized;
     }
 
+    public static void requireQuietHoursPair(String start, String end) {
+        String from = normalizeClock(start, "quietHoursStart");
+        String to = normalizeClock(end, "quietHoursEnd");
+        if ((from == null) != (to == null) || (from != null && from.equals(to))) {
+            throw new BadRequestException("quiet hours require different start and end times, or both empty");
+        }
+    }
+
     public static String normalizeTimezone(String value) {
         if (value == null || value.isBlank()) {
             return "UTC";

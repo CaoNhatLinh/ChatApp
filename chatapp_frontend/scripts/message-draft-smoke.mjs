@@ -127,7 +127,7 @@ const configurePage = async (page) => {
         clientMessageId: body.clientMessageId,
         senderId: activeUser.userId,
         content: body.content,
-        messageType: body.messageType,
+        revision: 0, messageType: body.messageType,
         contentFormat: 'PLAIN_TEXT',
         isDeleted: false,
         hasAttachments: false,

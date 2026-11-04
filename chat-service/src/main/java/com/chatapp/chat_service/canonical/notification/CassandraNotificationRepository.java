@@ -6,6 +6,10 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.Row;
 import org.springframework.stereotype.Repository;
+import com.chatapp.chat_service.canonical.email.CassandraEmailDeliveryRepository;
+import com.chatapp.chat_service.canonical.email.ResendSettings;
+import com.datastax.oss.driver.api.core.cql.BatchStatement;
+import com.datastax.oss.driver.api.core.cql.BatchType;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,9 +25,15 @@ public class CassandraNotificationRepository implements NotificationRepository {
     private final PreparedStatement markRead;
     private final PreparedStatement delete;
     private final PreparedStatement deleteMonth;
+    private final PreparedStatement find;
+    private final CassandraEmailDeliveryRepository email;
+    private final ResendSettings emailSettings;
 
-    public CassandraNotificationRepository(CqlSession session) {
+    public CassandraNotificationRepository(CqlSession session, CassandraEmailDeliveryRepository email, ResendSettings emailSettings) {
         this.session = session;
+        this.email = email;
+        this.emailSettings = emailSettings;
+        this.find = session.prepare("SELECT * FROM notifications_by_user WHERE user_id = ? AND notification_month = ? AND notification_id = ?");
         this.findSettings = session.prepare(
                 "SELECT * FROM user_notification_preferences WHERE user_id = ?");
         this.saveSettings = session.prepare("""
@@ -82,13 +92,27 @@ public class CassandraNotificationRepository implements NotificationRepository {
 
     @Override
     public void save(CanonicalNotification notification) {
-        session.execute(save.bind(
+        var statement = save.bind(
                 notification.userId(), notification.notificationMonth(), notification.notificationId(),
                 notification.notificationType(), notification.priority(), notification.conversationId(),
                 notification.messageBucket(), notification.messageId(), notification.actorId(),
                 notification.title(), notification.bodyPreview(), notification.deepLink(),
                 notification.actionPayload(), notification.isRead(), notification.readAt(),
-                notification.createdAt()));
+                notification.createdAt());
+        if (emailSettings.enabled()) {
+            // Logged batch ensures discovery is eventually repaired even if the process dies between writes.
+            session.execute(BatchStatement.builder(BatchType.LOGGED).addStatement(statement)
+                    .addStatement(email.pointer(notification.userId(), notification.notificationMonth(),
+                            notification.notificationId(), notification.createdAt())).build());
+        } else {
+            session.execute(statement);
+        }
+    }
+
+    @Override
+    public CanonicalNotification find(UUID userId, String month, UUID notificationId) {
+        Row row = session.execute(find.bind(userId, month, notificationId)).one();
+        return row == null ? null : mapNotification(row);
     }
 
     @Override

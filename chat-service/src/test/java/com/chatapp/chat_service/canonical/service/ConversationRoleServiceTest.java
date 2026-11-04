@@ -280,7 +280,7 @@ class ConversationRoleServiceTest {
     }
 
     @Test
-    void assignsValidatedRolesAndUpdatesRoomListProjection() {
+    void assignsValidatedRolesThroughMembershipAndRecordsAudit() {
         UUID actorId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
@@ -303,7 +303,9 @@ class ConversationRoleServiceTest {
 
         verify(store).updateMemberRolesIfUnchanged(
                 conversationId, targetId, Set.of(), Set.of(roleId), 4L);
-        verify(store).updateConversationProjectionRoles(targetId, conversationId, Set.of(roleId));
+        verify(events).record(actorId, conversationId, "ROLES_ASSIGNED", "conversation_member",
+                targetId.toString(), targetId, null,
+                java.util.Map.of("roleIds", "[]"), java.util.Map.of("roleIds", Set.of(roleId).toString()));
     }
 
     @Test
@@ -329,7 +331,6 @@ class ConversationRoleServiceTest {
                 .isInstanceOf(com.chatapp.chat_service.common.exception.ConflictException.class)
                 .hasMessageContaining("changed concurrently");
 
-        verify(store, never()).updateConversationProjectionRoles(any(), any(), any());
         verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -358,9 +359,6 @@ class ConversationRoleServiceTest {
 
         service.transferOwnership(actorId, conversationId, targetId);
 
-        verify(store).updateConversationProjectionRoles(actorId, conversationId, Set.of(memberRoleId));
-        verify(store).updateConversationProjectionRoles(
-                targetId, conversationId, Set.of(memberRoleId, ownerRoleId));
         verify(adminDirectory).index(after);
         verify(events).record(
                 actorId, conversationId, "OWNERSHIP_TRANSFERRED", "conversation",
@@ -396,7 +394,7 @@ class ConversationRoleServiceTest {
     }
 
     @Test
-    void repeatedOwnershipTransferRepairsProjectionsWithoutAnotherMutationOrAudit() {
+    void repeatedOwnershipTransferRepairsAdminDirectoryWithoutAnotherMutationOrAudit() {
         UUID previousOwnerId = UUID.randomUUID();
         UUID currentOwnerId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
@@ -411,10 +409,6 @@ class ConversationRoleServiceTest {
 
         verify(store, never()).transferConversationOwnership(
                 any(), org.mockito.ArgumentMatchers.anyLong(), any(), any(), any(), any(), any(), any());
-        verify(store).updateConversationProjectionRoles(
-                previousOwnerId, conversationId, previousOwner.roleIds());
-        verify(store).updateConversationProjectionRoles(
-                currentOwnerId, conversationId, currentOwner.roleIds());
         verify(adminDirectory).index(conversation);
         verify(events, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }

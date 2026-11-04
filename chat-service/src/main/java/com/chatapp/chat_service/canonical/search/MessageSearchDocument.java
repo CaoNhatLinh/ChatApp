@@ -11,7 +11,9 @@ import java.util.Set;
 
 @Document(indexName = "${app.elasticsearch.message-index}")
 public class MessageSearchDocument {
-    @Id private String id;
+    @Id @Field(type = FieldType.Keyword) private String id;
+    @Field(type = FieldType.Integer) private int revision;
+    @Field(type = FieldType.Long) private Long pinRevision;
     @Field(type = FieldType.Keyword) private String messageId;
     @Field(type = FieldType.Keyword) private String conversationId;
     @Field(type = FieldType.Keyword) private String messageBucket;
@@ -29,6 +31,10 @@ public class MessageSearchDocument {
     }
 
     public String getId() { return id; }
+    public int getRevision() { return revision; }
+    public Long getPinRevision() { return pinRevision; }
+    public void setPinRevision(Long pinRevision) { this.pinRevision = pinRevision; }
+    public void setRevision(int revision) { this.revision = revision; }
     public void setId(String id) { this.id = id; }
     public String getMessageId() { return messageId; }
     public void setMessageId(String messageId) { this.messageId = messageId; }

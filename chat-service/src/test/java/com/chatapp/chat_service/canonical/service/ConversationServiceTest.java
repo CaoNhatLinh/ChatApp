@@ -1,5 +1,7 @@
 package com.chatapp.chat_service.canonical.service;
 
+import com.chatapp.chat_service.canonical.media.ManagedImageReference;
+import com.chatapp.chat_service.common.exception.ConflictException;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import com.chatapp.chat_service.canonical.community.CommunityService;
@@ -12,6 +14,7 @@ import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalCon
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalInviteLink;
 import com.chatapp.chat_service.canonical.notification.NotificationService;
 import com.chatapp.chat_service.canonical.user.UserRepository;
+import com.chatapp.chat_service.canonical.settings.SystemSettingsService;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationPermission;
 import com.chatapp.chat_service.common.exception.ForbiddenException;
@@ -28,8 +31,10 @@ import java.util.Map;
 import java.util.List;
 
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +54,8 @@ class ConversationServiceTest {
     @Mock AdminConversationDirectoryRepository adminConversationDirectory;
     @Mock UserRepository users;
     @Mock ConversationEntryPolicy entryPolicy;
+    @Mock SystemSettingsService systemSettings;
+    @Mock ManagedImageReference managedImages;
 
     private ConversationService service;
     private CommunityService communities;
@@ -62,7 +69,7 @@ class ConversationServiceTest {
                         entryPolicy);
         service = new ConversationService(
                 store, conversationRepository, authorization, eventRecorder, adminConversationDirectory, users,
-                memberships);
+                memberships, systemSettings, managedImages);
         communities = new CommunityService(store, memberships, eventRecorder);
         invites = new InviteService(
                 store, inviteRepository, authorization, memberships, eventRecorder,
@@ -80,6 +87,100 @@ class ConversationServiceTest {
         assertThatThrownBy(() -> service.createConversation(UUID.randomUUID(), request))
                 .isInstanceOf(com.chatapp.chat_service.common.exception.BadRequestException.class);
         verify(store, never()).claimDmPair(any(), any(), any());
+    }
+
+    @Test
+    void avatarRetentionConflictPreventsDmClaimAndConversationWrite() {
+        UUID actor = UUID.randomUUID();
+        UUID target = UUID.randomUUID();
+        String avatar = "https://res.cloudinary.com/noi/image/upload/chatapp/avatar.png";
+        var request = new CanonicalApiContracts.ConversationCreateRequest(
+                "DM", null, null, "DM", null, null, avatar, null, null, Set.of(), null,
+                2, null, "OPEN", 0, "ALL", target, Set.of());
+        when(users.findById(target)).thenReturn(activeUser(target));
+        doThrow(new ConflictException("image is being deleted")).when(managedImages).retain(avatar);
+
+        assertThatThrownBy(() -> service.createConversation(actor, request)).isInstanceOf(ConflictException.class);
+        verify(store, never()).claimDmPair(any(), any(), any());
+        verify(store, never()).saveConversation(any());
+    }
+
+    @Test
+    void managedAvatarAssetUsesCanonicalImageUrl() {
+        UUID actor = UUID.randomUUID();
+        UUID assetId = UUID.randomUUID();
+        String canonical = "https://res.cloudinary.com/noi/image/upload/chatapp/avatar.png";
+        var request = new CanonicalApiContracts.ConversationCreateRequest(
+                "GROUP", null, null, "Group", null, null, null, assetId, null, Set.of(), null,
+                null, null, "OPEN", 0, "ALL", null, Set.of());
+        when(managedImages.retain(actor, assetId, null)).thenReturn(canonical);
+
+        var conversation = service.createConversation(actor, request);
+
+        assertThat(conversation.avatarUrl()).isEqualTo(canonical);
+        assertThat(conversation.avatarAssetId()).isEqualTo(assetId);
+        verify(store).saveConversation(conversation);
+    }
+
+    @Test void disabledCommunityCreationRejectsBeforeAnyPersistence() {
+        when(systemSettings.communityDefaults()).thenReturn(new SystemSettingsService.CommunityDefaults(false, 250));
+        assertThatThrownBy(() -> service.createConversation(UUID.randomUUID(), creation("CHANNEL", "COMMUNITY", null)))
+                .isInstanceOf(ForbiddenException.class).hasMessageContaining("community creation");
+        verify(store, never()).saveConversation(any());
+        verify(store, never()).createConversationMembership(any(), org.mockito.ArgumentMatchers.anyInt(), any(), any());
+    }
+    @Test void publicCommunityUsesConfiguredDefaultButKeepsAnExplicitValidLimit() {
+        when(systemSettings.communityDefaults()).thenReturn(new SystemSettingsService.CommunityDefaults(true, 250));
+        assertThat(service.createConversation(UUID.randomUUID(), creation("CHANNEL", "COMMUNITY", null)).maxMembers()).isEqualTo(250);
+        assertThat(service.createConversation(UUID.randomUUID(), creation("CHANNEL", "COMMUNITY", 500)).maxMembers()).isEqualTo(500);
+    }
+    @Test void privateGroupsDoNotReadOrInheritPublicCommunitySettings() {
+        assertThat(service.createConversation(UUID.randomUUID(), creation("GROUP", "PRIVATE_LINK", null)).maxMembers()).isEqualTo(10000);
+        org.mockito.Mockito.verifyNoInteractions(systemSettings);
+    }
+    private CanonicalApiContracts.ConversationCreateRequest creation(String type, String visibility, Integer maximum) {
+        return new CanonicalApiContracts.ConversationCreateRequest(type, visibility, "DIRECT_JOIN", "Community", null,
+                null, null, null, null, Set.of(), "vi", maximum, null, "OPEN", 0, "ALL", null, Set.of());
+    }
+
+    @Test
+    void pinReclaimsInaccessibleSlotsOnlyAfterCapacityIsReached() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        var occupied = CanonicalCqlStore.ConversationPinResult.OCCUPIED;
+        when(store.findConversationMember(conversationId, actorId)).thenReturn(member(conversationId, actorId));
+        when(store.tryPinConversation(actorId, conversationId, 0))
+                .thenReturn(occupied, CanonicalCqlStore.ConversationPinResult.PINNED);
+        when(store.tryPinConversation(actorId, conversationId, 1)).thenReturn(occupied);
+        when(store.tryPinConversation(actorId, conversationId, 2)).thenReturn(occupied);
+        when(store.reclaimInaccessibleConversationPins(actorId)).thenReturn(true);
+
+        service.pinConversation(actorId, conversationId);
+
+        var order = org.mockito.Mockito.inOrder(store, eventRecorder);
+        order.verify(store).findConversationMember(conversationId, actorId);
+        order.verify(store).tryPinConversation(actorId, conversationId, 0);
+        order.verify(store).tryPinConversation(actorId, conversationId, 1);
+        order.verify(store).tryPinConversation(actorId, conversationId, 2);
+        order.verify(store).reclaimInaccessibleConversationPins(actorId);
+        order.verify(store).findConversationMember(conversationId, actorId);
+        order.verify(store).tryPinConversation(actorId, conversationId, 0);
+        order.verify(eventRecorder).record(actorId, conversationId, "CONVERSATION_PIN", "conversation",
+                conversationId.toString(), null, null, Map.of(), Map.of());
+    }
+
+    @Test
+    void renewingAnExistingPinDoesNotReclaimOtherSlotsOrDuplicateAudit() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        when(store.findConversationMember(conversationId, actorId)).thenReturn(member(conversationId, actorId));
+        when(store.tryPinConversation(actorId, conversationId, 0))
+                .thenReturn(CanonicalCqlStore.ConversationPinResult.ALREADY_PINNED);
+
+        service.pinConversation(actorId, conversationId);
+
+        verify(store, never()).reclaimInaccessibleConversationPins(actorId);
+        org.mockito.Mockito.verifyNoInteractions(eventRecorder);
     }
 
     @Test
@@ -115,7 +216,9 @@ class ConversationServiceTest {
     void memberCanChangeOnlyTheirOwnNotificationOverride() {
         UUID actorId = UUID.randomUUID();
         UUID conversationId = UUID.randomUUID();
-        when(store.findConversationMember(conversationId, actorId)).thenReturn(member(conversationId, actorId));
+        var observed = member(conversationId, actorId);
+        when(store.findConversationMember(conversationId, actorId)).thenReturn(observed);
+        when(store.updateMemberNotificationPolicy(observed, "MENTIONS")).thenReturn(true);
 
         service.updateMemberNotificationPolicy(
                 actorId,
@@ -123,7 +226,7 @@ class ConversationServiceTest {
                 actorId,
                 new CanonicalApiContracts.MemberNotificationPolicyRequest("MENTIONS"));
 
-        verify(store).updateMemberNotificationPolicy(conversationId, actorId, "MENTIONS");
+        verify(store).updateMemberNotificationPolicy(observed, "MENTIONS");
         verify(eventRecorder).record(
                 actorId, conversationId, "MEMBER_NOTIFICATION_POLICY_UPDATE", "conversation_member",
                 actorId.toString(), actorId, null,
@@ -136,6 +239,20 @@ class ConversationServiceTest {
                 anotherUserId,
                 new CanonicalApiContracts.MemberNotificationPolicyRequest("NONE")))
                 .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void memberNotificationConflictDoesNotAuditAnUnappliedWrite() {
+        UUID actorId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        var observed = member(conversationId, actorId);
+        when(store.findConversationMember(conversationId, actorId)).thenReturn(observed);
+        when(store.updateMemberNotificationPolicy(observed, "NONE")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.updateMemberNotificationPolicy(actorId, conversationId, actorId,
+                new CanonicalApiContracts.MemberNotificationPolicyRequest("NONE")))
+                .isInstanceOf(ConflictException.class);
+        verifyNoInteractions(eventRecorder);
     }
 
     @Test
@@ -228,7 +345,7 @@ class ConversationServiceTest {
                 .isInstanceOf(com.chatapp.chat_service.common.exception.BadRequestException.class)
                 .hasMessageContaining("reason");
 
-        verify(store, never()).updateMemberChatPolicy(any(), any(), any(), any());
+        verify(store, never()).updateObservedMemberChatPolicy(any(), any(), any(), any());
     }
 
     @Test
@@ -243,17 +360,32 @@ class ConversationServiceTest {
                 null, null, "INHERIT", null, null);
         when(store.findConversation(conversationId)).thenReturn(conversation(conversationId, ownerId, "ALL"));
         when(store.findConversationMember(conversationId, memberId)).thenReturn(member);
+        when(store.updateObservedMemberChatPolicy(member, ownerId, mutedUntil, 120)).thenReturn(true);
 
         service.updateMemberChatPolicy(actorId, conversationId, memberId,
                 new CanonicalApiContracts.MemberChatPolicyRequest(
                         mutedUntil, 120, " repeated advertising "));
 
-        verify(store).updateMemberChatPolicy(conversationId, memberId, mutedUntil, 120);
+        verify(store).updateObservedMemberChatPolicy(member, ownerId, mutedUntil, 120);
         verify(eventRecorder).record(
                 actorId, conversationId, "MEMBER_CHAT_POLICY_UPDATE", "conversation_member",
                 memberId.toString(), memberId, "repeated advertising",
                 Map.of("mutedUntil", "null", "messageIntervalSeconds", "null"),
                 Map.of("mutedUntil", mutedUntil.toString(), "messageIntervalSeconds", "120"));
+    }
+
+    @Test
+    void memberChatPolicyConflictDoesNotRecordSuccess() {
+        UUID actor = UUID.randomUUID(), room = UUID.randomUUID(), target = UUID.randomUUID();
+        var observed = member(room, target);
+        when(store.findConversation(room)).thenReturn(conversation(room, actor, "ALL"));
+        when(store.findConversationMember(room, target)).thenReturn(observed);
+
+        assertThatThrownBy(() -> service.updateMemberChatPolicy(actor, room, target,
+                new CanonicalApiContracts.MemberChatPolicyRequest(null, 120, "Repeated spam")))
+                .isInstanceOf(ConflictException.class);
+        verify(store).updateObservedMemberChatPolicy(observed, actor, null, 120);
+        verifyNoInteractions(eventRecorder);
     }
 
     @Test

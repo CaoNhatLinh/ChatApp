@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMessenger, useMessengerSetup } from "@/features/messenger/model/useMessenger";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
+import { ConversationEntryState } from './components/ConversationEntryState';
 import { ChatSidebar } from "@/widgets/chat-sidebar/ChatSidebar";
 import { ChatWindow } from "@/widgets/chat-window/ChatWindow";
 import { ContactListView } from "@/features/relationships/components/Contacts/ContactListView";
@@ -23,6 +25,12 @@ export const MessengerLayout: React.FC = () => {
     setActiveView,
   } = useMessenger();
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const router = useRouter();
+  const handledQuery = useRef<string | null | undefined>(undefined);
+  const sidebar = useRef<HTMLDivElement>(null);
+  const isInitialized = useMessengerStore(state => state.isInitialized);
+  const conversationEntry = useMessengerStore(state => state.conversationEntry);
+  const hasActiveConversation = useMessengerStore(state => state.conversations.some(room => room.conversationId === state.activeConversationId));
 
   useMessengerSetup(initMessenger);
   const searchParams = useSearchParams();
@@ -70,10 +78,27 @@ export const MessengerLayout: React.FC = () => {
   }, [activeConversationId, activeView, isNotificationInboxRequested, setSidebarOpen]);
 
   useEffect(() => {
-    if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) {
-      void selectConversation(conversationIdFromQuery);
+    if (!isInitialized || loading) return;
+    if (handledQuery.current !== conversationIdFromQuery) {
+      handledQuery.current = conversationIdFromQuery;
+      if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) void selectConversation(conversationIdFromQuery);
+      return;
     }
-  }, [conversationIdFromQuery, activeConversationId, selectConversation]);
+    // A handled deep link must not keep selecting its room after the user leaves it.
+    if (conversationIdFromQuery && conversationIdFromQuery !== activeConversationId) {
+      const query = new URLSearchParams(searchParams.toString());
+      if (activeConversationId) query.set('conversationId', activeConversationId);
+      else query.delete('conversationId');
+      query.delete('messageId');
+      router.replace(`/app${query.size ? `?${query}` : ''}`, { scroll: false });
+    }
+  }, [conversationIdFromQuery, activeConversationId, selectConversation, isInitialized, loading, router, searchParams]);
+
+  const leaveEntry = () => {
+    void selectConversation(null);
+    setSidebarOpen(true);
+    requestAnimationFrame(() => sidebar.current?.querySelector('input')?.focus({ preventScroll: true }));
+  };
 
   if (loading && !error) {
     return <MessengerLoadingState />;
@@ -97,9 +122,12 @@ export const MessengerLayout: React.FC = () => {
             onOpenChatList={openChatList}
           />
         )}
-        sidebar={<ChatSidebar />}
+        sidebar={<div ref={sidebar} className="h-full"><ChatSidebar /></div>}
       >
-        {activeView === "contacts" ? <ContactListView /> : <ChatWindow />}
+        {activeView === "contacts" ? <ContactListView /> : activeConversationId && !hasActiveConversation
+          ? <ConversationEntryState entry={conversationEntry?.conversationId === activeConversationId ? conversationEntry : null}
+            onRetry={() => void selectConversation(activeConversationId)} onBack={leaveEntry} />
+          : <ChatWindow />}
       </MessengerLayoutShell>
       <CreateRoomModal isOpen={isCreateRoomOpen} onClose={() => setIsCreateRoomOpen(false)} />
     </>

@@ -205,7 +205,7 @@ export const MessageSearchDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="overflow-y-auto border-0 bg-background sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl sm:border-border">
+      <DialogContent className="content-start overflow-y-auto border-0 bg-background sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl sm:border-border">
         <DialogHeader>
           <DialogTitle>{localizeText("Tìm tin nhắn")}</DialogTitle>
           <DialogDescription>
@@ -277,7 +277,9 @@ export const MessageSearchDialog = ({
             ) : isSearching ? (
               <div className="flex items-center justify-center gap-2 rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{localizeText("Đang tìm...")}</div>
             ) : results.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{localizeText(MESSENGER_COPY.search.messageFilter.emptyMessage)}</p>
+              <p role="status" className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{nextCursor
+                ? localizeText('Chưa có kết quả trong phần đã kiểm tra. Bạn có thể xem tiếp.')
+                : localizeText(MESSENGER_COPY.search.messageFilter.emptyMessage)}</p>
             ) : (
               results.map((result) => (
                 <button
@@ -293,7 +295,7 @@ export const MessageSearchDialog = ({
             )}
           </div>
 
-          {nextCursor && results.length > 0 ? <div className="flex justify-center"><Button type="button" variant="outline" size="sm" onClick={() => void loadMore()} loading={isLoadingMore}>{localizeText(MESSENGER_COPY.search.messageFilter.loadMoreLabel)}</Button></div> : null}
+          {nextCursor ? <div className="flex justify-center"><Button type="button" variant="outline" size="sm" onClick={() => void loadMore()} loading={isLoadingMore}>{localizeText(MESSENGER_COPY.search.messageFilter.loadMoreLabel)}</Button></div> : null}
         </div>
       </DialogContent>
     </Dialog>

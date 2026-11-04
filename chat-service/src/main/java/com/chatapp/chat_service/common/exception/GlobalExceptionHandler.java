@@ -2,6 +2,7 @@ package com.chatapp.chat_service.common.exception;
 
 import com.chatapp.chat_service.common.dto.ErrorResponse;
 import com.chatapp.chat_service.canonical.auth.GoogleAuthFlowException;
+import com.chatapp.chat_service.canonical.community.CommunityCreationDisabledException;
 import com.chatapp.chat_service.common.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -10,8 +11,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -20,6 +24,26 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(
+            MissingServletRequestParameterException ex, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Required request parameter is missing",
+                Map.of(ex.getParameterName(), "Required"), request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequest(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Invalid request body", Map.of(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Invalid request parameter",
+                Map.of(ex.getName(), "Invalid value"), request);
+    }
+
     @ExceptionHandler(GoogleAuthFlowException.class)
     public ResponseEntity<ErrorResponse> handleGoogleAuth(
             GoogleAuthFlowException ex, HttpServletRequest request) {
@@ -44,6 +68,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
         return response(HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage(), Map.of(), request);
+    }
+
+    @ExceptionHandler(CommunityCreationDisabledException.class)
+    public ResponseEntity<ErrorResponse> handleCommunityCreationDisabled(
+            CommunityCreationDisabledException ex, HttpServletRequest request) {
+        return response(HttpStatus.FORBIDDEN, "COMMUNITY_CREATION_DISABLED", ex.getMessage(), Map.of(), request);
     }
 
     @ExceptionHandler(TooManyRequestsException.class)

@@ -27,6 +27,7 @@ class MessageSearchServiceTest {
         SearchHits<MessageSearchDocument> hits = mock(SearchHits.class);
         SearchHit<MessageSearchDocument> hit = mock(SearchHit.class);
         UUID room = UUID.randomUUID();
+        when(messages.findPinState(room)).thenReturn(new MessageRepository.PinState(0, List.of()));
         UUID id = UUID.randomUUID();
         String bucket = "2026-10-03-01:00";
         var document = new MessageSearchDocument();
@@ -52,6 +53,37 @@ class MessageSearchServiceTest {
     private CanonicalMessage message(UUID room, String bucket, UUID id, boolean deleted) {
         return new CanonicalMessage(room, bucket, id, UUID.randomUUID(), "TEXT", "current text", "PLAIN",
                 null, null, null, null, null, null, null, null, deleted, null, null, null,
-                false, false, false, Instant.now(), UUID.randomUUID());
+                false, false, false, Instant.now(), UUID.randomUUID(), null, null, 0);
+    }
+    @Test @SuppressWarnings("unchecked")
+    void pinFilterAndReturnedFlagUseAuthorityWithoutAnIndexPinPrefilter() {
+        var elastic = mock(ElasticsearchOperations.class);
+        var messages = mock(MessageRepository.class);
+        var authorization = mock(ConversationAuthorizationService.class);
+        UUID room = UUID.randomUUID(), id = UUID.randomUUID(), actor = UUID.randomUUID();
+        String bucket = "2026-10-23-08:00";
+        var document = new MessageSearchDocument(); document.setMessageId(id.toString()); document.setMessageBucket(bucket);
+        SearchHit<MessageSearchDocument> hit = mock(SearchHit.class);
+        SearchHits<MessageSearchDocument> hits = mock(SearchHits.class);
+        when(hit.getContent()).thenReturn(document); when(hits.getSearchHits()).thenReturn(List.of(hit));
+        when(elastic.search(any(Query.class), eq(MessageSearchDocument.class))).thenReturn(hits);
+        when(messages.find(room, bucket, id)).thenReturn(message(room, bucket, id, false));
+        when(messages.findPinState(room)).thenReturn(new MessageRepository.PinState(1,
+                List.of(new MessageRepository.PinSlot((byte) 0, bucket, id, com.datastax.oss.driver.api.core.uuid.Uuids.timeBased()))));
+        var service = new MessageSearchService(elastic, authorization, new ObjectMapper(), messages);
+        var request = new MessageSearchRequest(room, null, null, null, null, null, null, null, null, true, 50, null);
+        var result = service.search(actor, request);
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).isPinned()).isTrue();
+        when(messages.findPinState(room)).thenReturn(new MessageRepository.PinState(2, List.of()));
+        when(hit.getSortValues()).thenReturn(List.of(1760000000000L, id.toString()));
+        var filtered = service.search(actor, new MessageSearchRequest(room, null, null, null, null,
+                null, null, null, null, true, 1, null));
+        assertThat(filtered.content()).isEmpty();
+        assertThat(filtered.nextCursor()).isNotBlank();
+        var query = org.mockito.ArgumentCaptor.forClass(Query.class);
+        verify(elastic, times(2)).search(query.capture(), eq(MessageSearchDocument.class));
+        assertThat(((org.springframework.data.elasticsearch.core.query.StringQuery) query.getValue()).getSource()).doesNotContain("isPinned");
+        verify(messages, times(2)).findPinState(room);
     }
 }

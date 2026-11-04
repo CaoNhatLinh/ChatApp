@@ -34,7 +34,20 @@ public class MessageSearchProjector {
         String conversationId = text(event, "conversationId");
         String messageId = text(payload, "messageId");
         String id = conversationId + ":" + text(payload, "messageBucket") + ":" + messageId;
-        MessageSearchDocument document = repository.findById(id).orElseGet(MessageSearchDocument::new);
+        JsonNode revision = payload.get("revision");
+        if (revision == null || !revision.isIntegralNumber() || !revision.canConvertToInt() || revision.intValue() < 0) {
+            throw new IllegalArgumentException("Canonical message revision is required");
+        }
+        MessageSearchDocument document = new MessageSearchDocument();
+        document.setRevision(revision.intValue());
+        boolean pinEvent = Set.of("MESSAGE_PIN", "MESSAGE_UNPIN").contains(eventType);
+        if (pinEvent) {
+            var pinRevision = payload.get("pinRevision");
+            if (pinRevision == null || !pinRevision.isTextual() || !pinRevision.asText().matches("[1-9][0-9]{0,18}")) {
+                throw new IllegalArgumentException("Canonical pin revision is required");
+            }
+            document.setPinRevision(Long.parseLong(pinRevision.asText()));
+        }
         document.setId(id);
         document.setConversationId(conversationId);
         document.setMessageId(messageId);
@@ -46,15 +59,13 @@ public class MessageSearchProjector {
         document.setHasAttachments(payload.path("hasAttachments").asBoolean(false));
         document.setPinned(payload.path("isPinned").asBoolean(false));
         document.setDeleted(payload.path("isDeleted").asBoolean(false));
-        if (document.getCreatedAt() == null) {
-            document.setCreatedAt(Instant.parse(text(payload, "createdAt")));
-        }
+        document.setCreatedAt(Instant.parse(text(payload, "createdAt")));
         if (payload.has("mentionedUserIds")) {
             Set<String> mentions = new HashSet<>();
             payload.path("mentionedUserIds").forEach(node -> mentions.add(node.asText()));
             document.setMentionedUserIds(mentions);
         }
-        repository.save(document);
+        repository.upsertSnapshot(document, payload.has("mentionedUserIds"), pinEvent);
     }
 
     private static String text(JsonNode node, String field) {

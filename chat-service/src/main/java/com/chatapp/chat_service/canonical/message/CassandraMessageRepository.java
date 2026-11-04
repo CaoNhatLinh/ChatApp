@@ -2,10 +2,12 @@ package com.chatapp.chat_service.canonical.message;
 
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalMessage;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalAttachment;
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
 import com.datastax.oss.driver.api.core.cql.BatchStatement;
-import com.datastax.oss.driver.api.core.cql.BatchStatementBuilder;
 import com.datastax.oss.driver.api.core.cql.BatchType;
+import com.datastax.oss.driver.api.core.cql.BoundStatement;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.Row;
 import com.datastax.oss.driver.api.core.data.UdtValue;
@@ -23,11 +25,17 @@ import java.util.UUID;
 
 @Repository
 public class CassandraMessageRepository implements MessageRepository {
+    // At most eight user inbox partitions and one message-reference partition.
+    private static final int MENTION_RECIPIENTS_PER_BATCH = 8;
     private final CqlSession session;
     private final UserDefinedType attachmentRefType;
     private final PreparedStatement claimByClientId;
     private final PreparedStatement loadByClientId;
     private final PreparedStatement save;
+    private final PreparedStatement saveReply;
+    private final PreparedStatement saveForward;
+    private final PreparedStatement listReplies;
+    private final PreparedStatement listRepliesAfter;
     private final PreparedStatement load;
     private final PreparedStatement listByBucket;
     private final PreparedStatement listByBucketBefore;
@@ -35,6 +43,8 @@ public class CassandraMessageRepository implements MessageRepository {
     private final PreparedStatement listBuckets;
     private final PreparedStatement listBucketsBefore;
     private final PreparedStatement saveAttachment;
+    private final PreparedStatement listAttachments;
+    private final PreparedStatement listAttachmentsAfter;
     private final PreparedStatement saveMentionByMessage;
     private final PreparedStatement saveMentionInbox;
     private final PreparedStatement saveReaction;
@@ -54,9 +64,7 @@ public class CassandraMessageRepository implements MessageRepository {
     private final PreparedStatement loadEditState;
     private final PreparedStatement updateContent;
     private final PreparedStatement markDeleted;
-    private final PreparedStatement claimPinSlot;
-    private final PreparedStatement listPinSlots;
-    private final PreparedStatement deletePinSlot;
+    private final CassandraMessagePins pins;
 
     public CassandraMessageRepository(CqlSession session) {
         this.session = session;
@@ -78,8 +86,29 @@ public class CassandraMessageRepository implements MessageRepository {
                     content_format, reply_to_message_id, reply_to_sender_id, sticker_id, poll_id,
                     system_event_id, forwarded_from_conversation_id, forwarded_from_message_bucket,
                     forwarded_from_message_id, is_deleted, deleted_by, deleted_at, edited_at,
-                    revision_no, has_attachments, has_mentions, is_pinned, created_at, client_message_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+                    revision_no, has_attachments, has_mentions, is_pinned, created_at, client_message_id, gif_provider, gif_id,
+                    reply_to_message_bucket
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS
+                """);
+        this.saveReply = session.prepare("""
+                INSERT INTO replies_by_parent_message
+                    (conversation_id, parent_message_bucket, parent_message_id, created_at, message_bucket, message_id, sender_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.saveForward = session.prepare("""
+                INSERT INTO message_forwards_by_source_message
+                    (source_conversation_id, source_message_bucket, source_message_id, forwarded_at,
+                     target_conversation_id, target_message_bucket, target_message_id, forwarded_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """);
+        this.listReplies = session.prepare("""
+                SELECT created_at, message_id, message_bucket FROM replies_by_parent_message
+                WHERE conversation_id = ? AND parent_message_bucket = ? AND parent_message_id = ? LIMIT ?
+                """);
+        this.listRepliesAfter = session.prepare("""
+                SELECT created_at, message_id, message_bucket FROM replies_by_parent_message
+                WHERE conversation_id = ? AND parent_message_bucket = ? AND parent_message_id = ?
+                  AND (created_at, message_id) > (?, ?) LIMIT ?
                 """);
         this.load = session.prepare("""
                 SELECT * FROM messages_by_conversation_bucket
@@ -111,6 +140,8 @@ public class CassandraMessageRepository implements MessageRepository {
                     (conversation_id, message_bucket, message_id, attachment_id, attachment)
                 VALUES (?, ?, ?, ?, ?)
                 """);
+        this.listAttachments = session.prepare("SELECT attachment FROM message_attachments_by_message WHERE conversation_id=? AND message_bucket=? AND message_id=? LIMIT ?");
+        this.listAttachmentsAfter = session.prepare("SELECT attachment FROM message_attachments_by_message WHERE conversation_id=? AND message_bucket=? AND message_id=? AND attachment_id>? LIMIT ?");
         this.saveMentionByMessage = session.prepare("""
                 INSERT INTO message_mentions_by_message
                     (conversation_id, message_bucket, message_id, mentioned_user_id)
@@ -119,7 +150,7 @@ public class CassandraMessageRepository implements MessageRepository {
         this.saveMentionInbox = session.prepare("""
                 INSERT INTO mentioned_messages_by_user
                     (mentioned_user_id, created_at, conversation_id, message_bucket, message_id, sender_id)
-                VALUES (?, now(), ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """);
         this.saveReaction = session.prepare("""
                 INSERT INTO message_reactions_by_message
@@ -192,46 +223,73 @@ public class CassandraMessageRepository implements MessageRepository {
                 SET is_deleted = true, deleted_by = ?, deleted_at = ?, revision_no = ?
                 WHERE conversation_id = ? AND message_bucket = ? AND message_id = ? IF revision_no = ?
                 """);
-        this.claimPinSlot = session.prepare("""
-                INSERT INTO pinned_message_slots_by_conversation
-                    (conversation_id, pin_slot, message_bucket, message_id, pinned_by, pinned_at)
-                VALUES (?, ?, ?, ?, ?, now()) IF NOT EXISTS
-                """);
-        this.listPinSlots = session.prepare("""
-                SELECT pin_slot, message_bucket, message_id, pinned_by
-                FROM pinned_message_slots_by_conversation WHERE conversation_id = ?
-                """);
-        this.deletePinSlot = session.prepare("""
-                DELETE FROM pinned_message_slots_by_conversation
-                WHERE conversation_id = ? AND pin_slot = ?
-                """);
+        this.pins = new CassandraMessagePins(session);
+    }
+
+    @Override
+    public MessageClaim findClaim(UUID senderId, UUID clientMessageId, UUID conversationId, String requestFingerprint) {
+        Row existing = session.execute(loadByClientId.bind(senderId, clientMessageId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+        return existing == null ? null : claim(existing, conversationId, requestFingerprint, false);
     }
 
     @Override
     public MessageClaim claim(
             UUID senderId, UUID clientMessageId, UUID conversationId,
             String bucket, String requestFingerprint, Instant now) {
-        Row existing = session.execute(loadByClientId.bind(senderId, clientMessageId)).one();
-        if (existing != null) return claim(existing, conversationId, requestFingerprint, false);
         UUID messageId = Uuids.timeBased();
         var result = session.execute(claimByClientId.bind(
-                senderId, clientMessageId, conversationId, bucket, messageId, requestFingerprint, now));
+                senderId, clientMessageId, conversationId, bucket, messageId, requestFingerprint, now)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL));
         if (result.wasApplied()) return new MessageClaim(messageId, bucket, now, true, true);
-        Row retry = session.execute(loadByClientId.bind(senderId, clientMessageId)).one();
-        return retry == null ? null : claim(retry, conversationId, requestFingerprint, false);
+        return findClaim(senderId, clientMessageId, conversationId, requestFingerprint);
     }
 
     @Override
-    public void save(CanonicalMessage message) {
-        session.execute(save.bind(
+    public boolean createIfAbsent(CanonicalMessage message) {
+        var statement = save.bind(
                 message.conversationId(), message.messageBucket(), message.messageId(), message.senderId(),
                 message.messageType(), message.content(), message.contentFormat(), message.replyToMessageId(),
                 message.replyToSenderId(), message.stickerId(), message.pollId(), message.systemEventId(),
                 message.forwardedFromConversationId(), message.forwardedFromMessageBucket(),
                 message.forwardedFromMessageId(), message.isDeleted(), message.deletedBy(), message.deletedAt(),
                 message.editedAt(), message.hasAttachments(), message.hasMentions(), message.isPinned(),
-                message.createdAt(), message.clientMessageId()));
-        saveBucket(message);
+                message.createdAt(), message.clientMessageId(),
+                message.gif() == null ? null : message.gif().provider(),
+                message.gif() == null ? null : message.gif().providerGifId(),
+                message.replyToMessageBucket()).setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL);
+        return session.execute(statement).wasApplied();
+    }
+
+    private com.datastax.oss.driver.api.core.cql.BoundStatement replyStatement(CanonicalMessage message) {
+        return saveReply.bind(message.conversationId(), message.replyToMessageBucket(), message.replyToMessageId(),
+                Uuids.startOf(message.createdAt().toEpochMilli()), message.messageBucket(), message.messageId(), message.senderId());
+    }
+
+    @Override
+    public void repairSourceProjections(CanonicalMessage message) {
+        if (message.replyToMessageId() != null) {
+            session.execute(replyStatement(message).setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM));
+        }
+        if (message.forwardedFromMessageId() != null) {
+            session.execute(forwardStatement(message).setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM));
+        }
+    }
+
+    private com.datastax.oss.driver.api.core.cql.BoundStatement forwardStatement(CanonicalMessage message) {
+        return saveForward.bind(message.forwardedFromConversationId(), message.forwardedFromMessageBucket(),
+                message.forwardedFromMessageId(), Uuids.startOf(message.createdAt().toEpochMilli()),
+                message.conversationId(), message.messageBucket(), message.messageId(), message.senderId());
+    }
+
+    @Override
+    public List<ReplyReference> findReplies(UUID conversationId, String parentBucket, UUID parentId, ReplyPosition after, int limit) {
+        var query = after == null ? listReplies.bind(conversationId, parentBucket, parentId, limit)
+                : listRepliesAfter.bind(conversationId, parentBucket, parentId, after.createdAt(), after.messageId(), limit);
+        return session.execute(query.setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).all().stream()
+                .map(row -> new ReplyReference(row.getUuid("created_at"), row.getUuid("message_id"), row.getString("message_bucket"))).toList();
     }
 
     @Override
@@ -239,6 +297,26 @@ public class CassandraMessageRepository implements MessageRepository {
         session.execute(saveBucket.bind(
                 message.conversationId(), message.createdAt().truncatedTo(ChronoUnit.HOURS),
                 message.messageBucket(), message.messageId(), message.createdAt()));
+    }
+
+    @Override
+    public List<CanonicalAttachment> findAttachments(
+            UUID conversationId, String bucket, UUID messageId, UUID afterAttachmentId, int limit) {
+        var statement = afterAttachmentId == null
+                ? listAttachments.bind(conversationId, bucket, messageId, limit)
+                : listAttachmentsAfter.bind(conversationId, bucket, messageId, afterAttachmentId, limit);
+        return session.execute(statement.setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).all().stream().map(row -> {
+            UdtValue value = row.getUdtValue("attachment");
+            return new CanonicalAttachment(
+                    value.getUuid("attachment_id"), value.getUuid("asset_id"),
+                    value.getString("storage_provider"), value.getString("storage_key"),
+                    value.getString("file_name"), value.getString("mime_type"),
+                    value.isNull("byte_size") ? null : value.getLong("byte_size"),
+                    value.isNull("width") ? null : value.getInt("width"),
+                    value.isNull("height") ? null : value.getInt("height"),
+                    value.isNull("duration_ms") ? null : value.getLong("duration_ms"),
+                    value.getString("thumbnail_url"), value.getBoolean("is_spoiler"));
+        }).toList();
     }
 
     @Override
@@ -258,24 +336,45 @@ public class CassandraMessageRepository implements MessageRepository {
         nullableLong(value, "duration_ms", attachment.durationMs());
         session.execute(saveAttachment.bind(
                 message.conversationId(), message.messageBucket(), message.messageId(),
-                attachment.attachmentId(), value));
+                attachment.attachmentId(), value).setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM));
     }
 
     @Override
     public void saveMentions(CanonicalMessage message, Set<UUID> userIds) {
-        BatchStatementBuilder batch = BatchStatement.builder(BatchType.UNLOGGED);
-        for (UUID userId : userIds) {
-            batch.addStatement(saveMentionByMessage.bind(
-                    message.conversationId(), message.messageBucket(), message.messageId(), userId));
-            batch.addStatement(saveMentionInbox.bind(
-                    userId, message.conversationId(), message.messageBucket(), message.messageId(), message.senderId()));
+        writeMentionBatches(message, userIds, true);
+    }
+
+    @Override
+    public void repairMentionReferences(CanonicalMessage message, Set<UUID> userIds) {
+        writeMentionBatches(message, userIds, false);
+    }
+
+    private void writeMentionBatches(CanonicalMessage message, Set<UUID> userIds, boolean includeInbox) {
+        var recipients = userIds.iterator();
+        while (recipients.hasNext()) {
+            var batch = BatchStatement.builder(BatchType.UNLOGGED)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM);
+            for (int count = 0; count < MENTION_RECIPIENTS_PER_BATCH && recipients.hasNext(); count++) {
+                UUID userId = recipients.next();
+                batch.addStatement(bindMentionReference(message, userId));
+                if (includeInbox) {
+                    // The message timeuuid orders the inbox and keeps repeated writes on the same row.
+                    batch.addStatement(saveMentionInbox.bind(userId, message.messageId(), message.conversationId(),
+                            message.messageBucket(), message.messageId(), message.senderId()));
+                }
+            }
+            session.execute(batch.build());
         }
-        session.execute(batch.build());
+    }
+
+    private BoundStatement bindMentionReference(CanonicalMessage message, UUID userId) {
+        return saveMentionByMessage.bind(message.conversationId(), message.messageBucket(), message.messageId(), userId);
     }
 
     @Override
     public CanonicalMessage find(UUID conversationId, String bucket, UUID messageId) {
-        Row row = session.execute(load.bind(conversationId, bucket, messageId)).one();
+        Row row = session.execute(load.bind(conversationId, bucket, messageId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
         return row == null ? null : map(row);
     }
 
@@ -302,8 +401,13 @@ public class CassandraMessageRepository implements MessageRepository {
     }
 
     @Override
-    public boolean markRead(UUID conversationId, String bucket, UUID messageId, UUID readerId, Instant readAt) {
-        if (!readPointer.advance(conversationId, readerId, messageId, readAt)) return false;
+    public boolean advanceReadPosition(UUID conversationId, UUID readerId, UUID messageId, Instant joinedAt, Instant readAt) {
+        return readPointer.advance(conversationId, readerId, messageId, joinedAt, readAt);
+    }
+
+    @Override
+    public boolean markRead(UUID conversationId, String bucket, UUID messageId, UUID readerId, Instant joinedAt, Instant readAt) {
+        if (!readPointer.advance(conversationId, readerId, messageId, joinedAt, readAt)) return false;
         session.execute(BatchStatement.builder(BatchType.LOGGED)
                 .addStatement(saveReadReceipt.bind(conversationId, bucket, messageId, readerId, readAt))
                 .addStatement(updateReadSummary.bind(readAt, conversationId, bucket, messageId)).build());
@@ -336,8 +440,8 @@ public class CassandraMessageRepository implements MessageRepository {
         for (int attempt = 0; attempt < 3; attempt++) {
             Row state = session.execute(loadEditState.bind(conversationId, bucket, messageId)).one();
             if (state == null || state.getBoolean("is_deleted")) return false;
-            int prior = state.isNull("revision_no") ? 0 : state.getInt("revision_no");
-            int next = prior + 1;
+            int prior = readRevision(state);
+            int next = Math.incrementExact(prior);
             Instant editedAt = Instant.now();
             if (session.execute(updateContent.bind(
                     content, editedAt, next, conversationId, bucket, messageId, prior)).wasApplied()) {
@@ -353,13 +457,16 @@ public class CassandraMessageRepository implements MessageRepository {
     @Override
     public boolean delete(UUID conversationId, String bucket, UUID messageId, UUID deletedBy) {
         for (int attempt = 0; attempt < 3; attempt++) {
-            Row state = session.execute(loadEditState.bind(conversationId, bucket, messageId)).one();
+            Row state = session.execute(loadEditState.bind(conversationId, bucket, messageId)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
             if (state == null || state.getBoolean("is_deleted")) return false;
-            int prior = state.isNull("revision_no") ? 0 : state.getInt("revision_no");
-            int next = prior + 1;
+            int prior = readRevision(state);
+            int next = Math.incrementExact(prior);
             Instant deletedAt = Instant.now();
             if (session.execute(markDeleted.bind(
-                    deletedBy, deletedAt, next, conversationId, bucket, messageId, prior)).wasApplied()) {
+                    deletedBy, deletedAt, next, conversationId, bucket, messageId, prior)
+                    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+                    .setSerialConsistencyLevel(DefaultConsistencyLevel.LOCAL_SERIAL)).wasApplied()) {
                 session.execute(saveRevision.bind(
                         conversationId, bucket, messageId, next, state.getString("content"),
                         "DELETE", deletedBy, deletedAt));
@@ -413,37 +520,14 @@ public class CassandraMessageRepository implements MessageRepository {
     }
 
     @Override
-    public boolean setPinned(UUID conversationId, String bucket, UUID messageId, UUID actorId, boolean pinned) {
-        if (!pinned) {
-            for (Row row : session.execute(listPinSlots.bind(conversationId))) {
-                if (messageId.equals(row.getUuid("message_id")) && bucket.equals(row.getString("message_bucket"))) {
-                    session.execute(deletePinSlot.bind(conversationId, row.getByte("pin_slot")));
-                }
-            }
-            session.execute(setPinned.bind(false, conversationId, bucket, messageId));
-            return true;
-        }
-        if (alreadyPinned(conversationId, bucket, messageId)) {
-            session.execute(setPinned.bind(true, conversationId, bucket, messageId));
-            return true;
-        }
-        for (int slot = 0; slot < 5; slot++) {
-            if (session.execute(claimPinSlot.bind(
-                    conversationId, (byte) slot, bucket, messageId, actorId)).wasApplied()) {
-                session.execute(setPinned.bind(true, conversationId, bucket, messageId));
-                return true;
-            }
-        }
-        return false;
-    }
+    public PinState findPinState(UUID conversationId) { return pins.snapshot(conversationId); }
 
-    private boolean alreadyPinned(UUID conversationId, String bucket, UUID messageId) {
-        for (Row row : session.execute(listPinSlots.bind(conversationId))) {
-            if (messageId.equals(row.getUuid("message_id")) && bucket.equals(row.getString("message_bucket"))) {
-                return true;
-            }
-        }
-        return false;
+    @Override
+    public PinChange changePin(UUID conversationId, String bucket, UUID messageId, UUID actorId, boolean pinned, long expectedRevision) {
+        var result = pins.change(conversationId, bucket, messageId, actorId, pinned, expectedRevision);
+        session.execute(setPinned.bind(pinned, conversationId, bucket, messageId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM));
+        return result;
     }
 
     private MessageClaim claim(Row row, UUID conversationId, String fingerprint, boolean claimed) {
@@ -465,7 +549,17 @@ public class CassandraMessageRepository implements MessageRepository {
                 row.getBoolean("is_deleted"), row.getUuid("deleted_by"), row.getInstant("deleted_at"),
                 row.getInstant("edited_at"), row.getBoolean("has_attachments"),
                 row.getBoolean("has_mentions"), row.getBoolean("is_pinned"), row.getInstant("created_at"),
-                row.getUuid("client_message_id"));
+                row.getUuid("client_message_id"),
+                row.getString("gif_provider") == null && row.getString("gif_id") == null ? null
+                        : new com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.GifReference(
+                            row.getString("gif_provider"), row.getString("gif_id")), row.getString("reply_to_message_bucket"), readRevision(row));
+    }
+
+    private int readRevision(Row row) {
+        if (row.isNull("revision_no")) throw new IllegalStateException("message revision is missing");
+        int revision = row.getInt("revision_no");
+        if (revision < 0) throw new IllegalStateException("message revision is invalid");
+        return revision;
     }
 
     private void nullableInt(UdtValue value, String field, Integer input) {

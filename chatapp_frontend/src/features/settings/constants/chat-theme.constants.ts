@@ -1,6 +1,6 @@
 ﻿import { UI_COPY } from "@/shared/constants/ui-copy";
 
-export type RoomThemeId = "aurora" | "neon" | "studio" | "vapor";
+export type RoomThemeId = "system" | "aurora" | "neon" | "studio" | "vapor";
 export type ChatBubbleStyleId = "tiktok" | "glass" | "classic";
 export type RoomThemeMode = "light" | "dark";
 export type CustomBackgroundTreatment = "soft" | "strong";
@@ -27,6 +27,16 @@ export interface ChatBubbleStylePreset {
 }
 
 export const ROOM_THEME_PRESETS: RoomThemePreset[] = [
+  {
+    id: "system",
+    mode: "light",
+    name: "Theo ứng dụng",
+    description: "Đổi sáng tối cùng giao diện ứng dụng.",
+    character: "Tự động",
+    signalColor: "var(--primary)",
+    signalForeground: "var(--primary-foreground)",
+    overlay: "linear-gradient(var(--background), var(--background))",
+  },
   {
     id: "aurora",
     mode: "dark",
@@ -121,7 +131,7 @@ export const CHAT_BUBBLE_PRESETS_BY_ID = CHAT_BUBBLE_PRESETS.reduce<Record<ChatB
   {} as Record<ChatBubbleStyleId, ChatBubbleStylePreset>,
 );
 
-export const DEFAULT_ROOM_THEME_ID: RoomThemeId = "aurora";
+export const DEFAULT_ROOM_THEME_ID: RoomThemeId = "system";
 export const DEFAULT_BUBBLE_STYLE_ID: ChatBubbleStyleId = "tiktok";
 
 export interface RoomVisualSettingsState {
@@ -131,6 +141,7 @@ export interface RoomVisualSettingsState {
     string,
     {
       roomThemeId?: RoomThemeId;
+      backgroundAssetId?: string;
       customBackgroundImage?: string;
       customBackgroundTreatment?: CustomBackgroundTreatment;
     }
@@ -165,20 +176,24 @@ export const normalizeRoomBackgroundUrl = (value: string | null | undefined): st
 export const getRoomVisualComputed = (
   state: RoomVisualSettingsState,
   conversationId: string | null,
+  isDarkMode = false,
 ): RoomVisualComputed => {
   const activeOverride = conversationId ? state.roomThemes[conversationId] : undefined;
   const presetId = conversationId && activeOverride?.roomThemeId
     ? activeOverride.roomThemeId
     : state.defaultRoomThemeId;
-  const preset = ROOM_THEME_PRESETS_BY_ID[presetId];
+  const selectedPreset = ROOM_THEME_PRESETS_BY_ID[presetId];
+  const preset = presetId === 'system'
+    ? { ...selectedPreset, mode: isDarkMode ? 'dark' as const : 'light' as const }
+    : selectedPreset;
   const bubbleStyle = CHAT_BUBBLE_PRESETS_BY_ID[state.messageBubbleStyle];
   const customBackgroundImage = activeOverride?.customBackgroundImage;
 
   return {
-    preset,
+    preset: customBackgroundImage ? { ...preset, mode: 'dark' } : preset,
     backgroundImage: customBackgroundImage || preset.backgroundImage,
-    backgroundOverlay: activeOverride?.customBackgroundTreatment
-      ? CUSTOM_BACKGROUND_OVERLAYS[activeOverride.customBackgroundTreatment]
+    backgroundOverlay: customBackgroundImage
+      ? CUSTOM_BACKGROUND_OVERLAYS[activeOverride?.customBackgroundTreatment ?? 'strong']
       : preset.overlay,
     messageBubbleStyle: bubbleStyle,
     signalColor: preset.signalColor,

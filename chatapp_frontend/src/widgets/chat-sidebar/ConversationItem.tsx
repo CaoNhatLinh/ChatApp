@@ -1,4 +1,6 @@
-import { Pin, PinOff } from 'lucide-react';
+import { Loader2, Pin, PinOff } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import type { Conversation } from '@/features/messenger/types/messenger.types';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS, vi } from 'date-fns/locale';
@@ -6,6 +8,7 @@ import { cn } from '@/shared/lib/cn';
 import { usePresence } from '@/features/presence/model/presence.store';
 import { StatusDot } from '@/features/presence/ui/StatusSelector';
 import { useFriendStore } from '@/features/relationships/model/friend.store';
+import { useMessengerStore } from '@/features/messenger/model/messenger.store';
 import { getConversationLastMessagePreview } from '@/features/messenger/utils/conversation-preview';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { localizeText, useAppLocale } from '@/shared/i18n';
@@ -15,8 +18,8 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onClick: () => void;
-  onPin?: (id: string) => void;
-  onUnpin?: (id: string) => void;
+  onPin?: (id: string) => void | Promise<void>;
+  onUnpin?: (id: string) => void | Promise<void>;
 }
 
 const getTimeDistance = (dateInput: string | number | Date | undefined, locale: 'vi' | 'en') => {
@@ -69,7 +72,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   onUnpin,
 }) => {
   const { locale } = useAppLocale();
-  const lastMsg = conversation.lastMessage;
+  const pinPending = useRef(false);
+  const [savingPin, setSavingPin] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const historyUnavailable = useMessengerStore((state) => Boolean(state.unavailableMessageHistory[conversation.conversationId]));
+  const lastMsg = historyUnavailable ? null : conversation.lastMessage;
   const isDM = conversation.type === 'dm';
   const otherUser = conversation.otherParticipant;
   const isPinned = conversation.isPinned;
@@ -79,8 +86,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     isDM ? conversation.conversationId : null,
   );
   const blockedUserIds = useFriendStore((state) => state.blockedUserIds);
-  const isLastMsgBlocked = lastMsg?.senderId ? blockedUserIds.has(lastMsg.senderId) : false;
-  const unreadCount = conversation.unreadCount;
+  const isLastMsgBlocked = !isDM && Boolean(lastMsg?.senderId && blockedUserIds.has(lastMsg.senderId));
+  const preview = historyUnavailable ? localizeText('Chưa xem được tin gần nhất') : isLastMsgBlocked
+    ? MESSENGER_COPY.conversationItem.presence.blockedMessage : getConversationLastMessagePreview(conversation);
+  const unreadCount = historyUnavailable ? 0 : conversation.unreadCount;
 
   const activeClass = isActive
     ? 'bg-primary/10 border-primary/30 text-foreground'
@@ -95,34 +104,30 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     )
     : undefined;
 
-  const handlePinClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (isPinned) {
-      onUnpin?.(conversation.conversationId);
-    } else {
-      onPin?.(conversation.conversationId);
-    }
+  const handlePinClick = async () => {
+    if (pinPending.current) return;
+    pinPending.current = true;
+    setSavingPin(true);
+    setPinError(null);
+    try {
+      if (isPinned) await onUnpin?.(conversation.conversationId);
+      else await onPin?.(conversation.conversationId);
+    } catch (error) {
+      setPinError(getUserFacingErrorMessage(error, localizeText(isPinned ? 'Không thể bỏ ghim cuộc trò chuyện.' : 'Không thể ghim cuộc trò chuyện.')));
+    } finally { pinPending.current = false; setSavingPin(false); }
   };
 
   return (
     <div
       ref={presenceRef}
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onClick();
-        }
-      }}
       className={cn(
-        'group relative w-full rounded-[var(--radius-md)] border border-transparent p-2.5',
-        'flex items-center gap-3 transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:-translate-y-px',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
+        'group relative w-full rounded-[var(--radius-md)] border transition-colors',
         activeClass,
       )}
     >
+      <button type="button" onClick={onClick} aria-pressed={isActive}
+        aria-label={`${conversation.name}${unreadCount > 0 ? `, ${unreadCount} ${localizeText('tin nhắn chưa đọc')}` : ''}`}
+        className="flex w-full items-center gap-3 rounded-[inherit] p-2.5 pr-12 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
       <div className="relative">
         <div
           className={cn(
@@ -164,22 +169,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             className={cn(
               'line-clamp-1 text-xs font-medium',
               isActive ? 'text-foreground/90' : 'text-muted-foreground',
+              (!lastMsg || isLastMsgBlocked) && 'italic',
             )}
-            title={getConversationLastMessagePreview(conversation)}
+            title={preview}
           >
-            {lastMsg ? (
-              isLastMsgBlocked && !isDM ? (
-                <span className="italic">
-                  {MESSENGER_COPY.conversationItem.presence.blockedMessage}
-                </span>
-              ) : (
-                getConversationLastMessagePreview(conversation)
-              )
-            ) : (
-              <span className="italic">
-                {MESSENGER_COPY.conversationItem.presence.noMessage}
-              </span>
-            )}
+            {preview}
           </p>
           {unreadCount > 0 ? (
             <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-black text-primary-foreground">
@@ -189,14 +183,16 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         </div>
       </div>
 
+      </button>
       <button
         type="button"
         onClick={handlePinClick}
+        disabled={savingPin}
+        aria-busy={savingPin}
         className={cn(
-          'absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-border/60',
-          'bg-background/80 p-1.5 opacity-0 transition-opacity',
-          'group-hover:opacity-100 group-focus-within:opacity-100',
-          'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+          'absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md',
+          'transition-colors hover:bg-background/80',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           isActive ? 'text-foreground' : 'text-muted-foreground',
         )}
         title={
@@ -205,10 +201,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             : MESSENGER_COPY.conversationItem.presence.tooltipPin
         }
       >
-        {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+        {savingPin ? <Loader2 size={14} className="animate-spin" /> : isPinned ? <PinOff size={14} /> : <Pin size={14} />}
       </button>
-
-      {isActive ? <div className="pointer-events-none absolute inset-y-4 left-1 w-1 rounded-full bg-primary" /> : null}
+      {pinError ? <p role="alert" className="px-3 pb-2 text-xs text-destructive">{pinError}</p> : null}
     </div>
   );
 };

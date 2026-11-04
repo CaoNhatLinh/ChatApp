@@ -150,7 +150,7 @@ public class NotificationService {
         CanonicalNotificationSettings settings = notifications.findSettings(userId);
         if (settings == null) {
             settings = new CanonicalNotificationSettings(
-                    userId, "ALL", true, true, true, true, null, null, "UTC", Instant.now());
+                    userId, "ALL", true, false, true, true, null, null, "UTC", Instant.now());
             notifications.saveSettings(settings);
         }
         return settings;
@@ -161,6 +161,7 @@ public class NotificationService {
         if (request == null) {
             throw new BadRequestException("notification settings are required");
         }
+        NotificationSettingsPolicy.requireQuietHoursPair(request.quietHoursStart(), request.quietHoursEnd());
         notifications.saveSettings(new CanonicalNotificationSettings(
                 userId,
                 NotificationSettingsPolicy.requireLevel(request.globalLevel()),

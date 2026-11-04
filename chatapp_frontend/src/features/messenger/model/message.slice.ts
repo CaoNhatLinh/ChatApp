@@ -1,92 +1,69 @@
 // src/store/messenger/createMessageSlice.ts
 
+import { appendHistoryPage, mergeLiveMessage, prependHistoryPage, replaceHistoryWindow } from './message-snapshot';
+import { applyPinState } from './message-pin-state';
 import type { MessengerSlice, MessageSlice } from './messenger.store.types';
-import type { Message } from '@/features/messenger/types/messenger.types';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 
 export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
+    messagePinStates: {},
+    applyMessagePinState: (snapshot) => set((state) => {
+        const previous = state.messagePinStates[snapshot.conversationId];
+        if (previous && BigInt(previous.revision) >= BigInt(snapshot.revision)) return state;
+        return { messagePinStates: { ...state.messagePinStates, [snapshot.conversationId]: snapshot },
+            messages: { ...state.messages, [snapshot.conversationId]: applyPinState(state.messages[snapshot.conversationId] ?? [], snapshot) } };
+    }, false, 'applyMessagePinState'),
     messages: {},
     messagesPagination: {},
+    initialMessageHistory: null,
+    setInitialMessageHistory: (initialMessageHistory) => set({ initialMessageHistory }, false, 'setInitialMessageHistory'),
+    olderMessageHistory: null,
+    setOlderMessageHistory: (olderMessageHistory) => set({ olderMessageHistory }, false, 'setOlderMessageHistory'),
+    unavailableMessageHistory: {},
+    setMessageHistoryUnavailable: (conversationId, unavailable) => set((state) => {
+        const unavailableMessageHistory = { ...state.unavailableMessageHistory };
+        if (!unavailable) {
+            if (!unavailableMessageHistory[conversationId]) return state;
+            delete unavailableMessageHistory[conversationId];
+            return { unavailableMessageHistory };
+        }
+        unavailableMessageHistory[conversationId] = true;
+        const messages = { ...state.messages };
+        const messagesPagination = { ...state.messagesPagination };
+        delete messages[conversationId];
+        delete messagesPagination[conversationId];
+        return { unavailableMessageHistory, messages, messagesPagination };
+    }, false, 'setMessageHistoryUnavailable'),
 
     addMessage: (conversationId, message) => set((state) => {
-        const currentMessages = state.messages[conversationId] || [];
-        const existingIndex = currentMessages.findIndex(m => m.messageId === message.messageId);
-
-        let updatedMessages: Message[];
-        let isServerMessage = false;
-
-        if (message.messageId && typeof message.messageId === 'string' && message.sender) {
-            isServerMessage = !message.messageId.startsWith('temp-');
-        } else {
-            isServerMessage = true;
-        }
-
-        if (isServerMessage && message.sender) {
-            if (existingIndex !== -1) {
-                updatedMessages = [...currentMessages];
-                const existing = updatedMessages[existingIndex];
-                updatedMessages[existingIndex] = existing.isDeleted ? existing : { ...existing, ...message };
-            } else {
-                const tempIdx = currentMessages.findIndex(
-                    m => Boolean(message.clientMessageId)
-                        && m.clientMessageId === message.clientMessageId
-                        && m.messageId.startsWith('temp-')
-                        && m.sender?.userId === message.sender?.userId
-                );
-                if (tempIdx !== -1) {
-                updatedMessages = [...currentMessages];
-                updatedMessages[tempIdx] = message;
-                } else {
-                    updatedMessages = [...currentMessages, message];
-                }
-            }
-        } else {
-            if (existingIndex !== -1) {
-                updatedMessages = [...currentMessages];
-                const existing = updatedMessages[existingIndex];
-                updatedMessages[existingIndex] = existing.isDeleted ? existing : { ...existing, ...message };
-            } else {
-                updatedMessages = [...currentMessages, message];
-            }
-        }
-
-        return {
-            messages: { ...state.messages, [conversationId]: updatedMessages },
-        };
+        if (state.unavailableMessageHistory[conversationId]) return state;
+        const current = state.messages[conversationId] ?? [];
+        const index = current.findIndex(existing => existing.messageId === message.messageId
+            || Boolean(message.clientMessageId) && existing.messageId.startsWith('temp-')
+                && existing.clientMessageId === message.clientMessageId && existing.sender.userId === message.sender.userId);
+        const mergedSnapshot = mergeLiveMessage(index < 0 ? undefined : current[index], message);
+        const pinState = state.messagePinStates[conversationId];
+        const merged = pinState ? applyPinState([mergedSnapshot], pinState)[0] : mergedSnapshot;
+        if (index >= 0 && merged === current[index]) return state;
+        const updated = index < 0 ? [...current, merged] : current.map((existing, position) => position === index ? merged : existing);
+        return { messages: { ...state.messages, [conversationId]: updated } };
     }, false, 'addMessage'),
 
-    setMessages: (conversationId, messages, hasNext = false, page = 0, nextCursor) => set((state) => ({
-        messages: { ...state.messages, [conversationId]: messages },
-        messagesPagination: {
-            ...state.messagesPagination,
-            [conversationId]: { hasNext, page, nextCursor, fetchedAt: Date.now() }
-        }
+    setMessages: (conversationId, messages, context) => set((state) => ({
+        messages: { ...state.messages, [conversationId]: applyPinState(replaceHistoryWindow({ current: state.messages[conversationId] ?? [], incoming: messages, before: context.before }), state.messagePinStates[conversationId]) },
+        messagesPagination: { ...state.messagesPagination, [conversationId]: { hasNext: context.hasNext, page: context.page, nextCursor: context.nextCursor, fetchedAt: Date.now() } },
     }), false, 'setMessages'),
 
-    appendMessages: (conversationId, newMessages, hasNext, page) => set((state) => {
-        const currentMessages = state.messages[conversationId] || [];
-        const uniqueNewMessages = newMessages.filter(nm => !currentMessages.some(cm => cm.messageId === nm.messageId));
-        return {
-            messages: { ...state.messages, [conversationId]: [...currentMessages, ...uniqueNewMessages] },
-            messagesPagination: {
-                ...state.messagesPagination,
-                [conversationId]: { hasNext, page, fetchedAt: Date.now() }
-            }
-        };
-    }, false, 'appendMessages'),
+    appendMessages: (conversationId, messages, context) => set((state) => ({
+        messages: { ...state.messages, [conversationId]: applyPinState(appendHistoryPage({ current: state.messages[conversationId] ?? [], incoming: messages, before: context.before }), state.messagePinStates[conversationId]) },
+        messagesPagination: { ...state.messagesPagination, [conversationId]: { hasNext: context.hasNext, page: context.page, nextCursor: context.nextCursor, fetchedAt: Date.now() } },
+    }), false, 'appendMessages'),
 
-    prependMessages: (conversationId, newMessages, hasNext, page, nextCursor) => set((state) => {
-        const currentMessages = state.messages[conversationId] || [];
-        const uniqueNewMessages = newMessages.filter(nm => !currentMessages.some(cm => cm.messageId === nm.messageId));
-        return {
-            messages: { ...state.messages, [conversationId]: [...uniqueNewMessages, ...currentMessages] },
-            messagesPagination: {
-                ...state.messagesPagination,
-                [conversationId]: { hasNext, page, nextCursor, fetchedAt: Date.now() }
-            }
-        };
-    }, false, 'prependMessages'),
+    prependMessages: (conversationId, messages, context) => set((state) => ({
+        messages: { ...state.messages, [conversationId]: applyPinState(prependHistoryPage({ current: state.messages[conversationId] ?? [], incoming: messages, before: context.before }), state.messagePinStates[conversationId]) },
+        messagesPagination: { ...state.messagesPagination, [conversationId]: { hasNext: context.hasNext, page: context.page, nextCursor: context.nextCursor, fetchedAt: Date.now() } },
+    }), false, 'prependMessages'),
 
     updateMessageReactions: (conversationId, messageId, reactionEvent) => set((state) => {
         const currentUserId = useAuthStore.getState().user?.userId;
@@ -170,13 +147,13 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         };
     }, false, 'updatePollData'),
 
-    updateMessageStatus: (conversationId, messageId, status) => set((state) => {
+    updateMessageStatus: (conversationId, messageId, status, retry) => set((state) => {
         const msgs = state.messages[conversationId];
         if (!msgs) return state;
         return {
             messages: {
                 ...state.messages,
-                [conversationId]: msgs.map(m => m.messageId === messageId ? { ...m, status } : m)
+                [conversationId]: msgs.map(m => m.messageId === messageId ? { ...m, ...retry, status } : m)
             }
         };
     }, false, 'updateMessageStatus'),
@@ -185,20 +162,10 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
         const msgs = state.messages[conversationId];
         if (!msgs) return state;
         const current = msgs.find(existing => existing.messageId === message.messageId);
-        if (current?.isDeleted && !message.isDeleted) return state;
+        const merged = mergeLiveMessage(current, message);
+        if (merged === current) return state;
         return {
-            messages: {
-                ...state.messages,
-                [conversationId]: msgs.map(existing => existing.messageId === message.messageId ? {
-                    ...existing,
-                    ...message,
-                    attachments: message.attachments ?? existing.attachments,
-                    reactions: message.reactions ?? existing.reactions,
-                    readReceipts: message.readReceipts ?? existing.readReceipts,
-                    latestReadAt: message.latestReadAt ?? existing.latestReadAt,
-                    replyTo: message.replyTo ?? existing.replyTo,
-                } : existing)
-            },
+            messages: { ...state.messages, [conversationId]: msgs.map(existing => existing.messageId === message.messageId ? merged : existing) },
             conversations: state.conversations.map(conversation => {
                 if (conversation.conversationId !== conversationId) {
                     return conversation;
@@ -211,11 +178,12 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
                     ...conversation,
                     lastMessage: {
                         messageId: message.messageId,
-                        senderId: message.sender.userId,
-                        senderName: message.sender.displayName,
-                        content: message.isDeleted ? MESSENGER_COPY.messageStatus.deleted : message.content,
-                        type: message.type,
-                        createdAt: message.createdAt,
+                        revision: merged.revision,
+                        senderId: merged.sender.userId,
+                        senderName: merged.sender.displayName,
+                        content: merged.isDeleted ? MESSENGER_COPY.messageStatus.deleted : merged.content,
+                        type: merged.type,
+                        createdAt: merged.createdAt,
                     }
                 };
             })
@@ -244,33 +212,6 @@ export const createMessageSlice: MessengerSlice<MessageSlice> = (set) => ({
             }
         };
     }, false, 'addReadReceipt'),
-
-    updateMessagePinStatus: (conversationId, messageId, isPinned) => set((state) => {
-        const msgs = state.messages[conversationId];
-        if (!msgs) return state;
-        return {
-            messages: {
-                ...state.messages,
-                [conversationId]: msgs.map(m => m.messageId === messageId ? { ...m, isPinned } : m)
-            }
-        };
-    }, false, 'updateMessagePinStatus'),
-
-    addMessageAttachment: (conversationId, messageId, attachment) => set((state) => {
-        const msgs = state.messages[conversationId];
-        if (!msgs) return state;
-        return {
-            messages: {
-                ...state.messages,
-                [conversationId]: msgs.map(message => {
-                    if (message.messageId !== messageId) return message;
-                    const attachments = message.attachments ?? [];
-                    const exists = attachments.some(a => a.url === attachment.url);
-                    return exists ? message : { ...message, attachments: [...attachments, attachment] };
-                })
-            }
-        };
-    }, false, 'addMessageAttachment'),
 
     removeMessage: (conversationId, messageId) => set((state) => {
         const msgs = state.messages[conversationId];

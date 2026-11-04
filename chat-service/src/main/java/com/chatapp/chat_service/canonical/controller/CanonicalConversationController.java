@@ -4,6 +4,7 @@ import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.ConversationRole;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
 import com.chatapp.chat_service.canonical.service.ConversationService;
+import com.chatapp.chat_service.canonical.conversation.ConversationBrowseService;
 import com.chatapp.chat_service.canonical.service.ConversationAuthorizationService;
 import com.chatapp.chat_service.canonical.service.ConversationRoleService;
 import com.chatapp.chat_service.canonical.service.RoomAuditService;
@@ -30,6 +31,7 @@ import java.util.UUID;
 public class CanonicalConversationController {
 
     private final ConversationService conversations;
+    private final ConversationBrowseService directory;
     private final ConversationRoleService roles;
     private final ConversationAuthorizationService authorization;
     private final RoomAuditService roomAudit;
@@ -38,12 +40,14 @@ public class CanonicalConversationController {
 
     public CanonicalConversationController(
             ConversationService conversations,
+            ConversationBrowseService directory,
             ConversationRoleService roles,
             ConversationAuthorizationService authorization,
             RoomAuditService roomAudit,
             ConversationBanService bans,
             SecurityContextHelper securityContext) {
         this.conversations = conversations;
+        this.directory = directory;
         this.roles = roles;
         this.authorization = authorization;
         this.roomAudit = roomAudit;
@@ -61,14 +65,30 @@ public class CanonicalConversationController {
     @GetMapping
     public CanonicalApiContracts.ConversationPage list(
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(required = false) String cursor) {
-        return conversations.listMyConversations(actorId(), cursor, limit);
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "ALL") String filter) {
+        return directory.list(actorId(), cursor, limit, q, filter);
     }
 
     @GetMapping("/{conversationId}")
     public CanonicalConversation get(@PathVariable UUID conversationId) {
         authorization.requireMember(conversationId, actorId());
         return conversations.getConversation(conversationId);
+    }
+
+    @GetMapping("/{conversationId}/summary")
+    public ResponseEntity<CanonicalApiContracts.ConversationListItem> summary(@PathVariable UUID conversationId) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(directory.get(actorId(), conversationId));
+    }
+
+    public record ReadState(UUID lastReadMessageId, java.time.Instant lastReadAt, java.time.Instant joinedAt) { }
+
+    @GetMapping("/{conversationId}/read-state")
+    public ReadState readState(@PathVariable UUID conversationId) {
+        var member = authorization.requireMember(conversationId, actorId());
+        return new ReadState(member.lastReadMessageId(), member.lastReadAt(), member.joinedAt());
     }
 
     @GetMapping("/{conversationId}/notification-policy")

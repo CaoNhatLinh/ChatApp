@@ -139,6 +139,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   }
   if (path.endsWith(`/admin/users/${targetUserId}/status`) && method === 'PUT') {
     userStatusRequests.push(request.postDataJSON());
+    targetUser.accountStatus = request.postDataJSON().accountStatus;
     return route.fulfill({ status: 204 });
   }
   if (path.endsWith(`/admin/users/${targetUserId}/sessions`) && method === 'GET') return json([
@@ -158,7 +159,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
       revokedAt: null,
       replacedByTokenId: null,
     },
-  ]);
+  ].map(item => ({ ...item, revokedAt: deviceRevocations.length && item.deviceId || sessionRevocations.length && !item.deviceId ? now : item.revokedAt })));
   if (path.endsWith(`/admin/users/${targetUserId}/sessions/refresh-token-001`) && method === 'DELETE') {
     sessionRevocations.push(url.searchParams.get('reason'));
     return route.fulfill({ status: 204 });
@@ -173,7 +174,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     pushProvider: null,
     deviceName: 'Chrome laptop',
     appVersion: '1.0.0',
-    active: true,
+    active: deviceRevocations.length === 0,
     createdAt: now,
     lastSeenAt: now,
   }]);
@@ -204,7 +205,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
     return route.fulfill({ status: 200, headers: { 'content-type': 'text/csv; charset=UTF-8' }, body: 'eventMonth,eventId,action\n' });
   }
   if (path.endsWith('/admin/audit')) return json(
-    ['MEMBER_BAN', 'MEMBER_UNBAN', 'COMMUNITY_JOIN', 'COMMUNITY_JOIN_REQUEST'].map((action, index) => ({
+    ['MEMBER_BAN', 'MEMBER_UNBAN', 'COMMUNITY_JOIN', 'COMMUNITY_JOIN_REQUEST', 'SYSTEM_SETTING_UPDATED', 'FUTURE_ACTION'].map((action, index) => ({
       eventMonth: '2026-10', eventId: `00000000-0000-4000-8000-00000000000${index}`,
       action, resourceType: 'conversation', resourceId: roomId, actorId: operatorId,
       conversationId: roomId, outcome: 'SUCCESS', createdAt: '2026-10-03T00:00:00Z',
@@ -254,16 +255,18 @@ await page.addInitScript(() => {
   document.cookie = 'novachat_session=1; Path=/; SameSite=Lax';
 });
 await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
-await page.getByRole('heading', { name: 'Điều hành toàn ứng dụng' }).waitFor();
-await page.getByRole('button', { name: 'Không gian Phòng toàn hệ thống', exact: true }).click();
+await page.getByRole('heading', { name: 'Tổng quan', exact: true, level: 1 }).waitFor();
+await page.getByRole('button', { name: 'Phòng', exact: true }).click();
 await page.getByText('Safety Community', { exact: true }).waitFor();
 
 await page.getByRole('button', { name: 'Chuyển sang tiếng Anh' }).click();
-await page.getByRole('heading', { name: 'Global operations', exact: true }).waitFor();
+await page.getByRole('heading', { name: 'Rooms', exact: true, level: 1 }).waitFor();
 
 const roomPanel = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Manage all rooms' }) });
 await roomPanel.getByRole('button', { name: /Safety Community/ }).click();
+await roomPanel.locator('summary').filter({ hasText: 'Room information' }).click();
 await roomPanel.getByText(roomId, { exact: true }).waitFor();
+await roomPanel.locator('summary').filter({ hasText: 'Manage room' }).click();
 await roomPanel.getByLabel('Global chat policy').selectOption('READ_ONLY');
 await roomPanel.getByLabel('Slow mode (seconds)').fill('45');
 await roomPanel.getByLabel('Audit reason').fill('Emergency spam containment');
@@ -278,25 +281,27 @@ await roomPanel.getByLabel('Audit reason').fill('False positive cleared after re
 await roomPanel.getByRole('button', { name: 'Restore' }).click();
 const restoreDialog = page.getByRole('dialog', { name: 'Restore room' });
 await restoreDialog.getByRole('button', { name: /Restore/ }).click();
-await roomPanel.getByText('Active', { exact: true }).waitFor();
+await roomPanel.locator('.admin-directory-detail').getByText('Active', { exact: true }).waitFor();
 
-await page.getByRole('button', { name: 'Safety Reports and investigations', exact: true }).click();
-const reportPanel = page.locator('details').filter({ hasText: 'Reports & sanctions' });
-await reportPanel.getByText('Repeated unsolicited links.', { exact: true }).waitFor();
-await reportPanel.getByRole('button', { name: 'Select target user' }).click();
-const sanctionDisclosure = reportPanel.locator('details').filter({ hasText: 'Apply user sanction' });
-await sanctionDisclosure.locator('summary').click();
-await reportPanel.getByLabel('Reason code').fill('CONFIRMED_SPAM');
-await reportPanel.getByLabel('Detailed reason (required)').fill('Evidence reviewed by trust and safety.');
-await reportPanel.getByRole('button', { name: 'Resolve' }).click();
+await page.getByRole('button', { name: 'Reports', exact: true }).click();
+const reportInbox = page.getByRole('region', { name: 'Report inbox', exact: true });
+await reportInbox.getByRole('button', { name: /Spam or scams/ }).click();
+await reportInbox.getByRole('button', { name: 'Select target user' }).click();
+const reportPanel = page.locator('details').filter({ has: page.locator('#admin-sanction-user') });
+await reportInbox.getByRole('button', { name: 'Resolve', exact: true }).click();
 const resolveDialog = page.getByRole('dialog', { name: 'Confirm report update' });
+await resolveDialog.getByLabel('Decision reason').fill('Evidence reviewed by trust and safety.');
+await resolveDialog.getByLabel('Resolution code').fill('CONFIRMED_SPAM');
 await resolveDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-await reportPanel.getByText('No reports match the current filter.', { exact: true }).waitFor();
+await resolveDialog.waitFor({ state: 'hidden' });
+await reportInbox.getByText('No reports match the current filter.', { exact: true }).waitFor();
 
 await reportPanel.getByLabel('Detailed reason (required)').fill('Apply account warning after confirmed spam.');
 await reportPanel.getByLabel('Reason code').fill('CONFIRMED_SPAM');
 await reportPanel.getByLabel('Sanction type').selectOption('WARNING');
+if (await reportPanel.getByLabel('Reason code', { exact: true }).inputValue() !== 'CONFIRMED_SPAM') throw new Error('Sanction reason code was not retained before submission');
 await reportPanel.getByRole('button', { name: 'Apply sanction' }).click();
+await page.getByRole('dialog', { name: 'Confirm user sanction' }).getByRole('button', { name: 'Apply sanction', exact: true }).click();
 await reportPanel.getByText(/Warning · Active/).waitFor();
 await reportPanel.getByLabel('Detailed reason (required)').fill('Warning reviewed and withdrawn.');
 await reportPanel.getByRole('button', { name: 'Revoke', exact: true }).click();
@@ -304,41 +309,54 @@ const sanctionDialog = page.getByRole('dialog', { name: 'Revoke sanction' });
 await sanctionDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
 await reportPanel.getByText(/Warning · Revoked/).waitFor();
 
-await page.getByRole('button', { name: 'Access Users and permissions', exact: true }).click();
-const userSearchPanel = page.locator('details').filter({ hasText: 'Find a user' });
+await page.getByRole('button', { name: 'User management', exact: true }).click();
+const userSearchPanel = page.getByRole('region', { name: 'User management', exact: true });
 await userSearchPanel.getByLabel('Search admin users').fill('linh');
 await userSearchPanel.getByRole('button', { name: 'Search', exact: true }).click();
 await userSearchPanel.getByRole('button', { name: /Linh Tran/ }).click();
-const userPanel = page.locator('details').filter({ hasText: 'Manage roles · @linh' });
-await userPanel.getByText('Chrome laptop', { exact: true }).waitFor();
-await userPanel.getByLabel('Role').selectOption('SUPPORT');
-await userPanel.getByLabel('Reason (required)').fill('Community support assignment');
-await userPanel.getByRole('button', { name: 'Grant role' }).click();
-await userPanel.getByText('SUPPORT', { exact: true }).waitFor();
-await userPanel.getByLabel('Account status').selectOption('SUSPENDED');
-await userPanel.getByLabel('Reason (required)').fill('Security review in progress');
-await userPanel.getByRole('button', { name: 'Update status' }).click();
+const userPanel = page.getByRole('region', { name: 'User administration profile', exact: true });
+await userPanel.getByRole('button', { name: 'Grant role', exact: true }).click();
+const grantDialog = page.getByRole('dialog', { name: 'Grant role', exact: true });
+await grantDialog.getByLabel('Role', { exact: true }).selectOption('SUPPORT');
+await grantDialog.getByLabel('Reason (required)', { exact: true }).fill('Community support assignment');
+await grantDialog.getByRole('button', { name: 'Grant role', exact: true }).click();
+await grantDialog.waitFor({ state: 'hidden' });
+await userPanel.getByText('Support', { exact: true }).waitFor();
+await userPanel.getByRole('button', { name: 'Account status', exact: true }).click();
 const statusDialog = page.getByRole('dialog', { name: 'Change account status' });
+await statusDialog.getByLabel('Account status', { exact: true }).selectOption('SUSPENDED');
+await statusDialog.getByLabel('Reason (required)', { exact: true }).fill('Security review in progress');
 await statusDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
-await page.getByText('Account status updated to Suspended.', { exact: true }).waitFor();
-await userPanel.getByLabel('Reason (required)').fill('End compromised refresh chain');
+await statusDialog.waitFor({ state: 'hidden' });
+await userPanel.getByText('Suspended', { exact: true }).waitFor();
+await userPanel.getByRole('button', { name: 'Sign-ins', exact: true }).click();
+await userPanel.getByText('Chrome laptop', { exact: true }).waitFor();
 await userPanel.getByRole('button', { name: /Revoke sign-in session: standalone-r/ }).click();
 const sessionDialog = page.getByRole('dialog', { name: 'Revoke sign-in session' });
-await sessionDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
-await page.getByText('Sign-in session revoked.', { exact: true }).waitFor();
-await userPanel.getByLabel('Reason (required)').fill('Compromised browser session');
+await sessionDialog.getByLabel('Reason (required)', { exact: true }).fill('End compromised refresh chain');
+await sessionDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+await sessionDialog.waitFor({ state: 'hidden' });
 await userPanel.getByRole('button', { name: 'Revoke device: Chrome laptop' }).click();
 const deviceDialog = page.getByRole('dialog', { name: 'Revoke device' });
-await deviceDialog.getByRole('button', { name: 'Revoke', exact: true }).click();
-await userPanel.getByText(/Revoked/).first().waitFor();
+await deviceDialog.getByLabel('Reason (required)', { exact: true }).fill('Compromised browser session');
+await deviceDialog.getByRole('button', { name: 'Confirm', exact: true }).click();
+await deviceDialog.waitFor({ state: 'hidden' });
 
-await page.getByRole('button', { name: 'Event stream Audit and analytics', exact: true }).click();
-for (const label of ['Ban member', 'Unban member', 'Join community', 'Request to join community']) {
-  await page.getByText(label, { exact: true }).waitFor();
+await page.getByRole('button', { name: 'Audit log', exact: true }).click();
+const auditPanel = page.locator('details').filter({ has: page.getByRole('heading', { name: 'Global audit timeline', exact: true }) });
+await auditPanel.getByRole('button', { name: 'Export CSV', exact: true }).waitFor({ state: 'hidden' });
+await auditPanel.getByRole('heading', { name: 'Global audit timeline', exact: true }).click();
+for (const label of ['Ban member', 'Unban member', 'Join community', 'Request to join community', 'Update app settings', 'FUTURE_ACTION']) {
+  await auditPanel.getByText(label, { exact: true }).waitFor();
 }
+const banEvent = auditPanel.locator('li').filter({ has: page.getByText('Ban member', { exact: true }) });
+const eventActor = banEvent.getByText(`Actor: ${operatorId}`, { exact: true });
+await eventActor.waitFor({ state: 'hidden' });
+await banEvent.locator('summary').press('Enter');
+await eventActor.waitFor();
 const [download] = await Promise.all([
   page.waitForEvent('download'),
-  page.getByRole('button', { name: /Export audit CSV/ }).click(),
+  auditPanel.getByRole('button', { name: 'Export CSV', exact: true }).click(),
 ]);
 
 await page.setViewportSize({ width: 390, height: 844 });
@@ -389,6 +407,7 @@ if (
   || reportResolutionRequests[0]?.nextStatus !== 'RESOLVED'
   || reportResolutionRequests[0]?.resolutionCode !== 'CONFIRMED_SPAM'
   || sanctionRequests[0]?.sanctionType !== 'WARNING'
+  || sanctionRequests[0]?.reasonCode !== 'CONFIRMED_SPAM'
   || sanctionRequests[0]?.userId !== targetUserId
   || sanctionRevocations[0] !== 'Warning reviewed and withdrawn.'
   || roleGrantRequests[0]?.roleCode !== 'SUPPORT'

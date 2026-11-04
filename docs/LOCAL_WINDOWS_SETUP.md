@@ -2,21 +2,19 @@
 
 ## Trạng thái hiện tại
 
-Code có thể build và chạy kiểm tra local; chưa được xác nhận hoàn tất toàn bộ
-ứng dụng hay sẵn sàng production. Các gate còn mở nằm trong
-[checklist](../tasks/readiness/todo.md). Docker chạy các dịch vụ dữ liệu;
-backend Java và frontend Next.js chạy trong hai terminal VS Code. Manifest
-hiện tại không chứa container backend/frontend.
+Docker chạy các dịch vụ dữ liệu. Backend Java và frontend Next.js chạy trên máy
+qua launcher hoặc terminal VS Code. Xem [checklist triển khai](../tasks/todo.md)
+để phân biệt phần đã kiểm tra bằng fixture với phần cần chạy trên hạ tầng thật.
 
 ## 1. Chuẩn bị máy
 
 ### Khởi động bằng một lệnh
 
-Sau khi cài/mở Docker Desktop và có JDK 20+ cùng Node,
+Sau khi cài/mở Docker Desktop và có JDK 20+ cùng Node.js 22,
 mở terminal tại root repo:
 
 ```powershell
-Set-Location E:\WORKSPACE\ChatApp
+Set-Location 'C:\duong-dan\ChatApp'
 npm run local
 ```
 
@@ -45,17 +43,18 @@ npm run local
 
 Kiểm tra điều kiện mà không chạy container/app:
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1 -CheckOnly`.
-Launcher Windows không cài Docker/JDK tự động và không thay đổi cấu hình hệ thống.
+Lệnh này kiểm tra Docker engine, JDK và cấu hình đã có. Nếu máy mới chưa có
+`.env`, lần chạy `npm run local` thông thường sẽ tạo file đó. Cài Docker và JDK
+trước khi dùng launcher.
 
 1. Cài [Docker Desktop cho Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
    dùng Linux containers và WSL 2 engine. Bật virtualization theo yêu cầu Docker.
    Mở Docker Desktop và chờ engine chạy. Nếu Windows cần cài WSL, làm theo
    hướng dẫn installer; có thể cần restart máy. Mở lại terminal sau cài đặt.
-2. Có Node.js/npm; máy được kiểm tra dùng Node 22.
-3. Backend đang target Java 20 trong `chat-service/pom.xml`. Máy này đã có
-   `C:\Program Files\Java\jdk-20`, nhưng Java mặc định là 17. Phải chọn đúng JDK
-   khi chạy Maven; không đổi target của dự án chỉ để khớp Java mặc định.
-4. Mở VS Code tại `E:\WORKSPACE\ChatApp`. Extension Pack for Java và Spring Boot
+2. Dùng Node.js 22 và npm để cài frontend theo lockfile.
+3. Backend target Java 20 trong `chat-service/pom.xml`. Chọn JDK 20 trở lên bằng
+   `JAVA_HOME` nếu terminal đang dùng bản Java cũ hơn.
+4. Mở thư mục repo trong VS Code. Extension Pack for Java và Spring Boot
    Extension Pack hữu ích khi debug. Dùng **Java: Configure Java Runtime** để
    chọn runtime cho dự án; xem [hướng dẫn VS Code](https://code.visualstudio.com/docs/java/java-project).
 
@@ -86,8 +85,10 @@ Cloudinary là dịch vụ media bên ngoài, không có container local.
 
 ## 3. Khởi động hạ tầng — terminal 1
 
+Các lệnh cho terminal 1, 2 và 3 đều bắt đầu từ thư mục gốc repo.
+
 ```powershell
-Set-Location E:\WORKSPACE\ChatApp\chat-service
+Set-Location .\chat-service
 docker compose up -d
 docker compose ps -a
 docker compose logs cassandra-schema
@@ -128,7 +129,9 @@ Không dùng `docker compose down -v` để khắc phục lỗi: nó xóa các v
 
 Backend đọc `chat-service/.env` khi chạy từ thư mục `chat-service`.
 Frontend đọc `chatapp_frontend/.env` và `.env.local`; `.env.local` ưu tiên cao hơn.
-Các file local đã tồn tại trên máy này: không chép `.env.example` đè lên chúng.
+Khi chạy thủ công lần đầu, sao chép `.env.example` của từng project sang `.env`
+nếu file đích chưa tồn tại. Dùng `npm run local` để launcher làm bước này và tạo
+khóa JWT ngẫu nhiên.
 
 Backend tối thiểu:
 
@@ -145,10 +148,19 @@ KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 ELASTICSEARCH_URIS=http://localhost:9200
 ```
 
-Các connection local có default trong `application.properties`. Khóa JWT local
-đã được bổ sung trên máy này; không dùng khóa ví dụ để deploy. CORS và WebSocket
-defaults đã cho phép `http://localhost:3000`. Dùng cùng hostname `localhost`
-cho frontend/backend để tránh lệch cookie; không tự trộn với `127.0.0.1`.
+Các kết nối local có giá trị mặc định trong `application.properties`. CORS và
+WebSocket cho phép `http://localhost:3000` mặc định. Dùng `localhost` cho cả frontend
+lẫn backend để cookie được gửi đúng hostname.
+
+Nếu cần tự sinh khóa JWT trong PowerShell, chạy đoạn sau và dán kết quả vào
+`JWT_SECRET` trong `chat-service/.env`:
+
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+[Convert]::ToBase64String($bytes)
+```
 
 Frontend phải có:
 
@@ -157,22 +169,24 @@ NEXT_PUBLIC_API_URL=http://localhost:8084/api
 NEXT_PUBLIC_WS_URL=http://localhost:8084/ws
 ```
 
-Firebase frontend và backend hiện trỏ project `fir-a6b57`. Backend credential
-file đã được cấu hình và tồn tại; tuyệt đối không đưa JSON/private key lên Git.
-Đường dẫn trong `.env` backend nên dùng `/` vì file được đọc như Java properties.
-Để Google login hoạt động, còn phải bật Google provider và authorize `localhost`
-trong Firebase Console; xem [setup đầy đủ](FIREBASE_GOOGLE_AUTH_SETUP.md).
-Không cần `gcloud config set project` khi dùng credential file và project ID rõ ràng.
+### Dịch vụ tùy chọn
 
-Upload media chỉ hoạt động khi cấu hình Cloudinary thật. STUN/TURN/WebRTC và
-các provider khác phải được kiểm chứng riêng; không coi chúng hoạt động chỉ vì
-frontend chạy được.
+| Tính năng | Cấu hình và kiểm tra |
+| --- | --- |
+| Đăng nhập Google | Bật provider và thêm `localhost` trong Firebase. Web config đặt ở frontend, credential Admin đặt ở backend. Xem [hướng dẫn Firebase](FIREBASE_GOOGLE_AUTH_SETUP.md). |
+| Upload ảnh, tệp và sticker | Đặt `CLOUDINARY_ENABLED=true`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` và `CLOUDINARY_API_SECRET` trong backend. Thử tải lên và mở lại tệp trong hội thoại. Xem [luồng media](adr/0030-recoverable-media-upload-authority.md). |
+| GIF | Đặt `NEXT_PUBLIC_GIPHY_API_KEY` ở frontend và khởi động lại Next.js. Đây là Web API key được dùng từ trình duyệt. Xem [luồng GIPHY](flows/giphy-gifs.md). |
+| Email | Giữ `EMAIL_ENABLED=false` cho đến khi có API key, địa chỉ gửi, danh sách nhận thử và webhook đã cấu hình. Xem [hướng dẫn Resend](flows/resend-email.md). |
+| Gọi thoại và video | `NEXT_PUBLIC_WEBRTC_ICE_SERVERS` nhận cấu hình ICE server cho trình duyệt. Kiểm tra hai thiết bị trên hai mạng để xác nhận đường truyền. Xem [giới hạn cuộc gọi và kiểm chứng](../tasks/todo.md). |
+
+Giữ credential backend trong `.env` hoặc môi trường chạy. Các biến có tiền tố
+`NEXT_PUBLIC_` sẽ có mặt trong mã tải về trình duyệt.
 
 ## 5. Khởi động backend — terminal 2
 
 ```powershell
-Set-Location E:\WORKSPACE\ChatApp\chat-service
-$env:JAVA_HOME='C:\Program Files\Java\jdk-20'
+Set-Location .\chat-service
+$env:JAVA_HOME='C:\duong-dan\jdk-21'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 java -version
 .\mvnw.cmd -version
@@ -196,7 +210,7 @@ Health phải `UP`. Nếu bật Google, provider API phải báo `google.enabled
 ## 6. Khởi động frontend — terminal 3
 
 ```powershell
-Set-Location E:\WORKSPACE\ChatApp\chatapp_frontend
+Set-Location .\chatapp_frontend
 npm ci
 npm run dev
 ```
@@ -233,7 +247,7 @@ giả và không cấp quyền trực tiếp từ UI/browser.
 | Không nhận `docker` | Cài Docker Desktop, mở lại terminal; kiểm tra PATH |
 | Docker client có nhưng server lỗi | Mở Docker Desktop, kiểm tra WSL/virtualization và `docker info` |
 | Maven báo release 20 unsupported | Terminal đang dùng Java 17; đặt JAVA_HOME/PATH như trên |
-| Cassandra timeout/keyspace/table thiếu | Chờ healthy, xem schema job và migration; không xóa volume |
+| Cassandra timeout/keyspace/table thiếu | Chờ healthy và xem log `cassandra-schema`. So sánh volume với schema canonical nếu launcher báo khác cấu trúc. |
 | Thiếu `JWT_SECRET` | Chạy từ `chat-service` và kiểm tra `.env`, không in khóa ra log |
 | CORS/cookie/login mất phiên | Dùng localhost nhất quán, port 3000; cookie secure=false chỉ với HTTP local |
 | Google unavailable | Project ID/credential/provider/domain, rồi xem `/api/auth/providers` |
@@ -241,3 +255,21 @@ giả và không cấp quyền trực tiếp từ UI/browser.
 
 Không expose các port database ra Internet. Compose local tắt một số cơ chế
 xác thực để phát triển; đây không phải cấu hình deploy production.
+
+## 9. Kiểm tra trước khi bàn giao
+
+Chạy từ thư mục gốc, với `JAVA_HOME` đã chọn đúng:
+
+```powershell
+.\scripts\test-local-schema.ps1
+Push-Location .\chat-service
+try { .\mvnw.cmd test } finally { Pop-Location }
+npm run validate
+npm run build
+```
+
+Xem [lệnh kiểm thử trình duyệt và Testcontainers](TESTING.md) và [các ca Cassandra
+thật](testing/chat-cassandra-acceptance.md). Trên máy đã cài Docker, dùng hai
+browser profile để kiểm tra đăng nhập, gửi tin, đọc lại sau reload và quyền
+truy cập sau khi rời phòng. Các bài Chromium dùng fixture kiểm tra giao diện và
+hợp đồng HTTP, còn xác nhận ghi dữ liệu và realtime cần hạ tầng đang chạy.

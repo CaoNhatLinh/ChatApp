@@ -57,6 +57,37 @@ class JoinResolutionRepositoryTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void pendingRetryRepairsOwnIndexBeforeManagerQueue(boolean community) {
+        prepareSession();
+        when(result.wasApplied()).thenReturn(false);
+        when(row.getString("status")).thenReturn("PENDING");
+        when(row.getUuid("request_id")).thenReturn(request);
+        when(row.getUuid("requested_at")).thenReturn(com.datastax.oss.driver.api.core.uuid.Uuids.timeBased());
+        when(row.getUuid("conversation_id")).thenReturn(conversation);
+        when(row.getUuid("user_id")).thenReturn(user);
+        if (community) {
+            assertThat(new CanonicalCqlStore(session).requestCommunityApproval(conversation, user).status())
+                    .isEqualTo("PENDING");
+        } else {
+            var invite = mock(com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalInviteLink.class);
+            when(invite.linkToken()).thenReturn("test-token");
+            when(invite.linkId()).thenReturn(UUID.randomUUID());
+            when(invite.conversationId()).thenReturn(conversation);
+            assertThat(new CassandraInviteRepository(session).requestApproval(invite, user)).isEqualTo("PENDING");
+        }
+        int ownIndex = -1;
+        int managerQueue = -1;
+        for (int index = 0; index < executed.size(); index++) {
+            if (executed.get(index).contains("INSERT INTO join_requests_by_user")) ownIndex = index;
+            if (executed.get(index).contains(community ? "INSERT INTO community_join_requests_by_conversation"
+                    : "INSERT INTO join_requests_by_conversation")) managerQueue = index;
+        }
+        assertThat(ownIndex).isGreaterThanOrEqualTo(0);
+        assertThat(managerQueue).isGreaterThan(ownIndex);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void expiredClaimCannotSwitchTheDecision(boolean community) {
         prepareSession();
         when(result.wasApplied()).thenReturn(false, true);

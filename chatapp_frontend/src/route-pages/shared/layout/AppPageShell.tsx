@@ -24,8 +24,8 @@ export const AppPageShell = ({
   );
 
   return (
-    <ShellFrame ambient="normal">
-      <div className={cn("flex min-h-[100dvh] min-w-0", fullWidth && "h-[100dvh] max-h-[100dvh] overflow-hidden")}>
+    <ShellFrame ambient="normal" className="min-h-[var(--app-viewport-height,100dvh)]">
+      <div className={cn("flex min-h-[var(--app-viewport-height,100dvh)] min-w-0", fullWidth && "h-[var(--app-viewport-height,100dvh)] max-h-[var(--app-viewport-height,100dvh)] overflow-hidden")}>
         {showNavigation ? <AppNavigationRail /> : null}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {showNavigation ? <AppGlobalHeader /> : null}

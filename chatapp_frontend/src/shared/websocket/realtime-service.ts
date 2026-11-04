@@ -14,17 +14,14 @@ class RealtimeService {
     }
 
     public async connect(token: string): Promise<void> {
+        this.ensureConnectionListener();
         if (this.client?.active) {
-            // Even if active, ensure we have a listener for potential future reconnects
-            this.ensureConnectionListener();
             return;
         }
 
         // Use the shared connectWebSocket instead of creating a private client
         await connectWebSocket(token);
 
-        this.ensureConnectionListener();
-        this.restoreSubscriptions();
         logger.info('RealtimeService synced with shared WebSocket connection');
     }
 
@@ -62,6 +59,10 @@ class RealtimeService {
             callbacks.add(callback as RealtimeCallback<any>);
         }
 
+        // The shared transport may already be connecting for presence/auth.
+        // Queued callbacks still need restoration even when connect() is never called here.
+        this.ensureConnectionListener();
+
         // If client is connected and not yet subscribed to this destination
         if (this.client?.connected && !this.subscriptions.has(destination)) {
             this.createSubscription(destination);
@@ -97,6 +98,7 @@ class RealtimeService {
     }
 
     private unsubscribe(destination: string) {
+        this.callbacks.delete(destination);
         const sub = this.subscriptions.get(destination);
         if (sub) {
             sub.unsubscribe();

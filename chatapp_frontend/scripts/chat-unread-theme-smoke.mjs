@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
+import ts from 'typescript';
+
+async function load(path, require = () => ({ UI_COPY: { status: {} }, localizedCopy: value => value })) {
+  const source = await readFile(new URL(path, import.meta.url), 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const exports = {};
+  vm.runInNewContext(`(function(exports, require) { ${code} })`, { URL })(exports, require);
+  return exports;
+}
+const { compareMessageIds } = await load('../src/features/messenger/model/message-order.ts');
+const { getUnreadBoundary } = await load('../src/widgets/chat-window/model/unread-boundary.ts', () => ({ compareMessageIds }));
+const id = n => `00000000-0000-1000-8000-${String(n).padStart(12, '0')}`;
+assert.equal(compareMessageIds(id(1), id(2)), -1);
+assert.equal(compareMessageIds(id(2), id(1)), 1);
+assert.equal(compareMessageIds(id(1), id(1)), 0);
+assert.equal(compareMessageIds('local-pending', id(1)), null);
+const message = n => ({ messageId: id(n), createdAt: `2026-10-20T08:00:0${n}Z`, sender: { userId: 'peer' } });
+const messages = [1, 2, 3].map(message);
+const state = { lastReadMessageId: id(1), lastReadAt: null, joinedAt: '2026-10-20T08:00:00Z' };
+assert.equal(getUnreadBoundary(messages, state, 'self', true).messageId, id(2));
+assert.equal(getUnreadBoundary(messages, null, 'self', false).messageId, null);
+assert.equal(getUnreadBoundary(messages.slice(1), state, 'self', true).above, true);
+assert.equal(getUnreadBoundary(messages.slice(1), state, 'self', true).messageId, null);
+assert.equal(getUnreadBoundary(messages, { ...state, lastReadMessageId: id(3) }, 'self', false).messageId, null);
+assert.equal(getUnreadBoundary(messages, state, 'peer', false).messageId, null);
+assert.equal(getUnreadBoundary([{ ...message(2), isDeleted: true }, message(3)], state, 'self', false).messageId, id(3));
+const { getRoomVisualComputed } = await load('../src/features/settings/constants/chat-theme.constants.ts');
+const settings = { defaultRoomThemeId: 'system', messageBubbleStyle: 'classic', roomThemes: {} };
+assert.equal(getRoomVisualComputed(settings, 'a', false).preset.mode, 'light');
+assert.equal(getRoomVisualComputed(settings, 'a', true).preset.mode, 'dark');
+settings.roomThemes.a = { roomThemeId: 'studio' };
+assert.equal(getRoomVisualComputed(settings, 'a', true).preset.mode, 'light');
+settings.roomThemes.a = { roomThemeId: 'vapor' };
+assert.equal(getRoomVisualComputed(settings, 'a', false).preset.mode, 'dark');
+settings.roomThemes.a = { roomThemeId: 'system' };
+assert.equal(getRoomVisualComputed(settings, 'a', true).preset.mode, 'dark');
+settings.roomThemes.a = { roomThemeId: 'studio', customBackgroundImage: 'https://example.com/background.png' };
+assert.equal(getRoomVisualComputed(settings, 'a', false).preset.mode, 'dark', 'custom image uses readable overlay and dark-room metadata');
+const { safeSharedUrl } = await load('../src/features/messenger/api/shared-content.api.ts');
+for (const unsafe of ['javascript:alert(1)', 'data:text/html,hello', '//example.com', 'https://user:password@example.com']) assert.equal(safeSharedUrl(unsafe), null);
+assert.equal(safeSharedUrl('https://example.com/a'), 'https://example.com/a');
+console.log(JSON.stringify({ passed: 22, boundary: 'Production unread ordering/boundary, follow-app/override computation, and shared URL safety' }));

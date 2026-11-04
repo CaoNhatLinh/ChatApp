@@ -5,6 +5,7 @@ info:
   description: |
     Source-controlled contract for the authenticated Nối web client.
     Cassandra remains authoritative; cursors are opaque and must not be decoded by clients.
+    Protected endpoints return 401 for missing/invalid authentication; authenticated membership or permission denials remain 403.
 servers:
   - url: http://localhost:8084/api
     description: Local development
@@ -13,9 +14,11 @@ tags:
   - name: Users
   - name: Friends
   - name: Conversations
+  - name: Calls
   - name: Communities
   - name: Messages
   - name: Polls
+  - name: Stickers
   - name: Invites
   - name: Notifications
   - name: Files
@@ -25,6 +28,642 @@ tags:
 security:
   - bearerAuth: []
 paths:
+  /admin/email-review:
+    get:
+      tags: [Admin]
+      operationId: listAdminEmailReview
+      summary: List email deliveries awaiting review
+      description: Requires SYSTEM_OPERATE. Reads a UTC job creation day. Each page checks current delivery state, so resolved or missing entries may result in an empty page with a continuation cursor.
+      parameters:
+        - {name: day, in: query, schema: {type: string, format: date}, description: Defaults to the current UTC day}
+        - {name: cursor, in: query, schema: {type: string, maxLength: 160}, description: Continuation for the same day}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        '200':
+          description: Redacted review entries. Cache-Control is no-store.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, hasNext]
+                properties:
+                  content:
+                    type: array
+                    items:
+                      type: object
+                      required: [userId, month, notificationId, attempts]
+                      properties:
+                        userId: {type: string, format: uuid}
+                        month: {type: string, pattern: '^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$'}
+                        notificationId: {type: string, format: uuid}
+                        attempts: {type: integer, minimum: 0}
+                        attemptedAt: {type: string, format: date-time, nullable: true}
+                  nextCursor: {type: string, nullable: true}
+                  hasNext: {type: boolean}
+        '400': {description: Invalid day, limit or cursor}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Missing SYSTEM_OPERATE permission}
+  /admin/email-review/{userId}/{month}/{notificationId}/disposition:
+    put:
+      tags: [Admin]
+      operationId: closeAdminEmailReview
+      summary: Close an uncertain delivery review
+      description: Requires SYSTEM_OPERATE. Persists one operator receipt for the exact delivery. An identical command by the same operator returns the recorded time, including after a provider status update. Closing a review does not send email.
+      parameters:
+        - {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: month, in: path, required: true, schema: {type: string, pattern: '^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$'}}
+        - {name: notificationId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [commandId, reason]
+              properties:
+                commandId: {type: string, format: uuid, description: Version 4 UUID}
+                reason: {type: string, minLength: 1, maxLength: 300, description: Required after trimming}
+      responses:
+        '200':
+          description: Receipt time. Cache-Control is no-store.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reviewedAt]
+                properties:
+                  reviewedAt: {type: string, format: date-time}
+        '400': {description: Invalid lookup key or review command}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Missing SYSTEM_OPERATE permission}
+        '404': {description: No email delivery for the exact key}
+        '409': {description: Delivery state or recorded review has changed}
+  /admin/email-deliveries/{userId}/{month}/{notificationId}:
+    get:
+      tags: [Admin]
+      operationId: getAdminEmailDelivery
+      summary: Look up one email delivery
+      description: Requires SYSTEM_OPERATE. Use the stored UTC notification month shown in the member's lookup details. This lookup does not alter delivery state.
+      parameters:
+        - {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: month, in: path, required: true, schema: {type: string, pattern: '^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$'}}
+        - {name: notificationId, in: path, required: true, description: Notification timeuuid, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Redacted delivery state. Cache-Control is no-store.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, attempts]
+                properties:
+                  status: {type: string, enum: [PENDING, SENDING, RETRY, SENT, DELAYED, DELIVERED, FAILED, BOUNCED, COMPLAINED, SUPPRESSED, SKIPPED, REVIEW_REQUIRED, UNKNOWN]}
+                  attempts: {type: integer, minimum: 0}
+                  attemptedAt: {type: string, format: date-time, nullable: true}
+                  retryAt: {type: string, format: date-time, nullable: true}
+                  deliveredAt: {type: string, format: date-time, nullable: true}
+                  reviewedAt: {type: string, format: date-time, nullable: true}
+        '400': {description: Invalid lookup key}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {description: Missing SYSTEM_OPERATE permission}
+        '404': {description: No email delivery for the exact key}
+  /admin/system-settings:
+    get:
+      tags: [Admin]
+      summary: Read the finite non-secret system setting catalog
+      description: Requires SYSTEM_OPERATE. No-store. Two allowlisted settings only; a never-written setting has the documented zero UUID revision and null update metadata. No arbitrary keys or environment secrets are exposed.
+      responses:
+        '200': {description: Complete finite catalog, content: {application/json: {schema: {type: array, minItems: 2, maxItems: 2, items: {$ref: '#/components/schemas/SystemSetting'}}}}}
+        '403': {description: SYSTEM_OPERATE required}
+  /admin/system-settings/{key}:
+    put:
+      tags: [Admin]
+      summary: Commit one typed setting with revision CAS and durable audit intent
+      description: Requires SYSTEM_OPERATE and no-store response. commandId is scoped to this key and actor/payload; exact replay never reapplies an older mutation and returns current authority. Stale expectedRevision conflicts without success audit. Audit export failure after commit returns auditPending=true and is retried from the same-partition durable command. Community settings affect only creation of new public communities, not existing rooms or DMs/private groups.
+      parameters: [{name: key, in: path, required: true, schema: {type: string, enum: [community.creationEnabled, community.defaultMaxMembers]}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SystemSettingUpdate'}}}}
+      responses:
+        '200': {description: Committed or exact replay receipt with current setting, content: {application/json: {schema: {$ref: '#/components/schemas/SystemSettingResult'}}}}
+        '400': {description: Unknown key, invalid JSON value type/range or invalid command/reason}
+        '403': {description: SYSTEM_OPERATE required}
+        '409': {description: Stale revision or reused command with changed payload/actor; reload explicitly}
+  /calls/history:
+    get:
+      tags: [Calls]
+      summary: Page the authenticated participant's direct-call history for a UTC month
+      description: |
+        Actor comes only from authentication. Scan at most limit immutable actor/month keys,
+        hydrate exact call authority and require current actor membership in an existing DM
+        plus exact caller/callee participation. Archive, block or peer departure does not erase
+        authorized history or grant contact permission. Inaccessible, missing and stale hints
+        are filtered; full scanned-key continuation applies even to empty content. No frozen
+        snapshot, total count or automatic cross-month scan. Overdue nonterminal calls expire
+        through existing fenced authority CAS, never through a fabricated DTO outcome.
+        Storage/invariant failure and sustained contention remain errors, not empty success.
+      parameters:
+        - {$ref: '#/components/parameters/CallHistoryMonth'}
+        - {$ref: '#/components/parameters/CallHistoryCursor'}
+        - {$ref: '#/components/parameters/CallHistoryLimit'}
+      responses:
+        '200': {$ref: '#/components/responses/CallHistoryPage'}
+        '400': {$ref: '#/components/responses/CallHistoryInvalid'}
+        '401': {description: Missing or invalid authentication, or account no longer active}
+        '409': {$ref: '#/components/responses/CallHistoryConflict'}
+        '500': {$ref: '#/components/responses/CallHistoryUnavailable'}
+  /conversations/{conversationId}/calls/history:
+    get:
+      tags: [Calls]
+      summary: Page a current member's direct-call history in one DM and UTC month
+      description: Current actor membership and existing DM are checked even for an empty page. Each result must belong to the exact historical caller/callee. No peer-membership requirement, profile/presence disclosure or implied callback eligibility. Archive/block does not erase authorized history. The same bounded scanned-key continuation and fenced overdue expiry rules as own history apply.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/CallHistoryMonth'}
+        - {$ref: '#/components/parameters/CallHistoryCursor'}
+        - {$ref: '#/components/parameters/CallHistoryLimit'}
+      responses:
+        '200': {$ref: '#/components/responses/CallHistoryPage'}
+        '400': {$ref: '#/components/responses/CallHistoryInvalid'}
+        '401': {description: Missing or invalid authentication, or account no longer active}
+        '403': {$ref: '#/components/responses/CallHistoryForbidden'}
+        '404': {$ref: '#/components/responses/CallHistoryNotFound'}
+        '409': {$ref: '#/components/responses/CallHistoryConflict'}
+        '500': {$ref: '#/components/responses/CallHistoryUnavailable'}
+  /conversations/{conversationId}/calls/{callId}/history:
+    get:
+      tags: [Calls]
+      summary: Read exact participant-authorized signaling history and two participant roles
+      description: Call IDs are scoped to the conversation. Current actor membership, existing DM and exact historical participation are required; global admin status is not a bypass. Consent/signaling facts are not proof of media attendance or talk duration. The read may expire overdue authority by fenced CAS, never acquires devices or starts/answers/ends a call on behalf of the actor.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {name: callId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Exact current public signaling history
+          headers: {Cache-Control: {schema: {type: string, const: no-store}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/CallHistoryEntry'}}}
+        '400': {$ref: '#/components/responses/CallHistoryInvalid'}
+        '401': {description: Missing or invalid authentication, or account no longer active}
+        '403': {$ref: '#/components/responses/CallHistoryForbidden'}
+        '404': {$ref: '#/components/responses/CallHistoryNotFound'}
+        '409': {$ref: '#/components/responses/CallHistoryConflict'}
+        '500': {$ref: '#/components/responses/CallHistoryUnavailable'}
+  /conversations/{conversationId}/summary:
+    get:
+      tags: [Conversations]
+      summary: Open one conversation with the same member-scoped view as the directory
+      description: Current membership is checked before reading and again before hydration. Uses the exact activity key and the user's pin slots without scanning earlier directory pages. Returns public DM peer fields, pin state, unread count and notification preference. Members can read archived conversations. A missing or moving projection returns a conflict.
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Member-scoped conversation summary
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConversationListItem'}
+        '400': {description: Invalid conversation UUID}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Not a current member}
+        '404': {description: Conversation authority is missing}
+        '409': {description: Projection is unavailable, changing activity or moving between pin slots; retry the read}
+        '500': {description: Storage or invariant failure; must not be treated as an empty summary}
+  /calls/incoming:
+    get:
+      tags: [Calls]
+      summary: Discover currently ringing direct calls addressed to the authenticated user
+      description: |
+        Actor identity comes only from the authenticated security context. Reads one callee partition
+        without enumerating conversations. Each request scans at most limit discovery keys and rechecks
+        the current slot, call authority, fixed ringing deadline, active direct conversation, both
+        memberships, both block directions and both canonical accounts still ACTIVE. Missing or inaccessible calls are filtered. Datastore
+        failures, unavailable authority and sustained contention remain errors, never an empty page.
+        This is a live feed, not a historical or frozen snapshot; concurrent insertions have no promised
+        snapshot position. Ringing eligibility ends 45 seconds after the server-created call time.
+        Subscribe to private call state before lookup and merge snapshots by their canonical version.
+        Follow nextCursor while hasNext is true, including when content is empty. A full scanned page
+        returns a continuation even if the next request is empty. This read never starts or accepts a call,
+        or acquires devices. The existing active-call authority read may expire an overdue call by fenced CAS.
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque actor-scoped continuation from the previous page. Expires 60 seconds after the initial lookup; restart without a cursor when expired. Do not construct or decode it.
+          schema: {type: string, maxLength: 1024}
+        - name: limit
+          in: query
+          description: Maximum discovery keys scanned in this request, including keys filtered from content.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 25}
+      responses:
+        '200':
+          description: Current incoming-call page; an empty content array may still have a continuation
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IncomingCallPage'}
+        '400':
+          description: Invalid limit or malformed, oversized, wrong-actor, future or expired cursor
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+        '401': {description: Missing or invalid authentication, or account no longer active}
+        '409':
+          description: Authority kept changing during bounded retries; retry discovery
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+        '500':
+          description: Authority invariant, unavailable authority or datastore failure; must not be treated as no incoming calls
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+  /conversations/{conversationId}/calls/active:
+    get:
+      tags: [Conversations]
+      summary: Find the current direct-call authority without knowing its call ID
+      description: Current member and exact call participant only; rejects archived/non-DM rooms, current blocks in either direction and an existing call whose actor or peer canonical account is missing or not ACTIVE. Reads the slot and authority with bounded consistency retries; overdue calls expire by fenced CAS before returning absence. Account-store failures remain errors. Never initializes a slot, scans history, acquires devices, accepts a call or proves media connectivity. Responses are no-store; empty is 204, not an error or an unavailable store. Historical-read permission is a separate contract.
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Current nonterminal call snapshot (point-in-time; may change immediately)
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CallSnapshot'}
+        '204':
+          description: No active call remains; no response body
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+        '400': {description: Invalid room UUID or unsupported non-DM room}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Not a current member/participant or blocked}
+        '404': {description: Missing or archived conversation}
+        '409': {description: Authority kept changing; retry the same read}
+        '500': {description: Authority invariant/storage failure; must not be treated as absence}
+  /conversations/{conversationId}/read-state:
+    get:
+      tags: [Conversations]
+      summary: Read the authenticated member's authoritative entry marker
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Membership read pointer; null message ID means no recorded read yet
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lastReadMessageId, lastReadAt, joinedAt]
+                properties:
+                  lastReadMessageId: {type: string, format: uuid, nullable: true}
+                  lastReadAt: {type: string, format: date-time, nullable: true}
+                  joinedAt: {type: string, format: date-time}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Not a member}
+  /conversations/{conversationId}/shared-content:
+    get:
+      tags: [Messages]
+      summary: Browse authorized shared content from canonical history
+      description: Bounded descending timeuuid scan across all shards in one hour. Empty pages can have continuation. Attachment continuation does not truncate large messages. Links are extracted from one message (maximum 20000 characters), without remote preview requests. Deleted messages, blocked senders and unavailable assets are excluded. There is no total count. Membership is checked again before returning a nonempty page.
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: kind, in: query, schema: {type: string, enum: [IMAGES, FILES, LINKS], default: IMAGES}}
+        - {name: cursor, in: query, schema: {type: string, maxLength: 1024}, description: Opaque actor/conversation/kind-scoped continuation}
+      responses:
+        '200':
+          description: Member-scoped content page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, hasNext, nextCursor]
+                properties:
+                  content: {type: array, items: {$ref: '#/components/schemas/SharedContentItem'}}
+                  hasNext: {type: boolean}
+                  nextCursor: {type: string, nullable: true}
+        '400': {description: Invalid kind or cursor}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Membership missing or changed during the request}
+  /conversations/{conversationId}/shared-content/{messageId}:
+    get:
+      tags: [Messages]
+      summary: Open the source message with fresh membership and visibility checks
+      parameters:
+        - {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: bucket, in: query, required: true, schema: {type: string, pattern: '^\d{4}-\d{2}-\d{2}-\d{2}:\d{2}$'}}
+      responses:
+        '200':
+          description: Current source message
+          content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}
+        '400': {description: Missing or invalid bucket or invalid source key}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Membership missing or changed during the request}
+        '404': {description: Source deleted, blocked or unavailable}
+  /sticker-packs:
+    get:
+      tags: [Stickers]
+      operationId: listStickerPacks
+      summary: Browse active sticker packs
+      description: |
+        Authenticated read-only catalog. Directory pointers are hydrated from pack authority.
+        nextCursor follows scanned entries, so an empty filtered page can still have hasNext=true.
+        Cover is null when the asset is unavailable. Responses use Cache-Control no-store.
+      parameters:
+        - {$ref: '#/components/parameters/StickerCursor'}
+        - {$ref: '#/components/parameters/StickerLimit'}
+      responses:
+        '200':
+          description: Current catalog page
+          content: {application/json: {schema: {$ref: '#/components/schemas/StickerPackPage'}}}
+        '400': {description: Invalid cursor or limit}
+        '401': {description: Authentication required}
+  /sticker-packs/{packId}/stickers:
+    get:
+      tags: [Stickers]
+      operationId: listPackStickers
+      summary: Browse active stickers with available images
+      description: Cursor is bound to this pack. Stale ordering pointers, inactive stickers and unavailable images are skipped; continue with nextCursor even on an empty page.
+      parameters:
+        - {$ref: '#/components/parameters/StickerPackId'}
+        - {$ref: '#/components/parameters/StickerCursor'}
+        - {$ref: '#/components/parameters/StickerLimit'}
+      responses:
+        '200':
+          description: Current sticker page; Cache-Control no-store
+          content: {application/json: {schema: {$ref: '#/components/schemas/StickerPage'}}}
+        '400': {description: Invalid pack ID, cursor or limit}
+        '401': {description: Authentication required}
+        '404': {description: Missing or inactive pack}
+  /admin/sticker-packs:
+    get:
+      tags: [Admin, Stickers]
+      operationId: adminListStickerPacks
+      summary: Inspect active and inactive sticker packs
+      description: Requires global SYSTEM_OPERATE permission. A room role is not sufficient. This GET only reads; mutations use the command endpoints below.
+      parameters:
+        - {$ref: '#/components/parameters/StickerCursor'}
+        - {$ref: '#/components/parameters/StickerLimit'}
+      responses:
+        '200':
+          description: Catalog inspection page; Cache-Control no-store
+          content: {application/json: {schema: {$ref: '#/components/schemas/StickerPackPage'}}}
+        '400': {description: Invalid cursor or limit}
+        '401': {description: Authentication required}
+        '403': {description: Global permission required}
+    post:
+      tags: [Admin, Stickers]
+      operationId: createStickerPack
+      summary: Create an inactive sticker pack with durable audit
+      description: Requires SYSTEM_OPERATE. Client generates commandId and stickerPackId once; retry the exact body with the same IDs after a timeout. A committed replay returns its original snapshot. No seeded artwork.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CreateStickerPack'}}}
+      responses:
+        '200': {$ref: '#/components/responses/StickerMutation'}
+        '400': {description: Invalid request or unavailable/unsupported asset}
+        '401': {description: Authentication required}
+        '403': {description: Global permission or asset ownership required}
+        '409': {description: ID conflict, reused command, or image deletion already claimed}
+  /admin/sticker-packs/{packId}:
+    get:
+      tags: [Admin, Stickers]
+      operationId: adminGetStickerPack
+      summary: Reload one authoritative pack without scanning the catalog
+      description: Requires global SYSTEM_OPERATE. Read current revision and cover identity, including when the image itself is unavailable. Cache-Control no-store.
+      parameters: [{$ref: '#/components/parameters/StickerPackId'}]
+      responses:
+        '200':
+          description: Current authoritative pack
+          content: {application/json: {schema: {$ref: '#/components/schemas/StickerPack'}}}
+        '400': {description: Invalid pack ID}
+        '401': {description: Authentication required}
+        '403': {description: Global permission required}
+        '404': {description: Missing pack}
+    put:
+      tags: [Admin, Stickers]
+      operationId: updateStickerPack
+      summary: Edit or activate/deactivate a sticker pack
+      description: Requires SYSTEM_OPERATE, expected pack revision and audit reason. Activation requires explicit human artwork review; not an automatic detector. Command results are historical snapshots; refresh after save. No hard deletion.
+      parameters: [{$ref: '#/components/parameters/StickerPackId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/UpdateStickerPack'}}}
+      responses:
+        '200': {$ref: '#/components/responses/StickerMutation'}
+        '400': {description: Invalid request, review confirmation missing or unavailable image}
+        '401': {description: Authentication required}
+        '403': {description: Global permission or new asset ownership required}
+        '404': {description: Missing pack}
+        '409': {description: Stale revision, reused command or deletion conflict; preserve draft and reload}
+  /admin/sticker-packs/{packId}/stickers:
+    get:
+      tags: [Admin, Stickers]
+      operationId: adminListPackStickers
+      summary: Inspect active and inactive stickers
+      description: Requires global SYSTEM_OPERATE. Unavailable images are null, never fabricated URLs. Cursor belongs to this pack; follow nextCursor across empty filtered pages.
+      parameters:
+        - {$ref: '#/components/parameters/StickerPackId'}
+        - {$ref: '#/components/parameters/StickerCursor'}
+        - {$ref: '#/components/parameters/StickerLimit'}
+      responses:
+        '200':
+          description: Inspection page; Cache-Control no-store
+          content: {application/json: {schema: {$ref: '#/components/schemas/StickerPage'}}}
+        '400': {description: Invalid pack ID, cursor or limit}
+        '401': {description: Authentication required}
+        '403': {description: Global permission required}
+        '404': {description: Missing pack}
+    post:
+      tags: [Admin, Stickers]
+      operationId: createSticker
+      summary: Add owned artwork to a pack
+      description: Requires SYSTEM_OPERATE and expected pack revision. Artwork is permanently retained for history. READY raster images up to 2MB/1024px only; activating requires human artwork review. PENDING scan status is not claimed clean.
+      parameters: [{$ref: '#/components/parameters/StickerPackId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CreateSticker'}}}
+      responses:
+        '200': {$ref: '#/components/responses/StickerMutation'}
+        '400': {description: Invalid request or unsupported/unavailable/unreviewed image}
+        '401': {description: Authentication required}
+        '403': {description: Global permission or asset ownership required}
+        '404': {description: Missing pack}
+        '409': {description: Stale pack revision, ID conflict, reused command or deletion conflict}
+  /admin/sticker-packs/{packId}/stickers/{stickerId}:
+    get:
+      tags: [Admin, Stickers]
+      operationId: getAdminSticker
+      summary: Read current sticker for conflict comparison
+      description: Requires SYSTEM_OPERATE. Bounded authoritative point reads, no-store. Pack revision is checked before and after reading the sticker; a concurrent catalog edit returns 409 rather than a mixed version. Unavailable artwork is null, not a replacement file.
+      parameters:
+        - {$ref: '#/components/parameters/StickerPackId'}
+        - {name: stickerId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Current sticker and the corresponding expected pack revision
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [packRevision, sticker]
+                properties:
+                  packRevision: {type: string, format: uuid}
+                  sticker: {$ref: '#/components/schemas/Sticker'}
+        '400': {description: Invalid ID}
+        '401': {description: Authentication required}
+        '403': {description: Global permission required}
+        '404': {description: Missing pack or sticker}
+        '409': {description: Catalog changed during reload; retry the read}
+    put:
+      tags: [Admin, Stickers]
+      operationId: updateSticker
+      summary: Rename, reorder or activate/deactivate a sticker
+      description: Requires SYSTEM_OPERATE and expected pack revision. Asset and pack identity are immutable; create a new sticker for different artwork. Deactivation works even when artwork is unavailable. Ordering and audit commit in the same conditional partition batch.
+      parameters:
+        - {$ref: '#/components/parameters/StickerPackId'}
+        - {name: stickerId, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/UpdateSticker'}}}
+      responses:
+        '200': {$ref: '#/components/responses/StickerMutation'}
+        '400': {description: Invalid request or unavailable/unreviewed artwork for activation}
+        '401': {description: Authentication required}
+        '403': {description: Global permission required}
+        '404': {description: Missing pack or sticker}
+        '409': {description: Stale pack revision, reused command or deletion conflict}
+  /notifications/channels:
+    get:
+      tags: [Notifications]
+      operationId: getMyNotificationChannels
+      summary: Runtime email capability for the authenticated account
+      description: No secrets or recipient addresses are returned. Cache-Control is no-store. Email currently requires an explicit server-side recipient allowlist.
+      responses:
+        '200':
+          description: Current account channel availability, not a delivery guarantee
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [emailAvailable, emailMode, webhookConfigured]
+                properties:
+                  emailAvailable: {type: boolean}
+                  emailMode: {type: string, enum: [ALLOWLIST]}
+                  webhookConfigured: {type: boolean}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /notifications/email-history:
+    get:
+      tags: [Notifications]
+      operationId: listMyNotificationEmailHistory
+      summary: Email delivery history for the signed-in account
+      description: UTC notification month, newest notification first. Cursor is scoped to the authenticated user and month. A page may be empty and still have a continuation because only notifications with an email ledger row are returned. SENT means accepted by the provider, not delivered. Cache-Control is no-store.
+      parameters:
+        - {name: month, in: query, schema: {type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'}, description: Defaults to the current UTC month}
+        - {name: cursor, in: query, schema: {type: string, maxLength: 160}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        '200':
+          description: Redacted delivery history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, hasNext]
+                properties:
+                  content:
+                    type: array
+                    items:
+                      type: object
+                      required: [notificationId, status]
+                      properties:
+                        notificationId: {type: string, format: uuid}
+                        status: {type: string, enum: [PENDING, SENDING, RETRY, SENT, DELAYED, DELIVERED, FAILED, BOUNCED, COMPLAINED, SUPPRESSED, SKIPPED, REVIEW_REQUIRED, UNKNOWN]}
+                        attemptedAt: {type: string, format: date-time, nullable: true}
+                        deliveredAt: {type: string, format: date-time, nullable: true}
+                  nextCursor: {type: string, nullable: true}
+                  hasNext: {type: boolean}
+        '400': {description: Invalid month, limit or cursor}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /webhooks/resend:
+    post:
+      tags: [Notifications]
+      operationId: receiveResendWebhook
+      summary: Receive signed Resend delivery events
+      security: []
+      description: |
+        Requires Svix HMAC-SHA256 verification over the untouched raw body and an attempt timestamp within 300 seconds.
+        Supports email.sent, email.delivery_delayed, email.delivered, email.failed, email.bounced,
+        email.complained and email.suppressed. Duplicate or older events cannot downgrade delivery state.
+        Unrelated emails or unsupported event types are acknowledged without persistence.
+        This is not a user email-send endpoint. Payload limit is 64 KiB.
+      parameters:
+        - {name: svix-id, in: header, required: true, schema: {type: string, maxLength: 256}}
+        - {name: svix-timestamp, in: header, required: true, schema: {type: string}}
+        - {name: svix-signature, in: header, required: true, schema: {type: string, maxLength: 4096}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, created_at, data]
+              properties:
+                type: {type: string}
+                created_at: {type: string, format: date-time}
+                data:
+                  type: object
+                  properties:
+                    email_id: {type: string, format: uuid}
+                    to: {type: array, items: {type: string, format: email}}
+                    tags:
+                      type: object
+                      properties:
+                        noi_user: {type: string, format: uuid}
+                        noi_month: {type: string, pattern: '^\d{4}-\d{2}$'}
+                        noi_notification: {type: string, format: uuid}
+      responses:
+        '204': {description: Persisted or safely ignored; no response body}
+        '400': {description: Signed but invalid payload or mismatched delivery identity}
+        '401': {description: Missing, expired or invalid signature}
+        '413': {description: Payload exceeds 64 KiB}
+        '503': {description: Webhook secret missing, delivery authority absent or compare-and-set contention; retry later}
+  /me/join-requests:
+    get:
+      tags: [Invites]
+      operationId: listMyJoinRequests
+      summary: Page the authenticated user's invite and community approval requests
+      description: |
+        Identity comes from the session, never a userId parameter. Cursor includes both
+        clustering keys. Status is read from the invite manager authority or current
+        community claim; superseded community attempts use terminal history only.
+        RETRY_REQUIRED means the authoritative outcome cannot be confirmed.
+        Invitation tokens and manager identities are never returned.
+      parameters:
+        - {name: cursor, in: query, schema: {type: string, maxLength: 128}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 25}}
+      responses:
+        '200':
+          description: Own request page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content, nextCursor, hasNext]
+                properties:
+                  nextCursor: {type: [string, 'null']}
+                  hasNext: {type: boolean}
+                  content:
+                    type: array
+                    items:
+                      type: object
+                      required: [conversationId, requestedAt, requestedOn, requestId, linkId, status, resolvedAt]
+                      properties:
+                        conversationId: {type: string, format: uuid}
+                        requestedAt: {type: string, format: uuid}
+                        requestedOn: {type: string, format: date-time}
+                        requestId: {type: string, format: uuid}
+                        linkId: {type: [string, 'null'], format: uuid}
+                        status: {type: string, enum: [PENDING, APPROVING, APPROVED, DECLINED, CANCELLED, FAILED, RETRY_REQUIRED]}
+                        resolvedAt: {type: [string, 'null'], format: date-time}
+        '400': {description: Invalid cursor or limit}
+        '401': {description: Authentication required}
   /health:
     get:
       tags: [Operations]
@@ -236,12 +875,21 @@ paths:
   /conversations:
     get:
       tags: [Conversations]
-      parameters: [{$ref: '#/components/parameters/Limit'}, {name: cursor, in: query, schema: {type: string}, description: Opaque cursor returned by the previous page}]
-      responses: {'200': {description: Cursor-paginated member conversation projections, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationPage'}}}}}
+      description: Pin flags come from the user's current slots. A read may attempt up to three repairs of stale pin or activity placement while retaining the original cursor. An activity move requires that the current member has read the latest message. If that message row is missing, the room stays in the page with no preview and can still report hasLastMessage=true.
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 10, maximum: 100, default: 50}, description: Maximum projection rows scanned per page}
+        - {name: cursor, in: query, schema: {type: string}, description: Opaque continuation bound to actor and normalized query/filter}
+        - {name: q, in: query, schema: {type: string, maxLength: 100}, description: Accent-insensitive conversation name or DM peer username/display name}
+        - {name: filter, in: query, schema: {type: string, enum: [ALL, UNREAD, PINNED], default: ALL}}
+      responses: {'200': {description: Bounded member directory scan. Empty content may still have a continuation. Current membership is checked before returning a room., content: {application/json: {schema: {$ref: '#/components/schemas/ConversationPage'}}}}, '400': {description: Invalid query/filter or cursor scope}}
     post:
       tags: [Conversations]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ConversationCreate'}}}}
-      responses: {'201': {description: Created conversation, content: {application/json: {schema: {$ref: '#/components/schemas/Conversation'}}}}}
+      responses:
+        '201': {description: Created conversation, content: {application/json: {schema: {$ref: '#/components/schemas/Conversation'}}}}
+        '403':
+          description: Forbidden. COMMUNITY_CREATION_DISABLED identifies the global pause for new public communities; ordinary permission failures use FORBIDDEN. No conversation is created by a paused request.
+          content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
   /communities:
     get:
       tags: [Communities]
@@ -322,11 +970,16 @@ paths:
     post:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
-      responses: {'200': {description: Pinned message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
+      responses:
+        '204': {description: Conversation pinned or already pinned}
+        '400': {description: No pin slot is available}
+        '409': {description: Pin or directory state changed during the request}
     delete:
       tags: [Conversations]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
-      responses: {'200': {description: Unpinned message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
+      responses:
+        '204': {description: Conversation unpinned or already unpinned}
+        '409': {description: The observed pin changed before it could be removed}
   /conversations/{conversationId}/roles:
     get:
       tags: [Conversations]
@@ -389,20 +1042,27 @@ paths:
       tags: [Conversations]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/MemberChatPolicy'}}}}
-      responses: {'204': {description: Member policy updated}}
+      responses:
+        '204': {description: Member policy updated}
+        '409': {description: Room owner, membership or chat policy changed before the write}
   /conversations/{conversationId}/members/{userId}/notification-policy:
     put:
       tags: [Conversations]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: userId, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MemberNotificationPolicy'}}}}
-      responses: {'204': {description: Member notification override updated}}
+      responses:
+        '204': {description: Member notification override updated}
+        '409': {description: Membership or notification override changed before the write}
   /conversations/{conversationId}/messages:
     get:
       tags: [Messages]
-      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}, {name: cursor, in: query, schema: {type: string}}]
-      responses: {'200': {description: Cursor page, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePage'}}}}}
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}, {name: cursor, in: query, schema: {type: string, maxLength: 96}}]
+      responses:
+        '200': {description: Cursor page, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePage'}}}}
+        '400': {description: Invalid history cursor}
     post:
       tags: [Messages]
+      description: STICKER sends require stickerId, empty PLAIN content and no attachments/poll. New writes validate the current active pack/sticker and available canonical artwork before reserving identity. Authority creation is conditional; a worker losing creation returns the current public message and cannot reset an edit/deletion. The actual authority creator performs initial send effects even if resuming another worker's claim. An unapplied create with missing authority conflicts and ambiguous storage errors remain errors. Already committed exact-payload retries return their original message even after catalog deactivation. For nondeleted messages, matching retries repair frozen attachment references, including ordinary media sends, before acknowledging; failed reference writes remain errors. Deleted authority rows are redacted and do not recreate attachment/source references. This is not an atomic message/media/outbox transaction or a guarantee of recovered notification/realtime side effects. Changed payload/clientMessageId reuse returns 409.
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MessageSend'}}}}
       responses: {'201': {description: Created message, content: {application/json: {schema: {$ref: '#/components/schemas/Message'}}}}}
@@ -413,13 +1073,177 @@ paths:
       responses: {'200': {description: Message}}
     put:
       tags: [Messages]
+      description: Sticker messages cannot be edited into arbitrary content; delete and send another sticker instead (400). Other existing edit authorization/revision rules remain unchanged.
       parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
       requestBody: {content: {application/json: {schema: {type: object, required: [content], properties: {content: {type: string, maxLength: 20000}}}}}}
       responses: {'200': {description: Edited message}}
     delete:
       tags: [Messages]
+      description: Sender-authorized tombstone deletion. Releases any pin using the canonical pin revision and exact slot generation; retries of an already deleted message repair remaining pins without repeating the deletion event. A pin operation observing concurrent deletion is compensated and conflicts instead of reporting pinned success. This is not an atomic cross-partition deletion/publication transaction.
       parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
       responses: {'200': {description: Deleted message}}
+  /conversations/{conversationId}/messages/{messageId}/attachments:
+    get:
+      tags: [Messages]
+      operationId: listMessageAttachments
+      summary: Read message-scoped attachment availability and confirmed media URLs
+      description: Current members only. Deleted/missing messages and blocked senders are unavailable. References are traversed within the exact room/bucket/message partition. URL and thumbnail come from the active READY asset and confirmed SMALL derivative, never client URL reconstruction. UNAVAILABLE entries have no delivery URL. An empty page is not proof that an interrupted attachment write completed. Storage errors remain errors. No provider fetch or mutation.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/MessageId'}
+        - {$ref: '#/components/parameters/Bucket'}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 25}}
+        - {name: cursor, in: query, schema: {type: string, format: uuid}, description: Last returned attachment ID within this message}
+      responses:
+        '200':
+          description: Bounded reference page; READY and UNAVAILABLE are per-file facts
+          headers: {Cache-Control: {schema: {type: string, const: no-store}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/MessageAttachmentPage'}}}
+        '400': {description: Invalid identity, bucket, limit or cursor}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Not a current member}
+        '404': {description: Message missing, deleted or blocked}
+        '500': {description: Storage failure; not an empty or unavailable success}
+  /conversations/{conversationId}/messages/{messageId}/forward-draft:
+    get:
+      tags: [Messages]
+      operationId: prepareMessageForward
+      summary: Read a source-authorized snapshot for one forward attempt
+      description: |
+        Read-only preparation, not a persisted draft or send. Requires current source
+        membership and a non-deleted, non-blocked source. Returns its public message and
+        at most50 canonical attachment records, preserving metadata including nullable
+        size/dimensions. Uses one bounded51-row attachment lookup, never a room-library
+        scan. Missing attachment rows or over-limit sources conflict. POLL/SYSTEM has
+        no copy runtime and is unavailable. The complete snapshot must be validated
+        again by message POST before allocation; this read is not an authorization token.
+        Immediate source keys come from this message identity, not any private chain.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/MessageId'}
+        - {$ref: '#/components/parameters/Bucket'}
+      responses:
+        '200':
+          description: Current source and complete bounded attachment metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, attachments]
+                properties:
+                  message: {$ref: '#/components/schemas/Message'}
+                  attachments:
+                    type: array
+                    maxItems: 50
+                    items:
+                      type: object
+                      required: [attachmentId, assetId, storageProvider, storageKey]
+                      properties:
+                        attachmentId: {type: string, format: uuid}
+                        assetId: {type: string, format: uuid}
+                        storageProvider: {type: string}
+                        storageKey: {type: string}
+                        fileName: {type: string, nullable: true}
+                        mimeType: {type: string, nullable: true}
+                        byteSize: {type: integer, format: int64, nullable: true, minimum: 0}
+                        width: {type: integer, nullable: true, minimum: 0}
+                        height: {type: integer, nullable: true, minimum: 0}
+                        durationMs: {type: integer, format: int64, nullable: true, minimum: 0}
+                        thumbnailUrl: {type: string, nullable: true}
+                        isSpoiler: {type: boolean, nullable: true}
+        '400': {description: Invalid key or unsupported POLL/SYSTEM source}
+        '401': {description: Authentication required}
+        '404': {description: Source missing, deleted, blocked or inaccessible}
+        '409': {description: Source attachments incomplete or exceed50}
+  /conversations/{conversationId}/messages/{messageId}/forward-source:
+    get:
+      tags: [Messages]
+      operationId: getForwardSource
+      summary: Resolve one immediate forward source for the current viewer
+      description: |
+        Requires destination membership before any lookup. The source key is loaded only
+        from destination message authority, never supplied by the caller. Current source
+        membership and sender block/deletion checks are repeated on each request. A missing,
+        deleted, blocked or inaccessible source returns available=false with no source data;
+        its room ID, name, bucket and message ID are not disclosed. An accessible source is
+        its current public message, not a recursive chain or destination-room list. Revocation
+        removes navigation, not the already copied destination snapshot. Cache-Control no-store.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/MessageId'}
+        - {$ref: '#/components/parameters/Bucket'}
+      responses:
+        '200':
+          description: Current authorized source or an indistinguishable unavailable state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties:
+                  available: {type: boolean}
+                  source: {allOf: [{$ref: '#/components/schemas/Message'}], nullable: true}
+        '400': {description: Invalid destination message key}
+        '401': {description: Authentication required}
+        '403': {description: Destination membership required}
+        '404': {description: Destination message missing, deleted, blocked or not forwarded}
+  /conversations/{conversationId}/messages/{messageId}/replies:
+    get:
+      tags: [Messages]
+      operationId: listMessageReplies
+      summary: Read a bounded page of direct replies to one message
+      description: |
+        Requires current conversation membership on every request, including continuation.
+        The parent ID must be a timeuuid and bucket must be a valid canonical hour/shard00–15.
+        Reads the parent index in ascending (created_at timeuuid, message_id timeuuid) order,
+        then hydrates canonical messages. Missing/stale/wrong-parent references and messages
+        from senders blocked by the actor are excluded. The parent sender is checked too;
+        missing/blocked parent returns404, while a soft-deleted parent/child is a public tombstone.
+        At most limit index entries are consumed plus one lookahead; a filtered page may be empty
+        with hasNext=true. Always follow nextCursor, not the content length. Cursors are opaque,
+        bounded, include both clustering keys and are scoped to actor/conversation/parent bucket/ID.
+        No total count, nested-descendant aggregation, snapshot isolation or unseen-side-effect
+        delivery guarantee is asserted. Concurrent backdated writes may require a refresh.
+        Cache-Control no-store. This endpoint does not grant permission to send a new reply.
+      parameters:
+        - {$ref: '#/components/parameters/ConversationId'}
+        - {$ref: '#/components/parameters/MessageId'}
+        - {$ref: '#/components/parameters/Bucket'}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 25}}
+        - {name: cursor, in: query, schema: {type: string, maxLength: 1024}}
+      responses:
+        '200':
+          description: Parent and current authorized direct replies; content may be empty with continuation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MessageThreadPage'}
+        '400': {description: Invalid message key, page limit or cursor scope/shape}
+        '401': {description: Missing or invalid authentication}
+        '403': {description: Caller is no longer a conversation member}
+        '404': {description: Parent is missing or blocked}
+  /conversations/{conversationId}/messages/{messageId}/sticker:
+    get:
+      tags: [Messages, Stickers]
+      operationId: getMessageStickerArtwork
+      summary: Read retained artwork for an authorized sticker message
+      description: Requires current conversation membership and a nondeleted STICKER message. Catalog deactivation does not hide historical artwork. Never accepts an arbitrary sticker ID or image URL. Unavailable/rejected/deleted image is null; missing sticker/message returns 404. Cache-Control no-store. No catalog management privilege required.
+      parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/MessageId'}, {$ref: '#/components/parameters/Bucket'}]
+      responses:
+        '200':
+          description: Canonical artwork or explicit unavailable image
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stickerId, name, image]
+                properties:
+                  stickerId: {type: string, format: uuid}
+                  name: {type: string}
+                  image: {oneOf: [{$ref: '#/components/schemas/StickerImage'}, {type: 'null'}]}
+        '400': {description: Invalid message identity or bucket}
+        '401': {description: Authentication required}
+        '403': {description: Not a current conversation member}
+        '404': {description: Missing/deleted/non-sticker message or missing retained sticker identity}
   /conversations/{conversationId}/messages/{messageId}/read:
     post:
       tags: [Messages]
@@ -435,15 +1259,32 @@ paths:
       tags: [Messages]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
       responses: {'200': {description: Message revisions}}
+  /conversations/{conversationId}/messages/pins:
+    get:
+      tags: [Messages]
+      description: Member-scoped no-store full pin snapshot. Revision is a decimal int64 string, never a JavaScript number. Bounded read repair checks at most five pinned references and releases only proven message tombstones through version-fenced CAS, publishing resulting full snapshots. Missing source rows are not deletion proof. Repair contention may return 409; callers may retry the snapshot lookup.
+      parameters: [{$ref: '#/components/parameters/ConversationId'}]
+      responses:
+        '200': {description: Pin snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePinState'}}}}
+        '403': {description: Membership required}
+        '409': {description: Bounded deleted-pin repair conflicted; retry snapshot lookup}
   /conversations/{conversationId}/messages/{messageId}/pin:
     post:
       tags: [Messages]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
-      responses: {'204': {description: Pinned}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePinRequest'}}}}
+      responses:
+        '200': {description: Pin result and full snapshot; an already-desired value is a no-op, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePinMutation'}}}}
+        '400': {description: Missing or invalid expected revision}
+        '409': {description: Stale intent or pin capacity reached; do not silently replay with a newer revision}
     delete:
       tags: [Messages]
       parameters: [{name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}, {name: messageId, in: path, required: true, schema: {type: string, format: uuid}}, {$ref: '#/components/parameters/Bucket'}]
-      responses: {'204': {description: Unpinned}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePinRequest'}}}}
+      responses:
+        '200': {description: Unpin result and full snapshot, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePinMutation'}}}}
+        '400': {description: Missing or invalid expected revision}
+        '409': {description: Pin state changed; reload before a new intent}
   /conversations/{conversationId}/messages/{messageId}/reactions:
     post:
       tags: [Messages]
@@ -612,13 +1453,83 @@ paths:
   /files/upload:
     post:
       tags: [Files]
-      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
-      responses: {'201': {description: Uploaded asset}}
+      description: |
+        Authenticated upload, available only when Cloudinary is configured. Each file
+        must contain 1 to 10485760 actual bytes and have an allowed MIME type. JPEG,
+        PNG, GIF and WebP receive a MIME/header and canvas preflight before provider IO:
+        maximum 16384 pixels per edge and 25000000 pixels per canvas/first frame.
+        This preflight is not full-image decoding, animation-work validation, malware
+        scanning or moderation. Cloudinary remains responsible for full decoding.
+        Images request synchronous eager SMALL/MEDIUM/LARGE (320/768/1280 edge)
+        static PNG first-frame derivatives. Each result is persisted as READY,
+        FAILED or UNAVAILABLE; no URL is manufactured for missing/invalid results.
+        thumbnailUrl is populated only from a validated READY SMALL result.
+        The original can remain usable if a thumbnail fails. A PENDING intent is
+        claimed before provider IO. Original metadata and its immutable receipt
+        transition to READY in one conditional asset update; thumbnail rows are
+        repaired from that receipt. Optional uploadId binds this owner's exact
+        file name, MIME, actual size and SHA256 to stable asset/attachment/provider
+        identities. Same-ID changes return409. Completed retries return the stored
+        receipt without provider upload and do not reset history retention/deletion.
+        Without uploadId every call starts a new intent; callers must retain IDs
+        to recover a lost acknowledgement. New COMPOSER intents may be cleaned up
+        after the configured grace period if still unreferenced.
+      parameters:
+        - {name: purpose, in: query, schema: {type: string, enum: [GENERAL, COMPOSER], default: GENERAL}}
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}, uploadId: {type: string, format: uuid, description: Optional nonzero UUID retained for this exact upload intent.}}}}}}
+      responses:
+        '201': {description: Uploaded asset and explicit derivative outcomes, content: {application/json: {schema: {$ref: '#/components/schemas/MediaUploadResponse'}}}}
+        '400': {description: Missing file, unsupported MIME, invalid image header or exceeded byte/canvas limit}
+        '409': {description: Upload ID is bound to other file data or the asset is unavailable/deleting/deleted/quarantined}
   /files/upload/multiple:
     post:
       tags: [Files]
-      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [files], properties: {files: {type: array, maxItems: 10, items: {type: string, format: binary}}}}}}}
-      responses: {'201': {description: Uploaded assets}}
+      description: |
+        One to ten sequential uploads, each with the same byte and image preflight
+        as /files/upload. This operation is not atomic: an earlier upload may have
+        completed before a later file fails. Optional repeated uploadIds must have
+        one distinct nonzero UUID per file, in file order; identity validation
+        finishes before starting any upload. Per-file retry semantics match the
+        single upload endpoint.
+      parameters:
+        - {name: purpose, in: query, schema: {type: string, enum: [GENERAL, COMPOSER], default: GENERAL}}
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [files], properties: {files: {type: array, minItems: 1, maxItems: 10, items: {type: string, format: binary}}, uploadIds: {type: array, minItems: 1, maxItems: 10, uniqueItems: true, items: {type: string, format: uuid}}}}}}}
+      responses: {'201': {description: Uploaded assets, content: {application/json: {schema: {$ref: '#/components/schemas/MediaUploadResponse'}}}}}
+  /files/uploads/{uploadId}:
+    get:
+      tags: [Files]
+      operationId: getOwnedUploadIntent
+      summary: Inspect one authenticated owner's known upload intent without provider IO
+      description: |
+        No-store point lookup. Other owners cannot use the same uploadId to read
+        this intent. PENDING and unavailable states have file=null; READY requires
+        a valid stored receipt matching current asset authority. A malformed or
+        missing receipt/storage failure is an error, not a successful pending state.
+        Inspection never uploads, generates derivatives or repairs projections.
+      parameters: [{name: uploadId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Current upload facts, content: {application/json: {schema: {$ref: '#/components/schemas/MediaUploadInspection'}}}}
+        '400': {description: Invalid or reserved zero upload ID}
+        '404': {description: No upload intent belonging to this actor}
+  /files/{assetId}/thumbnails:
+    get:
+      tags: [Files]
+      operationId: getOwnedMediaThumbnails
+      summary: Inspect persisted thumbnail outcomes for an owned ready upload
+      description: |
+        Uses only the authenticated actor; another user's asset returns 403.
+        Missing, non-ready and deleted uploads return 404. No provider call or
+        generation is triggered. applicable=false with an empty list means a
+        non-image upload. For an image, missing variants mean unavailable metadata,
+        never inferred processing or success. This is not a historical recipient
+        access route. Cache-Control no-store. Available only when Cloudinary is enabled.
+      parameters: [{name: assetId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        '200': {description: Persisted facts only, content: {application/json: {schema: {$ref: '#/components/schemas/MediaThumbnailView'}}}}
+        '400': {description: Invalid asset identifier}
+        '401': {description: Authentication required}
+        '403': {description: Asset not owned by the authenticated actor}
+        '404': {description: Asset absent, unavailable or deleted}
   /files/{assetId}:
     delete:
       tags: [Files]
@@ -627,6 +1538,7 @@ paths:
   /search/messages:
     post:
       tags: [Search]
+      description: Bounded candidate page with authoritative message/pin filtering. Content may be empty while nextCursor remains available; clients must allow continuation in that state.
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/MessageSearch'}}}}
       responses: {'200': {description: Search page, content: {application/json: {schema: {$ref: '#/components/schemas/MessageSearchPage'}}}}}
   /admin/overview:
@@ -664,9 +1576,26 @@ paths:
   /reports:
     post:
       tags: [Moderation]
-      summary: Submit a user report
+      summary: Submit a manual report for human review
+      description: |
+        New conversation and message reports require current conversation membership. Members can report archived conversations and their remaining messages. Message authors are resolved by the server. Deleted messages are unavailable for new reports.
+        A retry after an uncertain response should send the same Idempotency-Key and payload. Keys are scoped to the authenticated reporter. A successful retry returns the original report identity with its current status. Use a new key for a new report.
+        Once an authorized keyed submission is prepared, the server can finish creating it in the background even if the connection drops.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: {type: string, format: uuid}
+          description: Client-generated UUID for this submission. Requests without a key create a new report each time.
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateReport'}}}}
-      responses: {'201': {description: Created report}}
+      responses:
+        '201':
+          description: Created report or the existing report for the same keyed submission
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminReport'}}}
+        '400': {description: Invalid key or invalid or mixed target fields}
+        '403': {description: Conversation membership required}
+        '404': {description: Target unavailable}
+        '409': {description: The reporter is the target account or message author, or the key was used for a different report payload}
   /reports/mine:
     get:
       tags: [Moderation]
@@ -682,11 +1611,35 @@ paths:
         - {$ref: '#/components/parameters/Limit'}
       responses: {'200': {description: Moderation queue}}
   /admin/reports/{reportId}:
+    get:
+      tags: [Admin]
+      summary: Read one report by its exact identity
+      description: Requires REPORT_MANAGE. Returns the current authoritative status regardless of the queue partition last observed by the operator.
+      parameters:
+        - {$ref: '#/components/parameters/ReportId'}
+        - {name: reporterId, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: createdAtKey, in: query, required: true, schema: {type: string, format: uuid}, description: UUID version 1 (Cassandra timeuuid) from the report queue}
+      responses:
+        '200':
+          description: Current report
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminReport'}}}
+        '400': {description: Invalid or missing report identity}
+        '401': {description: Authentication required}
+        '403': {description: Missing report management permission}
+        '404': {description: No report matches the supplied identity}
     put:
       tags: [Admin]
+      description: Requires REPORT_MANAGE. Identifies the report by the observed queue status, UTC day, creation timeuuid and report ID. OPEN may move to IN_REVIEW, RESOLVED or DISMISSED; IN_REVIEW may move to RESOLVED or DISMISSED. Terminal reports cannot be reopened through this endpoint.
       parameters: [{$ref: '#/components/parameters/ReportId'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResolveReport'}}}}
-      responses: {'200': {description: Updated report}}
+      responses:
+        '200': {description: Updated report}
+        '400': {description: Invalid input or missing reason or terminal resolution code}
+        '403': {description: Missing report management permission}
+        '404': {description: No report matches the supplied queue key}
+        '409': {description: Requested status transition is not allowed or another decision changed the report}
   /admin/messages/{conversationId}/{messageId}:
     get:
       tags: [Admin]
@@ -731,28 +1684,39 @@ paths:
       parameters:
         - {name: month, in: query, schema: {type: string, pattern: '^\d{4}-\d{2}$'}}
         - {$ref: '#/components/parameters/Limit'}
-      responses: {'200': {description: Room summaries for the requested month}}
+      responses:
+        '200':
+          description: Bounded monthly summaries; avatarUrl is read from canonical room data, not directory artwork. Missing images are null. Image-read failures fail the request.
+          headers: {Cache-Control: {schema: {type: string, const: no-store}}}
+          content: {application/json: {schema: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AdminConversationSummary'}}}}
+        '403': {description: ROOM_READ required}
   /admin/conversations/{conversationId}:
     get:
       tags: [Admin]
       parameters: [{$ref: '#/components/parameters/ConversationId'}, {$ref: '#/components/parameters/Limit'}]
-      responses: {'200': {description: Room detail and bounded member snapshot}}
+      responses:
+        '200':
+          description: Room detail, canonical avatarUrl and bounded member snapshot
+          headers: {Cache-Control: {schema: {type: string, const: no-store}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AdminConversationSummary'}}}
+        '403': {description: ROOM_READ required}
+        '404': {description: Room unavailable}
     delete:
       tags: [Admin]
       summary: Archive a room globally
       parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
-      responses: {'200': {description: Archived room}}
+      responses: {'200': {description: Archived room, content: {application/json: {schema: {$ref: '#/components/schemas/AdminConversationSummary'}}}}}
   /admin/conversations/{conversationId}/restore:
     post:
       tags: [Admin]
       parameters: [{$ref: '#/components/parameters/ConversationId'}, {name: reason, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 500}}]
-      responses: {'200': {description: Restored room}}
+      responses: {'200': {description: Restored room, content: {application/json: {schema: {$ref: '#/components/schemas/AdminConversationSummary'}}}}}
   /admin/conversations/{conversationId}/chat-policy:
     put:
       tags: [Admin]
       parameters: [{$ref: '#/components/parameters/ConversationId'}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/AdminChatPolicyMutation'}}}}
-      responses: {'200': {description: Updated global room policy}}
+      responses: {'200': {description: Updated global room policy, content: {application/json: {schema: {$ref: '#/components/schemas/AdminConversationSummary'}}}}}
   /admin/users/{userId}/app-roles/{roleCode}:
     delete:
       tags: [Admin]
@@ -813,6 +1777,28 @@ components:
       description: Non-authorizing startup hint (`novachat_session=1`); it is not a credential and does not grant access.
       schema: {type: string}
   responses:
+    CallHistoryPage:
+      description: Current authorized history; empty content can still have a scanned-key continuation
+      headers: {Cache-Control: {schema: {type: string, const: no-store}}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/CallHistoryPage'}}}
+    CallHistoryInvalid:
+      description: Invalid month, UUID, limit, or malformed/oversized/wrong-scope cursor
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    CallHistoryForbidden:
+      description: Not a current actor member, not a DM, or not an exact historical participant
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    CallHistoryNotFound:
+      description: Conversation or exact call authority unavailable
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    CallHistoryConflict:
+      description: Authority kept changing through bounded expiry retries; reload
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    CallHistoryUnavailable:
+      description: Datastore or authority invariant failed; never interpret this as empty history
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+    StickerMutation:
+      description: Committed result or exact replay; Cache-Control no-store. auditPending means durable audit export has not completed, not a failed catalog mutation.
+      content: {application/json: {schema: {$ref: '#/components/schemas/StickerMutationResult'}}}
     GoogleAuthConflict:
       description: Email or Google identity is already owned by another canonical account
       content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
@@ -820,6 +1806,25 @@ components:
       description: Google is disabled, token verification failed, or account setup requires retry
       content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
   parameters:
+    CallHistoryMonth:
+      name: month
+      in: query
+      required: true
+      description: Explicit UTC creation month from 1970-01 through the current UTC month. No future month or automatic cross-month search.
+      schema: {type: string, minLength: 7, maxLength: 7, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'}
+    CallHistoryCursor:
+      name: cursor
+      in: query
+      description: Opaque version/actor/month/own-or-room/full-tuple continuation; do not decode or construct. Not authorization or a snapshot.
+      schema: {type: string, maxLength: 1024}
+    CallHistoryLimit:
+      name: limit
+      in: query
+      description: Maximum raw discovery keys scanned, including filtered entries.
+      schema: {type: integer, minimum: 1, maximum: 50, default: 25}
+    StickerPackId: {name: packId, in: path, required: true, schema: {type: string, format: uuid}}
+    StickerCursor: {name: cursor, in: query, description: Opaque cursor returned by the preceding page. Do not construct or decode it., schema: {type: string, maxLength: 100}}
+    StickerLimit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 25}}
     UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
     FriendId: {name: friendId, in: path, required: true, schema: {type: string, format: uuid}}
     ConversationId: {name: conversationId, in: path, required: true, schema: {type: string, format: uuid}}
@@ -831,6 +1836,356 @@ components:
     Bucket: {name: bucket, in: query, required: true, schema: {type: string, pattern: '^\\d{4}-\\d{2}-\\d{2}-\\d{2}:\\d{2}$'}}
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
   schemas:
+    AdminConversationSummary:
+      type: object
+      required: [conversationId, conversationType, visibility, joinPolicy, memberCount, chatMode, slowModeSeconds, deleted, createdAt, updatedAt, members]
+      properties:
+        conversationId: {type: string, format: uuid}
+        conversationType: {type: string}
+        visibility: {type: string}
+        joinPolicy: {type: string}
+        name: {type: [string, 'null']}
+        description: {type: [string, 'null']}
+        ownerId: {type: [string, 'null'], format: uuid}
+        memberCount: {type: integer, minimum: 0}
+        chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}
+        slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}
+        deleted: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        avatarUrl: {type: [string, 'null'], description: Optional canonical room identity image; no stock image is substituted.}
+        members:
+          type: array
+          maxItems: 500
+          items:
+            type: object
+            properties:
+              userId: {type: string, format: uuid}
+              joinedAt: {type: [string, 'null'], format: date-time}
+              mutedUntil: {type: [string, 'null'], format: date-time}
+              messageIntervalSeconds: {type: [integer, 'null'], minimum: 0}
+    SystemSettingMetadata:
+      type: object
+      required: [revision, updatedBy, updatedAt]
+      properties:
+        revision: {type: string, format: uuid, description: Opaque CAS token. Zero UUID denotes only an unwritten catalog default, not missing stored metadata.}
+        updatedBy: {type: [string, 'null'], format: uuid}
+        updatedAt: {type: [string, 'null'], format: date-time}
+    SystemSetting:
+      oneOf:
+        - allOf:
+            - {$ref: '#/components/schemas/SystemSettingMetadata'}
+            - type: object
+              required: [key, type, value, defaultValue, min, max]
+              properties:
+                key: {const: community.creationEnabled}
+                type: {const: BOOLEAN}
+                value: {type: boolean}
+                defaultValue: {const: true}
+                min: {type: 'null'}
+                max: {type: 'null'}
+        - allOf:
+            - {$ref: '#/components/schemas/SystemSettingMetadata'}
+            - type: object
+              required: [key, type, value, defaultValue, min, max]
+              properties:
+                key: {const: community.defaultMaxMembers}
+                type: {const: INTEGER}
+                value: {type: integer, minimum: 2, maximum: 100000}
+                defaultValue: {const: 10000}
+                min: {const: 2}
+                max: {const: 100000}
+    SystemSettingUpdate:
+      type: object
+      required: [commandId, expectedRevision, value, reason]
+      properties:
+        commandId: {type: string, format: uuid, not: {const: '00000000-0000-0000-0000-000000000000'}}
+        expectedRevision: {type: string, format: uuid}
+        value:
+          description: Boolean for creationEnabled; integral JSON token from2 through100000 for defaultMaxMembers. Strings, null, objects and fractional-number tokens are rejected.
+          oneOf: [{type: boolean}, {type: integer, minimum: 2, maximum: 100000}]
+        reason: {type: string, minLength: 1, maxLength: 500, description: Whitespace-only reasons are invalid; outer whitespace is stripped.}
+    SystemSettingResult:
+      type: object
+      required: [commandId, setting, auditPending]
+      properties:
+        commandId: {type: string, format: uuid}
+        setting: {$ref: '#/components/schemas/SystemSetting'}
+        auditPending: {type: boolean}
+    MessageAttachmentPage:
+      type: object
+      required: [conversationId, messageBucket, messageId, content, hasNext]
+      properties:
+        conversationId: {type: string, format: uuid}
+        messageBucket: {type: string}
+        messageId: {type: string, format: uuid}
+        content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/MessageAttachmentView'}}
+        nextCursor: {type: [string, 'null'], format: uuid}
+        hasNext: {type: boolean}
+    MessageAttachmentView:
+      type: object
+      required: [attachmentId, fileName, mimeType, byteSize, spoiler, status]
+      properties:
+        attachmentId: {type: string, format: uuid}
+        assetId: {type: [string, 'null'], format: uuid}
+        fileName: {type: string}
+        mimeType: {type: string}
+        byteSize: {type: integer, minimum: 0}
+        width: {type: [integer, 'null'], minimum: 1}
+        height: {type: [integer, 'null'], minimum: 1}
+        durationMs: {type: [integer, 'null'], minimum: 0}
+        spoiler: {type: boolean}
+        status: {type: string, enum: [READY, UNAVAILABLE]}
+        url: {type: [string, 'null'], format: uri, description: HTTPS original from READY active asset only}
+        thumbnailUrl: {type: [string, 'null'], format: uri, description: Confirmed READY SMALL derivative only}
+    MediaThumbnail:
+      type: object
+      required: [variant, status, createdAt]
+      description: READY has a validated HTTPS URL and actual positive dimensions within its variant bound. FAILED/UNAVAILABLE expose no URL or dimensions and no raw provider error. These synchronous outcomes do not imply an asynchronous retry worker.
+      properties:
+        variant: {type: string, enum: [SMALL, MEDIUM, LARGE]}
+        status: {type: string, enum: [READY, FAILED, UNAVAILABLE]}
+        url: {type: string, format: uri, nullable: true}
+        width: {type: integer, minimum: 1, maximum: 1280, nullable: true}
+        height: {type: integer, minimum: 1, maximum: 1280, nullable: true}
+        createdAt: {type: string, format: date-time}
+    MediaThumbnailView:
+      type: object
+      required: [assetId, applicable, variants]
+      properties:
+        assetId: {type: string, format: uuid}
+        applicable: {type: boolean}
+        variants: {type: array, maxItems: 3, items: {$ref: '#/components/schemas/MediaThumbnail'}}
+    MediaUploadedFile:
+      type: object
+      required: [assetId, attachmentId, url, fileName, fileSize, contentType, resourceType, publicId, storageProvider, storageKey, thumbnails]
+      properties:
+        assetId: {type: string, format: uuid}
+        attachmentId: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        fileName: {type: string}
+        fileSize: {type: integer, format: int64, minimum: 1, maximum: 10485760}
+        contentType: {type: string}
+        resourceType: {type: string, enum: [image, video, raw]}
+        publicId: {type: string}
+        thumbnailUrl: {type: string, format: uri, nullable: true}
+        width: {type: integer, nullable: true}
+        height: {type: integer, nullable: true}
+        durationMs: {type: integer, format: int64, nullable: true}
+        storageProvider: {type: string, enum: [CLOUDINARY]}
+        storageKey: {type: string}
+        thumbnails: {type: array, maxItems: 3, items: {$ref: '#/components/schemas/MediaThumbnail'}}
+    MediaUploadResponse:
+      type: object
+      required: [success]
+      properties:
+        success: {type: boolean}
+        file: {allOf: [{$ref: '#/components/schemas/MediaUploadedFile'}], nullable: true}
+        uploadedFiles: {type: array, maxItems: 10, nullable: true, items: {$ref: '#/components/schemas/MediaUploadedFile'}}
+    MediaUploadInspection:
+      type: object
+      required: [uploadId, status, file]
+      properties:
+        uploadId: {type: string, format: uuid}
+        status: {type: string, enum: [PENDING, READY, QUARANTINED, DELETING, DELETED]}
+        file: {allOf: [{$ref: '#/components/schemas/MediaUploadedFile'}], nullable: true}
+    CallHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [content, nextCursor, hasNext]
+      properties:
+        content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/CallHistoryEntry'}}
+        nextCursor: {type: [string, 'null'], maxLength: 1024, description: Scanned-key continuation when hasNext is true; null when exhausted.}
+        hasNext: {type: boolean, description: Follow the cursor even for an empty content array.}
+    CallHistoryEntry:
+      type: object
+      additionalProperties: false
+      description: Latest authorized signaling facts. ACCEPTED means consent, not proven media; ENDED is not measured talk duration. No heartbeat, provider, profile or device fields.
+      required: [conversationId, callId, callerId, calleeId, callType, direction, outcome, createdAt, acceptedAt, endedAt, version, participants]
+      properties:
+        conversationId: {type: string, format: uuid}
+        callId: {type: string, format: uuid}
+        callerId: {type: string, format: uuid}
+        calleeId: {type: string, format: uuid}
+        callType: {type: string, enum: [VOICE, VIDEO]}
+        direction: {type: string, enum: [INCOMING, OUTGOING]}
+        outcome: {type: string, enum: [RINGING, ACCEPTED, CANCELLED, DECLINED, MISSED, UNANSWERED, ENDED, FAILED], description: Authority MISSED maps to MISSED only for the callee and UNANSWERED for the caller.}
+        createdAt: {type: string, format: date-time}
+        acceptedAt: {type: [string, 'null'], format: date-time}
+        endedAt: {type: [string, 'null'], format: date-time}
+        version: {type: integer, minimum: 1}
+        participants: {type: array, minItems: 2, maxItems: 2, items: {$ref: '#/components/schemas/CallHistoryParticipant'}}
+    CallHistoryParticipant:
+      type: object
+      additionalProperties: false
+      description: Exact caller/callee facts from authority, not media join/leave attendance.
+      required: [userId, role, initiatedAt, acceptedAt]
+      properties:
+        userId: {type: string, format: uuid}
+        role: {type: string, enum: [CALLER, CALLEE]}
+        initiatedAt: {type: [string, 'null'], format: date-time, description: Creation time for caller only; null for callee.}
+        acceptedAt: {type: [string, 'null'], format: date-time, description: Consent time for callee only; null for caller.}
+    IncomingCallPage:
+      type: object
+      additionalProperties: false
+      required: [content, nextCursor, hasNext]
+      description: Live incoming discovery page ordered by deadline, conversation ID and call ID. Continuation follows the last scanned key, including filtered keys. No total count or frozen snapshot is provided.
+      properties:
+        content:
+          type: array
+          maxItems: 50
+          items: {$ref: '#/components/schemas/CallSnapshot'}
+        nextCursor:
+          type: [string, 'null']
+          maxLength: 1024
+          description: Opaque continuation when hasNext is true; null when exhausted. Expires 60 seconds after the initial lookup.
+        hasNext:
+          type: boolean
+          description: A complete raw page was scanned; continue even if content is empty. The next page may be empty.
+    CallSnapshot:
+      type: object
+      additionalProperties: false
+      required: [conversationId, callId, callerId, calleeId, callType, status, createdAt, acceptedAt, endedAt, deadline, revision, version]
+      description: Public authority snapshot shared with the STOMP contract. Acceptance is consent/signaling, not verified media connection. Terminal fields support historical use but the active endpoint only returns nonterminal snapshots.
+      properties:
+        conversationId: {type: string, format: uuid}
+        callId: {type: string, format: uuid}
+        callerId: {type: string, format: uuid}
+        calleeId: {type: string, format: uuid}
+        callType: {type: string, enum: [VOICE, VIDEO]}
+        status: {type: string, enum: [RINGING, ACCEPTED, CANCELLED, DECLINED, MISSED, ENDED, FAILED]}
+        createdAt: {type: string, format: date-time}
+        acceptedAt: {type: [string, 'null'], format: date-time}
+        endedAt: {type: [string, 'null'], format: date-time}
+        deadline: {type: string, format: date-time}
+        revision: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+    CreateStickerPack:
+      type: object
+      required: [commandId, stickerPackId, name, reason]
+      properties:
+        commandId: {type: string, format: uuid}
+        stickerPackId: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: [string, 'null'], maxLength: 500}
+        coverAssetId: {type: [string, 'null'], format: uuid}
+        isOfficial: {type: boolean, default: false}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    UpdateStickerPack:
+      type: object
+      required: [commandId, expectedRevision, name, reason]
+      properties:
+        commandId: {type: string, format: uuid}
+        expectedRevision: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: [string, 'null'], maxLength: 500}
+        coverAssetId: {type: [string, 'null'], format: uuid}
+        isOfficial: {type: boolean, default: false}
+        isActive: {type: boolean, default: false}
+        artworkReviewed: {type: boolean, default: false}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    CreateSticker:
+      type: object
+      required: [commandId, expectedRevision, stickerId, name, assetId, reason]
+      properties:
+        commandId: {type: string, format: uuid}
+        expectedRevision: {type: string, format: uuid}
+        stickerId: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 80}
+        assetId: {type: string, format: uuid}
+        sortOrder: {type: integer, minimum: 0, maximum: 999, default: 0}
+        isActive: {type: boolean, default: false}
+        artworkReviewed: {type: boolean, default: false}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    UpdateSticker:
+      type: object
+      required: [commandId, expectedRevision, name, reason]
+      properties:
+        commandId: {type: string, format: uuid}
+        expectedRevision: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 80}
+        sortOrder: {type: integer, minimum: 0, maximum: 999, default: 0}
+        isActive: {type: boolean, default: false}
+        artworkReviewed: {type: boolean, default: false}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    StickerPackState:
+      type: object
+      required: [stickerPackId, name, description, coverAssetId, isOfficial, isActive, revision, updatedAt]
+      properties:
+        stickerPackId: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string}
+        coverAssetId: {type: [string, 'null'], format: uuid}
+        isOfficial: {type: boolean}
+        isActive: {type: boolean}
+        revision: {type: string, format: uuid}
+        updatedAt: {type: string, format: date-time}
+    StickerState:
+      type: object
+      required: [stickerId, stickerPackId, name, assetId, sortOrder, isActive, revision]
+      properties:
+        stickerId: {type: string, format: uuid}
+        stickerPackId: {type: string, format: uuid}
+        name: {type: string}
+        assetId: {type: string, format: uuid}
+        sortOrder: {type: integer, minimum: 0, maximum: 999}
+        isActive: {type: boolean}
+        revision: {type: string, format: uuid}
+    StickerMutationResult:
+      type: object
+      required: [commandId, pack, sticker, auditPending]
+      properties:
+        commandId: {type: string, format: uuid}
+        pack: {$ref: '#/components/schemas/StickerPackState'}
+        sticker: {oneOf: [{$ref: '#/components/schemas/StickerState'}, {type: 'null'}]}
+        auditPending: {type: boolean}
+    StickerImage:
+      type: object
+      required: [assetId, url, mimeType, width, height]
+      properties:
+        assetId: {type: string, format: uuid}
+        url: {type: string, format: uri, pattern: '^https://'}
+        mimeType: {type: string, enum: [image/png, image/webp, image/jpeg, image/gif]}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+    StickerPack:
+      type: object
+      required: [stickerPackId, name, description, coverAssetId, cover, isOfficial, isActive, revision, updatedAt]
+      properties:
+        stickerPackId: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        coverAssetId: {type: [string, 'null'], format: uuid, description: Preserve this identity when editing metadata even if cover is null.}
+        cover: {oneOf: [{$ref: '#/components/schemas/StickerImage'}, {type: 'null'}]}
+        isOfficial: {type: boolean}
+        isActive: {type: boolean}
+        revision: {type: [string, 'null'], format: uuid}
+        updatedAt: {type: [string, 'null'], format: date-time}
+    Sticker:
+      type: object
+      required: [stickerId, stickerPackId, name, sortOrder, isActive, revision, image]
+      properties:
+        stickerId: {type: string, format: uuid}
+        stickerPackId: {type: string, format: uuid}
+        name: {type: string}
+        sortOrder: {type: integer, minimum: 0}
+        isActive: {type: boolean}
+        revision: {type: [string, 'null'], format: uuid}
+        image: {oneOf: [{$ref: '#/components/schemas/StickerImage'}, {type: 'null'}]}
+    StickerPackPage:
+      type: object
+      required: [content, nextCursor, hasNext]
+      properties:
+        content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/StickerPack'}}
+        nextCursor: {type: [string, 'null']}
+        hasNext: {type: boolean}
+    StickerPage:
+      type: object
+      required: [content, nextCursor, hasNext]
+      properties:
+        content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/Sticker'}}
+        nextCursor: {type: [string, 'null']}
+        hasNext: {type: boolean}
     RegisterRequest: {type: object, required: [username, email, password, displayName], properties: {username: {type: string, minLength: 3, maxLength: 32}, email: {type: string, format: email, maxLength: 254}, password: {type: string, format: password, minLength: 8, maxLength: 128}, displayName: {type: string, minLength: 1, maxLength: 80}}}
     LoginRequest: {type: object, required: [username, password], properties: {username: {type: string}, password: {type: string, format: password}}}
     AuthResponse: {type: object, required: [accessToken, user], properties: {accessToken: {type: string}, user: {$ref: '#/components/schemas/User'}}}
@@ -855,8 +2210,59 @@ components:
     AdminAuditEvent: {type: object, required: [eventMonth, eventId, action, resourceType, resourceId, outcome, createdAt], properties: {eventMonth: {type: string}, eventId: {type: string, format: uuid}, action: {type: string}, resourceType: {type: string}, resourceId: {type: string}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, targetUserId: {type: string, format: uuid, nullable: true}, outcome: {type: string}, reasonCode: {type: string, nullable: true}, beforeState: {type: object, additionalProperties: {type: string}}, afterState: {type: object, additionalProperties: {type: string}}, requestId: {type: string, format: uuid, nullable: true}, createdAt: {type: string, format: date-time}}}
     AdminMessageInspection: {type: object, required: [message, revisions], properties: {message: {$ref: '#/components/schemas/Message'}, revisions: {type: array, items: {$ref: '#/components/schemas/MessageRevision'}}}}
     MessageRevision: {type: object, required: [revisionNumber, action, editedAt], properties: {revisionNumber: {type: integer}, content: {type: string, nullable: true}, action: {type: string, enum: [EDIT, DELETE, RESTORE]}, editedBy: {type: string, format: uuid, nullable: true}, editedAt: {type: string, format: date-time}}}
-    CreateReport: {type: object, required: [targetType, reasonCode], properties: {targetType: {type: string, enum: [USER, MESSAGE, CONVERSATION]}, targetUserId: {type: string, format: uuid}, conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, reasonCode: {type: string, maxLength: 80}, description: {type: string, maxLength: 2000}}}
-    ResolveReport: {type: object, required: [currentStatus, reportDay, createdAtKey, nextStatus, reason], properties: {currentStatus: {type: string}, reportDay: {type: string, format: date}, createdAtKey: {type: string, format: uuid}, nextStatus: {type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED]}, assignedTo: {type: string, format: uuid}, resolutionCode: {type: string}, reason: {type: string, maxLength: 500}}}
+    CreateReport:
+      type: object
+      required: [targetType, reasonCode]
+      properties:
+        targetType: {type: string, enum: [USER, MESSAGE, CONVERSATION]}
+        targetUserId: {type: [string, 'null'], format: uuid}
+        conversationId: {type: [string, 'null'], format: uuid}
+        messageBucket: {type: [string, 'null'], description: Canonical UTC hour and two-digit shard (00–15)}
+        messageId: {type: [string, 'null'], format: uuid, description: UUID version 1 (Cassandra timeuuid)}
+        reasonCode: {type: string, minLength: 1, maxLength: 80}
+        description: {type: [string, 'null'], maxLength: 2000}
+      oneOf:
+        - required: [targetUserId]
+          properties:
+            targetType: {const: USER}
+            targetUserId: {type: string}
+            conversationId: {type: 'null'}
+            messageBucket: {type: 'null'}
+            messageId: {type: 'null'}
+        - required: [conversationId]
+          properties:
+            targetType: {const: CONVERSATION}
+            conversationId: {type: string}
+            targetUserId: {type: 'null'}
+            messageBucket: {type: 'null'}
+            messageId: {type: 'null'}
+        - required: [conversationId, messageBucket, messageId]
+          properties:
+            targetType: {const: MESSAGE}
+            conversationId: {type: string}
+            messageBucket: {type: string}
+            messageId: {type: string}
+            targetUserId: {type: 'null'}
+    AdminReport:
+      type: object
+      required: [reportId, createdAtKey, reportDay, status, reporterId, targetType, reasonCode]
+      properties:
+        reportId: {type: string, format: uuid}
+        createdAtKey: {type: string, format: uuid}
+        reportDay: {type: string, format: date}
+        status: {type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED]}
+        reporterId: {type: string, format: uuid}
+        targetType: {type: string, enum: [USER, CONVERSATION, MESSAGE]}
+        targetUserId: {type: [string, 'null'], format: uuid}
+        conversationId: {type: [string, 'null'], format: uuid}
+        messageBucket: {type: [string, 'null']}
+        messageId: {type: [string, 'null'], format: uuid}
+        reasonCode: {type: string}
+        description: {type: [string, 'null']}
+        assignedTo: {type: [string, 'null'], format: uuid}
+        resolvedAt: {type: [string, 'null'], format: date-time}
+        resolutionCode: {type: [string, 'null']}
+    ResolveReport: {type: object, required: [currentStatus, reportDay, createdAtKey, nextStatus, reason], properties: {currentStatus: {type: string, enum: [OPEN, IN_REVIEW]}, reportDay: {type: string, format: date}, createdAtKey: {type: string, format: uuid, description: UUID version 1 (Cassandra timeuuid) returned by the report queue}, nextStatus: {type: string, enum: [IN_REVIEW, RESOLVED, DISMISSED]}, assignedTo: {type: string, format: uuid}, resolutionCode: {type: string, description: Required for RESOLVED and DISMISSED}, reason: {type: string, maxLength: 500}}}
     SanctionRequest: {type: object, required: [userId, scope, sanctionType, reasonText], properties: {userId: {type: string, format: uuid}, scope: {type: string, enum: [APP, CONVERSATION]}, conversationId: {type: string, format: uuid}, sanctionType: {type: string, enum: [BAN, MUTE, SUSPEND, WARNING]}, startsAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time}, reasonCode: {type: string}, reasonText: {type: string, maxLength: 500}}}
     AdminChatPolicyMutation: {type: object, required: [chatMode, reason], properties: {chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}, reason: {type: string, minLength: 1, maxLength: 500}}}
     AdminAccountStatusMutation: {type: object, required: [accountStatus, reason], properties: {accountStatus: {type: string, enum: [ACTIVE, SUSPENDED, BANNED]}, reason: {type: string, minLength: 1, maxLength: 500}}}
@@ -866,17 +2272,32 @@ components:
     DeviceRegistrationRequest: {type: object, required: [deviceId, platform, pushProvider], properties: {deviceId: {type: string, format: uuid}, platform: {type: string, enum: [WEB, IOS, ANDROID]}, pushProvider: {type: string, enum: [FCM, APNS, WEB_PUSH]}, pushToken: {type: string, maxLength: 4096, nullable: true}, deviceName: {type: string, maxLength: 120, nullable: true}, appVersion: {type: string, maxLength: 50, nullable: true}}}
     DeviceSession: {type: object, required: [deviceId, platform, pushProvider, active, createdAt, lastSeenAt], properties: {deviceId: {type: string, format: uuid}, platform: {type: string}, pushProvider: {type: string}, deviceName: {type: string, nullable: true}, appVersion: {type: string, nullable: true}, active: {type: boolean}, createdAt: {type: string, format: date-time}, lastSeenAt: {type: string, format: date-time}}}
     AdminAnalyticsPoint: {type: object, required: [eventDay, eventType, eventShard, eventId], properties: {eventDay: {type: string, format: date}, eventType: {type: string, enum: [ROOM_CREATED, ROOM_JOINED, MESSAGE_SENT, POLLS_CREATED, POLL_VOTED, CALL_STARTED]}, eventShard: {type: integer, minimum: 0, maximum: 15}, eventId: {type: string, format: uuid}, actorId: {type: string, format: uuid, nullable: true}, conversationId: {type: string, format: uuid, nullable: true}, dimensions: {type: object, additionalProperties: {type: string}}}}
-    ChatAppearancePreferencesRequest: {type: object, required: [defaultThemeId, defaultBubbleStyleId], properties: {defaultThemeId: {type: string, enum: [aurora, neon, studio, vapor]}, defaultBubbleStyleId: {type: string, enum: [tiktok, glass, classic]}}}
-    ConversationAppearancePreferencesRequest: {type: object, required: [themeId], properties: {themeId: {type: string, enum: [aurora, neon, studio, vapor]}, customBackgroundUrl: {type: string, format: uri, nullable: true, maxLength: 2048}}}
-    ChatAppearancePreferences: {type: object, required: [defaultThemeId, defaultBubbleStyleId, rooms], properties: {defaultThemeId: {type: string, enum: [aurora, neon, studio, vapor]}, defaultBubbleStyleId: {type: string, enum: [tiktok, glass, classic]}, rooms: {type: array, items: {$ref: '#/components/schemas/ConversationAppearancePreference'}}}}
-    ConversationAppearancePreference: {type: object, required: [conversationId, themeId, updatedAt], properties: {conversationId: {type: string, format: uuid}, themeId: {type: string, enum: [aurora, neon, studio, vapor]}, customBackgroundUrl: {type: string, format: uri, nullable: true, maxLength: 2048}, updatedAt: {type: string, format: date-time}}}
+    ChatAppearancePreferencesRequest: {type: object, required: [defaultThemeId, defaultBubbleStyleId], properties: {defaultThemeId: {type: string, enum: [system, aurora, neon, studio, vapor]}, defaultBubbleStyleId: {type: string, enum: [tiktok, glass, classic]}}}
+    ConversationAppearancePreferencesRequest: {type: object, required: [themeId], properties: {themeId: {type: string, enum: [system, aurora, neon, studio, vapor]}, customBackgroundUrl: {type: string, format: uri, nullable: true, maxLength: 2048}, backgroundAssetId: {type: string, format: uuid, nullable: true, description: Owned ready image. Its canonical URL is used and the image is retained before saving.}}}
+    ChatAppearancePreferences: {type: object, required: [defaultThemeId, defaultBubbleStyleId, rooms], properties: {defaultThemeId: {type: string, enum: [system, aurora, neon, studio, vapor]}, defaultBubbleStyleId: {type: string, enum: [tiktok, glass, classic]}, rooms: {type: array, items: {$ref: '#/components/schemas/ConversationAppearancePreference'}}}}
+    ConversationAppearancePreference: {type: object, required: [conversationId, themeId, updatedAt], properties: {conversationId: {type: string, format: uuid}, themeId: {type: string, enum: [system, aurora, neon, studio, vapor]}, customBackgroundUrl: {type: string, format: uri, nullable: true, maxLength: 2048}, backgroundAssetId: {type: string, format: uuid, nullable: true}, updatedAt: {type: string, format: date-time}}}
+    SharedContentItem:
+      type: object
+      required: [id, messageId, messageBucket, createdAt, url, name, spoiler]
+      properties:
+        id: {type: string}
+        messageId: {type: string, format: uuid}
+        messageBucket: {type: string}
+        createdAt: {type: string, format: date-time}
+        url: {type: string, format: uri}
+        name: {type: string, nullable: true}
+        mimeType: {type: string, nullable: true}
+        byteSize: {type: integer, format: int64, nullable: true}
+        spoiler: {type: boolean}
     FriendRequest: {type: object, required: [recipientId], properties: {recipientId: {type: string, format: uuid}, message: {type: string, maxLength: 500}}}
     FriendAction: {type: object, required: [friendId], properties: {friendId: {type: string, format: uuid}}}
     FriendUserSummary: {type: object, required: [userId, username, displayName, accountStatus], properties: {userId: {type: string, format: uuid}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, format: uri, nullable: true}, accountStatus: {type: string}}}
     FriendshipStatus: {type: object, required: [status, userId, userDetails], properties: {status: {type: string}, userId: {type: string, format: uuid}, userDetails: {type: array, items: {$ref: '#/components/schemas/FriendUserSummary'}}}}
     ConversationCreate: {type: object, required: [conversationType], properties: {conversationType: {type: string, enum: [DM, GROUP, CHANNEL]}, visibility: {type: string, enum: [PRIVATE, PRIVATE_LINK, COMMUNITY]}, joinPolicy: {type: string, enum: [CLOSED, INVITE_ONLY, DIRECT_JOIN, REQUEST_APPROVAL]}, name: {type: string, maxLength: 120}, description: {type: string, maxLength: 2000}, createdBy: {type: string, format: uuid}, avatarUrl: {type: string, format: uri, maxLength: 2048}, avatarAssetId: {type: string, format: uuid}, categoryId: {type: string}, communityTags: {type: array, items: {type: string}}, languageCode: {type: string}, maxMembers: {type: integer, minimum: 2, maximum: 100000}, messageRetentionDays: {type: integer}, chatMode: {type: string}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}, defaultNotificationLevel: {type: string}, firstMember: {type: string, format: uuid}, memberIds: {type: array, maxItems: 200, uniqueItems: true, items: {type: string, format: uuid}}}}
-    Conversation: {type: object, required: [conversationId, conversationType, chatMode, slowModeSeconds], properties: {conversationId: {type: string, format: uuid}, conversationType: {type: string}, name: {type: string}, memberCount: {type: integer}, chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
-    ConversationListItem: {type: object, required: [conversation, pinned, unreadCount], properties: {conversation: {$ref: '#/components/schemas/Conversation'}, pinned: {type: boolean}, unreadCount: {type: integer}}}
+    Conversation: {type: object, required: [conversationId, conversationType, chatMode, slowModeSeconds], properties: {conversationId: {type: string, format: uuid}, conversationType: {type: string}, name: {type: string}, memberCount: {type: integer}, hasLastMessage: {type: boolean, description: A latest message pointer is recorded for this room}, chatMode: {type: string, enum: [OPEN, READ_ONLY, MANAGERS_ONLY]}, slowModeSeconds: {type: integer, minimum: 0, maximum: 86400}}}
+    ConversationPeer: {type: object, required: [userId, username, displayName], properties: {userId: {type: string, format: uuid}, username: {type: string}, displayName: {type: string}, avatarUrl: {type: string, nullable: true}}}
+    LastMessageSummary: {type: object, required: [messageId, messageBucket, revision, senderId, contentPreview, messageType, createdAt, deleted, hasAttachments], properties: {messageBucket: {type: string}, revision: {type: integer, minimum: 0, maximum: 2147483647}, messageId: {type: string, format: uuid}, senderId: {type: string, format: uuid}, senderDisplayName: {type: string, nullable: true}, contentPreview: {type: string}, messageType: {type: string}, createdAt: {type: string, format: date-time}, deleted: {type: boolean}, hasAttachments: {type: boolean}}}
+    ConversationListItem: {type: object, required: [conversation, pinned, unreadCount, joinedAt, notificationOverride], properties: {conversation: {$ref: '#/components/schemas/Conversation'}, pinned: {type: boolean}, unreadCount: {type: integer}, joinedAt: {type: string, format: date-time}, notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}, lastMessage: {nullable: true, allOf: [{$ref: '#/components/schemas/LastMessageSummary'}]}, peer: {nullable: true, allOf: [{$ref: '#/components/schemas/ConversationPeer'}]}}}
     ConversationPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/ConversationListItem'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
     CommunitySummary: {type: object, required: [conversationId, name, communityTags, joinPolicy, memberCount, maxMembers, lastActivityAt, membershipStatus], properties: {conversationId: {type: string, format: uuid}, name: {type: string}, description: {type: string, nullable: true}, avatarUrl: {type: string, format: uri, nullable: true}, categoryId: {type: string, nullable: true}, communityTags: {type: array, items: {type: string}}, languageCode: {type: string, nullable: true}, joinPolicy: {type: string, enum: [DIRECT_JOIN, REQUEST_APPROVAL, CLOSED]}, memberCount: {type: integer}, maxMembers: {type: integer}, lastActivityAt: {type: string, format: date-time}, membershipStatus: {type: string, enum: [AVAILABLE, PENDING, JOINED, BANNED]}}}
     CommunityPage: {type: object, required: [content, hasNext], properties: {content: {type: array, items: {$ref: '#/components/schemas/CommunitySummary'}}, nextCursor: {type: string, nullable: true}, hasNext: {type: boolean}}}
@@ -895,11 +2316,115 @@ components:
     ConversationNotificationPolicy: {type: object, required: [defaultNotificationLevel], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}}}
     MemberNotificationPolicy: {type: object, required: [notificationOverride], properties: {notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
     ConversationNotificationPolicyView: {type: object, required: [defaultNotificationLevel, notificationOverride], properties: {defaultNotificationLevel: {type: string, enum: [ALL, MENTIONS, NONE]}, notificationOverride: {type: string, enum: [INHERIT, ALL, MENTIONS, NONE]}}}
-    MessageSend: {type: object, required: [clientMessageId], properties: {clientMessageId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string, maxLength: 20000}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, mentionedUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}, mentionEveryone: {type: boolean, default: false}, attachments: {type: array}}}
-    Message: {type: object, required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, isDeleted, hasAttachments, hasMentions, isPinned, createdAt], properties: {conversationId: {type: string, format: uuid}, messageBucket: {type: string}, messageId: {type: string, format: uuid}, clientMessageId: {type: string, format: uuid, nullable: true}, senderId: {type: string, format: uuid}, messageType: {type: string}, content: {type: string}, contentFormat: {type: string}, replyToMessageId: {type: string, format: uuid, nullable: true}, replyToSenderId: {type: string, format: uuid, nullable: true}, stickerId: {type: string, format: uuid, nullable: true}, pollId: {type: string, format: uuid, nullable: true}, systemEventId: {type: string, format: uuid, nullable: true}, forwardedFromConversationId: {type: string, format: uuid, nullable: true}, forwardedFromMessageBucket: {type: string, nullable: true}, forwardedFromMessageId: {type: string, format: uuid, nullable: true}, isDeleted: {type: boolean}, deletedBy: {type: string, format: uuid, nullable: true}, deletedAt: {type: string, format: date-time, nullable: true}, editedAt: {type: string, format: date-time, nullable: true}, hasAttachments: {type: boolean}, hasMentions: {type: boolean}, isPinned: {type: boolean}, createdAt: {type: string, format: date-time}}}
+    GifReference:
+      type: object
+      required: [provider, providerGifId]
+      properties:
+        provider: {type: string, enum: [GIPHY]}
+        providerGifId: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$'}
+      description: Provider identity only. No media URL or provider availability assertion. Null on deleted public messages.
+    MessageThreadPage:
+      type: object
+      required: [parent, content, nextCursor, hasNext]
+      properties:
+        parent: {$ref: '#/components/schemas/Message'}
+        content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/Message'}}
+        nextCursor: {type: string, nullable: true, maxLength: 1024}
+        hasNext: {type: boolean}
+    MessageSend:
+      type: object
+      required: [clientMessageId, messageType, content, contentFormat]
+      description: GIF requires gif identity, empty PLAIN content and no sticker, poll or attachments. Non-GIF types reject gif. Replies require both a timeuuid replyToMessageId and its canonical replyToMessageBucket in the current conversation. The server resolves the parent sender; clients do not supply it. Missing, deleted or blocked sources return 404 before allocating a new message. Committed exact retries return the original child even if its parent was later deleted. The complete payload participates in idempotency; changed identity conflicts on the same clientMessageId.
+      properties:
+        clientMessageId: {type: string, format: uuid}
+        messageType: {type: string, enum: [TEXT, IMAGE, FILE, AUDIO, VIDEO, STICKER, GIF, POLL, SYSTEM]}
+        content: {type: string, maxLength: 20000}
+        contentFormat: {type: string}
+        replyToMessageId: {type: string, format: uuid, nullable: true}
+        replyToMessageBucket: {type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}:[0-9]{2}$', nullable: true}
+        stickerId: {type: string, format: uuid, nullable: true}
+        pollId: {type: string, format: uuid, nullable: true}
+        gif: {allOf: [{$ref: '#/components/schemas/GifReference'}], nullable: true}
+        forwardedFromConversationId: {type: string, format: uuid, nullable: true, description: Immediate source key. All three forward fields must be supplied together; server verifies source membership and exact snapshot before allocation.}
+        forwardedFromMessageBucket: {type: string, nullable: true}
+        forwardedFromMessageId: {type: string, format: uuid, nullable: true, description: Snapshot content/type/format/sticker/GIF and at most50 attachments must match source authority or409. No reply/mention semantics or POLL/SYSTEM copies. Exact committed retry precedes mutable source validation.}
+        mentionedUserIds: {type: array, uniqueItems: true, items: {type: string, format: uuid}}
+        mentionEveryone: {type: boolean, default: false}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/MessageAttachmentRequest'}
+          description: Exact canonical upload metadata, including nullable width/height/durationMs. A supplied thumbnailUrl must match a persisted READY variant of this asset, including for a source-authorized forward. Null thumbnail is allowed; missing/unavailable variants are not invented. Retry must retain the original complete command and clientMessageId, including mention fields.
+    MessageAttachmentRequest:
+      type: object
+      required: [attachmentId, assetId, storageProvider, storageKey, fileName, mimeType, byteSize]
+      properties:
+        attachmentId: {type: string, format: uuid}
+        assetId: {type: string, format: uuid}
+        storageProvider: {type: string}
+        storageKey: {type: string}
+        fileName: {type: string}
+        mimeType: {type: string}
+        byteSize: {type: integer, format: int64}
+        width: {type: integer, nullable: true}
+        height: {type: integer, nullable: true}
+        durationMs: {type: integer, format: int64, nullable: true}
+        thumbnailUrl: {type: string, format: uri, nullable: true}
+        isSpoiler: {type: boolean, nullable: true}
+    MessagePinRequest:
+      type: object
+      required: [expectedRevision]
+      properties:
+        expectedRevision: {type: string, pattern: '^(0|[1-9][0-9]{0,18})$', maxLength: 19, description: Decimal nonnegative int64 no greater than 9223372036854775807.}
+    MessagePinState:
+      type: object
+      required: [conversationId, revision, pins]
+      properties:
+        conversationId: {type: string, format: uuid}
+        revision: {type: string, pattern: '^(0|[1-9][0-9]{0,18})$', maxLength: 19}
+        pins:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [messageId, messageBucket]
+            properties: {messageId: {type: string, format: uuid}, messageBucket: {type: string}}
+    MessagePinMutation:
+      type: object
+      required: [message, pinState]
+      properties: {message: {$ref: '#/components/schemas/Message'}, pinState: {$ref: '#/components/schemas/MessagePinState'}}
+    Message:
+      type: object
+      description: Forward source keys are internal and never serialized here. Only the forwarded marker is public; use the actor-authorized forward-source endpoint to resolve navigation. Forwarded messages cannot be edited.
+      required: [conversationId, messageBucket, messageId, senderId, messageType, contentFormat, forwarded, isDeleted, hasAttachments, hasMentions, isPinned, createdAt, revision]
+      properties:
+        conversationId: {type: string, format: uuid}
+        messageBucket: {type: string}
+        messageId: {type: string, format: uuid}
+        clientMessageId: {type: string, format: uuid, nullable: true}
+        senderId: {type: string, format: uuid}
+        messageType: {type: string}
+        content: {type: string}
+        contentFormat: {type: string}
+        replyToMessageId: {type: string, format: uuid, nullable: true}
+        replyToSenderId: {type: string, format: uuid, nullable: true}
+        replyToMessageBucket: {type: string, nullable: true}
+        stickerId: {type: string, format: uuid, nullable: true}
+        pollId: {type: string, format: uuid, nullable: true}
+        gif: {allOf: [{$ref: '#/components/schemas/GifReference'}], nullable: true}
+        systemEventId: {type: string, format: uuid, nullable: true}
+        forwarded: {type: boolean, description: False for deleted messages; does not grant source access.}
+        revision: {type: integer, minimum: 0, maximum: 2147483647, description: Stored content/deletion revision. Starts at zero and increments on edit/delete; independent reaction/read/pin projections are not ordered by this number. Retained on tombstones.}
+        isDeleted: {type: boolean}
+        deletedBy: {type: string, format: uuid, nullable: true}
+        deletedAt: {type: string, format: date-time, nullable: true}
+        editedAt: {type: string, format: date-time, nullable: true}
+        hasAttachments: {type: boolean}
+        hasMentions: {type: boolean}
+        isPinned: {type: boolean}
+        createdAt: {type: string, format: date-time}
     MessageReactionView: {type: object, required: [emoji, count, reactedByCurrentUser], properties: {emoji: {type: string}, count: {type: integer, format: int64, minimum: 1}, reactedByCurrentUser: {type: boolean}}}
     MessageInteractionView: {type: object, required: [messageId, reactions], properties: {messageId: {type: string, format: uuid}, reactions: {type: array, items: {$ref: '#/components/schemas/MessageReactionView'}}, latestReadAt: {type: string, format: date-time, nullable: true}}}
-    MessagePage: {type: object, required: [content, hasNext, interactions, polls], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: string}, hasNext: {type: boolean}, interactions: {type: array, description: Bounded reaction and latest-read projection for messages in this page, items: {$ref: '#/components/schemas/MessageInteractionView'}}, polls: {type: array, description: Viewer-specific poll state only for poll messages in this page, items: {$ref: '#/components/schemas/PollView'}}}}
+    MessagePage: {type: object, required: [content, hasNext, interactions, polls], properties: {content: {type: array, items: {$ref: '#/components/schemas/Message'}}, nextCursor: {type: [string, 'null'], description: Opaque nonempty continuation distinct from the request cursor when hasNext is true. An empty page can still have a continuation. Null or omitted on the final page.}, hasNext: {type: boolean}, interactions: {type: array, description: Bounded reaction and latest-read projection for messages in this page, items: {$ref: '#/components/schemas/MessageInteractionView'}}, polls: {type: array, description: Viewer-specific poll state only for poll messages in this page, items: {$ref: '#/components/schemas/PollView'}}}}
     MessageReadReceipt: {type: object, required: [readerId, readAt], properties: {readerId: {type: string, format: uuid}, username: {type: string, nullable: true}, displayName: {type: string, nullable: true}, avatarUrl: {type: string, format: uri, nullable: true}, readAt: {type: string, format: date-time}}}
     MessageReadReceiptPage: {type: object, required: [content, nextCursor, hasNext], properties: {content: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/MessageReadReceipt'}}, nextCursor: {type: string, format: uuid, nullable: true}, hasNext: {type: boolean}}}
     MessageSearchPage: {type: object, required: [content], properties: {content: {type: array, items: {$ref: '#/components/schemas/MessageSearchResult'}}, nextCursor: {type: string, nullable: true}}}
@@ -921,7 +2446,7 @@ components:
     AppRoleMutation: {type: object, required: [roleCode, reason], properties: {roleCode: {type: string}, expiresAt: {type: string, format: date-time}, reason: {type: string, minLength: 1, maxLength: 500}}}
     MessageSearch: {type: object, properties: {conversationId: {type: string, format: uuid}, q: {type: string}, senderId: {type: string, format: uuid}, replyToSenderId: {type: string, format: uuid}, mentionUserId: {type: string, format: uuid}, messageType: {type: string}, fromAt: {type: string, format: date-time}, toAt: {type: string, format: date-time}, hasAttachment: {type: boolean}, isPinned: {type: boolean}, pageCursor: {type: string}, limit: {type: integer, minimum: 1, maximum: 100}}}
     NotificationPage: {type: object, required: [content, hasNext, hasContent], properties: {content: {type: array, items: {$ref: '#/components/schemas/NotificationView'}}, hasNext: {type: boolean}, hasContent: {type: boolean}}}
-    NotificationView: {type: object, required: [notificationId, userId, type, title, body, isRead, createdAt], properties: {notificationId: {type: string, format: uuid}, userId: {type: string, format: uuid}, type: {type: string}, title: {type: string}, body: {type: string}, isRead: {type: boolean}, createdAt: {type: string, format: date-time}, metadata: {type: object, additionalProperties: {type: string}}}}
+    NotificationView: {type: object, required: [notificationId, userId, type, title, body, isRead, createdAt], properties: {notificationId: {type: string, format: uuid}, userId: {type: string, format: uuid}, type: {type: string}, title: {type: string}, body: {type: string, description: 'An empty server-redacted preview must not be recreated from metadata.'}, isRead: {type: boolean}, createdAt: {type: string, format: date-time}, metadata: {type: object, description: 'Message and mention notifications carry the canonical messageType. Clients may localize available STICKER previews without translating user-authored text or sender names.', properties: {messageType: {type: string}}, additionalProperties: {type: string}}}}
     UnreadNotificationCount: {type: object, required: [count], properties: {count: {type: integer, minimum: 0}}}
     NotificationStats: {type: object, required: [userId, totalCount, unreadCount, readCount, weeklyCount, typeStats, lastUpdated], properties: {userId: {type: string, format: uuid}, totalCount: {type: integer, minimum: 0}, unreadCount: {type: integer, minimum: 0}, readCount: {type: integer, minimum: 0}, weeklyCount: {type: integer, minimum: 0, description: Notifications created in the rolling seven days}, typeStats: {type: object, additionalProperties: {type: integer, minimum: 0}}, lastUpdated: {type: string, format: date-time}}}
     NotificationSettingRequest: {type: object, required: [globalLevel, pushEnabled, emailEnabled, desktopEnabled, soundEnabled], properties: {globalLevel: {type: string, enum: [ALL, MENTIONS, DIRECT_ONLY, NONE]}, pushEnabled: {type: boolean}, emailEnabled: {type: boolean}, desktopEnabled: {type: boolean}, soundEnabled: {type: boolean}, quietHoursStart: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, quietHoursEnd: {type: string, nullable: true, pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d$'}, timezone: {type: string, nullable: true, maxLength: 64}}}

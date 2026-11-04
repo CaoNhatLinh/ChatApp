@@ -45,4 +45,17 @@ await assert.rejects(load({ ...storage, getItem: () => '{invalid' })
   .prepareMessageSend('user-a', payload));
 const concurrent = await Promise.all(Array.from({ length: 3 }, () => reloaded.prepareMessageSend('user-c', payload)));
 assert.equal(new Set(concurrent).size, 1);
-console.log(JSON.stringify({ passed: 12, boundary: 'Production send-attempt storage with WebCrypto and controlled per-tab storage' }, null, 2));
+const sticker = { conversationId: 'room-a', content: '', type: 'STICKER', stickerId: 'sticker-a' };
+const stickerAttempt = await reloaded.prepareMessageSend('sticker-user', sticker);
+assert.equal(await load().prepareMessageSend('sticker-user', sticker), stickerAttempt, 'same sticker retries after reload');
+assert.notEqual(await reloaded.prepareMessageSend('sticker-user', { ...sticker, stickerId: 'sticker-b' }), stickerAttempt, 'different sticker is not the previous send');
+const gif = { conversationId: 'room-a', content: '', type: 'GIF', gif: { provider: 'GIPHY', providerGifId: 'firstGif' } };
+const gifAttempt = await reloaded.prepareMessageSend('gif-user', gif);
+assert.equal(await load().prepareMessageSend('gif-user', gif), gifAttempt, 'same GIF retries after reload');
+assert.notEqual(await reloaded.prepareMessageSend('gif-user', { ...gif, gif: { provider: 'GIPHY', providerGifId: 'secondGif' } }), gifAttempt, 'different GIF is a different send attempt');
+assert.ok(![...records.values()].some(value => value.includes('firstGif') || value.includes('secondGif')), 'only the GIF payload hash is stored');
+const reply = { ...payload, replyToId: 'parent-a', replyToMessageBucket: '2026-10-20-08:03' };
+const replyAttempt = await reloaded.prepareMessageSend('reply-user', reply);
+assert.equal(await load().prepareMessageSend('reply-user', reply), replyAttempt);
+assert.notEqual(await reloaded.prepareMessageSend('reply-user', { ...reply, replyToMessageBucket: '2026-10-20-08:04' }), replyAttempt);
+console.log(JSON.stringify({ passed: 19, boundary: 'Production send-attempt storage with WebCrypto and controlled per-tab storage' }, null, 2));

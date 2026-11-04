@@ -8,9 +8,11 @@ import ts from 'typescript';
 const compile = async (path) => ts.transpileModule(await readFile(new URL(path, import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText;
-const [storeCode, tokenCode] = await Promise.all([
+const [storeCode, tokenCode, reportRetryCode] = await Promise.all([
   compile('../src/features/auth/model/auth.store.ts'), compile('../src/shared/auth/access-token.ts'),
+  compile('../src/features/moderation/model/reportRetryStorage.ts'),
 ]);
+const reportStorageKey = 'noi:report-retry:v1';
 const user = { userId: 'member-1', userName: 'linh', displayName: 'Linh' };
 const deferred = () => {
   let resolve, reject;
@@ -20,7 +22,9 @@ const deferred = () => {
 const unavailable = () => new AxiosError('Unavailable', 'ERR_BAD_RESPONSE', undefined, undefined, { status: 503 });
 
 function harness(api) {
-  const context = vm.createContext({ Error, document: { cookie: 'novachat_session=1' } });
+  const storage = new Map([[reportStorageKey, 'pending report identity']]);
+  const context = vm.createContext({ Error, document: { cookie: 'novachat_session=1' },
+    window: { sessionStorage: { removeItem: key => storage.delete(key) } } });
   const load = (code, imports = {}) => {
     const exports = {};
     vm.runInContext(`(function(exports, require) { ${code}\n})`, context)(exports, (name) => {
@@ -39,10 +43,12 @@ function harness(api) {
     '@/features/messenger/model/messenger.store': { useMessengerStore: resetStore },
     '@/features/notifications/model/notification.store': { useNotificationStore: resetStore },
     '@/features/presence/model/presence.store': { usePresenceStore: resetStore },
+    '@/features/calls/model/incoming-call.store': { useIncomingCallStore: resetStore },
+    '@/features/moderation/model/reportRetryStorage': load(reportRetryCode),
     '@/shared/lib/logger': { logger: { warn() {}, debug() {}, error() {} } },
     '@/shared/auth/access-token': tokens,
   }).useAuthStore;
-  return { store, tokens };
+  return { store, tokens, storage };
 }
 
 let checks = 0;
@@ -56,6 +62,7 @@ let checks = 0;
   assert.equal(app.tokens.hasSessionHint(), true, 'Transient init failure must keep the refresh cookie hint');
   assert.equal(app.store.getState().initializationError, 'unavailable');
   assert.equal(app.store.getState().loading, false);
+  assert.equal(app.storage.has(reportStorageKey), true, 'A temporary refresh failure preserves same-tab retry');
   await app.store.getState().initializeAuth();
   assert.equal(app.store.getState().user, user);
   assert.equal(app.store.getState().initializationError, null);
@@ -71,6 +78,7 @@ let checks = 0;
   assert.equal(app.tokens.getAccessToken(), undefined, 'Logout must win over an in-flight refresh');
   assert.equal(app.store.getState().user, null);
   assert.equal(app.store.getState().loading, false);
+  assert.equal(app.storage.has(reportStorageKey), false, 'Logout clears pending report keys');
   checks += 1;
 }
 {
@@ -116,6 +124,7 @@ for (const outcome of ['success', 'failure']) {
   assert.equal(app.tokens.hasSessionHint(), false);
   assert.equal(app.store.getState().initializationError, null);
   assert.equal(app.store.getState().user, null);
+  assert.equal(app.storage.has(reportStorageKey), false, 'Rejected sessions clear pending report keys');
   checks += 1;
 }
 console.log(JSON.stringify({ passed: checks, boundary: 'Production Zustand auth lifecycle, controlled API responses' }, null, 2));

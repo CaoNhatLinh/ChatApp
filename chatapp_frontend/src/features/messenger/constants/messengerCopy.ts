@@ -127,6 +127,7 @@ const rawMessengerCopy = {
     loadConversationsFailed: "Không thể tải danh sách hội thoại.",
     loadMessagesFailed: "Không thể tải tin nhắn.",
     sendMessageFailed: "Không thể gửi tin nhắn.",
+    pinStateUnavailable: "Chưa tải được trạng thái ghim. Bấm Thử lại ở đầu cuộc trò chuyện.",
   },
     messageInput: {
     placeholder: "Viết tin nhắn của bạn...",
@@ -196,7 +197,6 @@ const rawMessengerCopy = {
       dnd: "Không làm phiền",
       online: "Đang hoạt động",
       offline: "Ngoại tuyến",
-      groupMemberSuffix: "thành viên",
     },
     messageAction: {
       copySuccess: "Đã sao chép tin nhắn.",
@@ -233,6 +233,7 @@ const rawMessengerCopy = {
         { value: "AUDIO", label: "Âm thanh" },
         { value: "VIDEO", label: "Video" },
         { value: "STICKER", label: "Sticker" },
+        { value: "GIF", label: "GIF" },
         { value: "POLL", label: "Bình chọn" },
         { value: "SYSTEM", label: "Hệ thống" },
       ],

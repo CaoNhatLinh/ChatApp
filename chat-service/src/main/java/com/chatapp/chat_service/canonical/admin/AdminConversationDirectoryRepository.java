@@ -11,15 +11,19 @@ import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /** Bounded, operator-only room projection; never scans conversations_by_id. */
 @Repository
 public class AdminConversationDirectoryRepository {
+    private static final int AVATAR_BATCH_SIZE = 32;
     private final CqlSession session;
     private final PreparedStatement upsert;
     private final PreparedStatement listByMonth;
     private final PreparedStatement loadConversation;
+    private final PreparedStatement loadAvatars;
     private final PreparedStatement loadMembershipState;
     private final PreparedStatement listMembers;
     private final PreparedStatement updatePolicy;
@@ -39,6 +43,7 @@ public class AdminConversationDirectoryRepository {
                 WHERE month = ? LIMIT ?
                 """);
         this.loadConversation = session.prepare("SELECT * FROM conversations_by_id WHERE conversation_id = ?");
+        this.loadAvatars = session.prepare("SELECT conversation_id, avatar_url FROM conversations_by_id WHERE conversation_id IN ?");
         this.loadMembershipState = session.prepare("""
                 SELECT member_count FROM conversation_members_by_conversation
                 WHERE conversation_id = ? LIMIT 1
@@ -73,9 +78,20 @@ public class AdminConversationDirectoryRepository {
         String selectedMonth = requestedMonth == null || requestedMonth.isBlank()
                 ? month(Instant.now()) : requestedMonth;
         int limit = Math.max(1, Math.min(requestedLimit, 200));
-        return session.execute(listByMonth.bind(selectedMonth, limit)).all().stream()
+        List<AdminConversationSummary> summaries = session.execute(listByMonth.bind(selectedMonth, limit)).all().stream()
+                .limit(limit)
                 .map(this::mapSummary)
                 .toList();
+        if (summaries.isEmpty()) return summaries;
+        List<UUID> ids = summaries.stream().map(AdminConversationSummary::conversationId).distinct().toList();
+        Map<UUID, String> avatars = new HashMap<>();
+        for (int offset = 0; offset < ids.size(); offset += AVATAR_BATCH_SIZE) {
+            List<UUID> group = ids.subList(offset, Math.min(offset + AVATAR_BATCH_SIZE, ids.size()));
+            for (Row row : session.execute(loadAvatars.bind(group)).all()) {
+                avatars.put(row.getUuid("conversation_id"), row.getString("avatar_url"));
+            }
+        }
+        return summaries.stream().map(summary -> summary.withAvatar(avatars.get(summary.conversationId()))).toList();
     }
 
     public AdminConversationSummary find(UUID conversationId) {
@@ -90,7 +106,7 @@ public class AdminConversationDirectoryRepository {
                 row.getString("join_policy"), row.getString("name"), row.getString("description"),
                 row.getUuid("owner_id"), membership.getInt("member_count"), row.getString("chat_mode"),
                 row.getInt("slow_mode_seconds"), row.getBoolean("is_deleted"), row.getInstant("created_at"),
-                row.getInstant("updated_at"), List.of());
+                row.getInstant("updated_at"), List.of(), row.getString("avatar_url"));
     }
 
     public AdminConversationSummary detail(UUID conversationId, int requestedLimit) {
@@ -126,7 +142,7 @@ public class AdminConversationDirectoryRepository {
                 row.getString("join_policy"), row.getString("name"), row.getString("description"),
                 row.getUuid("owner_id"), row.getInt("member_count"), row.getString("chat_mode"),
                 row.getInt("slow_mode_seconds"), row.getBoolean("is_deleted"), row.getInstant("created_at"),
-                row.getInstant("updated_at"), List.of());
+                row.getInstant("updated_at"), List.of(), null);
     }
 
     private void upsert(AdminConversationSummary summary) {
@@ -154,20 +170,26 @@ public class AdminConversationDirectoryRepository {
             Boolean deleted,
             Instant createdAt,
             Instant updatedAt,
-            List<AdminMemberSummary> members) {
+            List<AdminMemberSummary> members,
+            String avatarUrl) {
         AdminConversationSummary withMembers(List<AdminMemberSummary> nextMembers) {
             return new AdminConversationSummary(conversationId, conversationType, visibility, joinPolicy, name,
-                    description, ownerId, memberCount, chatMode, slowModeSeconds, deleted, createdAt, updatedAt, nextMembers);
+                    description, ownerId, memberCount, chatMode, slowModeSeconds, deleted, createdAt, updatedAt, nextMembers, avatarUrl);
         }
 
         AdminConversationSummary withPolicy(String nextChatMode, int nextSlowModeSeconds, Instant nextUpdatedAt) {
             return new AdminConversationSummary(conversationId, conversationType, visibility, joinPolicy, name,
-                    description, ownerId, memberCount, nextChatMode, nextSlowModeSeconds, deleted, createdAt, nextUpdatedAt, members);
+                    description, ownerId, memberCount, nextChatMode, nextSlowModeSeconds, deleted, createdAt, nextUpdatedAt, members, avatarUrl);
         }
 
         AdminConversationSummary withArchived(boolean nextDeleted, Instant nextUpdatedAt) {
             return new AdminConversationSummary(conversationId, conversationType, visibility, joinPolicy, name,
-                    description, ownerId, memberCount, chatMode, slowModeSeconds, nextDeleted, createdAt, nextUpdatedAt, members);
+                    description, ownerId, memberCount, chatMode, slowModeSeconds, nextDeleted, createdAt, nextUpdatedAt, members, avatarUrl);
+        }
+
+        AdminConversationSummary withAvatar(String nextAvatarUrl) {
+            return new AdminConversationSummary(conversationId, conversationType, visibility, joinPolicy, name,
+                    description, ownerId, memberCount, chatMode, slowModeSeconds, deleted, createdAt, updatedAt, members, nextAvatarUrl);
         }
     }
 

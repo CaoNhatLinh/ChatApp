@@ -67,6 +67,10 @@ class NotificationServiceTest {
     private NotificationService service() {
         return new NotificationService(notifications, realtime, messages);
     }
+    @Test
+    void missingPreferencesNeverOptUserIntoEmail() {
+        assertThat(service().getSettings(UUID.randomUUID()).emailEnabled()).isFalse();
+    }
 
     @Test
     void neverReturnsRetainedPreviewWhenMessageIsNoLongerAvailable() {

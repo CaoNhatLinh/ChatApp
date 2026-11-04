@@ -3,6 +3,7 @@ package com.chatapp.chat_service.canonical.appearance;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationPreferences;
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.DefaultConsistencyLevel;
 import com.datastax.oss.driver.api.core.cql.PreparedStatement;
 import com.datastax.oss.driver.api.core.cql.Row;
 import org.springframework.stereotype.Repository;
@@ -16,6 +17,7 @@ public class CassandraAppearanceRepository implements AppearanceRepository {
     private final PreparedStatement findUserPreferences;
     private final PreparedStatement saveUserPreferences;
     private final PreparedStatement findConversationPreferences;
+    private final PreparedStatement findRoomPreferences;
     private final PreparedStatement saveConversationPreferences;
     private final PreparedStatement deleteConversationPreferences;
 
@@ -30,6 +32,9 @@ public class CassandraAppearanceRepository implements AppearanceRepository {
                 """);
         this.findConversationPreferences = session.prepare("""
                 SELECT * FROM conversation_preferences_by_user WHERE user_id = ? LIMIT ?
+                """);
+        this.findRoomPreferences = session.prepare("""
+                SELECT * FROM conversation_preferences_by_user WHERE user_id = ? AND conversation_id = ?
                 """);
         this.saveConversationPreferences = session.prepare("""
                 INSERT INTO conversation_preferences_by_user
@@ -66,11 +71,19 @@ public class CassandraAppearanceRepository implements AppearanceRepository {
     }
 
     @Override
+    public CanonicalConversationPreferences findConversationPreferences(UUID userId, UUID conversationId) {
+        Row row = session.execute(findRoomPreferences.bind(userId, conversationId)
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)).one();
+        return row == null ? null : mapConversationPreferences(row);
+    }
+
+    @Override
     public void saveConversationPreferences(CanonicalConversationPreferences preferences) {
         session.execute(saveConversationPreferences.bind(
                 preferences.userId(), preferences.conversationId(), preferences.themeId(),
                 preferences.bubbleStyleId(), preferences.backgroundAssetId(),
-                preferences.customBackgroundUrl(), preferences.updatedAt()));
+                preferences.customBackgroundUrl(), preferences.updatedAt())
+                .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM));
     }
 
     @Override

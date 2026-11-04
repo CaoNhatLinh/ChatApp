@@ -23,9 +23,7 @@ must not introduce a second endpoint or status vocabulary.
 
 ## Verification
 
-The current manifest contains 92 HTTP paths and 20 unique STOMP destinations
-(all represented as named AsyncAPI channels). Contract
-tests check that canonical route fragments exist and that protected auth paths
-are not accidentally covered by the public wildcard. Live Cassandra/Kafka/
-Redis/Elasticsearch integration remains an environment-dependent gate and must
-be reported as blocked when those services are unavailable.
+The current manifests declare 144 HTTP paths and 30 named AsyncAPI channels.
+Contract tests check canonical routes and the boundary of the public auth
+wildcard. See the [test guide](../TESTING.md) for the Cassandra, Kafka, Redis and
+Elasticsearch verification steps that require running services.

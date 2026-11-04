@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from './Dialog';
 import { cn } from '@/shared/lib/cn';
 
@@ -11,6 +11,7 @@ interface ModalShellProps {
   className?: string;
   closeDisabled?: boolean;
   showClose?: boolean;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 /** Canonical modal boundary for portal, focus, Escape, overlay, and scroll lock. */
@@ -23,6 +24,7 @@ export function ModalShell({
   className,
   closeDisabled = false,
   showClose = true,
+  returnFocusRef,
 }: ModalShellProps) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
@@ -30,6 +32,12 @@ export function ModalShell({
     }}>
       <DialogContent
         showClose={showClose}
+        onCloseAutoFocus={event => {
+          if (returnFocusRef?.current) {
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }
+        }}
         onEscapeKeyDown={(event) => {
           if (closeDisabled) event.preventDefault();
         }}

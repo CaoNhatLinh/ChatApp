@@ -6,13 +6,15 @@ import { ThemeProvider } from '@/app/providers/ThemeProvider';
 import { AuthProvider } from '@/app/providers/AuthProvider';
 import { useAuthStore } from '@/features/auth/model/auth.store';
 import AdminPage from '@/route-pages/AdminPage';
-import { AppI18nProvider, localizeText } from '@/shared/i18n';
+import { useAppLocale } from '@/shared/i18n';
 import { DeviceLifecycleManager } from '@/features/devices/ui/DeviceLifecycleManager';
 import { AppToaster } from '@/shared/ui/AppToaster';
 import { AuthSessionRecovery } from '@/features/auth/ui/AuthSessionRecovery';
+import { SystemSettingsExitBoundary } from '@/features/settings/ui/SystemSettingsExitBoundary';
 
 export default function AdminEntry() {
   const router = useRouter();
+  const { locale } = useAppLocale();
   const { user, token, loading, initializationError, initializeAuth } = useAuthStore();
 
   useEffect(() => {
@@ -26,22 +28,22 @@ export default function AdminEntry() {
   }, [initializationError, loading, router, token, user]);
 
   if (initializationError) {
-    return <AppI18nProvider><ThemeProvider><AuthSessionRecovery /></ThemeProvider></AppI18nProvider>;
+    return <ThemeProvider><AuthSessionRecovery /></ThemeProvider>;
   }
 
   if (loading || !token || !user) {
-    return <AppI18nProvider><div className="page-shell flex min-h-[100dvh] items-center justify-center p-6"><div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground"><img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />{localizeText('Đang kiểm tra phiên quản trị...')}</div></div></AppI18nProvider>;
+    return <div className="page-shell flex min-h-[100dvh] items-center justify-center p-6"><div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground"><img src="/noi-mark.svg" alt="" aria-hidden="true" className="h-8 w-8 object-contain" />{locale === 'vi' ? 'Đang kiểm tra phiên quản trị...' : 'Checking admin session...'}</div></div>;
   }
 
   return (
-    <AppI18nProvider>
       <ThemeProvider>
         <AuthProvider>
           <AppToaster />
           <DeviceLifecycleManager />
-          <AdminPage onBackToApp={() => router.push('/app')} />
+          <SystemSettingsExitBoundary onExit={() => router.push('/app')}>
+            {requestExit => <AdminPage onBackToApp={requestExit} />}
+          </SystemSettingsExitBoundary>
         </AuthProvider>
       </ThemeProvider>
-    </AppI18nProvider>
   );
 }

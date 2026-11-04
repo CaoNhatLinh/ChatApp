@@ -24,7 +24,7 @@ class PollServiceRecoveryTest {
                 "Where?", List.of("Here", "There"), false, false, false, actor, Instant.now(), null, null, null);
         CanonicalMessage message = new CanonicalMessage(room, existing.messageBucket(), existing.messageId(), actor,
                 "POLL", "Where?", "PLAIN", null, null, null, id, null, null, null, null,
-                false, null, null, null, false, false, false, existing.createdAt(), client);
+                false, null, null, null, false, false, false, existing.createdAt(), client, null, null, 0);
         when(messages.sendMessage(eq(actor), eq(room), any())).thenReturn(message);
         when(polls.findById(any())).thenReturn(existing);
         when(polls.findStates(List.of(id), actor)).thenReturn(Map.of(id,

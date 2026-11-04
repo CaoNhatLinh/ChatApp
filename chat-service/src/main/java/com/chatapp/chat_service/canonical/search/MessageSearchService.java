@@ -64,9 +64,6 @@ public class MessageSearchService {
         if (request.hasAttachment() != null) {
             filters.add(term("hasAttachments", request.hasAttachment()));
         }
-        if (request.isPinned() != null) {
-            filters.add(term("isPinned", request.isPinned()));
-        }
         if (request.fromAt() != null || request.toAt() != null) {
             Map<String, Object> bounds = new LinkedHashMap<>();
             if (request.fromAt() != null) bounds.put("gte", request.fromAt().toString());
@@ -97,14 +94,17 @@ public class MessageSearchService {
                     ? null
                     : encodeCursor(hits.get(hits.size() - 1).getSortValues());
             List<SearchResult> visible = new ArrayList<>();
+            if (hits.isEmpty()) return new SearchPage(List.of(), nextCursor);
+            var pins = messages.findPinState(request.conversationId());
             for (SearchHit<MessageSearchDocument> hit : hits) {
                 MessageSearchDocument document = hit.getContent();
                 CanonicalMessage current = messages.find(request.conversationId(), document.getMessageBucket(),
                         UUID.fromString(document.getMessageId()));
                 // Search is a candidate index, never the authority for retained content.
                 if (current == null || Boolean.TRUE.equals(current.isDeleted())) continue;
-                if (request.isPinned() != null && !request.isPinned().equals(Boolean.TRUE.equals(current.isPinned()))) continue;
-                visible.add(SearchResult.from(current, document.getMentionedUserIds()));
+                boolean pinned = pins.contains(current.messageBucket(), current.messageId());
+                if (request.isPinned() != null && !request.isPinned().equals(pinned)) continue;
+                visible.add(SearchResult.from(current, document.getMentionedUserIds(), pinned));
             }
             return new SearchPage(List.copyOf(visible), nextCursor);
         } catch (BadRequestException exception) {
@@ -153,7 +153,7 @@ public class MessageSearchService {
             boolean isDeleted,
             Instant createdAt) {
 
-        private static SearchResult from(CanonicalMessage message, Set<String> mentionedUserIds) {
+        private static SearchResult from(CanonicalMessage message, Set<String> mentionedUserIds, boolean pinned) {
             return new SearchResult(
                     message.messageId().toString(),
                     message.conversationId().toString(),
@@ -164,7 +164,7 @@ public class MessageSearchService {
                     message.messageType(),
                     message.content(),
                     Boolean.TRUE.equals(message.hasAttachments()),
-                    Boolean.TRUE.equals(message.isPinned()),
+                    pinned,
                     false,
                     message.createdAt());
         }

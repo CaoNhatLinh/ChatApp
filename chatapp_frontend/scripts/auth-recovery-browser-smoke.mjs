@@ -37,7 +37,9 @@ try {
           : json({ code: 'SERVICE_UNAVAILABLE' }, 503);
       }
       if (path.endsWith('/auth/me')) return json(user);
+      if (path.endsWith('/calls/incoming')) return json({ content: [], nextCursor: null, hasNext: false });
       if (path.endsWith('/notifications/settings')) return json(settings);
+      if (path.endsWith('/notifications/channels')) return json({ emailAvailable: false, emailMode: 'DISABLED', webhookConfigured: false });
       if (path.endsWith('/admin/overview')) return json({ code: 'FORBIDDEN' }, 403);
       if (path.endsWith('/devices')) return json({
         ...route.request().postDataJSON(), appVersion: null, active: true,
@@ -75,7 +77,7 @@ try {
       await page.locator('h1').waitFor();
     }
     assert.deepEqual(pageErrors, []);
-    assert.deepEqual(consoleErrors.filter((message) => !message.includes('503 (Service Unavailable)')), []);
+    assert.deepEqual(consoleErrors.filter((message) => !message.includes('503 (Service Unavailable)')), [], JSON.stringify({ unexpectedRequests, failedRequests }));
     assert.deepEqual(failedRequests, []);
     assert.deepEqual(unexpectedRequests, []);
     results.push({ ...scenario, refreshCount });

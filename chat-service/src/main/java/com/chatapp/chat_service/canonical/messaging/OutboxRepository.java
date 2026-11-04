@@ -8,8 +8,13 @@ public interface OutboxRepository {
     void enqueue(OutboxEvent event);
 
     List<OutboxEvent> findPending(String partition, int limit);
+    ReportPendingPage findReportPending(String partition, UUID after, int limit);
+    boolean hasReportReceipt(String partition, UUID eventId);
+    OutboxEvent findLegacyReportPending(UUID decisionId);
 
     void recordPublishAttempt(OutboxEvent event, Instant publishedAt);
+
+    record ReportPendingPage(List<OutboxEvent> events, UUID lastScanned) {}
 
     record OutboxEvent(
             String eventPartition,

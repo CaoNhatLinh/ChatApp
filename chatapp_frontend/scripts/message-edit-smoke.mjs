@@ -1,7 +1,10 @@
 import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { switchLocaleInSettings } from './switch-locale-in-settings.mjs';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
+const disconnected = process.env.EDIT_OFFLINE_CALLS === '1';
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const token = 'eyJhbGciOiJub25lIn0.eyJleHAiOjQxMDAwMDAwMDB9.signature';
 const ownerId = '00000000-0000-0000-0000-000000000301';
@@ -43,7 +46,7 @@ const message = {
   messageId,
   senderId: ownerId,
   content: originalContent,
-  messageType: 'TEXT',
+  revision: 0, messageType: 'TEXT',
   contentFormat: 'PLAIN_TEXT',
   isDeleted: false,
   hasAttachments: false,
@@ -53,12 +56,28 @@ const message = {
 };
 
 const editRequests = [];
+let currentMessage = message;
+const conversationItem = () => ({ conversation, pinned: false, unreadCount: 0, joinedAt: createdAt,
+  notificationOverride: 'INHERIT', lastMessage: { messageId, messageBucket, revision: currentMessage.revision,
+    senderId: ownerId, senderDisplayName: operator.displayName, contentPreview: currentMessage.content,
+    messageType: currentMessage.messageType, createdAt, deleted: false, hasAttachments: false } });
 const revisionRequests = [];
 const consoleErrors = [];
 const requestFailures = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 page.setDefaultTimeout(10_000);
+
+// Editing exercises HTTP semantics; unrelated global discovery gets a connected broker fixture.
+await page.route('**/ws/info?*', route => route.fulfill({ json: { websocket: true, cookie_needed: false, origins: ['*:*'], entropy: 1 } }));
+await page.routeWebSocket('**/ws/**', socket => {
+  socket.onMessage(raw => {
+    for (const frame of JSON.parse(raw.toString())) {
+      if (!disconnected && frame.startsWith('CONNECT')) socket.send(`a${JSON.stringify(['CONNECTED\nversion:1.2\nheart-beat:0,0\n\n\0'])}`);
+    }
+  });
+  socket.send('o');
+});
 
 page.on('console', (entry) => {
   const location = entry.location();
@@ -79,22 +98,26 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
 
   if (path.endsWith('/auth/refresh')) return json({ accessToken: token });
   if (path.endsWith('/auth/me')) return json(operator);
-  if (path.endsWith('/devices')) return json({ deviceId: 'device-message-edit' });
+  if (path.endsWith('/devices')) return json({ ...request.postDataJSON(), deviceName: 'Controlled edit browser',
+    appVersion: null, active: true, createdAt, lastSeenAt: createdAt });
+  if (path.endsWith('/calls/incoming')) return json({ content: [], nextCursor: null, hasNext: false });
   if (path.endsWith('/preferences/chat')) return json({ defaultThemeId: 'aurora', defaultBubbleStyleId: 'tiktok', rooms: [] });
   if (path.endsWith('/conversations') && method === 'GET') {
     return json({
-      content: [{ conversation, pinned: false, unreadCount: 0, joinedAt: createdAt, notificationOverride: 'INHERIT', lastMessage: null }],
+      content: [conversationItem()],
       nextCursor: null,
       hasNext: false,
     });
   }
   if (path.endsWith(`/conversations/${conversationId}/messages`) && method === 'GET') {
-    return json({ content: [message], nextCursor: null, hasNext: false, interactions: [], polls: [] });
+    return json({ content: [currentMessage], nextCursor: null, hasNext: false, interactions: [], polls: [] });
   }
+  if (path.endsWith(`/conversations/${conversationId}/summary`)) return json(conversationItem());
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}`) && method === 'PUT') {
     const body = request.postDataJSON();
     editRequests.push({ method, bucket: requestUrl.searchParams.get('bucket'), body });
-    return json({ ...message, content: body.content, editedAt });
+    currentMessage = { ...message, revision: 1, content: body.content, editedAt };
+    return json(currentMessage);
   }
   if (path.endsWith(`/conversations/${conversationId}/messages/${messageId}/revisions`) && method === 'GET') {
     revisionRequests.push({ method, bucket: requestUrl.searchParams.get('bucket') });
@@ -137,6 +160,27 @@ await page.getByRole('menuitem', { name: 'Sửa' }).click();
 await composer.fill(updatedContent);
 await switchLocaleInSettings(page);
 await page.getByText('Editing', { exact: true }).waitFor();
+const layoutChecks = [];
+if (disconnected) {
+  const feedback = page.getByLabel('Incoming call check', { exact: true });
+  await feedback.getByText('Waiting for a connection to check calls.', { exact: true }).waitFor();
+  await mkdir('.impeccable/review', { recursive: true });
+  for (const theme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.waitForFunction(theme => (document.documentElement.getAttribute('data-theme') === 'dark') === (theme === 'dark'), theme);
+    for (const width of [320, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const save = page.getByRole('button', { name: 'Save changes', exact: true });
+      await save.click({ trial: true });
+      const banner = await feedback.boundingBox(), control = await save.boundingBox();
+      assert.ok(banner && control && banner.y >= 0 && banner.y + banner.height <= control.y, 'lookup feedback stays visible without overlapping composer');
+      assert.ok(control.y + control.height <= 900, 'composer stays inside viewport');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: `.impeccable/review/call-feedback-edit-${theme}-${width}.png` });
+      layoutChecks.push({ theme, width });
+    }
+  }
+}
 await page.getByRole('button', { name: 'Save changes' }).click();
 
 await messageRow.getByText(updatedContent, { exact: true }).waitFor();
@@ -145,8 +189,12 @@ if (await composer.inputValue() !== preservedDraft) throw new Error('Successful 
 await messageRow.getByRole('button', { name: 'Edited' }).click();
 const historyDialog = page.getByRole('dialog', { name: 'Edit history' });
 await historyDialog.getByText(originalContent, { exact: true }).waitFor();
+await page.keyboard.press('Escape');
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.getByRole('button', { name: 'Message Editing', exact: true }).click();
+await page.locator(`[data-message-id="${messageId}"]`).getByText(updatedContent, { exact: true }).waitFor();
 
-const report = { baseUrl, editRequests, revisionRequests, consoleErrors, requestFailures };
+const report = { baseUrl, disconnected, layoutChecks, editRequests, revisionRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 

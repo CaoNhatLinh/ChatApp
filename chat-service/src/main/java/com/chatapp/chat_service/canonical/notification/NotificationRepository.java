@@ -15,6 +15,8 @@ public interface NotificationRepository {
 
     void save(CanonicalNotification notification);
 
+    CanonicalNotification find(UUID userId, String month, UUID notificationId);
+
     void markRead(UUID userId, String month, UUID notificationId);
 
     void delete(UUID userId, String month, UUID notificationId);

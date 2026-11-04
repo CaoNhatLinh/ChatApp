@@ -14,6 +14,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class InfrastructureManifestTest {
 
+    @Test void uploadReceiptSharesTheExistingAssetAuthorityWithoutAnUnusedIntentTable() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        var table = Pattern.compile("CREATE TABLE IF NOT EXISTS media_assets_by_id \\([\\s\\S]*?;").matcher(schema);
+        assertThat(table.find()).isTrue();
+        assertThat(table.group()).contains("asset_id uuid PRIMARY KEY", "upload_receipt text", "retention_locked boolean");
+        assertThat(schema).doesNotContain("CREATE TABLE IF NOT EXISTS media_upload_intents");
+    }
+
     @Test
     void freshCanonicalSchemaDoesNotDependOnLegacyUpgradeScripts() throws IOException {
         String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
@@ -84,11 +92,13 @@ class InfrastructureManifestTest {
     void canonicalCqlRetainsRequiredProductionContracts() throws IOException {
         String cql = Files.readString(Path.of("..", "chat_app_complete.cql"));
 
-        // The canonical schema currently defines 78 named access-pattern tables,
+        // The canonical schema currently defines 91 named access-pattern tables,
         // including the bounded global-admin room directory, sanction-expiry and
-        // pending-outbox projections.
+        // pending-outbox projections, call authority, fenced expiry and incoming discovery.
         // Keep this exact so an accidental deletion or an undocumented table addition fails the guard.
-        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(78);
+        assertThat(cql.lines().filter(line -> line.startsWith("CREATE TABLE")).count()).isEqualTo(91);
+        assertThat(cql).contains("CREATE TABLE IF NOT EXISTS report_create_commands", "PRIMARY KEY ((reporter_id, client_report_id))");
+        assertThat(cql).contains("CREATE TABLE IF NOT EXISTS report_create_preparation_by_shard", "PRIMARY KEY ((work_shard), reporter_id, client_report_id)");
         assertThat(cql).contains("CREATE TABLE IF NOT EXISTS audit_events_by_month");
         assertThat(cql.lines().filter(line -> line.startsWith("CREATE TYPE")).count()).isEqualTo(2);
         assertThat(cql).contains(
@@ -103,6 +113,12 @@ class InfrastructureManifestTest {
                 "owner_id uuid static",
                 "owner_updated_at timestamp static",
                 "CREATE TABLE IF NOT EXISTS media_assets_by_id",
+                "CREATE TABLE IF NOT EXISTS media_upload_recovery_by_shard",
+                "CREATE TABLE IF NOT EXISTS media_deletion_recovery_by_shard",
+                "CREATE TABLE IF NOT EXISTS media_orphan_candidates_by_shard",
+                "upload_purpose text",
+                "CREATE TABLE IF NOT EXISTS email_review_candidates_by_day",
+                "PRIMARY KEY ((review_day), notification_id, user_id, notification_month)",
                 "CREATE TABLE IF NOT EXISTS message_buckets_by_conversation",
                 "CREATE TABLE IF NOT EXISTS message_reactions_by_conversation_bucket",
                 "CREATE TABLE IF NOT EXISTS message_read_summary_by_conversation_bucket",
@@ -130,6 +146,37 @@ class InfrastructureManifestTest {
                 "reason_code text",
                 "CREATE TABLE IF NOT EXISTS outbox_events_by_partition",
                 "CREATE TABLE IF NOT EXISTS outbox_pending_events_by_partition");
+    }
+
+    @Test
+    void incomingCallDiscoveryContainsOnlyOrderedKeysWithFiniteRetention() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        var table = Pattern.compile("CREATE TABLE IF NOT EXISTS incoming_calls_by_user \\([\\s\\S]*?;")
+                .matcher(schema);
+        assertThat(table.find()).isTrue();
+        assertThat(table.group().replaceAll("\\s+", " ")).isEqualTo(
+                "CREATE TABLE IF NOT EXISTS incoming_calls_by_user ( callee_id uuid, ring_deadline timestamp, "
+                        + "conversation_id uuid, call_id uuid, PRIMARY KEY ((callee_id), ring_deadline, conversation_id, call_id) ) "
+                        + "WITH CLUSTERING ORDER BY (ring_deadline ASC, conversation_id ASC, call_id ASC) "
+                        + "AND default_time_to_live = 86400;");
+        assertThat(table.find()).isFalse();
+    }
+
+    @Test
+    void callHistoryUsesMonthScopedImmutableKeysAndNoFictionalMediaParticipants() throws IOException {
+        String schema = Files.readString(Path.of("..", "chat_app_complete.cql"));
+        var room = Pattern.compile("CREATE TABLE IF NOT EXISTS calls_by_conversation \\([\\s\\S]*?;").matcher(schema);
+        var own = Pattern.compile("CREATE TABLE IF NOT EXISTS calls_by_user \\([\\s\\S]*?;").matcher(schema);
+        assertThat(room.find()).isTrue(); assertThat(own.find()).isTrue();
+        assertThat(room.group().replaceAll("\\s+", " ")).contains(
+                "PRIMARY KEY ((conversation_id, call_month), started_at, call_id)",
+                "CLUSTERING ORDER BY (started_at DESC, call_id DESC)");
+        assertThat(own.group().replaceAll("\\s+", " ")).contains(
+                "PRIMARY KEY ((user_id, call_month), started_at, conversation_id, call_id)",
+                "CLUSTERING ORDER BY (started_at DESC, conversation_id DESC, call_id DESC)");
+        assertThat(room.group() + own.group()).doesNotContain("signaling_provider", "joined_at", "status", "TTL");
+        assertThat(schema).doesNotContain("CREATE TABLE IF NOT EXISTS call_participants_by_call");
+        assertThat(room.find()).isFalse(); assertThat(own.find()).isFalse();
     }
 
     @Test

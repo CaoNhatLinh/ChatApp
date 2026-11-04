@@ -1,6 +1,10 @@
 import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 
 const baseUrl = process.env.SMOKE_BASE_URL ?? 'http://localhost:3100';
+const emptyPageMode = process.env.SEARCH_EMPTY_PAGE === '1';
+const matrix = [];
 const apiBaseUrl = (process.env.SMOKE_API_BASE_URL ?? 'http://localhost:8084/api').replace(/\/$/, '');
 const conversationId = '00000000-0000-0000-0000-000000000501';
 const ownerId = '00000000-0000-0000-0000-000000000502';
@@ -36,7 +40,7 @@ const message = {
   messageId,
   senderId: ownerId,
   content: 'A message that can be found in this room',
-  messageType: 'TEXT',
+  revision: 0, messageType: 'TEXT',
   contentFormat: 'PLAIN_TEXT',
   isDeleted: false,
   hasAttachments: false,
@@ -81,6 +85,7 @@ await page.route(`${apiBaseUrl}/**`, async (route) => {
   if (path.endsWith('/search/messages') && method === 'POST') {
     const payload = request.postDataJSON();
     searchRequests.push(payload);
+    if (emptyPageMode && !payload.pageCursor) return json({ content: [], nextCursor: 'candidate-page-2' });
     return json({ content: [{ ...message, content: `Result for ${payload.q ?? 'filter'}` }], nextCursor: null });
   }
   if (path.includes('/friends/status/')) return json([]);
@@ -99,18 +104,38 @@ await page.getByRole('heading', { name: 'Tìm tin nhắn', exact: true }).waitFo
 const searchInput = page.getByRole('searchbox', { name: 'Từ khóa tin nhắn' });
 await searchInput.fill('message');
 await page.waitForResponse((response) => response.url().endsWith('/search/messages') && response.request().method() === 'POST');
+if (emptyPageMode) {
+  const more = page.getByRole('button', { name: 'Tải thêm kết quả', exact: true });
+  await more.waitFor();
+  await mkdir('artifacts/ui-audit/current', { recursive: true });
+  for (const theme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.waitForFunction(theme =>
+      document.documentElement.getAttribute('data-theme') === (theme === 'dark' ? 'dark' : null), theme);
+    for (const width of [320, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const box = await more.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= width);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.screenshot({ path: `artifacts/ui-audit/current/search-empty-continuation-${theme}-${width}.png`, animations: 'disabled' });
+      matrix.push({ theme, width });
+    }
+  }
+  await more.press('Enter');
+}
 await page.getByRole('button', { name: /Result for message/ }).waitFor();
 await page.getByRole('button', { name: /Result for message/ }).click();
 await page.getByRole('heading', { name: 'Tìm tin nhắn', exact: true }).waitFor({ state: 'detached' });
 
-const report = { baseUrl, searchRequests, consoleErrors, requestFailures };
+const report = { baseUrl, emptyPageMode, matrix, searchRequests, consoleErrors, requestFailures };
 console.log(JSON.stringify(report, null, 2));
 await browser.close();
 
 if (
   consoleErrors.length
   || requestFailures.length
-  || searchRequests.length !== 1
+  || searchRequests.length !== (emptyPageMode ? 2 : 1)
+  || emptyPageMode && searchRequests[1]?.pageCursor !== 'candidate-page-2'
   || searchRequests[0]?.conversationId !== conversationId
   || searchRequests[0]?.q !== 'message'
 ) process.exitCode = 1;

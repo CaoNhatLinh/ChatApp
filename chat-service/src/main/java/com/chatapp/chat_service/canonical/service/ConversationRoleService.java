@@ -238,15 +238,10 @@ public class ConversationRoleService {
         }
 
         Set<UUID> previous = target.roleIds() == null ? Set.of() : target.roleIds();
-        ConversationMember updated = new ConversationMember(
-                target.conversationId(), target.userId(), Set.copyOf(roleIds), target.joinedAt(), target.invitedBy(),
-                target.mutedUntil(), target.messageIntervalSeconds(), target.notificationOverride(),
-                target.lastReadMessageId(), target.lastReadAt());
         if (!store.updateMemberRolesIfUnchanged(
-                conversationId, targetUserId, previous, updated.roleIds(), roleRevision)) {
+                conversationId, targetUserId, previous, Set.copyOf(roleIds), roleRevision)) {
             throw new ConflictException("conversation member roles changed concurrently");
         }
-        store.updateConversationProjectionRoles(targetUserId, conversationId, updated.roleIds());
         events.record(actorId, conversationId, "ROLES_ASSIGNED", "conversation_member", targetUserId.toString(),
                 targetUserId, null, Map.of("roleIds", previous.toString()), Map.of("roleIds", roleIds.toString()));
     }
@@ -263,7 +258,7 @@ public class ConversationRoleService {
             throw new BadRequestException("target user is not a conversation member");
         }
         if (targetUserId.equals(conversation.ownerId())) {
-            repairOwnershipProjections(conversationId, currentOwner, nextOwner);
+            reindexOwnership(conversationId);
             return;
         }
         if (!actorId.equals(conversation.ownerId())) {
@@ -297,38 +292,13 @@ public class ConversationRoleService {
         if (result == CanonicalCqlStore.OwnershipTransferResult.CHANGED_CONCURRENTLY) {
             throw new ConflictException("conversation ownership or roles changed concurrently");
         }
-        if (result == CanonicalCqlStore.OwnershipTransferResult.ALREADY_TRANSFERRED) {
-            ConversationMember authoritativePrevious = repository.findMember(conversationId, actorId);
-            ConversationMember authoritativeCurrent = repository.findMember(conversationId, targetUserId);
-            if (authoritativePrevious == null || authoritativeCurrent == null) {
-                throw new IllegalStateException("ownership members are missing after transfer");
-            }
-            repairOwnershipProjections(conversationId, authoritativePrevious, authoritativeCurrent);
-            return;
-        }
-        repairOwnershipProjections(
-                conversationId,
-                withRoles(currentOwner, oldOwnerRoles),
-                withRoles(nextOwner, nextOwnerRoles));
+        reindexOwnership(conversationId);
+        if (result == CanonicalCqlStore.OwnershipTransferResult.ALREADY_TRANSFERRED) return;
         events.record(actorId, conversationId, "OWNERSHIP_TRANSFERRED", "conversation", conversationId.toString(),
                 targetUserId, null, Map.of("ownerId", actorId.toString()), Map.of("ownerId", targetUserId.toString()));
     }
 
-    private ConversationMember withRoles(ConversationMember member, Set<UUID> roleIds) {
-        return new ConversationMember(
-                member.conversationId(), member.userId(), Set.copyOf(roleIds), member.joinedAt(), member.invitedBy(),
-                member.mutedUntil(), member.messageIntervalSeconds(), member.notificationOverride(),
-                member.lastReadMessageId(), member.lastReadAt());
-    }
-
-    private void repairOwnershipProjections(
-            UUID conversationId,
-            ConversationMember previousOwner,
-            ConversationMember currentOwner) {
-        store.updateConversationProjectionRoles(
-                previousOwner.userId(), conversationId, previousOwner.roleIds());
-        store.updateConversationProjectionRoles(
-                currentOwner.userId(), conversationId, currentOwner.roleIds());
+    private void reindexOwnership(UUID conversationId) {
         CanonicalConversation current = store.findConversation(conversationId);
         if (current == null) {
             throw new IllegalStateException("conversation is missing after ownership transfer");

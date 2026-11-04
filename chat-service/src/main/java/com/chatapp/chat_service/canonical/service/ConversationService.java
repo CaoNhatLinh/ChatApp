@@ -1,5 +1,6 @@
 package com.chatapp.chat_service.canonical.service;
 
+import com.chatapp.chat_service.canonical.media.ManagedImageReference;
 import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversation;
@@ -19,14 +20,14 @@ import com.chatapp.chat_service.canonical.notification.NotificationSettingsPolic
 import com.datastax.oss.driver.api.core.uuid.Uuids;
 import com.chatapp.chat_service.canonical.repository.CanonicalConversationRepository;
 import com.chatapp.chat_service.canonical.user.UserRepository;
+import com.chatapp.chat_service.canonical.settings.SystemSettingsService;
+import com.chatapp.chat_service.canonical.community.CommunityCreationDisabledException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +48,8 @@ public class ConversationService {
     private final AdminConversationDirectoryRepository adminConversationDirectory;
     private final UserRepository users;
     private final ConversationMembershipService memberships;
+    private final SystemSettingsService systemSettings;
+    private final ManagedImageReference managedImages;
 
     @Autowired
     public ConversationService(
@@ -56,7 +59,9 @@ public class ConversationService {
             CanonicalEventRecorder eventRecorder,
             AdminConversationDirectoryRepository adminConversationDirectory,
             UserRepository users,
-            ConversationMembershipService memberships) {
+            ConversationMembershipService memberships,
+            SystemSettingsService systemSettings,
+            ManagedImageReference managedImages) {
         this.store = store;
         this.conversationRepository = conversationRepository;
         this.authorization = authorization;
@@ -64,6 +69,8 @@ public class ConversationService {
         this.adminConversationDirectory = adminConversationDirectory;
         this.users = users;
         this.memberships = memberships;
+        this.systemSettings = systemSettings;
+        this.managedImages = managedImages;
     }
 
     private void requireAuthenticatedActor(UUID actorId) {
@@ -95,7 +102,22 @@ public class ConversationService {
         if (slowModeSeconds < 0 || slowModeSeconds > 86_400) {
             throw new BadRequestException("slowModeSeconds must be between 0 and 86400");
         }
-        int maxMembers = req.maxMembers() == null ? ("DM".equals(conversationType) ? 2 : 10_000) : req.maxMembers();
+        String visibility = "DM".equals(conversationType)
+                ? "PRIVATE"
+                : normalize(req.visibility(), "PRIVATE_LINK").toUpperCase(Locale.ROOT);
+        if (!Set.of("PRIVATE", "PRIVATE_LINK", "COMMUNITY").contains(visibility)) {
+            throw new BadRequestException("visibility must be PRIVATE, PRIVATE_LINK, or COMMUNITY");
+        }
+        if ("COMMUNITY".equals(visibility) && !"CHANNEL".equals(conversationType)) {
+            throw new BadRequestException("only CHANNEL conversations can be public communities");
+        }
+        int defaultMaximum = "DM".equals(conversationType) ? 2 : 10_000;
+        if ("COMMUNITY".equals(visibility)) {
+            var defaults = systemSettings.communityDefaults();
+            if (!defaults.creationEnabled()) throw new CommunityCreationDisabledException();
+            defaultMaximum = defaults.defaultMaxMembers();
+        }
+        int maxMembers = req.maxMembers() == null ? defaultMaximum : req.maxMembers();
         if (maxMembers < 2 || maxMembers > 100_000 || "DM".equals(conversationType) && maxMembers != 2) {
             throw new BadRequestException("maxMembers is invalid for the conversation type");
         }
@@ -128,15 +150,6 @@ public class ConversationService {
             }
         }
 
-        String visibility = "DM".equals(conversationType)
-                ? "PRIVATE"
-                : normalize(req.visibility(), "PRIVATE_LINK").toUpperCase(Locale.ROOT);
-        if (!Set.of("PRIVATE", "PRIVATE_LINK", "COMMUNITY").contains(visibility)) {
-            throw new BadRequestException("visibility must be PRIVATE, PRIVATE_LINK, or COMMUNITY");
-        }
-        if ("COMMUNITY".equals(visibility) && !"CHANNEL".equals(conversationType)) {
-            throw new BadRequestException("only CHANNEL conversations can be public communities");
-        }
         String joinPolicy = "DM".equals(conversationType)
                 ? "CLOSED"
                 : normalize(req.joinPolicy(), "INVITE_ONLY").toUpperCase(Locale.ROOT);
@@ -144,14 +157,21 @@ public class ConversationService {
             throw new BadRequestException("invalid joinPolicy");
         }
 
-        // Claims are durable: reject all invalid input before reserving a DM pair.
-        if ("DM".equals(conversationType)) {
-            String pairKey = buildDmPairKey(actorId, conversationBucketUser);
+        String pairKey = "DM".equals(conversationType) ? buildDmPairKey(actorId, conversationBucketUser) : null;
+        if (pairKey != null) {
             UUID existed = store.findDmPair(pairKey);
             if (existed != null) {
                 CanonicalConversation existing = store.findConversation(existed);
                 if (existing != null) return existing;
             }
+        }
+
+        String avatarUrl = req.avatarUrl();
+        if (req.avatarAssetId() == null) managedImages.retain(avatarUrl);
+        else avatarUrl = managedImages.retain(actorId, req.avatarAssetId(), avatarUrl);
+
+        // Claims are durable: reject all invalid input before reserving a DM pair.
+        if (pairKey != null) {
             UUID winner = store.claimDmPair(pairKey, conversationId, now);
             if (!conversationId.equals(winner)) {
                 CanonicalConversation existing = store.findConversation(winner);
@@ -168,7 +188,7 @@ public class ConversationService {
                 name,
                 normalize(name),
                 req.description(),
-                req.avatarUrl(),
+                avatarUrl,
                 req.avatarAssetId(),
                 actorId,
                 actorId,
@@ -303,63 +323,6 @@ public class ConversationService {
         return new CanonicalApiContracts.ConversationMemberPage(content, nextCursor, hasNext);
     }
 
-    public CanonicalApiContracts.ConversationPage listMyConversations(UUID actorId, String cursor, int requestedLimit) {
-        int limit = Math.max(10, Math.min(100, requestedLimit));
-        CanonicalCqlStore.ConversationProjectionCursor decoded = decodeConversationCursor(cursor);
-        List<CanonicalCqlStore.ConversationProjectionRow> rows = store.listConversationProjectionByUser(
-                actorId, decoded, limit + 1);
-        boolean hasNext = rows.size() > limit;
-        List<CanonicalCqlStore.ConversationProjectionRow> pageRows = hasNext
-                ? rows.subList(0, limit)
-                : rows;
-        List<CanonicalApiContracts.ConversationListItem> content = pageRows.stream()
-                .map(row -> new CanonicalApiContracts.ConversationListItem(
-                        row.conversation(),
-                        row.pinned(),
-                        row.unreadCount(),
-                        row.joinedAt(),
-                        row.notificationOverride(),
-                        row.lastMessage() == null ? null : new CanonicalApiContracts.LastMessageSummary(
-                                row.lastMessage().messageId(),
-                                row.lastMessage().senderId(),
-                                row.lastMessage().senderDisplayName(),
-                                row.lastMessage().contentPreview(),
-                                row.lastMessage().messageType(),
-                                row.lastMessage().createdAt(),
-                                row.lastMessage().deleted(),
-                                row.lastMessage().hasAttachments())))
-                .toList();
-        String nextCursor = hasNext
-                ? encodeConversationCursor(pageRows.get(pageRows.size() - 1))
-                : null;
-        return new CanonicalApiContracts.ConversationPage(content, nextCursor, hasNext);
-    }
-
-    private String encodeConversationCursor(CanonicalCqlStore.ConversationProjectionRow row) {
-        String value = (row.pinned() ? "1" : "0") + "|"
-                + row.lastActivityAt() + "|" + row.conversation().conversationId();
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(value.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private CanonicalCqlStore.ConversationProjectionCursor decodeConversationCursor(String cursor) {
-        if (cursor == null || cursor.isBlank()) {
-            return null;
-        }
-        try {
-            String value = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            String[] parts = value.split("\\|", -1);
-            if (parts.length != 3 || (!"0".equals(parts[0]) && !"1".equals(parts[0]))) {
-                throw new IllegalArgumentException("invalid conversation cursor");
-            }
-            Instant lastActivityAt = Instant.parse(parts[1]);
-            UUID conversationId = UUID.fromString(parts[2]);
-            return new CanonicalCqlStore.ConversationProjectionCursor("1".equals(parts[0]), lastActivityAt, conversationId);
-        } catch (RuntimeException exception) {
-            throw new BadRequestException("invalid conversation cursor");
-        }
-    }
-
     public void addMember(UUID actorId, UUID conversationId, CanonicalApiContracts.ConversationMemberRequest req) {
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MEMBER_INVITE);
         if (req == null || req.userId() == null) {
@@ -454,13 +417,23 @@ public class ConversationService {
 
     public void pinConversation(UUID actorId, UUID conversationId) {
         requireMember(conversationId, actorId);
-        for (int pin = 0; pin < 3; pin++) {
-            if (store.tryPinConversation(actorId, conversationId, pin)) {
-                appendAudit(actorId, conversationId, "CONVERSATION_PIN", "conversation", conversationId.toString(), null, null);
-                return;
-            }
+        if (pinInAvailableSlot(actorId, conversationId)) return;
+        if (store.reclaimInaccessibleConversationPins(actorId)) {
+            requireMember(conversationId, actorId);
+            if (pinInAvailableSlot(actorId, conversationId)) return;
         }
         throw new BadRequestException("Pin limit reached");
+    }
+
+    private boolean pinInAvailableSlot(UUID actorId, UUID conversationId) {
+        for (int pin = 0; pin < 3; pin++) {
+            var result = store.tryPinConversation(actorId, conversationId, pin);
+            if (result == CanonicalCqlStore.ConversationPinResult.PINNED) {
+                appendAudit(actorId, conversationId, "CONVERSATION_PIN", "conversation", conversationId.toString(), null, null);
+            }
+            if (result != CanonicalCqlStore.ConversationPinResult.OCCUPIED) return true;
+        }
+        return false;
     }
 
     public void unpinConversation(UUID actorId, UUID conversationId) {
@@ -547,7 +520,9 @@ public class ConversationService {
         if (previousOverride.equals(nextOverride)) {
             return;
         }
-        store.updateMemberNotificationPolicy(conversationId, userId, nextOverride);
+        if (!store.updateMemberNotificationPolicy(member, nextOverride)) {
+            throw new ConflictException("conversation membership or notification preference changed; reload before saving");
+        }
         appendAudit(actorId, conversationId, "MEMBER_NOTIFICATION_POLICY_UPDATE", "conversation_member",
                 userId.toString(), userId, null,
                 Map.of("notificationOverride", previousOverride),
@@ -582,7 +557,9 @@ public class ConversationService {
                 && Objects.equals(member.messageIntervalSeconds(), interval)) {
             return;
         }
-        store.updateMemberChatPolicy(conversationId, userId, req.mutedUntil(), interval);
+        if (!store.updateObservedMemberChatPolicy(member, conversation.ownerId(), req.mutedUntil(), interval)) {
+            throw new ConflictException("conversation owner, membership or chat policy changed; reload before saving");
+        }
         appendAudit(actorId, conversationId, "MEMBER_CHAT_POLICY_UPDATE", "conversation_member",
                 userId.toString(), userId, req.reason().trim(),
                 Map.of("mutedUntil", String.valueOf(member.mutedUntil()),

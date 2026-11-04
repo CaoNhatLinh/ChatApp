@@ -68,7 +68,7 @@ public class AuthService {
             users.save(user);
             userSaved = true;
             notifications.saveSettings(new CanonicalNotificationSettings(
-                    userId, "ALL", true, true, true, true, null, null, "UTC", now));
+                    userId, "ALL", true, false, true, true, null, null, "UTC", now));
             return UserResponseMapper.toUserResponse(user);
         } catch (RuntimeException failure) {
             if (!userSaved) {

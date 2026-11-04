@@ -35,7 +35,7 @@ class AdminMessageServiceTest {
         var message = new CqlCanonicalRecords.CanonicalMessage(
                 conversationId, bucket, messageId, UUID.randomUUID(), "TEXT", "hello", "PLAIN",
                 null, null, null, null, null, null, null, null, false, null, null, null,
-                false, false, false, Instant.now(), UUID.randomUUID());
+                false, false, false, Instant.now(), UUID.randomUUID(), null, null, 0);
         when(store.find(conversationId, bucket, messageId)).thenReturn(message);
         when(store.findRevisions(conversationId, bucket, messageId)).thenReturn(List.of());
 

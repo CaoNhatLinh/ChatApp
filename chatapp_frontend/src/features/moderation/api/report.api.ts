@@ -33,17 +33,15 @@ export interface ReportRecord {
   description?: string | null;
 }
 
-export const submitMessageReport = async (
-  input: CreateMessageReportInput,
-): Promise<ReportRecord> => {
-  const response = await apiClient.post<ReportRecord>('/reports', input);
-  return response.data;
-};
+export type CreateReportInput = CreateMessageReportInput | CreateUserReportInput;
 
-export const submitUserReport = async (
-  input: CreateUserReportInput,
+export const submitReport = async (
+  input: CreateReportInput,
+  idempotencyKey: string,
 ): Promise<ReportRecord> => {
-  const response = await apiClient.post<ReportRecord>('/reports', input);
+  const response = await apiClient.post<ReportRecord>('/reports', input, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
   return response.data;
 };
 

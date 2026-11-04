@@ -112,6 +112,8 @@ const workspaceConversationItem = {
   joinedAt: '2026-08-30T08:00:00Z',
   notificationOverride: 'INHERIT',
   lastMessage: {
+    revision: 0,
+    messageBucket: '2026-08-30-08:00',
     messageId: '00000000-0000-0000-0000-000000000041',
     senderId: currentUser.userId,
     senderDisplayName: currentUser.displayName,

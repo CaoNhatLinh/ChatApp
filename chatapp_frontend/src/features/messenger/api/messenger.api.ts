@@ -5,6 +5,7 @@ import type {
     Conversation,
     ConversationMember,
     Message,
+    MessagePinState,
     Attachment,
     MessageRevision,
     CreateConversationRequest,
@@ -63,6 +64,7 @@ interface CanonicalSearchPage {
  * DTO interface definitions for payloads from Java backend.
  */
 export interface BackendMessage {
+    revision: number;
     conversationId: string;
     messageBucket: string;
     messageId: string;
@@ -72,13 +74,13 @@ export interface BackendMessage {
     messageType: Message['type'];
     contentFormat: string;
     replyToMessageId?: string;
+    replyToMessageBucket?: string;
     replyToSenderId?: string;
-    stickerId?: string;
+    stickerId?: string | null;
+    gif?: Message['gif'];
     pollId?: string;
     systemEventId?: string;
-    forwardedFromConversationId?: string;
-    forwardedFromMessageBucket?: string;
-    forwardedFromMessageId?: string;
+    forwarded: boolean;
     isDeleted: boolean;
     deletedBy?: string;
     deletedAt?: string;
@@ -104,7 +106,10 @@ interface UploadedFileDto {
     contentType?: string;
     resourceType?: string;
     publicId?: string;
-    thumbnailUrl?: string;
+    width?: number | null;
+    height?: number | null;
+    durationMs?: number | null;
+    thumbnailUrl?: string | null;
     mediumUrl?: string;
     format?: string;
 }
@@ -114,6 +119,23 @@ interface UploadResponse {
     file?: UploadedFileDto;
     uploadedFiles?: UploadedFileDto[];
 }
+
+type IncompleteMediaUploadStatus = 'PENDING' | 'QUARANTINED' | 'DELETING' | 'DELETED';
+
+export type MediaUploadInspection =
+    | { uploadId: string; status: 'READY'; file: Attachment }
+    | { uploadId: string; status: IncompleteMediaUploadStatus; file: null };
+
+interface MediaUploadInspectionDto {
+    uploadId: string;
+    status: MediaUploadInspection['status'];
+    file: UploadedFileDto | null;
+}
+
+const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+const isUploadId = (value: string): boolean => UUID_PATTERN.test(value) && value !== ZERO_UUID;
 
 interface CanonicalConversation {
     conversationId: string;
@@ -126,6 +148,7 @@ interface CanonicalConversation {
     updatedAt: string;
     isDeleted: boolean;
     lastActivityAt: string;
+    hasLastMessage?: boolean;
     memberCount: number;
     defaultNotificationLevel: ConversationNotificationLevel;
     chatMode: string;
@@ -150,8 +173,11 @@ const toAttachment = (uploaded: UploadedFileDto): Attachment => {
         resourceType: uploaded.resourceType,
         attachmentType: uploaded.resourceType,
         publicId: uploaded.publicId,
-        thumbnailUrl: uploaded.thumbnailUrl,
-        mediumUrl: uploaded.thumbnailUrl,
+        width: uploaded.width ?? undefined,
+        height: uploaded.height ?? undefined,
+        durationMs: uploaded.durationMs ?? undefined,
+        thumbnailUrl: uploaded.thumbnailUrl ?? undefined,
+        mediumUrl: uploaded.thumbnailUrl ?? undefined,
         format: uploaded.format,
     };
 };
@@ -162,8 +188,11 @@ interface CanonicalConversationListItem {
     unreadCount: number;
     joinedAt: string;
     notificationOverride: MemberNotificationOverride;
+    peer?: { userId: string; username: string; displayName: string; avatarUrl?: string | null } | null;
     lastMessage: {
         messageId: string;
+        messageBucket: string;
+        revision: number;
         senderId: string;
         senderDisplayName: string;
         contentPreview: string;
@@ -171,7 +200,7 @@ interface CanonicalConversationListItem {
         createdAt: string;
         deleted: boolean;
         hasAttachments: boolean;
-    };
+    } | null;
 }
 
 export interface ConversationPage {
@@ -315,6 +344,7 @@ const mapConversation = (conversation: CanonicalConversation): Conversation => (
     isDeleted: conversation.isDeleted,
     isPinned: false,
     lastActivityAt: conversation.lastActivityAt,
+    ...(conversation.hasLastMessage === true ? { hasLastMessage: true } : {}),
     unreadCount: 0,
     defaultNotificationLevel: mapConversationNotificationLevel(conversation.defaultNotificationLevel),
     chatMode: mapConversationChatMode(conversation.chatMode),
@@ -323,10 +353,15 @@ const mapConversation = (conversation: CanonicalConversation): Conversation => (
 
 const mapConversationListItem = (item: CanonicalConversationListItem): Conversation => ({
     ...mapConversation(item.conversation),
+    name: item.peer?.displayName || item.peer?.username || item.conversation.name,
+    otherParticipant: item.peer ? { userId: item.peer.userId, userName: item.peer.username,
+        displayName: item.peer.displayName, avatarUrl: item.peer.avatarUrl ?? undefined } : undefined,
     isPinned: item.pinned,
     unreadCount: item.unreadCount,
     notificationOverride: mapMemberNotificationOverride(item.notificationOverride),
     lastMessage: item.lastMessage ? {
+        revision: canonicalMessageRevision(item.lastMessage.revision),
+        messageBucket: item.lastMessage.messageBucket,
         messageId: item.lastMessage.messageId,
         senderId: item.lastMessage.senderId,
         senderName: item.lastMessage.senderDisplayName,
@@ -340,7 +375,7 @@ export type UploadResult = SendMessageRequest['attachments'];
 
 interface CanonicalMessagePage {
     content: BackendMessage[];
-    nextCursor?: string;
+    nextCursor?: string | null;
     hasNext: boolean;
     interactions: Array<{
         messageId: string;
@@ -358,8 +393,16 @@ interface CanonicalMessagePage {
  * Maps the canonical message contract to the UI model without fabricating
  * profiles, delivery state, attachments, reactions, or reply previews.
  */
+const canonicalMessageRevision = (revision: number): number => {
+    if (!Number.isInteger(revision) || revision < 0 || revision > 2147483647) {
+        throw new Error('Canonical message revision is invalid');
+    }
+    return revision;
+};
+
 export const mapToMessage = (dto: BackendMessage): Message => {
     return {
+        revision: canonicalMessageRevision(dto.revision),
         messageId: dto.messageId,
         clientMessageId: dto.clientMessageId,
         messageBucket: dto.messageBucket,
@@ -367,20 +410,34 @@ export const mapToMessage = (dto: BackendMessage): Message => {
         sender: { userId: dto.senderId },
         content: dto.content,
         type: dto.messageType,
+        stickerId: dto.stickerId,
+        gif: dto.gif,
+        hasAttachments: !dto.isDeleted && dto.hasAttachments,
         attachments: dto.hasAttachments ? undefined : [],
         reactions: undefined,
-        isForwarded: Boolean(dto.forwardedFromConversationId),
+        isForwarded: Boolean(dto.forwarded) && !dto.isDeleted,
         isDeleted: dto.isDeleted,
         createdAt: dto.createdAt,
         updatedAt: dto.editedAt ?? dto.createdAt,
-        replyTo: undefined,
+        replyTo: !dto.isDeleted && dto.replyToMessageId && dto.replyToMessageBucket ? {
+            messageId: dto.replyToMessageId,
+            messageBucket: dto.replyToMessageBucket,
+            senderId: dto.replyToSenderId,
+        } : undefined,
         isPinned: dto.isPinned,
     };
 };
 
 /* --- Conversation API --- */
 
-export const getConversations = async (limit = 30, cursor?: string | null): Promise<ConversationPage> => {
+export type ConversationFilter = 'ALL' | 'UNREAD' | 'PINNED';
+export interface ConversationQuery {
+    query?: string;
+    filter?: ConversationFilter;
+    signal?: AbortSignal;
+}
+
+export const getConversations = async (limit = 30, cursor?: string | null, options: ConversationQuery = {}): Promise<ConversationPage> => {
     const response = await apiClient.get<{
         content: CanonicalConversationListItem[];
         nextCursor: string | null;
@@ -389,7 +446,10 @@ export const getConversations = async (limit = 30, cursor?: string | null): Prom
         params: {
             limit: Math.min(100, Math.max(10, limit)),
             ...(cursor ? { cursor } : {}),
+            q: options.query?.trim() || undefined,
+            filter: options.filter ?? 'ALL',
         },
+        signal: options.signal,
     });
     return {
         content: response.data.content.map(mapConversationListItem),
@@ -398,9 +458,14 @@ export const getConversations = async (limit = 30, cursor?: string | null): Prom
     };
 };
 
-export const getConversationById = async (id: string): Promise<Conversation> => {
-    const response = await apiClient.get<CanonicalConversation>(`/conversations/${id}`);
-    return mapConversation(response.data);
+export const getConversationById = async (id: string, signal?: AbortSignal): Promise<Conversation> => {
+    const response = await apiClient.get<CanonicalConversationListItem>(`/conversations/${id}/summary`, { signal });
+    const item = response.data;
+    if (item?.conversation?.conversationId !== id || typeof item.pinned !== 'boolean'
+        || !Number.isSafeInteger(item.unreadCount) || item.unreadCount < 0) {
+        throw new Error('Canonical conversation summary is invalid');
+    }
+    return mapConversationListItem(item);
 };
 
 export const getConversationNotificationPolicy = async (
@@ -439,6 +504,11 @@ export const getMessages = async (
         params: { limit: params.size ?? 50, cursor: params.before }
     });
     const data = response.data;
+    const cursor = data?.nextCursor ?? undefined;
+    if (!Array.isArray(data?.content) || typeof data.hasNext !== 'boolean'
+        || (data.hasNext ? typeof cursor !== 'string' || !cursor.trim() || cursor === params.before : cursor !== undefined)) {
+        throw new Error('Canonical message page continuation is invalid');
+    }
     if (!Array.isArray(data.polls)
         || !Array.isArray(data.interactions)
         || data.interactions.some((interaction) =>
@@ -475,7 +545,7 @@ export const getMessages = async (
         hasNext: data.hasNext,
         number: params.page ?? 0,
         size: data.content.length,
-        nextCursor: data.nextCursor,
+        nextCursor: cursor,
     };
 };
 
@@ -492,6 +562,9 @@ export const sendMessageHttp = async (data: SendMessageRequest): Promise<Message
             fileName: attachment.fileName,
             mimeType: attachment.mimeType ?? attachment.contentType,
             byteSize: attachment.fileSize,
+            width: attachment.width ?? null,
+            height: attachment.height ?? null,
+            durationMs: attachment.durationMs ?? null,
             thumbnailUrl: attachment.thumbnailUrl,
             isSpoiler: false
         };
@@ -502,6 +575,9 @@ export const sendMessageHttp = async (data: SendMessageRequest): Promise<Message
         content: data.content,
         contentFormat: 'PLAIN',
         replyToMessageId: data.replyToId,
+        replyToMessageBucket: data.replyToMessageBucket,
+        stickerId: data.stickerId,
+        gif: data.gif,
         mentionedUserIds: data.mentions,
         mentionEveryone: data.mentionEveryone ?? false,
         attachments
@@ -626,24 +702,46 @@ export const getMessageRevisions = async (
     return response.data;
 };
 
+export function mapMessagePinState(payload: unknown, conversationId: string): MessagePinState {
+    if (!payload || typeof payload !== 'object') throw new Error('Canonical message pin state is invalid');
+    const state = payload as Partial<MessagePinState>;
+    if (state.conversationId !== conversationId || typeof state.revision !== 'string'
+        || !/^(0|[1-9][0-9]{0,18})$/.test(state.revision) || BigInt(state.revision) > 9223372036854775807n
+        || !Array.isArray(state.pins) || state.pins.length > 5
+        || state.pins.some(pin => !pin || typeof pin.messageId !== 'string' || !pin.messageId
+            || typeof pin.messageBucket !== 'string' || !pin.messageBucket)
+        || new Set(state.pins.map(pin => pin.messageId)).size !== state.pins.length) {
+        throw new Error('Canonical message pin state is invalid');
+    }
+    return { conversationId, revision: state.revision, pins: state.pins.map(pin => ({ ...pin })) };
+}
+
+export const getMessagePinState = async (conversationId: string, signal?: AbortSignal) => {
+    const response = await apiClient.get(`/conversations/${conversationId}/messages/pins`, { signal });
+    return mapMessagePinState(response.data, conversationId);
+};
+
 export const togglePinMessage = async (
     conversationId: string,
     messageBucket: string,
     messageId: string,
     shouldPin: boolean,
-): Promise<Message> => {
+    expectedRevision: string,
+) => {
+    mapMessagePinState({ conversationId, revision: expectedRevision, pins: [] }, conversationId);
+    const body = { expectedRevision };
     const path = `/conversations/${conversationId}/messages/${messageId}/pin`;
     const response = shouldPin
-        ? await apiClient.post<BackendMessage>(path, undefined, { params: { bucket: messageBucket } })
-        : await apiClient.delete<BackendMessage>(path, { params: { bucket: messageBucket } });
-    return mapToMessage(response.data);
-};
-
-export const unpinMessage = async (conversationId: string, messageBucket: string, messageId: string): Promise<void> => {
-    await apiClient.delete(
-        `/conversations/${conversationId}/messages/${messageId}/pin`,
-        { params: { bucket: messageBucket } },
-    );
+        ? await apiClient.post<{ message: BackendMessage; pinState: unknown }>(path, body, { params: { bucket: messageBucket } })
+        : await apiClient.delete<{ message: BackendMessage; pinState: unknown }>(path, { params: { bucket: messageBucket }, data: body });
+    const pinState = mapMessagePinState(response.data.pinState, conversationId);
+    const message = mapToMessage(response.data.message);
+    if (message.conversationId !== conversationId || message.messageBucket !== messageBucket || message.messageId !== messageId
+        || BigInt(pinState.revision) < BigInt(expectedRevision)
+        || pinState.pins.some(pin => pin.messageId === messageId && pin.messageBucket === messageBucket) !== shouldPin) {
+        throw new Error('Canonical message pin acknowledgement is invalid');
+    }
+    return { message, pinState };
 };
 
 export const markMessagesAsRead = async (
@@ -710,15 +808,49 @@ export const searchMessages = async (
     };
 };
 
-export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['attachments']> => {
+export const inspectMediaUpload = async (uploadId: string, signal?: AbortSignal): Promise<MediaUploadInspection | null> => {
+    if (!isUploadId(uploadId)) throw new Error('A valid upload ID is required');
+    const { data, status } = await apiClient.get<MediaUploadInspectionDto>(`/files/uploads/${uploadId}`, {
+        signal,
+        validateStatus: code => code === 404 || (code >= 200 && code < 300),
+    });
+    if (status === 404) return null;
+    if (data.uploadId !== uploadId.toLowerCase()) throw new Error('Media upload inspection returned a different upload ID');
+
+    switch (data.status) {
+        case 'READY':
+            if (!data.file) throw new Error('Ready media upload has no attachment');
+            return { uploadId: data.uploadId, status: data.status, file: toAttachment(data.file) };
+        case 'PENDING':
+        case 'QUARANTINED':
+        case 'DELETING':
+        case 'DELETED':
+            return { uploadId: data.uploadId, status: data.status, file: null };
+        default:
+            throw new Error('Unknown media upload state');
+    }
+};
+
+export const uploadFiles = async (
+    files: File[], signal?: AbortSignal, uploadIds?: readonly string[], purpose?: 'COMPOSER',
+): Promise<SendMessageRequest['attachments']> => {
     if (files.length === 0) {
         throw new Error('At least one file is required');
+    }
+    if (uploadIds && (uploadIds.length !== files.length || uploadIds.some(id => !isUploadId(id))
+        || new Set(uploadIds.map(id => id.toLowerCase())).size !== files.length)) {
+        throw new Error('One distinct upload ID is required for each file');
     }
 
     if (files.length === 1) {
         const formData = new FormData();
         formData.append('file', files[0]);
         const response = await apiClient.post<UploadResponse>('/files/upload', formData, {
+            signal,
+            ...(uploadIds || purpose ? { params: {
+                ...(uploadIds ? { uploadId: uploadIds[0] } : {}),
+                ...(purpose ? { purpose } : {}),
+            } } : {}),
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         const uploaded = response.data.file;
@@ -731,6 +863,11 @@ export const uploadFiles = async (files: File[]): Promise<SendMessageRequest['at
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
     const response = await apiClient.post<UploadResponse>('/files/upload/multiple', formData, {
+        signal,
+        ...(uploadIds || purpose ? { params: {
+            ...(uploadIds ? { uploadIds: uploadIds.join(',') } : {}),
+            ...(purpose ? { purpose } : {}),
+        } } : {}),
         headers: { 'Content-Type': 'multipart/form-data' },
     });
     if (!response.data.success || !response.data.uploadedFiles || response.data.uploadedFiles.length !== files.length) {

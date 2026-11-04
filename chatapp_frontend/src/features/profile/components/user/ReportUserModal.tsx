@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
-import { submitUserReport } from '@/features/moderation/api/report.api';
+import { useReportSubmission } from '@/features/moderation/model/useReportSubmission';
 import { localizeText } from '@/shared/i18n';
-import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { Button, ModalShell, Select, Textarea } from '@/shared/ui';
 
 interface ReportUserModalProps {
@@ -24,28 +23,14 @@ const REASONS = [
 export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: ReportUserModalProps) => {
   const [reasonCode, setReasonCode] = useState<string>(REASONS[0].value);
   const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-  const submitRequestRef = useRef(0);
+  const { submit, isSubmitting, error, setError } = useReportSubmission(userId, onSubmitted, onClose);
 
   useEffect(() => {
-    submitRequestRef.current += 1;
     setReasonCode(REASONS[0].value);
     setDescription('');
-    setError(null);
-    setIsSubmitting(false);
   }, [userId]);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    submitRequestRef.current += 1;
-  }, []);
-
-  const canSubmit = useMemo(
-    () => Boolean(userId && reasonCode && !isSubmitting),
-    [isSubmitting, reasonCode, userId],
-  );
+  const canSubmit = Boolean(userId && reasonCode && !isSubmitting);
 
   const handleSubmit = async () => {
     if (!canSubmit) {
@@ -53,26 +38,12 @@ export const ReportUserModal = ({ userId, displayName, onClose, onSubmitted }: R
       return;
     }
 
-    setIsSubmitting(true);
-    setError(null);
-    const requestId = ++submitRequestRef.current;
-    const targetUserId = userId;
-    try {
-      await submitUserReport({
-        targetType: 'USER',
-        targetUserId: userId,
-        reasonCode,
-        description: description.trim() || undefined,
-      });
-      if (!mountedRef.current || requestId !== submitRequestRef.current || targetUserId !== userId) return;
-      onSubmitted();
-      onClose();
-    } catch (submitError) {
-      if (!mountedRef.current || requestId !== submitRequestRef.current || targetUserId !== userId) return;
-      setError(getUserFacingErrorMessage(submitError, 'Không thể gửi báo cáo. Vui lòng thử lại.'));
-    } finally {
-      if (mountedRef.current && requestId === submitRequestRef.current) setIsSubmitting(false);
-    }
+    await submit({
+      targetType: 'USER',
+      targetUserId: userId,
+      reasonCode,
+      description: description.trim() || undefined,
+    });
   };
 
   return (

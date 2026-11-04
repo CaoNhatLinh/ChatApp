@@ -34,6 +34,7 @@ USE chat_app;
 
 CREATE TYPE IF NOT EXISTS message_summary (
   message_id timeuuid,
+  message_bucket text,
   sender_id uuid,
   sender_display_name text,
   content_preview text,
@@ -517,10 +518,11 @@ CREATE TABLE IF NOT EXISTS messages_by_conversation_bucket (
   message_bucket text,
   message_id timeuuid,
   sender_id uuid,
-  message_type text,                /* TEXT, IMAGE, FILE, AUDIO, VIDEO, STICKER, POLL, SYSTEM */
+  message_type text,                /* TEXT, IMAGE, FILE, AUDIO, VIDEO, STICKER, GIF, POLL, SYSTEM */
   content text,
   content_format text,               /* PLAIN, MARKDOWN */
   reply_to_message_id timeuuid,
+    reply_to_message_bucket text,
   reply_to_sender_id uuid,
   sticker_id uuid,
   poll_id uuid,
@@ -538,6 +540,8 @@ CREATE TABLE IF NOT EXISTS messages_by_conversation_bucket (
   is_pinned boolean,
   created_at timestamp,
   client_message_id uuid,
+  gif_provider text,                /* GIPHY; identity only, never provider media URLs */
+  gif_id text,
   PRIMARY KEY ((conversation_id, message_bucket), message_id)
 ) WITH CLUSTERING ORDER BY (message_id DESC);
 
@@ -646,9 +650,10 @@ CREATE TABLE IF NOT EXISTS message_forwards_by_source_message (
   PRIMARY KEY ((source_conversation_id, source_message_bucket, source_message_id), forwarded_at, target_message_id)
 ) WITH CLUSTERING ORDER BY (forwarded_at DESC, target_message_id ASC);
 
-/* Five LWT-claimable slots enforce the room's maximum pinned messages. */
+/* One static revision fences every pin-slot mutation within this partition. */
 CREATE TABLE IF NOT EXISTS pinned_message_slots_by_conversation (
   conversation_id uuid,
+  pin_revision bigint static,
   pin_slot tinyint,                 /* 0, 1, 2, 3, 4 */
   message_bucket text,
   message_id timeuuid,
@@ -730,16 +735,45 @@ CREATE TABLE IF NOT EXISTS media_assets_by_id (
   height int,
   duration_ms bigint,
   checksum_sha256 text,
-  upload_status text,                /* PENDING, READY, QUARANTINED, DELETED */
+  upload_receipt text,               /* immutable READY receipt committed with upload authority */
+  upload_status text,                /* PENDING, READY, QUARANTINED, DELETING, DELETED */
+  upload_purpose text,               /* set by the upload claim, null on older assets */
+  retention_locked boolean,          /* permanent history reference; fences provider deletion */
   malware_scan_status text,          /* PENDING, CLEAN, INFECTED, FAILED */
   moderation_status text,            /* PENDING, APPROVED, REJECTED */
   created_at timestamp,
   deleted_at timestamp
 );
 
+/* Pre-claim upload recovery pointers; checked against the asset authority. */
+CREATE TABLE IF NOT EXISTS media_upload_recovery_by_shard (
+  shard int,
+  asset_id uuid,
+  owner_id uuid,
+  upload_id uuid,
+  PRIMARY KEY ((shard), asset_id)
+) WITH CLUSTERING ORDER BY (asset_id ASC);
+
+/* Pre-claim deletion recovery pointers; separate from upload work for the same asset. */
+CREATE TABLE IF NOT EXISTS media_deletion_recovery_by_shard (
+  shard int,
+  asset_id uuid,
+  owner_id uuid,
+  PRIMARY KEY ((shard), asset_id)
+) WITH CLUSTERING ORDER BY (asset_id ASC);
+
+/* Candidates are checked against the current upload purpose and retention fence. */
+CREATE TABLE IF NOT EXISTS media_orphan_candidates_by_shard (
+  shard int,
+  asset_id uuid,
+  owner_id uuid,
+  PRIMARY KEY ((shard), asset_id)
+) WITH CLUSTERING ORDER BY (asset_id ASC);
+
 CREATE TABLE IF NOT EXISTS media_thumbnails_by_asset (
   asset_id uuid,
   variant text,                      /* SMALL, MEDIUM, LARGE */
+  status text,                       /* READY, FAILED, UNAVAILABLE; synchronous provider outcome */
   thumbnail_url text,
   width int,
   height int,
@@ -757,35 +791,41 @@ CREATE TABLE IF NOT EXISTS chat_themes_by_id (
   updated_at timestamp
 );
 
-CREATE TABLE IF NOT EXISTS sticker_packs_by_id (
-  sticker_pack_id uuid PRIMARY KEY,
-  name text,
-  description text,
-  cover_asset_id uuid,
-  created_by uuid,
-  is_official boolean,
-  is_active boolean,
-  created_at timestamp,
-  updated_at timestamp
-);
-
-CREATE TABLE IF NOT EXISTS stickers_by_pack (
+/* One pack is one CAS aggregate. PACK/STICKER/ORDER/COMMAND entries commit together. */
+CREATE TABLE IF NOT EXISTS sticker_catalog_by_pack (
   sticker_pack_id uuid,
-  sticker_id uuid,
+  entry_type text,
+  position int,
+  entry_id uuid,
+  pack_name text static,
+  pack_description text static,
+  cover_asset_id uuid static,
+  is_official boolean static,
+  pack_active boolean static,
+  pack_revision uuid static,
+  updated_at timestamp static,
   name text,
   asset_id uuid,
+  is_active boolean,
+  revision uuid,
   sort_order int,
-  is_active boolean,
-  PRIMARY KEY ((sticker_pack_id), sort_order, sticker_id)
-) WITH CLUSTERING ORDER BY (sort_order ASC, sticker_id ASC);
+  command_json text,
+  audit_exported boolean,
+  PRIMARY KEY ((sticker_pack_id), entry_type, position, entry_id)
+) WITH CLUSTERING ORDER BY (entry_type ASC, position ASC, entry_id ASC);
 
-CREATE TABLE IF NOT EXISTS stickers_by_id (
+/* Immutable discovery pointer, populated before authority CAS; missing authority is not usable. */
+CREATE TABLE IF NOT EXISTS sticker_identity_by_id (
   sticker_id uuid PRIMARY KEY,
-  sticker_pack_id uuid,
-  name text,
-  asset_id uuid,
-  is_active boolean
+  sticker_pack_id uuid
 );
+
+/* Bounded discovery only; hydrate pack authority before returning a catalog entry. */
+CREATE TABLE IF NOT EXISTS sticker_pack_directory (
+  catalog text,
+  sticker_pack_id uuid,
+  PRIMARY KEY ((catalog), sticker_pack_id)
+) WITH CLUSTERING ORDER BY (sticker_pack_id ASC);
 
 /* ======================= Notifications and invitations =================== */
 
@@ -822,7 +862,42 @@ CREATE TABLE IF NOT EXISTS notification_deliveries_by_notification (
   delivered_at timestamp,
   opened_at timestamp,
   failure_code text,
+  request_json text,               /* Immutable email payload for provider idempotency retries. */
+  lease_until timestamp,
+  retry_at timestamp,
+  attempt_count int,
+  revision uuid,
+  review_command_id uuid,
+  reviewed_by uuid,
+  review_reason text,
+  reviewed_at timestamp,
   PRIMARY KEY ((user_id, notification_month, notification_id), device_id)
+);
+
+/* Durable discovery pointers. No message text is copied into this queue. */
+CREATE TABLE IF NOT EXISTS email_jobs_by_shard (
+  shard int,
+  notification_id timeuuid,
+  user_id uuid,
+  notification_month text,
+  created_at timestamp,
+  PRIMARY KEY ((shard), notification_id, user_id)
+) WITH CLUSTERING ORDER BY (notification_id ASC, user_id ASC);
+
+/* Discovery pointers only. Resolve against the current email delivery state before returning an item. */
+CREATE TABLE IF NOT EXISTS email_review_candidates_by_day (
+  review_day text,                  /* UTC date of the job's creation */
+  notification_id timeuuid,
+  user_id uuid,
+  notification_month text,
+  PRIMARY KEY ((review_day), notification_id, user_id, notification_month)
+) WITH CLUSTERING ORDER BY (notification_id DESC, user_id DESC, notification_month DESC);
+
+/* Hard bounces and complaints block future attempts; keys are normalized-email SHA-256. */
+CREATE TABLE IF NOT EXISTS email_suppressions_by_address (
+  address_hash text PRIMARY KEY,
+  reason text,
+  created_at timestamp
 );
 
 /*
@@ -974,8 +1049,45 @@ CREATE TABLE IF NOT EXISTS reports_by_reporter (
   message_id timeuuid,
   reason_code text,
   description text,
+  decision_intents map<text, text>,
   PRIMARY KEY ((reporter_id), created_at, report_id)
 ) WITH CLUSTERING ORDER BY (created_at DESC, report_id ASC);
+
+CREATE TABLE IF NOT EXISTS report_create_commands (
+  reporter_id uuid,
+  client_report_id uuid,
+  fingerprint text,
+  created_at timeuuid,
+  report_id uuid,
+  target_user_id uuid,
+  PRIMARY KEY ((reporter_id, client_report_id))
+);
+
+CREATE TABLE IF NOT EXISTS report_create_preparation_by_shard (
+  work_shard tinyint,
+  reporter_id uuid,
+  client_report_id uuid,
+  fingerprint text,
+  created_at timeuuid,
+  report_id uuid,
+  target_user_id uuid,
+  target_type text,
+  conversation_id uuid,
+  message_bucket text,
+  message_id timeuuid,
+  reason_code text,
+  description text,
+  PRIMARY KEY ((work_shard), reporter_id, client_report_id)
+);
+
+CREATE TABLE IF NOT EXISTS report_decision_work_by_shard (
+  work_shard tinyint,
+  report_id uuid,
+  previous_status text,
+  reporter_id uuid,
+  created_at timeuuid,
+  PRIMARY KEY ((work_shard), report_id, previous_status)
+);
 
 CREATE TABLE IF NOT EXISTS moderation_results_by_message (
   conversation_id uuid,
@@ -1041,29 +1153,73 @@ CREATE TABLE IF NOT EXISTS audit_events_by_resource (
 
 /* ===================== WebRTC metadata and reliability =================== */
 
+/* Authority: zero call_id is the conversation slot; other rows are snapshots.
+ * Slot + call revisions change in one conditional single-partition batch.
+ * No SDP/ICE/media content is persisted. See tasks/call-lifecycle-contract.md. */
+CREATE TABLE IF NOT EXISTS call_state_by_conversation (
+  conversation_id uuid,
+  call_id uuid,
+  revision uuid,
+  active_call_id uuid,
+  snapshot_json text,
+  published_version bigint,        /* broker handoff receipt, not participant delivery */
+  PRIMARY KEY ((conversation_id), call_id)
+);
+
+/* Callee discovery keys are prewritten before the authority claim.
+ * TTL is physical cleanup; eligibility uses the fixed 45-second ringing deadline. */
+CREATE TABLE IF NOT EXISTS incoming_calls_by_user (
+  callee_id uuid,
+  ring_deadline timestamp,
+  conversation_id uuid,
+  call_id uuid,
+  PRIMARY KEY ((callee_id), ring_deadline, conversation_id, call_id)
+) WITH CLUSTERING ORDER BY (ring_deadline ASC, conversation_id ASC, call_id ASC)
+  AND default_time_to_live = 86400;
+
+/* Prewritten discovery only. Workers must fence against current authority.
+ * No TTL: downtime must not silently discard recovery work. */
+CREATE TABLE IF NOT EXISTS call_work_by_shard (
+  shard int,                        /* 0..15, derived from conversation UUID */
+  due_at timestamp,
+  conversation_id uuid,
+  call_id uuid,
+  revision uuid,
+  kind text,                        /* PUBLISH or EXPIRE */
+  deadline timestamp,
+  expected_slot_revision uuid,       /* retain pending prewrites until their CAS is fenced */
+  write_deadline timestamp,
+  PRIMARY KEY ((shard), due_at, conversation_id, call_id, revision, kind)
+) WITH CLUSTERING ORDER BY (due_at ASC, conversation_id ASC, call_id ASC, revision ASC, kind ASC);
+
+CREATE TABLE IF NOT EXISTS call_work_progress_by_shard (
+  shard int PRIMARY KEY,
+  revision uuid,
+  cursor_due_at timestamp,
+  cursor_room uuid,
+  cursor_call uuid,
+  cursor_revision uuid,
+  cursor_kind text
+);
+
+/* Immutable history discovery keys, prewritten before authority claim.
+ * State/participants come from call_state_by_conversation, never copied here. */
 CREATE TABLE IF NOT EXISTS calls_by_conversation (
   conversation_id uuid,
+  call_month text,                  /* UTC YYYY-MM from authority creation */
   started_at timeuuid,
   call_id uuid,
-  started_by uuid,
-  ended_at timestamp,
-  call_type text,                   /* VOICE, VIDEO */
-  status text,                      /* ACTIVE, ENDED, FAILED */
-  signaling_provider text,           /* LIVEKIT, MEDIASOUP, JANUS */
-  provider_room_id text,
-  media_region text,
-  max_participants int,
-  PRIMARY KEY ((conversation_id), started_at, call_id)
-) WITH CLUSTERING ORDER BY (started_at DESC, call_id ASC);
+  PRIMARY KEY ((conversation_id, call_month), started_at, call_id)
+) WITH CLUSTERING ORDER BY (started_at DESC, call_id DESC);
 
-CREATE TABLE IF NOT EXISTS call_participants_by_call (
-  call_id uuid,
+CREATE TABLE IF NOT EXISTS calls_by_user (
   user_id uuid,
-  joined_at timestamp,
-  left_at timestamp,
-  disconnect_reason text,
-  PRIMARY KEY ((call_id), user_id)
-);
+  call_month text,
+  started_at timeuuid,
+  conversation_id uuid,
+  call_id uuid,
+  PRIMARY KEY ((user_id, call_month), started_at, conversation_id, call_id)
+) WITH CLUSTERING ORDER BY (started_at DESC, conversation_id DESC, call_id DESC);
 
 /* ========================= Outbox and analytics ========================== */
 
@@ -1114,10 +1270,16 @@ CREATE TABLE IF NOT EXISTS analytics_events_by_day_type (
 ) WITH CLUSTERING ORDER BY (occurred_at DESC, event_id ASC);
 
 CREATE TABLE IF NOT EXISTS system_settings_by_key (
-  setting_key text PRIMARY KEY,
+  setting_key text,
+  entry_type text,
+  command_id uuid,
   setting_value text,
+  revision uuid,
   updated_by uuid,
-  updated_at timestamp
+  updated_at timestamp,
+  command_json text,
+  audit_exported boolean,
+  PRIMARY KEY ((setting_key), entry_type, command_id)
 );
 
 /* ============================== Operations =============================== */
@@ -1130,9 +1292,12 @@ CREATE TABLE IF NOT EXISTS system_settings_by_key (
  * 2. To pin a room: claim one of the three rows in
  *    pinned_conversation_slots_by_user with INSERT ... IF NOT EXISTS, then
  *    update conversations_by_user. Delete that exact slot to unpin.
- * 3. To pin a message: claim one of the five rows in
- *    pinned_message_slots_by_conversation with INSERT ... IF NOT EXISTS and
- *    update the message's is_pinned projection. Delete the exact slot to unpin.
+ * 3. Message pins share one static pin_revision per conversation. Initialize an
+ *    absent partition through CAS, then conditionally advance that revision and
+ *    mutate its slot in one same-partition conditional batch. Enforce five
+ *    distinct messages from that observed state; unpin additionally fences the
+ *    exact bucket/message/pinned_at generation. is_pinned is a separate repairable
+ *    message projection, not an atomic cross-partition commit.
  * 4. To consume an invite: validate active/expiry/maxUses in the service, then
  *    execute `UPDATE invitation_links_by_token SET used_count = ? WHERE
  *    link_token = ? IF used_count = ? AND is_active = true`; mirror the result

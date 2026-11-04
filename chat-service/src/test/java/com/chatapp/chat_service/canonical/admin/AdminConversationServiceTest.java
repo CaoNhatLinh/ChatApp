@@ -77,6 +77,6 @@ class AdminConversationServiceTest {
         Instant now = Instant.now();
         return new AdminConversationDirectoryRepository.AdminConversationSummary(
                 conversationId, "GROUP", "PRIVATE", "INVITE_ONLY", "Room", null,
-                UUID.randomUUID(), 2, mode, slowMode, deleted, now, now, List.of());
+                UUID.randomUUID(), 2, mode, slowMode, deleted, now, now, List.of(), null);
     }
 }

@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.security.config;
 
 import com.chatapp.chat_service.security.jwt.JwtAuthenticationFilter;
+import com.chatapp.chat_service.security.jwt.JwtAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,11 +32,12 @@ public class SecurityConfig {
     private String allowedOriginPatterns;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationEntryPoint entryPoint) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(entryPoint))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/register",
@@ -45,6 +47,7 @@ public class SecurityConfig {
                     "/api/auth/providers",
                     "/api/auth/google/exchange",
                     "/api/auth/google/register",
+                    "/api/webhooks/resend",
                     "/api/public/**",
                     "/api/health/**",
                     "/api/v1/public/**",

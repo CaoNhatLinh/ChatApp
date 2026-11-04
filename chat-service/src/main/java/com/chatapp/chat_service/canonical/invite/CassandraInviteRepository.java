@@ -35,6 +35,7 @@ public class CassandraInviteRepository implements InviteRepository {
     private final PreparedStatement deactivateInvite;
     private final PreparedStatement recordJoinOutcome;
     private final PreparedStatement saveJoinRequest;
+    private final PreparedStatement saveUserJoinRequest;
     private final PreparedStatement listRequests;
     private final PreparedStatement listRequestsBefore;
     private final PreparedStatement loadJoinRequest;
@@ -123,6 +124,11 @@ public class CassandraInviteRepository implements InviteRepository {
                 INSERT INTO join_requests_by_conversation
                     (conversation_id, requested_at, request_id, user_id, link_id, link_token, status)
                 VALUES (?, ?, ?, ?, ?, ?, 'PENDING') IF NOT EXISTS
+                """);
+        this.saveUserJoinRequest = session.prepare("""
+                INSERT INTO join_requests_by_user
+                    (user_id, requested_at, request_id, conversation_id, link_id, status)
+                VALUES (?, ?, ?, ?, ?, 'PENDING') IF NOT EXISTS
                 """);
         this.listRequests = session.prepare(
                 "SELECT * FROM join_requests_by_conversation WHERE conversation_id = ? LIMIT ?");
@@ -405,6 +411,9 @@ public class CassandraInviteRepository implements InviteRepository {
         if (requestId == null || requestedAt == null) {
             throw new IllegalStateException("invite recipient claim has no request identity");
         }
+        // Discoverability first: a partial write is visible as RETRY_REQUIRED, never silently lost.
+        session.execute(saveUserJoinRequest.bind(
+                userId, requestedAt, requestId, invite.conversationId(), invite.linkId()));
         session.execute(saveJoinRequest.bind(
                 invite.conversationId(), requestedAt, requestId, userId,
                 invite.linkId(), invite.linkToken()));

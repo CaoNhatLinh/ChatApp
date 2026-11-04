@@ -1,7 +1,11 @@
 package com.chatapp.chat_service.canonical.user;
 
+import com.chatapp.chat_service.canonical.dto.CanonicalApiContracts.UpdateProfileRequest;
+import com.chatapp.chat_service.canonical.media.ManagedImageReference;
+import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalUser;
 import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
+import com.chatapp.chat_service.common.exception.ConflictException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -12,12 +16,19 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
     @Mock UserRepository store;
     @Mock CanonicalEventRecorder eventRecorder;
+    @Mock ManagedImageReference managedImages;
 
     @Test
     void searchReturnsBoundedPublicResultsAndCursor() {
@@ -44,7 +55,20 @@ class UserServiceTest {
                 .hasMessageContaining("at least 2");
     }
 
+    @Test
+    void avatarRetentionConflictPreventsProfileWriteAndAudit() {
+        UUID actorId = UUID.randomUUID();
+        String avatar = "https://res.cloudinary.com/noi/image/upload/chatapp/avatar.png";
+        when(store.findById(actorId)).thenReturn(mock(CanonicalUser.class));
+        doThrow(new ConflictException("image is being deleted")).when(managedImages).retain(avatar);
+
+        assertThatThrownBy(() -> service().updateProfile(actorId, new UpdateProfileRequest("Alice", avatar)))
+                .isInstanceOf(ConflictException.class);
+        verify(store, never()).updateProfile(any(), any(), any(), any());
+        verifyNoInteractions(eventRecorder);
+    }
+
     private UserService service() {
-        return new UserService(store, eventRecorder);
+        return new UserService(store, eventRecorder, managedImages);
     }
 }

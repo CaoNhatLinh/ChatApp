@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 /** Owns message commands, history, interaction state, notifications and realtime publication. */
 @Service
 public class MessageService implements MessageSender {
+    private static final int HISTORY_BUCKET_SCAN_LIMIT = 256;
     private final CanonicalCqlStore store;
     private final CanonicalConversationRepository conversationRepository;
     private final ConversationAuthorizationService authorization;
@@ -63,6 +64,9 @@ public class MessageService implements MessageSender {
     private final MessageRepository messageRepository;
     private final UserRepository users;
     private final MessageAttachmentPolicy attachmentPolicy;
+    private final MessageStickerPolicy stickerPolicy;
+    private final MessageReplyPolicy replyPolicy;
+    private final MessageForwardPolicy forwardPolicy;
 
     public MessageService(
             CanonicalCqlStore store,
@@ -75,7 +79,10 @@ public class MessageService implements MessageSender {
             PollRepository polls,
             MessageRepository messageRepository,
             UserRepository users,
-            MessageAttachmentPolicy attachmentPolicy) {
+            MessageAttachmentPolicy attachmentPolicy,
+            MessageStickerPolicy stickerPolicy,
+            MessageReplyPolicy replyPolicy,
+            MessageForwardPolicy forwardPolicy) {
         this.store = store;
         this.conversationRepository = conversationRepository;
         this.authorization = authorization;
@@ -87,6 +94,9 @@ public class MessageService implements MessageSender {
         this.messageRepository = messageRepository;
         this.users = users;
         this.attachmentPolicy = attachmentPolicy;
+        this.stickerPolicy = stickerPolicy;
+        this.replyPolicy = replyPolicy;
+        this.forwardPolicy = forwardPolicy;
     }
 
     public CanonicalMessage sendMessage(UUID actorId, UUID conversationId, CanonicalApiContracts.MessageSendRequest req) {
@@ -104,10 +114,14 @@ public class MessageService implements MessageSender {
             throw new BadRequestException("contentFormat is required");
         }
         String messageType = req.messageType().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("TEXT", "IMAGE", "FILE", "AUDIO", "VIDEO", "STICKER", "POLL", "SYSTEM")
+        if (!Set.of("TEXT", "IMAGE", "FILE", "AUDIO", "VIDEO", "STICKER", "GIF", "POLL", "SYSTEM")
                 .contains(messageType)) {
             throw new BadRequestException("unsupported messageType");
         }
+        stickerPolicy.validateShape(messageType, req);
+        MessageGifPolicy.validate(messageType, req);
+        MessageReplyPolicy.validateShape(req);
+        MessageForwardPolicy.validateShape(req);
         CanonicalConversation conversation = getConversation(conversationId);
         if (Boolean.TRUE.equals(conversation.isDeleted())) {
             throw new ConflictException("archived conversations do not accept new messages");
@@ -118,6 +132,20 @@ public class MessageService implements MessageSender {
                 member,
                 authorization.effectivePermissions(conversationId, actorId),
                 req.clientMessageId());
+
+        String requestFingerprint = MessageRequestFingerprint.sha256(req);
+        var previousClaim = messageRepository.findClaim(actorId, req.clientMessageId(), conversationId, requestFingerprint);
+        if (previousClaim != null) {
+            if (!previousClaim.matchesRequest()) throw new ConflictException("clientMessageId was already used for a different message");
+            var committed = messageRepository.find(conversationId, previousClaim.messageBucket(), previousClaim.messageId());
+            if (committed != null) {
+                repairCommittedMessage(committed, req);
+                return PublicMessageView.redact(committed);
+            }
+        }
+        stickerPolicy.validateAvailable(messageType, req);
+        CanonicalMessage replySource = replyPolicy.resolve(actorId, conversationId, req);
+        CanonicalMessage forwardSource = forwardPolicy.resolve(actorId, req);
 
         Set<UUID> mentionedUserIds = req.mentionedUserIds() == null
                 ? Set.of()
@@ -140,7 +168,8 @@ public class MessageService implements MessageSender {
         }
 
         Instant now = Instant.now();
-        attachmentPolicy.validate(actorId, req.attachments());
+        if (forwardSource == null) attachmentPolicy.validate(actorId, req.attachments());
+        else attachmentPolicy.validateForwarded(req.attachments());
         UUID clientMessageId = req.clientMessageId();
         String requestedBucket = MessageBucket.forWrite(now, clientMessageId);
         var claim = messageRepository.claim(
@@ -148,7 +177,7 @@ public class MessageService implements MessageSender {
                 clientMessageId,
                 conversationId,
                 requestedBucket,
-                MessageRequestFingerprint.sha256(req),
+                requestFingerprint,
                 now);
         if (claim == null) {
             throw new ConflictException("message idempotency claim failed; retry with the same clientMessageId");
@@ -159,7 +188,7 @@ public class MessageService implements MessageSender {
         if (!claim.claimed()) {
             CanonicalMessage existing = messageRepository.find(conversationId, claim.messageBucket(), claim.messageId());
             if (existing != null) {
-                messageRepository.saveBucket(existing);
+                repairCommittedMessage(existing, req);
                 return PublicMessageView.redact(existing);
             }
         }
@@ -174,16 +203,16 @@ public class MessageService implements MessageSender {
                 assignedMessageId,
                 actorId,
                 messageType,
-                req.content(),
-                req.contentFormat().trim().toUpperCase(Locale.ROOT),
+                forwardSource == null ? req.content() : forwardSource.content(),
+                forwardSource == null ? req.contentFormat().trim().toUpperCase(Locale.ROOT) : forwardSource.contentFormat(),
                 req.replyToMessageId(),
-                req.replyToSenderId(),
+                replySource == null ? null : replySource.senderId(),
                 req.stickerId(),
                 req.pollId(),
                 null,
-                req.forwardedFromConversationId(),
-                req.forwardedFromMessageBucket(),
-                req.forwardedFromMessageId(),
+                forwardSource == null ? null : forwardSource.conversationId(),
+                forwardSource == null ? null : forwardSource.messageBucket(),
+                forwardSource == null ? null : forwardSource.messageId(),
                 false,
                 null,
                 null,
@@ -192,37 +221,62 @@ public class MessageService implements MessageSender {
                 !mentionedUserIds.isEmpty(),
                 false,
                 createdAt,
-                clientMessageId
-        );
-        messageRepository.save(message);
+                clientMessageId,
+                req.gif(),
+                req.replyToMessageBucket(),
+                0);
+        if (message.hasAttachments()) attachmentPolicy.retainForHistory(req.attachments());
+        if (!messageRepository.createIfAbsent(message)) {
+            CanonicalMessage existing = messageRepository.find(conversationId, bucket, assignedMessageId);
+            if (existing == null) throw new ConflictException("message creation was not applied; retry with the same clientMessageId");
+            repairCommittedMessage(existing, req);
+            return PublicMessageView.redact(existing);
+        }
+        messageRepository.saveBucket(message);
+        messageRepository.repairSourceProjections(message);
         if (req.attachments() != null) {
             for (var attach : req.attachments()) {
                 messageRepository.saveAttachment(message, attach);
-                publishConversationEvent(message.conversationId(), "/attachments", Map.of(
-                        "messageId", message.messageId().toString(),
-                        "messageBucket", message.messageBucket(),
-                        "attachment", attach,
-                        "addedBy", actorId.toString()));
             }
         }
         if (!mentionedUserIds.isEmpty()) {
             messageRepository.saveMentions(message, mentionedUserIds);
         }
-        if (claim.claimed()) {
-            CanonicalUser sender = users.findById(actorId);
-            if (sender == null) {
-                throw new IllegalStateException("authenticated sender does not exist");
-            }
-            if (conversationMembers == null) {
-                conversationMembers = conversationRepository.findMembers(conversationId);
-            }
-            store.updateLastMessageProjections(message, sender.displayName(), conversationMembers);
-            recordMessageEvent(actorId, "MESSAGE_SEND", message, mentionedUserIds);
-            notifyConversationMembers(actorId, message, sender, conversationMembers, mentionedUserIds);
+        CanonicalUser sender = users.findById(actorId);
+        if (sender == null) {
+            throw new IllegalStateException("authenticated sender does not exist");
         }
+        if (conversationMembers == null) {
+            conversationMembers = conversationRepository.findMembers(conversationId);
+        }
+        store.updateLastMessageProjections(message, sender.displayName(), conversationMembers);
+        recordMessageEvent(actorId, "MESSAGE_SEND", message, mentionedUserIds);
+        notifyConversationMembers(actorId, message, sender, conversationMembers, mentionedUserIds);
         return message;
     }
 
+
+    private void repairCommittedMessage(CanonicalMessage message, CanonicalApiContracts.MessageSendRequest request) {
+        messageRepository.saveBucket(message);
+        if (!Boolean.TRUE.equals(message.isDeleted())) {
+            messageRepository.repairSourceProjections(message);
+            // The matching claim fingerprint freezes the already-authorized attachment snapshot.
+            if (request.attachments() != null) {
+                for (var attachment : request.attachments()) messageRepository.saveAttachment(message, attachment);
+            }
+            // The fingerprint freezes explicit recipients. The original @everyone audience is not stored.
+            if (Boolean.TRUE.equals(message.hasMentions()) && !request.mentionEveryone()
+                    && request.mentionedUserIds() != null && !request.mentionedUserIds().isEmpty()) {
+                messageRepository.repairMentionReferences(message, request.mentionedUserIds());
+            }
+        }
+        CanonicalUser sender = users.findById(message.senderId());
+        String senderName = null;
+        if (sender != null) {
+            senderName = StringUtils.hasText(sender.displayName()) ? sender.displayName() : sender.username();
+        }
+        store.repairCanonicalConversationPreview(PublicMessageView.redact(message), senderName);
+    }
 
     public CanonicalMessage editMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId, CanonicalApiContracts.MessageUpdateRequest req) {
         CanonicalMessage message = messageRepository.find(conversationId, bucket, messageId);
@@ -239,6 +293,10 @@ public class MessageService implements MessageSender {
             throw new ForbiddenException("only sender can edit");
         }
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_EDIT_OWN);
+        if (message.forwarded()) throw new BadRequestException("forwarded messages cannot be edited; delete and send another message");
+        if (Set.of("STICKER", "GIF").contains(message.messageType())) {
+            throw new BadRequestException("sticker and GIF messages cannot be edited; delete and send another message");
+        }
         if (!messageRepository.updateContent(conversationId, bucket, messageId, req.content(), actorId)) {
             throw new ConflictException("message changed concurrently; reload and retry");
         }
@@ -257,13 +315,20 @@ public class MessageService implements MessageSender {
         }
         authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_DELETE_OWN);
         if (Boolean.TRUE.equals(message.isDeleted())) {
+            releaseDeletedMessagePin(actorId, message);
             return PublicMessageView.redact(message);
         }
         if (!messageRepository.delete(conversationId, bucket, messageId, actorId)) {
+            var concurrent = messageRepository.find(conversationId, bucket, messageId);
+            if (concurrent != null && Boolean.TRUE.equals(concurrent.isDeleted())) {
+                releaseDeletedMessagePin(actorId, concurrent);
+                return PublicMessageView.redact(concurrent);
+            }
             throw new ConflictException("message changed concurrently; reload and retry");
         }
         CanonicalMessage deleted = messageRepository.find(conversationId, bucket, messageId);
         recordMessageEvent(actorId, "MESSAGE_DELETE", deleted, null);
+        releaseDeletedMessagePin(actorId, deleted);
         return PublicMessageView.redact(deleted);
     }
 
@@ -300,36 +365,71 @@ public class MessageService implements MessageSender {
         }
     }
 
-    public CanonicalMessage pinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
-        authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_PIN);
-        CanonicalMessage current = messageRepository.find(conversationId, bucket, messageId);
-        if (current == null) {
-            throw new NotFoundException("message not found");
+    public CanonicalApiContracts.MessagePinStateView getMessagePins(UUID actor, UUID room) {
+        requireMember(room, actor);
+        var state = messageRepository.findPinState(room);
+        boolean repaired = false;
+        for (var slot : state.slots()) {
+            var message = messageRepository.find(room, slot.bucket(), slot.message());
+            if (message != null && Boolean.TRUE.equals(message.isDeleted())) {
+                releaseDeletedMessagePin(actor, message);
+                repaired = true;
+            }
         }
-        if (Boolean.TRUE.equals(current.isDeleted())) throw new ConflictException("deleted messages cannot be pinned");
-        if (!messageRepository.setPinned(conversationId, bucket, messageId, actorId, true)) {
-            throw new ConflictException("a conversation can have at most 5 pinned messages");
-        }
-        CanonicalMessage updated = PublicMessageView.redact(messageRepository.find(conversationId, bucket, messageId));
-        recordMessageProjectionEvent(actorId, "MESSAGE_PIN", updated, null);
-        publishConversationEvent(conversationId, "/pins", Map.of(
-                "messageId", messageId.toString(), "messageBucket", bucket,
-                "pinnedBy", actorId.toString(), "action", "PIN"));
-        return updated;
+        return pinView(room, repaired ? messageRepository.findPinState(room) : state);
     }
 
-    public CanonicalMessage unpinMessage(UUID actorId, UUID conversationId, String bucket, UUID messageId) {
-        authorization.requirePermission(conversationId, actorId, ConversationPermission.MESSAGE_PIN);
-        if (messageRepository.find(conversationId, bucket, messageId) == null) {
-            throw new NotFoundException("message not found");
+    public CanonicalApiContracts.MessagePinMutationView pinMessage(UUID actor, UUID room, String bucket, UUID id,
+            CanonicalApiContracts.MessagePinRequest request) {
+        return changePin(actor, room, bucket, id, true, request);
+    }
+
+    public CanonicalApiContracts.MessagePinMutationView unpinMessage(UUID actor, UUID room, String bucket, UUID id,
+            CanonicalApiContracts.MessagePinRequest request) {
+        return changePin(actor, room, bucket, id, false, request);
+    }
+
+    private CanonicalApiContracts.MessagePinMutationView changePin(UUID actor, UUID room, String bucket, UUID id,
+            boolean pinned, CanonicalApiContracts.MessagePinRequest request) {
+        authorization.requirePermission(room, actor, ConversationPermission.MESSAGE_PIN);
+        long expected;
+        try {
+            if (request == null || request.expectedRevision() == null
+                    || !request.expectedRevision().matches("0|[1-9][0-9]{0,18}")) throw new NumberFormatException();
+            expected = Long.parseLong(request.expectedRevision());
+        } catch (NumberFormatException invalid) {
+            throw new BadRequestException("expected pin revision is invalid");
         }
-        messageRepository.setPinned(conversationId, bucket, messageId, actorId, false);
-        CanonicalMessage updated = PublicMessageView.redact(messageRepository.find(conversationId, bucket, messageId));
-        recordMessageProjectionEvent(actorId, "MESSAGE_UNPIN", updated, null);
-        publishConversationEvent(conversationId, "/pins", Map.of(
-                "messageId", messageId.toString(), "messageBucket", bucket,
-                "pinnedBy", actorId.toString(), "action", "UNPIN"));
-        return updated;
+        var current = messageRepository.find(room, bucket, id);
+        if (current == null) throw new NotFoundException("message not found");
+        if (pinned && Boolean.TRUE.equals(current.isDeleted())) throw new ConflictException("deleted messages cannot be pinned");
+        var change = messageRepository.changePin(room, bucket, id, actor, pinned, expected);
+        var fresh = messageRepository.find(room, bucket, id);
+        if (fresh == null) throw new ConflictException("message changed during pin update; reload and retry");
+        if (pinned && Boolean.TRUE.equals(fresh.isDeleted())) {
+            releaseDeletedMessagePin(actor, fresh);
+            throw new ConflictException("message was deleted during pin update");
+        }
+        var updated = PublicMessageView.withPinned(fresh, change.state().contains(bucket, id));
+        var state = pinView(room, change.state());
+        if (change.changed()) {
+            recordMessageProjectionEvent(actor, pinned ? "MESSAGE_PIN" : "MESSAGE_UNPIN", updated, null, state);
+            publishConversationEvent(room, "/pins", state);
+        }
+        return new CanonicalApiContracts.MessagePinMutationView(updated, state);
+    }
+
+    private CanonicalApiContracts.MessagePinStateView pinView(UUID room, MessageRepository.PinState state) {
+        return new CanonicalApiContracts.MessagePinStateView(room, Long.toString(state.revision()),
+                state.slots().stream().map(slot -> new CanonicalApiContracts.MessagePinReference(slot.message(), slot.bucket())).toList());
+    }
+
+    private void releaseDeletedMessagePin(UUID actor, CanonicalMessage deleted) {
+        var change = DeletedMessagePins.release(messageRepository, deleted, actor);
+        if (!change.changed()) return;
+        var state = pinView(deleted.conversationId(), change.state());
+        recordMessageProjectionEvent(actor, "MESSAGE_UNPIN", deleted, null, state);
+        publishConversationEvent(deleted.conversationId(), "/pins", state);
     }
 
 
@@ -339,13 +439,13 @@ public class MessageService implements MessageSender {
         if (message == null) {
             throw new NotFoundException("message not found");
         }
-        return PublicMessageView.redact(message);
+        return publicMessages(conversationId, List.of(message)).get(0);
     }
 
     public List<CanonicalMessage> listMessages(UUID actorId, UUID conversationId, String bucket, int limit) {
         requireMember(conversationId, actorId);
-        return messageRepository.findByBucket(conversationId, bucket, Math.max(1, Math.min(100, limit)))
-                .stream().map(PublicMessageView::redact).toList();
+        return publicMessages(conversationId,
+                messageRepository.findByBucket(conversationId, bucket, Math.max(1, Math.min(100, limit))));
     }
 
     public CanonicalApiContracts.MessagePage listMessageHistory(
@@ -358,10 +458,18 @@ public class MessageService implements MessageSender {
         MessageCursor decoded = decodeMessageCursor(cursor);
         Instant cursorHour = decoded == null ? null : decoded.createdAt().truncatedTo(ChronoUnit.HOURS);
         List<MessageRepository.MessageBucket> buckets = messageRepository.findBuckets(
-                conversationId, cursorHour, 256);
+                conversationId, cursorHour, HISTORY_BUCKET_SCAN_LIMIT + 1);
+        // Never advance within an hour whose shard list was truncated by the metadata limit.
+        Instant nextHour = buckets.size() > HISTORY_BUCKET_SCAN_LIMIT
+                ? buckets.get(HISTORY_BUCKET_SCAN_LIMIT).bucketHour() : null;
         List<CanonicalMessage> candidates = new ArrayList<>();
+        Instant scannedHour = null;
         for (MessageRepository.MessageBucket bucket : buckets) {
-            boolean cursorBucketHour = decoded != null && bucket.bucketHour().equals(cursorHour);
+            if (bucket.bucketHour().equals(nextHour)
+                    || (candidates.size() > limit && !bucket.bucketHour().equals(scannedHour))) break;
+            scannedHour = bucket.bucketHour();
+            boolean cursorBucketHour = decoded != null && decoded.messageId() != null
+                    && bucket.bucketHour().equals(cursorHour);
             List<CanonicalMessage> messages = cursorBucketHour
                     ? messageRepository.findByBucketBefore(
                             conversationId, bucket.value(), decoded.messageId(), limit + 1)
@@ -372,13 +480,13 @@ public class MessageService implements MessageSender {
                 .comparing(CanonicalMessage::createdAt)
                 .thenComparing(CanonicalMessage::messageId, MessageOrder::compare)
                 .reversed());
-        boolean hasNext = candidates.size() > limit || buckets.size() == 256;
-        List<CanonicalMessage> content = candidates.size() > limit
+        boolean moreMessages = candidates.size() > limit;
+        List<CanonicalMessage> content = moreMessages
                 ? List.copyOf(candidates.subList(0, limit))
                 : List.copyOf(candidates);
-        String nextCursor = hasNext && !content.isEmpty()
+        String nextCursor = moreMessages
                 ? encodeMessageCursor(content.get(content.size() - 1))
-                : null;
+                : nextHour == null ? null : encodeHistoryCursor("h|" + nextHour.toEpochMilli());
         Map<String, List<UUID>> messageIdsByBucket = content.stream()
                 .collect(Collectors.groupingBy(
                         CanonicalMessage::messageBucket,
@@ -397,12 +505,24 @@ public class MessageService implements MessageSender {
                 .toList();
         List<CanonicalApiContracts.PollView> polls = pollViews(actorId, pollIds);
         return new CanonicalApiContracts.MessagePage(
-                content.stream().map(PublicMessageView::redact).toList(),
-                nextCursor, hasNext && nextCursor != null, interactions, polls);
+                publicMessages(conversationId, content),
+                nextCursor, nextCursor != null, interactions, polls);
+    }
+
+    private List<CanonicalMessage> publicMessages(UUID room, List<CanonicalMessage> messages) {
+        if (messages.stream().allMatch(message -> Boolean.TRUE.equals(message.isDeleted()))) {
+            return messages.stream().map(PublicMessageView::redact).toList();
+        }
+        var pins = messageRepository.findPinState(room);
+        return messages.stream().map(message -> PublicMessageView.withPinned(message,
+                pins.contains(message.messageBucket(), message.messageId()))).toList();
     }
 
     private String encodeMessageCursor(CanonicalMessage message) {
-        String value = message.createdAt().toEpochMilli() + "|" + message.messageId();
+        return encodeHistoryCursor(message.createdAt().toEpochMilli() + "|" + message.messageId());
+    }
+
+    private String encodeHistoryCursor(String value) {
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
@@ -412,14 +532,22 @@ public class MessageService implements MessageSender {
             return null;
         }
         try {
+            if (cursor.length() > 96) throw new IllegalArgumentException("invalid cursor length");
             String value = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            if (value.startsWith("h|")) {
+                Instant hour = Instant.ofEpochMilli(Long.parseLong(value.substring(2)));
+                if (!hour.equals(hour.truncatedTo(ChronoUnit.HOURS))) {
+                    throw new IllegalArgumentException("invalid cursor hour");
+                }
+                return new MessageCursor(hour, null);
+            }
             int separator = value.indexOf('|');
             if (separator <= 0 || separator == value.length() - 1) {
                 throw new IllegalArgumentException("invalid cursor");
             }
-            return new MessageCursor(
-                    Instant.ofEpochMilli(Long.parseLong(value.substring(0, separator))),
-                    UUID.fromString(value.substring(separator + 1)));
+            UUID messageId = UUID.fromString(value.substring(separator + 1));
+            if (messageId.version() != 1) throw new IllegalArgumentException("invalid cursor message ID");
+            return new MessageCursor(Instant.ofEpochMilli(Long.parseLong(value.substring(0, separator))), messageId);
         } catch (IllegalArgumentException exception) {
             throw new BadRequestException("invalid message cursor");
         }
@@ -446,7 +574,13 @@ public class MessageService implements MessageSender {
             return;
         }
         Instant readAt = Instant.now();
-        if (!messageRepository.markRead(conversationId, bucket, messageId, actorId, readAt)) return;
+        boolean ownMessage = actorId.equals(message.senderId());
+        boolean advanced = ownMessage
+                ? messageRepository.advanceReadPosition(conversationId, actorId, messageId, member.joinedAt(), readAt)
+                : messageRepository.markRead(conversationId, bucket, messageId, actorId, member.joinedAt(), readAt);
+        if (!advanced) return;
+        store.clearReadConversationProjection(actorId, conversationId, messageId, member.joinedAt());
+        if (ownMessage) return; // Advancing past your own message must not create a false 'seen' receipt.
         publishConversationEvent(conversationId, "/read", Map.of(
                 "messageId", messageId.toString(), "messageBucket", bucket,
                 "readerId", actorId.toString(), "readAt", readAt.toString()));
@@ -551,12 +685,13 @@ public class MessageService implements MessageSender {
 
     private void recordMessageEvent(
             UUID actorId, String action, CanonicalMessage message, Set<UUID> mentionedUserIds) {
-        recordMessageProjectionEvent(actorId, action, message, mentionedUserIds);
+        recordMessageProjectionEvent(actorId, action, message, mentionedUserIds, null);
         publishMessageEvent(action, message);
     }
 
     private void recordMessageProjectionEvent(
-            UUID actorId, String action, CanonicalMessage message, Set<UUID> mentionedUserIds) {
+            UUID actorId, String action, CanonicalMessage message, Set<UUID> mentionedUserIds,
+            CanonicalApiContracts.MessagePinStateView pinState) {
         message = PublicMessageView.redact(message);
         Map<String, Object> payload = new java.util.LinkedHashMap<>();
         payload.put("messageId", message.messageId().toString());
@@ -564,6 +699,8 @@ public class MessageService implements MessageSender {
         payload.put("senderId", message.senderId().toString());
         payload.put("messageType", message.messageType());
         payload.put("content", message.content());
+        payload.put("revision", message.revision());
+        if (pinState != null) payload.put("pinRevision", pinState.revision());
         payload.put("replyToSenderId", message.replyToSenderId() == null ? null : message.replyToSenderId().toString());
         payload.put("hasAttachments", Boolean.TRUE.equals(message.hasAttachments()));
         payload.put("hasMentions", Boolean.TRUE.equals(message.hasMentions()));
@@ -594,7 +731,11 @@ public class MessageService implements MessageSender {
             throw new IllegalStateException("message sender displayName is missing");
         }
         String senderName = sender.displayName().trim();
-        String body = message.content().trim();
+        String body = switch (message.messageType()) {
+            case "STICKER" -> "Sticker";
+            case "GIF" -> "GIF";
+            default -> message.content().trim();
+        };
         String preview = body.length() > 160 ? body.substring(0, 157) + "..." : body;
         CanonicalConversation conversation = getConversation(message.conversationId());
         String roomDefaultLevel = NotificationSettingsPolicy.requireRoomLevel(conversation.defaultNotificationLevel());
@@ -630,7 +771,8 @@ public class MessageService implements MessageSender {
                     "/app?conversation=" + message.conversationId(),
                     Map.of("conversationId", message.conversationId().toString(),
                             "messageId", message.messageId().toString(),
-                            "messageBucket", message.messageBucket()),
+                            "messageBucket", message.messageBucket(),
+                            "messageType", message.messageType()),
                     false,
                     null,
                     Instant.now());
@@ -650,14 +792,15 @@ public class MessageService implements MessageSender {
         payload.put("messageType", message.messageType());
         payload.put("content", message.content());
         payload.put("contentFormat", message.contentFormat());
+        payload.put("revision", message.revision());
         payload.put("replyToMessageId", message.replyToMessageId() == null ? null : message.replyToMessageId().toString());
+        payload.put("replyToMessageBucket", message.replyToMessageBucket());
         payload.put("replyToSenderId", message.replyToSenderId() == null ? null : message.replyToSenderId().toString());
         payload.put("stickerId", message.stickerId() == null ? null : message.stickerId().toString());
+        payload.put("gif", message.gif());
         payload.put("pollId", message.pollId() == null ? null : message.pollId().toString());
         payload.put("systemEventId", message.systemEventId() == null ? null : message.systemEventId().toString());
-        payload.put("forwardedFromConversationId", message.forwardedFromConversationId() == null ? null : message.forwardedFromConversationId().toString());
-        payload.put("forwardedFromMessageBucket", message.forwardedFromMessageBucket());
-        payload.put("forwardedFromMessageId", message.forwardedFromMessageId() == null ? null : message.forwardedFromMessageId().toString());
+        payload.put("forwarded", message.forwarded());
         payload.put("createdAt", message.createdAt().toString());
         payload.put("editedAt", message.editedAt() == null ? null : message.editedAt().toString());
         payload.put("deletedBy", message.deletedBy() == null ? null : message.deletedBy().toString());

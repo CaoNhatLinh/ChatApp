@@ -34,7 +34,7 @@ export const MessengerLayoutShell = ({
     <section lang={locale} className="messenger-workspace app-shell relative h-full w-full overflow-visible bg-background text-foreground">
       {showMobileMenu ? <button
         onClick={() => setSidebarOpen(!isSidebarOpen)}
-        className={cn("focus-ring surface fixed left-4 top-4 z-50 h-10 w-10 items-center justify-center rounded-full text-primary md:hidden", mobileSidebarFullScreen && isSidebarOpen ? "hidden" : "flex")}
+        className={cn("focus-ring surface absolute left-4 top-4 z-50 h-10 w-10 items-center justify-center rounded-full text-primary md:hidden", mobileSidebarFullScreen && isSidebarOpen ? "hidden" : "flex")}
         aria-label={isSidebarOpen ? localizeText("Đóng danh sách") : localizeText("Mở danh sách")}
         type="button"
       >

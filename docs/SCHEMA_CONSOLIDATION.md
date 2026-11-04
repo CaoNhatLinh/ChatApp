@@ -35,7 +35,9 @@ upgrade files would invite accidental ALTER/DROP execution on a fresh database.
 
 ## Verification and limits
 
-- The schema parser covers 78 tables / 676 columns and 2 UDTs / 20 fields.
+- Current schema parser coverage (2026-11-04) includes 91 tables, 765 columns, and 2 UDTs with 21 fields. The guard checks the media recovery pointers, email review index, and the report preparation, identity and decision work tables. This inventory covers the fresh bootstrap. See ADR 0014 for sticker tables, ADR 0017–0020 for call state and history, and ADR 0029–0030 for settings and media recovery.
+
+`report_create_preparation_by_shard` temporarily holds authorized keyed submissions. Recovery can resume one without a second HTTP request. It removes the exact preparation after completing the canonical report or identifying a conflicting command. The permanent deduplication identity stays in `report_create_commands`.
 - Runtime CqlSession query-table guard passes; current revisions and identity
   contracts are covered without importing legacy definitions.
 - The standalone schema guard rejects upgrade DDL and legacy users/revisions

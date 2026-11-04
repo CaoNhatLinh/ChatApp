@@ -5,11 +5,20 @@ export type ConversationType = 'dm' | 'group' | 'channel';
 export type ConversationNotificationLevel = 'ALL' | 'MENTIONS' | 'NONE';
 export type ConversationChatMode = 'OPEN' | 'READ_ONLY' | 'MANAGERS_ONLY';
 export type MemberNotificationOverride = 'INHERIT' | 'ALL' | 'MENTIONS' | 'NONE';
-export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'VIDEO' | 'STICKER' | 'POLL' | 'SYSTEM';
+export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO' | 'VIDEO' | 'STICKER' | 'GIF' | 'POLL' | 'SYSTEM';
+export interface GifReference { provider: 'GIPHY'; providerGifId: string }
+export interface MessagePinState {
+    conversationId: string;
+    revision: string;
+    pins: { messageId: string; messageBucket: string }[];
+}
 
 /* --- Conversation Types --- */
 
 export interface MessageSummary {
+    /** Present when the preview came from a canonical message snapshot. */
+    revision?: number;
+    messageBucket?: string;
     messageId: string;
     senderId: string;
     senderName?: string;
@@ -60,6 +69,7 @@ export interface Conversation {
     slowModeSeconds: number;
     notificationOverride?: MemberNotificationOverride;
     otherParticipant?: User; // Only for DM
+    hasLastMessage?: boolean;
     lastMessage?: MessageSummary;
 }
 
@@ -91,10 +101,20 @@ export interface Attachment {
     attachmentType?: string;
     resourceType?: string;
     publicId?: string;
+    width?: number;
+    height?: number;
+    durationMs?: number;
     thumbnailUrl?: string;
     mediumUrl?: string;
     format?: string;
 }
+
+export type MessageSendOptions = Partial<Pick<SendMessageRequest,
+    'clientMessageId' | 'replyToId' | 'replyToMessageBucket' | 'mentions' | 'mentionEveryone' | 'attachments' | 'stickerId' | 'gif'>> & {
+    /** Local upload identifiers used to check attachment availability before retrying. */
+    uploadIds?: readonly string[];
+    onPrepared?: (request: Readonly<SendMessageRequest>) => void;
+};
 
 export interface Reaction {
     emoji: string;
@@ -112,18 +132,30 @@ export interface MessageSender {
 
 export interface Message {
     messageId: string;
+    /** Required for canonical snapshots; absent only on unconfirmed local sends/previews. */
+    revision?: number;
     clientMessageId?: string;
+    /** In-memory command snapshot for an unconfirmed local send; never hydrated from history. */
+    pendingSend?: Readonly<SendMessageRequest>;
+    pendingUploadIds?: readonly string[];
+    retryNeedsAttachmentCheck?: boolean;
+    retryAttachmentUnavailable?: boolean;
     messageBucket?: string;
     conversationId: string;
     sender: MessageSender;
     content: string;
     type: MessageType;
+    hasAttachments?: boolean;
     attachments?: Attachment[];
+    stickerId?: string | null;
+    gif?: GifReference | null;
     reactions?: Reaction[];
     replyTo?: {
         messageId: string;
-        content: string;
-        senderName: string;
+        messageBucket: string;
+        senderId?: string;
+        content?: string;
+        senderName?: string;
     };
     mentions?: MentionTag[];
     poll?: PollData;
@@ -146,6 +178,9 @@ export interface SendMessageRequest {
     content: string;
     type: MessageType;
     replyToId?: string;
+    replyToMessageBucket?: string;
+    stickerId?: string;
+    gif?: GifReference;
     mentions?: string[];
     mentionEveryone?: boolean;
     attachments?: Attachment[];
@@ -216,28 +251,3 @@ export interface TypingEvent {
     };
     isTyping: boolean;
 }
-
-export interface CallCommand {
-    conversationId: string;
-    callId: string;
-    callType?: 'VOICE' | 'VIDEO';
-    mediaRegion?: string;
-    maxParticipants?: number;
-    targetUserId: string;
-    signal?: Record<string, unknown>;
-}
-
-export interface CallEvent {
-    conversationId: string;
-    callId: string;
-    actorId: string;
-    action: 'START' | 'JOIN' | 'LEAVE' | 'SIGNAL' | 'END';
-    callType?: 'VOICE' | 'VIDEO';
-    mediaRegion?: string;
-    maxParticipants?: number;
-    targetUserId: string;
-    signal?: Record<string, unknown>;
-    occurredAt: string;
-}
-
-

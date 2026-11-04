@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { AuthProvider } from '@/app/providers/AuthProvider';
 import { PresenceManager } from '@/app/providers/PresenceManager';
 import { ThemeProvider } from '@/app/providers/ThemeProvider';
@@ -12,16 +12,19 @@ import { AppToaster } from '@/shared/ui/AppToaster';
 import { BrandWord } from '@/shared/ui/BrandWord';
 import { useEffect, useState } from 'react';
 import { AuthSessionRecovery } from '@/features/auth/ui/AuthSessionRecovery';
+import { IncomingCallNotice } from '@/features/calls/ui/IncomingCallNotice';
 
 interface NativeRouteShellProps {
   children: ReactNode;
   sessionAware?: boolean;
+  incomingCalls?: boolean;
 }
 
-export function NativeRouteShell({ children, sessionAware = false }: NativeRouteShellProps) {
+export function NativeRouteShell({ children, sessionAware = false, incomingCalls = false }: NativeRouteShellProps) {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
   const initializationError = useAuthStore((state) => state.initializationError);
   const [mounted, setMounted] = useState(false);
+  const [callFeedbackHeight, setCallFeedbackHeight] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -49,7 +52,10 @@ export function NativeRouteShell({ children, sessionAware = false }: NativeRoute
             <DeviceLifecycleManager />
             <NetworkStatusBanner />
             <AppToaster />
-            {sessionAware && initializationError ? <AuthSessionRecovery /> : children}
+            <div style={{ '--app-viewport-height': `calc(100dvh - ${callFeedbackHeight}px)` } as CSSProperties}>
+              {sessionAware && incomingCalls ? <IncomingCallNotice onFeedbackHeightChange={setCallFeedbackHeight} /> : null}
+              {sessionAware && initializationError ? <AuthSessionRecovery /> : children}
+            </div>
           </AuthProvider>
         </ThemeProvider>
       )}

@@ -9,6 +9,25 @@ authentication:
     - POST /auth/logout
     - GET /public/invites/{token}
 http:
+  systemSettings:
+    - GET /admin/system-settings
+    - PUT /admin/system-settings/{key}
+  calls:
+    - GET /calls/incoming
+    - GET /calls/history
+    - GET /conversations/{conversationId}/calls/history
+    - GET /conversations/{conversationId}/calls/{callId}/history
+  stickers:
+    - POST /admin/sticker-packs
+    - PUT /admin/sticker-packs/{packId}
+    - POST /admin/sticker-packs/{packId}/stickers
+    - PUT /admin/sticker-packs/{packId}/stickers/{stickerId}
+    - GET /sticker-packs
+    - GET /sticker-packs/{packId}/stickers
+    - GET /admin/sticker-packs
+    - GET /admin/sticker-packs/{packId}
+    - GET /admin/sticker-packs/{packId}/stickers
+    - GET /admin/sticker-packs/{packId}/stickers/{stickerId}
   users:
     - GET /auth/me
     - POST /auth/logout
@@ -32,6 +51,7 @@ http:
   conversations:
     - POST /conversations
     - GET /conversations
+    - GET /conversations/{conversationId}/summary
     - GET /conversations/{conversationId}
     - GET /conversations/{conversationId}/notification-policy
     - GET /conversations/dm/{otherUserId}
@@ -60,6 +80,10 @@ http:
     - GET /conversations/{conversationId}/messages
     - POST /conversations/{conversationId}/messages
     - GET /conversations/{conversationId}/messages/{messageId}
+    - GET /conversations/{conversationId}/messages/{messageId}/sticker
+    - GET /conversations/{conversationId}/messages/{messageId}/replies
+    - GET /conversations/{conversationId}/messages/{messageId}/forward-source
+    - GET /conversations/{conversationId}/messages/{messageId}/forward-draft
     - PUT /conversations/{conversationId}/messages/{messageId}
     - DELETE /conversations/{conversationId}/messages/{messageId}
     - POST /conversations/{conversationId}/messages/{messageId}/reactions

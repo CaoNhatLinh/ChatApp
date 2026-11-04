@@ -61,6 +61,7 @@ export interface AdminConversationSummary {
   visibility: string;
   joinPolicy: string;
   name?: string | null;
+  avatarUrl?: string | null;
   description?: string | null;
   ownerId?: string | null;
   memberCount: number;
@@ -192,15 +193,15 @@ export const getAdminHealth = async (): Promise<AdminHealthSnapshot> => {
   return response.data;
 };
 
-export const searchAdminUsers = async (query: string): Promise<UserDTO[]> => {
+export const searchAdminUsers = async (query: string, signal?: AbortSignal): Promise<UserDTO[]> => {
   const response = await apiClient.get<CanonicalUserSearchPage>('/users/search', {
-    params: { q: query, limit: 20 },
+    params: { q: query, limit: 20 }, signal,
   });
   return response.data.content.map(toUserDto);
 };
 
-export const getAdminUserRoles = async (userId: string): Promise<AdminRoleGrant[]> => {
-  const response = await apiClient.get<AdminRoleGrant[]>(`/admin/users/${userId}/app-roles`);
+export const getAdminUserRoles = async (userId: string, signal?: AbortSignal): Promise<AdminRoleGrant[]> => {
+  const response = await apiClient.get<AdminRoleGrant[]>(`/admin/users/${userId}/app-roles`, { signal });
   return response.data;
 };
 
@@ -235,8 +236,8 @@ export const updateAdminUserStatus = async (
   });
 };
 
-export const listAdminSessions = async (userId: string, limit = 50): Promise<AdminSession[]> => {
-  const response = await apiClient.get<AdminSession[]>(`/admin/users/${userId}/sessions`, { params: { limit } });
+export const listAdminSessions = async (userId: string, limit = 50, signal?: AbortSignal): Promise<AdminSession[]> => {
+  const response = await apiClient.get<AdminSession[]>(`/admin/users/${userId}/sessions`, { params: { limit }, signal });
   return response.data;
 };
 
@@ -244,8 +245,8 @@ export const revokeAdminSession = async (userId: string, tokenId: string, reason
   await apiClient.delete(`/admin/users/${userId}/sessions/${tokenId}`, { params: { reason: reason.trim() } });
 };
 
-export const listAdminDevices = async (userId: string, limit = 50): Promise<AdminDevice[]> => {
-  const response = await apiClient.get<AdminDevice[]>(`/admin/users/${userId}/devices`, { params: { limit } });
+export const listAdminDevices = async (userId: string, limit = 50, signal?: AbortSignal): Promise<AdminDevice[]> => {
+  const response = await apiClient.get<AdminDevice[]>(`/admin/users/${userId}/devices`, { params: { limit }, signal });
   return response.data;
 };
 
@@ -337,6 +338,17 @@ export const listAdminAnalytics = async (params: {
 
 export const listAdminReports = async (status = 'OPEN', day?: string, limit = 50): Promise<AdminReport[]> => {
   const response = await apiClient.get<AdminReport[]>('/admin/reports', { params: { status, day, limit } });
+  return response.data;
+};
+
+export const getAdminReport = async (
+  { reportId, reporterId, createdAtKey }: Pick<AdminReport, 'reportId' | 'reporterId' | 'createdAtKey'>,
+  signal?: AbortSignal,
+): Promise<AdminReport> => {
+  const response = await apiClient.get<AdminReport>(`/admin/reports/${reportId}`, {
+    params: { reporterId, createdAtKey },
+    signal,
+  });
   return response.data;
 };
 

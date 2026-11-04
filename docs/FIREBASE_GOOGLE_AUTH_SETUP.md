@@ -33,18 +33,15 @@ key hay file JSON của service account vào frontend.
 
 ## 3. Cấp quyền xác minh cho backend
 
-Cách khuyến nghị khi phát triển local:
+Nếu đã có JSON của service account, lưu file ở vị trí riêng ngoài repo. Đặt
+`GOOGLE_APPLICATION_CREDENTIALS` trong môi trường chạy hoặc `chat-service/.env`,
+trỏ tới file đó. Trong `.env` trên Windows, dùng dấu `/` trong đường dẫn, ví dụ
+`C:/duong-dan-rieng/firebase-admin.json`. Cách này dùng trực tiếp credential và
+`FIREBASE_PROJECT_ID` nên có thể chạy mà không cần cài `gcloud`.
 
-1. Cài Google Cloud CLI và đăng nhập đúng project.
-2. Chạy `gcloud auth application-default login`.
-3. Đặt `FIREBASE_PROJECT_ID` đúng với project ở frontend.
-
-Trong môi trường deploy, dùng workload identity/service account của hạ tầng.
-Nếu buộc phải dùng JSON key local, đặt đường dẫn qua
-`GOOGLE_APPLICATION_CREDENTIALS` ở process environment hoặc `chat-service/.env`;
-file key phải nằm ngoài repository và không được commit.
-Firebase Admin SDK đọc credential theo
-[Application Default Credentials](https://firebase.google.com/docs/admin/setup).
+Nếu đã có Google Cloud CLI, có thể dùng `gcloud auth application-default login`
+để cấp ADC local. Khi deploy, dùng workload identity hoặc service account do hạ
+tầng cấp. Xem [Firebase Admin SDK và ADC](https://firebase.google.com/docs/admin/setup).
 
 Backend environment:
 
@@ -71,15 +68,15 @@ cũ hoặc xóa/recreate dữ liệu production. Xem [quyết định hợp nh�
 ## 5. Chạy và kiểm tra
 
 ```powershell
-# backend
-cd chat-service
-$env:JAVA_HOME='C:\Program Files\Java\jdk-20'
+# Backend, từ thư mục gốc repo
+Set-Location .\chat-service
+$env:JAVA_HOME='C:\duong-dan\jdk-21'
 .\mvnw.cmd test
 .\mvnw.cmd spring-boot:run
 
-# frontend, terminal khác
-cd chatapp_frontend
-npm install
+# Frontend, terminal khác mở tại thư mục gốc repo
+Set-Location .\chatapp_frontend
+npm ci
 npm run type-check
 npm run lint
 npm run build

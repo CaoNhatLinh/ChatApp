@@ -1,0 +1,132 @@
+.overview {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.grid {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+.grid:empty {
+  display: none;
+}
+
+.queueLink {
+  --ink: light-dark(#a53e58, #fa98ae);
+  --seal-mark: light-dark(#fff, #2c101a);
+  display: grid;
+  grid-template-columns: minmax(6.25rem, 2fr) minmax(0, 3fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--ink) 9%, var(--card));
+  text-align: start;
+  transition: background-color 180ms ease-out;
+}
+
+.queueLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.queueLink:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--ink) 15%, var(--card));
+}
+
+.artwork {
+  display: block;
+  width: 100%;
+  max-width: 11rem;
+  justify-self: center;
+}
+
+.orbit {
+  stroke: color-mix(in srgb, var(--ink) 64%, var(--border));
+  stroke-dasharray: 3 5;
+}
+
+.spark {
+  fill: var(--ink);
+}
+
+.paper {
+  fill: var(--card);
+  stroke: color-mix(in srgb, var(--ink) 60%, var(--border));
+  stroke-width: 2;
+}
+
+.rule {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.65;
+}
+
+.seal {
+  fill: var(--ink);
+  stroke: var(--card);
+  stroke-width: 2;
+}
+
+.sealMark {
+  stroke: var(--seal-mark);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.backSheet, .frontSheet, .stamp, .queueArrow {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.backSheet { transform: translate(-9px, -2px) rotate(-17deg); }
+.frontSheet { transform: rotate(8deg); }
+.queueLink:is(:hover, :focus-visible) .backSheet { transform: translate(-16px, -5px) rotate(-24deg); }
+.queueLink:is(:hover, :focus-visible) .frontSheet { transform: translate(4px, -5px) rotate(12deg); }
+.queueLink:is(:hover, :focus-visible) .stamp { transform: translate(7px, -4px); }
+.queueLink:is(:hover, :focus-visible) .queueArrow { transform: translate(2px, -2px); }
+
+.queueCaption {
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.queueCaption strong {
+  font-size: clamp(1.125rem, 2vw, 1.45rem);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.queueCaption time, .health {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.queueArrow { align-self: start; }
+
+.health {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (min-width: 880px) {
+  .grid:has(> section + section) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queueLink, .backSheet, .frontSheet, .stamp, .queueArrow { transition: none; }
+  .queueLink:is(:hover, :focus-visible) .backSheet { transform: translate(-9px, -2px) rotate(-17deg); }
+  .queueLink:is(:hover, :focus-visible) .frontSheet { transform: rotate(8deg); }
+  .queueLink:is(:hover, :focus-visible) :is(.stamp, .queueArrow) { transform: none; }
+}

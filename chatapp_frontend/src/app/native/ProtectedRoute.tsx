@@ -6,7 +6,7 @@ import { ProtectedRoute as AuthenticatedRoute } from '@/app/router/guards/Protec
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
   return (
-    <NativeRouteShell sessionAware>
+    <NativeRouteShell sessionAware incomingCalls>
       <AuthenticatedRoute>{children}</AuthenticatedRoute>
     </NativeRouteShell>
   );

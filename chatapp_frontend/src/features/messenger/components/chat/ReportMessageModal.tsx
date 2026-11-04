@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import type { Message } from '../../types/messenger.types';
-import { submitMessageReport } from '@/features/moderation/api/report.api';
+import { useReportSubmission } from '@/features/moderation/model/useReportSubmission';
 import { localizeText } from '@/shared/i18n';
-import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { Button, ModalShell, Select, Textarea } from '@/shared/ui';
 
 interface ReportMessageModalProps {
@@ -24,35 +23,16 @@ const REASONS = [
 export const ReportMessageModal = ({ message, onClose, onSubmitted }: ReportMessageModalProps) => {
   const [reasonCode, setReasonCode] = useState<string>(REASONS[0].value);
   const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-  const submitRequestRef = useRef(0);
+  const targetKey = message ? `${message.conversationId}/${message.messageBucket}/${message.messageId}` : null;
+  const { submit, isSubmitting, error, setError } = useReportSubmission(targetKey, onSubmitted, onClose);
 
   useEffect(() => {
-    submitRequestRef.current += 1;
-    if (!message) {
-      setIsSubmitting(false);
-      setError(null);
-      return;
-    }
     setReasonCode(REASONS[0].value);
     setDescription('');
-    setError(null);
-    setIsSubmitting(false);
-  }, [message]);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-    submitRequestRef.current += 1;
-  }, []);
-
-  const canSubmit = useMemo(
-    () => Boolean(message?.messageBucket && message.messageId && !isSubmitting),
-    [isSubmitting, message],
-  );
+  }, [targetKey]);
 
   if (!message) return null;
+  const canSubmit = Boolean(message.messageBucket && message.messageId && !isSubmitting);
 
   const handleSubmit = async () => {
     const messageBucket = message.messageBucket;
@@ -61,38 +41,14 @@ export const ReportMessageModal = ({ message, onClose, onSubmitted }: ReportMess
       return;
     }
 
-    setIsSubmitting(true);
-    setError(null);
-    const requestId = ++submitRequestRef.current;
-    const messageIdentity = `${message.conversationId}:${message.messageBucket}:${message.messageId}`;
-    try {
-      await submitMessageReport({
-        targetType: 'MESSAGE',
-        conversationId: message.conversationId,
-        messageBucket,
-        messageId: message.messageId,
-        reasonCode,
-        description: description.trim() || undefined,
-      });
-      if (
-        !mountedRef.current ||
-        requestId !== submitRequestRef.current ||
-        !message ||
-        messageIdentity !== `${message.conversationId}:${message.messageBucket}:${message.messageId}`
-      ) return;
-      onSubmitted();
-      onClose();
-    } catch (submitError) {
-      if (
-        !mountedRef.current ||
-        requestId !== submitRequestRef.current ||
-        !message ||
-        messageIdentity !== `${message.conversationId}:${message.messageBucket}:${message.messageId}`
-      ) return;
-      setError(getUserFacingErrorMessage(submitError, 'Không thể gửi báo cáo. Vui lòng thử lại.'));
-    } finally {
-      if (mountedRef.current && requestId === submitRequestRef.current) setIsSubmitting(false);
-    }
+    await submit({
+      targetType: 'MESSAGE',
+      conversationId: message.conversationId,
+      messageBucket,
+      messageId: message.messageId,
+      reasonCode,
+      description: description.trim() || undefined,
+    });
   };
 
   return (

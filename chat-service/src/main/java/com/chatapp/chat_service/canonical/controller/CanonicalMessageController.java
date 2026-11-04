@@ -126,19 +126,27 @@ public class CanonicalMessageController {
     }
 
     @PostMapping("/{messageId}/pin")
-    public CanonicalMessage pin(
+    public CanonicalApiContracts.MessagePinMutationView pin(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
-            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return messages.pinMessage(actorId(), conversationId, bucket, messageId);
+            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
+            @Valid @RequestBody CanonicalApiContracts.MessagePinRequest request) {
+        return messages.pinMessage(actorId(), conversationId, bucket, messageId, request);
     }
 
     @DeleteMapping("/{messageId}/pin")
-    public CanonicalMessage unpin(
+    public CanonicalApiContracts.MessagePinMutationView unpin(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
-            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket) {
-        return messages.unpinMessage(actorId(), conversationId, bucket, messageId);
+            @RequestParam @Pattern(regexp = BUCKET_PATTERN) String bucket,
+            @Valid @RequestBody CanonicalApiContracts.MessagePinRequest request) {
+        return messages.unpinMessage(actorId(), conversationId, bucket, messageId, request);
+    }
+
+    @GetMapping("/pins")
+    public ResponseEntity<CanonicalApiContracts.MessagePinStateView> pins(@PathVariable UUID conversationId) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(messages.getMessagePins(actorId(), conversationId));
     }
 
     private UUID actorId() {

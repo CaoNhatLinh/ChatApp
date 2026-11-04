@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { isAxiosError } from 'axios';
 import { prepareMessageSend, completeMessageSend } from './messageSendAttempt';
+import { loadConversationEntry } from './conversation-entry';
 import { getSessionGeneration, SessionChangedError } from '@/shared/auth/access-token';
 import { useShallow } from 'zustand/react/shallow';
 import { useMessengerStore, EMPTY_TYPING } from '@/features/messenger/model/messenger.store';
@@ -8,12 +10,12 @@ import {
     getConversations,
     getConversationById,
     getMessages,
+    mapMessagePinState,
     sendMessageHttp,
     editMessage as editMessageApi,
     deleteMessage as deleteMessageApi,
     getMessageRevisions as getMessageRevisionsApi,
     getMessageReadReceipts as getMessageReadReceiptsApi,
-    markMessagesAsRead,
     getConversationUnreadCount,
     mapToMessage,
     pinConversation as pinConversationApi,
@@ -31,6 +33,7 @@ import type {
     MessageRevision,
     MessageReadReceiptPage,
     SendMessageRequest,
+    MessageSendOptions,
     MessageType,
     TypingEvent
 } from '../types/messenger.types';
@@ -39,7 +42,6 @@ import { useAuthStore } from '@/features/auth/model/auth.store';
 import { logger } from '@/shared/lib/logger';
 import { notifyError } from '@/shared/lib/notification';
 import { localizeText } from '@/shared/i18n';
-import { useNotificationStore } from '@/features/notifications/model/notification.store';
 import { MESSENGER_COPY } from '@/features/messenger/constants/messengerCopy';
 import { getUserFacingErrorMessage } from '@/shared/lib/user-facing-error';
 import { mapCanonicalPollAggregate } from '../api/poll.api';
@@ -50,6 +52,11 @@ const INITIAL_MESSAGES_PAGE_SIZE = 30;
 const LOAD_MORE_MESSAGES_PAGE_SIZE = 20;
 const initTracker = { key: '', promise: null as Promise<void> | null };
 const initMessengerSubscriptions = new Map<string, Array<() => void>>();
+
+const isHistoryAccessDenied = (error: unknown): boolean => {
+    const status = isAxiosError(error) ? error.response?.status : undefined;
+    return status === 403 || status === 404;
+};
 
 const clearInitSubscriptions = (key: string): void => {
     const unsubscribers = initMessengerSubscriptions.get(key) || [];
@@ -66,15 +73,16 @@ const clearInitSubscriptions = (key: string): void => {
 interface UseMessengerResult {
     initMessenger: () => Promise<void>;
     selectConversation: (conversationId: string | null) => Promise<void>;
-    loadMoreMessages: (conversationId: string) => Promise<void>;
+    loadInitialMessages: (conversationId: string) => Promise<void>;
+    loadMoreMessages: (conversationId: string) => Promise<boolean>;
     loadMoreConversations: () => Promise<void>;
-    sendMessage: (content: string, type?: MessageType, options?: Partial<SendMessageRequest>) => Promise<void>;
+    sendMessage: (content: string, type?: MessageType, options?: MessageSendOptions) => Promise<void>;
     editMessage: (messageId: string, content: string) => Promise<Message | null>;
     deleteMessage: (messageId: string) => Promise<Message | null>;
     loadMessageRevisions: (messageId: string) => Promise<MessageRevision[]>;
     loadMessageReadReceipts: (messageId: string, cursor?: string | null) => Promise<MessageReadReceiptPage>;
     pinMessage: (messageId: string) => Promise<void>;
-    uploadMessageFiles: (files: File[]) => Promise<SendMessageRequest['attachments']>;
+    uploadMessageFiles: (files: File[], signal?: AbortSignal, uploadIds?: readonly string[]) => Promise<SendMessageRequest['attachments']>;
     sendTyping: (isTyping: boolean) => void;
     loading: boolean;
     error: string | null;
@@ -113,9 +121,7 @@ export const useMessenger = (): UseMessengerResult => {
         hoistConversation,
         upsertConversationFromMessage,
         updateMessageStatus,
-        updateMessage,
-        resetUnreadCount,
-        setConversationUnreadCount
+        updateMessage
     } = useMessengerStore(useShallow(state => ({
         setActiveView: state.setActiveView,
         setConversations: state.setConversations,
@@ -134,9 +140,7 @@ export const useMessenger = (): UseMessengerResult => {
         hoistConversation: state.hoistConversation,
         upsertConversationFromMessage: state.upsertConversationFromMessage,
         updateMessageStatus: state.updateMessageStatus,
-        updateMessage: state.updateMessage,
-        resetUnreadCount: state.resetUnreadCount,
-        setConversationUnreadCount: state.setConversationUnreadCount
+        updateMessage: state.updateMessage
     })));
 
     const {
@@ -173,9 +177,7 @@ export const useMessenger = (): UseMessengerResult => {
     })));
 
     const refreshConversationSeqRef = useRef<Map<string, number>>(new Map());
-    const loadMoreInFlightRef = useRef<Set<string>>(new Set());
     const loadMoreConversationsInFlightRef = useRef(false);
-    const conversationLoadRequestRef = useRef(0);
 
     const refreshConversationSummary = useCallback(async (conversationId: string) => {
         if (!conversationId) return;
@@ -340,114 +342,110 @@ export const useMessenger = (): UseMessengerResult => {
         refreshConversationSummary,
     ]);
 
-        const selectConversation = useCallback(async (conversationId: string | null) => {
+    const loadInitialMessages = useCallback(async (conversationId: string) => {
+        const store = useMessengerStore.getState();
+        if (store.activeConversationId !== conversationId || store.initialMessageHistory?.status === 'loading') return;
+        const cachedMessages = store.messages[conversationId];
+        const fetchedAt = store.messagesPagination[conversationId]?.fetchedAt;
+        if (!store.unavailableMessageHistory[conversationId] && store.initialMessageHistory?.status !== 'error'
+            && cachedMessages?.length && fetchedAt && Date.now() - fetchedAt <= MESSAGES_TTL_MS) {
+            return;
+        }
+
+        const requestId = crypto.randomUUID();
+        const generation = getSessionGeneration();
+        const isCurrent = () => {
+            const current = useMessengerStore.getState();
+            return generation === getSessionGeneration() && current.activeConversationId === conversationId
+                && current.initialMessageHistory?.requestId === requestId;
+        };
+        store.setInitialMessageHistory({ conversationId, requestId, status: 'loading' });
+        store.setOlderMessageHistory(null);
+        try {
+            const response = await getMessages(conversationId, { page: 0, size: INITIAL_MESSAGES_PAGE_SIZE });
+            if (!isCurrent()) return;
+            setMessages(conversationId, response.content, {
+                before: cachedMessages ?? [],
+                hasNext: response.hasNext,
+                page: response.number,
+                nextCursor: response.nextCursor,
+            });
+            if (isCurrent()) {
+                store.setMessageHistoryUnavailable(conversationId, false);
+                store.setInitialMessageHistory(null);
+            }
+        } catch (err: unknown) {
+            if (!isCurrent()) return;
+            if (isHistoryAccessDenied(err)) store.setMessageHistoryUnavailable(conversationId, true);
+            store.setInitialMessageHistory({ conversationId, requestId, status: 'error' });
+            logger.debug('[useMessenger] Error loading initial messages:', err instanceof Error ? err.message : String(err));
+        }
+    }, [setMessages]);
+
+    const selectConversation = useCallback(async (conversationId: string | null) => {
         setActiveConversation(conversationId);
         if (!conversationId) return;
-
-        const requestId = ++conversationLoadRequestRef.current;
-
-        const isConversationLoaded = useMessengerStore.getState().conversations.some(
-            (conversation) => conversation.conversationId === conversationId,
+        const generation = getSessionGeneration();
+        const known = useMessengerStore.getState().conversations.some(
+            conversation => conversation.conversationId === conversationId,
         );
+        if (!known && !await loadConversationEntry(conversationId)) return;
+        if (generation === getSessionGeneration()) await loadInitialMessages(conversationId);
+    }, [setActiveConversation, loadInitialMessages]);
 
-        if (!isConversationLoaded) {
-            await refreshConversationSummary(conversationId);
-        }
-
-        resetUnreadCount(conversationId);
-        void useNotificationStore.getState().markConversationAsRead(conversationId).catch((error: unknown) => {
-            logger.debug('Failed to mark conversation notifications as read', error instanceof Error ? error.message : String(error));
-        });
-        void getConversationUnreadCount(conversationId)
-            .then((count) => {
-                if (requestId !== conversationLoadRequestRef.current) return;
-                setConversationUnreadCount(conversationId, count);
-            })
-            .catch((error: unknown) => {
-                logger.debug('Failed to refresh conversation unread count', error instanceof Error ? error.message : String(error));
-            });
-
-        const cachedMessages = useMessengerStore.getState().messages[conversationId];
-        const pagination = useMessengerStore.getState().messagesPagination[conversationId];
-
-        if (cachedMessages && cachedMessages.length > 0 && pagination?.fetchedAt && Date.now() - pagination.fetchedAt <= MESSAGES_TTL_MS) {
-            const unreadMessages = cachedMessages
-                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId);
-
-            if (unreadMessages.length > 0) {
-                void markMessagesAsRead(conversationId, unreadMessages).catch((error: unknown) => {
-                    logger.debug('Failed to mark cached messages as read', error instanceof Error ? error.message : String(error));
-                });
-            }
-
-            void getConversationUnreadCount(conversationId)
-                .then((count) => {
-                    if (requestId !== conversationLoadRequestRef.current) return;
-                    setConversationUnreadCount(conversationId, count);
-                })
-                .catch((error: unknown) => {
-                    logger.debug('Failed to refresh cached conversation unread count', error instanceof Error ? error.message : String(error));
-                });
-            return;
-        }
-
-        try {
-            if (requestId !== conversationLoadRequestRef.current) return;
-            const response = await getMessages(conversationId, { page: 0, size: INITIAL_MESSAGES_PAGE_SIZE });
-            if (requestId !== conversationLoadRequestRef.current) return;
-            setMessages(conversationId, response.content, response.hasNext, response.number, response.nextCursor);
-
-            const unreadMessages = response.content
-                .filter(message => !message.isDeleted && message.sender.userId !== user?.userId);
-
-            if (unreadMessages.length > 0) {
-                await markMessagesAsRead(conversationId, unreadMessages);
-            }
-
-            if (requestId !== conversationLoadRequestRef.current) return;
-            const unreadCount = await getConversationUnreadCount(conversationId);
-            if (requestId !== conversationLoadRequestRef.current) return;
-            setConversationUnreadCount(conversationId, unreadCount);
-        } catch (err: unknown) {
-            if (requestId !== conversationLoadRequestRef.current) return;
-            setError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadMessagesFailed));
-            logger.error('[useMessenger] Error selecting conversation:', err instanceof Error ? err.message : String(err));
-        }
-    }, [
-        resetUnreadCount,
-        refreshConversationSummary,
-        setActiveConversation,
-        setMessages,
-        setError,
-        setConversationUnreadCount,
-        user?.userId,
-    ]);
-
+    const olderPageRequest = useRef<{ requestId: string; result: Promise<boolean> } | null>(null);
     const loadMoreMessages = useCallback(async (conversationId: string) => {
-        if (loadMoreInFlightRef.current.has(conversationId)) {
-            return;
-        }
-
         const state = useMessengerStore.getState();
         const pagination = state.messagesPagination[conversationId];
-        if (!pagination?.hasNext || state.loading) return;
-
-        loadMoreInFlightRef.current.add(conversationId);
-
-        try {
-            const nextPage = pagination.page + 1;
-            const response = await getMessages(conversationId, {
-                page: nextPage,
-                size: LOAD_MORE_MESSAGES_PAGE_SIZE,
-                before: pagination.nextCursor,
-            });
-            prependMessages(conversationId, response.content, response.hasNext, response.number, response.nextCursor);
-        } catch (err: unknown) {
-            logger.error('[useMessenger] Error loading more messages', err instanceof Error ? err.message : String(err));
-            notifyError(getUserFacingErrorMessage(err, MESSENGER_COPY.errors.loadMessagesFailed));
-        } finally {
-            loadMoreInFlightRef.current.delete(conversationId);
+        if (!pagination?.hasNext || state.loading || state.activeConversationId !== conversationId
+            || state.unavailableMessageHistory[conversationId]
+            || state.initialMessageHistory?.status === 'loading') return false;
+        if (state.olderMessageHistory?.status === 'loading') {
+            const pending = olderPageRequest.current;
+            return pending?.requestId === state.olderMessageHistory.requestId ? pending.result : false;
         }
+        const requestId = crypto.randomUUID();
+        const generation = getSessionGeneration();
+        const ownsPage = () => {
+            const current = useMessengerStore.getState();
+            return generation === getSessionGeneration() && current.activeConversationId === conversationId
+                && current.messagesPagination[conversationId] === pagination
+                && current.olderMessageHistory?.requestId === requestId
+                && !current.unavailableMessageHistory[conversationId]
+                && current.initialMessageHistory?.status !== 'loading';
+        };
+
+        state.setOlderMessageHistory({ conversationId, requestId, status: 'loading' });
+
+        const result = (async () => {
+            try {
+                const response = await getMessages(conversationId, {
+                    page: pagination.page + 1,
+                    size: LOAD_MORE_MESSAGES_PAGE_SIZE,
+                    before: pagination.nextCursor,
+                });
+                if (!ownsPage()) return false;
+                prependMessages(conversationId, response.content, { before: state.messages[conversationId] ?? [],
+                    hasNext: response.hasNext, page: response.number, nextCursor: response.nextCursor });
+                state.setOlderMessageHistory(null);
+                return true;
+            } catch (err: unknown) {
+                if (!ownsPage()) return false;
+                if (isHistoryAccessDenied(err)) {
+                    state.setMessageHistoryUnavailable(conversationId, true);
+                    state.setInitialMessageHistory({ conversationId, requestId, status: 'error' });
+                    state.setOlderMessageHistory(null);
+                    return false;
+                }
+                state.setOlderMessageHistory({ conversationId, requestId, status: 'error' });
+                logger.debug('[useMessenger] Error loading more messages', err instanceof Error ? err.message : String(err));
+                return false;
+            } finally {
+                if (olderPageRequest.current?.requestId === requestId) olderPageRequest.current = null;
+            }
+        })();
+        olderPageRequest.current = { requestId, result };
+        return result;
     }, [prependMessages]);
 
     const loadMoreConversations = useCallback(async () => {
@@ -475,34 +473,48 @@ export const useMessenger = (): UseMessengerResult => {
     const sendMessage = useCallback(async (
         content: string,
         type: MessageType = 'TEXT',
-        options?: Partial<Pick<SendMessageRequest, 'clientMessageId' | 'replyToId' | 'mentions' | 'mentionEveryone' | 'attachments'>>
+        options?: MessageSendOptions
     ) => {
         const trimmedContent = content.trim();
-        if (!activeConversationId || !user || (!trimmedContent && (!options?.attachments || options.attachments.length === 0))) return;
+        const hasSticker = type === 'STICKER' && Boolean(options?.stickerId);
+        const hasGif = type === 'GIF' && options?.gif?.provider === 'GIPHY' && Boolean(options.gif.providerGifId);
+        if (!activeConversationId || !user || (!trimmedContent && !hasSticker && !hasGif && (!options?.attachments || options.attachments.length === 0))) return;
 
         const generation = getSessionGeneration();
         const payload: Omit<SendMessageRequest, 'clientMessageId'> = {
             conversationId: activeConversationId,
             content: trimmedContent,
             type,
+            stickerId: options?.stickerId,
+            gif: options?.gif ? { ...options.gif } : undefined,
             replyToId: options?.replyToId,
-            mentions: options?.mentions,
+            replyToMessageBucket: options?.replyToMessageBucket,
+            mentions: options?.mentions ? [...options.mentions] : undefined,
             mentionEveryone: options?.mentionEveryone,
-            attachments: options?.attachments
+            attachments: options?.attachments?.map(attachment => ({ ...attachment }))
         };
         const clientMessageId = options?.clientMessageId ?? await prepareMessageSend(user.userId, payload);
         if (generation !== getSessionGeneration()) throw new SessionChangedError();
         const request: SendMessageRequest = { ...payload, clientMessageId };
+        options?.onPrepared?.(request);
 
         const tempId = `temp-${clientMessageId}`;
         const tempMessage: Message = {
             messageId: tempId,
             clientMessageId,
+            pendingSend: request,
+            pendingUploadIds: options?.uploadIds ? [...options.uploadIds] : undefined,
             conversationId: activeConversationId,
             sender: user,
             content,
             type,
-            attachments: options?.attachments ? [...options.attachments] : [],
+            stickerId: request.stickerId,
+            gif: request.gif ? { ...request.gif } : undefined,
+            attachments: request.attachments?.map(attachment => ({ ...attachment })) ?? [],
+            replyTo: request.replyToId && request.replyToMessageBucket ? {
+                messageId: request.replyToId,
+                messageBucket: request.replyToMessageBucket,
+            } : undefined,
             reactions: [],
             readReceipts: [],
             isForwarded: false,
@@ -520,15 +532,19 @@ export const useMessenger = (): UseMessengerResult => {
             if (generation !== getSessionGeneration()) throw new SessionChangedError();
             const delivered: Message = {
                 ...confirmed,
+                pendingSend: undefined,
                 attachments: confirmed.attachments?.length ? confirmed.attachments : tempMessage.attachments,
                 status: 'sent',
             };
             addMessage(activeConversationId, delivered);
             upsertConversationFromMessage(delivered);
-            if (!options?.clientMessageId) completeMessageSend(user.userId, activeConversationId, clientMessageId);
+            completeMessageSend(user.userId, activeConversationId, clientMessageId);
         } catch (err: unknown) {
+            if (generation !== getSessionGeneration()) throw new SessionChangedError();
             logger.error('[useMessenger] Error sending message', err instanceof Error ? err.message : String(err));
-            updateMessageStatus(activeConversationId, tempId, 'failed');
+            const status = isAxiosError(err) ? err.response?.status : undefined;
+            const retryNeedsAttachmentCheck = Boolean(request.attachments?.length) && (status === 403 || status === 409);
+            updateMessageStatus(activeConversationId, tempId, 'failed', { retryNeedsAttachmentCheck });
             throw err;
         }
     }, [activeConversationId, user, addMessage, upsertConversationFromMessage, updateMessageStatus]);
@@ -578,14 +594,17 @@ export const useMessenger = (): UseMessengerResult => {
             ?.find((candidate) => candidate.messageId === messageId);
         const messageBucket = message?.messageBucket;
         if (!messageBucket) throw new Error('Message bucket is required');
+        const pinState = useMessengerStore.getState().messagePinStates[activeConversationId];
+        if (!pinState) throw new Error(MESSENGER_COPY.errors.pinStateUnavailable);
         const updated = await pinMessageApi(
-            activeConversationId, messageBucket, messageId, !message.isPinned,
+            activeConversationId, messageBucket, messageId, !message.isPinned, pinState.revision,
         );
-        updateMessage(activeConversationId, updated);
+        updateMessage(activeConversationId, updated.message);
+        useMessengerStore.getState().applyMessagePinState(updated.pinState);
     }, [activeConversationId, updateMessage]);
 
-    const uploadMessageFiles = useCallback(async (files: File[]) => {
-        return uploadFiles(files);
+    const uploadMessageFiles = useCallback(async (files: File[], signal?: AbortSignal, uploadIds?: readonly string[]) => {
+        return uploadFiles(files, signal, uploadIds, 'COMPOSER');
     }, []);
 
     const sendTyping = useCallback((isTyping: boolean) => {
@@ -597,28 +616,37 @@ export const useMessenger = (): UseMessengerResult => {
     }, [activeConversationId, user]);
 
     const pinConversation = useCallback(async (conversationId: string) => {
+        const generation = getSessionGeneration();
         try {
             await pinConversationApi(conversationId);
+            if (generation !== getSessionGeneration()) throw new SessionChangedError();
             pinConversationStore(conversationId);
         } catch (err: unknown) {
-            logger.error('[useMessenger] Error pinning conversation', err instanceof Error ? err.message : String(err));
-            notifyError(getUserFacingErrorMessage(err, localizeText('Không thể ghim cuộc trò chuyện.')));
+            if (!(err instanceof SessionChangedError)) {
+                logger.error('[useMessenger] Error pinning conversation', err instanceof Error ? err.message : String(err));
+            }
+            throw err;
         }
     }, [pinConversationStore]);
 
     const unpinConversation = useCallback(async (conversationId: string) => {
+        const generation = getSessionGeneration();
         try {
             await unpinConversationApi(conversationId);
+            if (generation !== getSessionGeneration()) throw new SessionChangedError();
             unpinConversationStore(conversationId);
         } catch (err: unknown) {
-            logger.error('[useMessenger] Error unpinning conversation', err instanceof Error ? err.message : String(err));
-            notifyError(getUserFacingErrorMessage(err, localizeText('Không thể bỏ ghim cuộc trò chuyện.')));
+            if (!(err instanceof SessionChangedError)) {
+                logger.error('[useMessenger] Error unpinning conversation', err instanceof Error ? err.message : String(err));
+            }
+            throw err;
         }
     }, [unpinConversationStore]);
 
     return {
         initMessenger,
         selectConversation,
+        loadInitialMessages,
         loadMoreMessages,
         loadMoreConversations,
         sendMessage,
@@ -666,8 +694,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         updateMessageReactions,
         updatePollData,
         addReadReceipt,
-        updateMessagePinStatus,
-        addMessageAttachment
+        applyMessagePinState
     } = useMessengerStore(useShallow(state => ({
         activeConversationId: state.activeConversationId,
         loading: state.loading,
@@ -679,8 +706,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         updateMessageReactions: state.updateMessageReactions,
         updatePollData: state.updatePollData,
         addReadReceipt: state.addReadReceipt,
-        updateMessagePinStatus: state.updateMessagePinStatus,
-        addMessageAttachment: state.addMessageAttachment
+        applyMessagePinState: state.applyMessagePinState
     })));
 
     const { user, token } = useAuthStore(useShallow(state => ({
@@ -715,6 +741,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         logger.debug(`[useMessengerSetup] Subscribing to conversation: ${activeConversationId}`);
 
         const unsubMessage = realtimeService.subscribe(`/topic/conversation/${activeConversationId}`, (raw: BackendMessage) => {
+            if (raw.conversationId !== activeConversationId) return;
             const msg = mapToMessage(raw);
             if (!msg.messageId || !msg.sender?.userId) return;
 
@@ -725,9 +752,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
             addMessage(activeConversationId, msg);
             upsertConversationFromMessage(msg);
-            if (msg.sender.userId !== user.userId && !msg.isDeleted) {
-                void markMessagesAsRead(activeConversationId, [msg]);
-            }
         });
 
         const typingTopic = `/topic/conversation/${activeConversationId}/typing`;
@@ -771,18 +795,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
 
         const unsubPins = realtimeService.subscribe(
             `/topic/conversation/${activeConversationId}/pins`,
-            (event: { messageId: string; action: 'PIN' | 'UNPIN'; pinnedBy: string }) => {
-                if (blockedUserIds.has(String(event.pinnedBy))) return;
-                updateMessagePinStatus(activeConversationId, event.messageId, event.action === 'PIN');
-            }
-        );
-
-        const unsubAttachments = realtimeService.subscribe(
-            `/topic/conversation/${activeConversationId}/attachments`,
-            (event: { messageId: string; attachment: NonNullable<Message['attachments']>[number]; addedBy: string }) => {
-                if (blockedUserIds.has(String(event.addedBy))) return;
-                addMessageAttachment(activeConversationId, event.messageId, event.attachment);
-            }
+            (payload: unknown) => applyMessagePinState(mapMessagePinState(payload, activeConversationId))
         );
 
         return () => {
@@ -793,7 +806,6 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
             unsubReadReceipts();
             unsubPolls();
             unsubPins();
-            unsubAttachments();
             clearTyping(activeConversationId);
         };
     }, [
@@ -807,8 +819,7 @@ export const useMessengerSetup = (initMessenger: () => Promise<void>) => {
         upsertConversationFromMessage,
         clearTyping,
         addReadReceipt,
-        updateMessagePinStatus,
-        addMessageAttachment,
+        applyMessagePinState,
         blockedUserIds
     ]);
 };

@@ -131,7 +131,11 @@ public final class CanonicalApiContracts {
             int unreadCount,
             Instant joinedAt,
             String notificationOverride,
-            LastMessageSummary lastMessage) {
+            LastMessageSummary lastMessage,
+            ConversationPeer peer) {
+    }
+
+    public record ConversationPeer(UUID userId, String username, String displayName, String avatarUrl) {
     }
 
     public record ConversationPage(
@@ -171,6 +175,8 @@ public final class CanonicalApiContracts {
 
     public record LastMessageSummary(
             UUID messageId,
+            String messageBucket,
+            int revision,
             UUID senderId,
             String senderDisplayName,
             String contentPreview,
@@ -245,7 +251,7 @@ public final class CanonicalApiContracts {
             @NotNull @Size(max = 20_000) String content,
             @NotBlank String contentFormat,
             UUID replyToMessageId,
-            UUID replyToSenderId,
+            String replyToMessageBucket,
             UUID stickerId,
             UUID pollId,
             UUID forwardedFromConversationId,
@@ -253,7 +259,8 @@ public final class CanonicalApiContracts {
             UUID forwardedFromMessageId,
             List<AttachmentRequest> attachments,
             Set<UUID> mentionedUserIds,
-            boolean mentionEveryone) {
+            boolean mentionEveryone,
+            CqlCanonicalRecords.GifReference gif) {
     }
 
     public record AttachmentRequest(
@@ -310,6 +317,11 @@ public final class CanonicalApiContracts {
             UUID nextCursor,
             boolean hasNext) {
     }
+
+    public record MessagePinRequest(@NotBlank @Pattern(regexp = "0|[1-9][0-9]{0,18}") String expectedRevision) { }
+    public record MessagePinReference(UUID messageId, String messageBucket) { }
+    public record MessagePinStateView(UUID conversationId, String revision, List<MessagePinReference> pins) { }
+    public record MessagePinMutationView(CqlCanonicalRecords.CanonicalMessage message, MessagePinStateView pinState) { }
 
     public record MessageRevisionView(
             int revisionNumber,

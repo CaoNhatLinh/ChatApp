@@ -53,6 +53,43 @@ export interface NotificationSettings {
   updatedAt?: string;
 }
 
+export interface NotificationChannels {
+  emailAvailable: boolean;
+  emailMode: 'ALLOWLIST';
+  webhookConfigured: boolean;
+}
+
+export type EmailHistoryStatus =
+  | 'PENDING' | 'SENDING' | 'RETRY' | 'SENT' | 'DELAYED' | 'DELIVERED'
+  | 'FAILED' | 'BOUNCED' | 'COMPLAINED' | 'SUPPRESSED' | 'SKIPPED'
+  | 'REVIEW_REQUIRED' | 'UNKNOWN';
+
+export interface EmailHistoryItem {
+  notificationId: string;
+  status: EmailHistoryStatus;
+  attemptedAt: string | null;
+  deliveredAt: string | null;
+}
+
+export interface EmailHistoryPage {
+  content: EmailHistoryItem[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}
+
+export const listEmailHistory = async (
+  params: { month: string; cursor?: string },
+  signal?: AbortSignal,
+): Promise<EmailHistoryPage> => {
+  const response = await api.get<EmailHistoryPage>('/notifications/email-history', { params, signal });
+  return response.data;
+};
+
+export const getNotificationChannels = async (): Promise<NotificationChannels> => {
+  const response = await api.get<NotificationChannels>('/notifications/channels');
+  return response.data;
+};
+
 export const getNotificationConversationId = (notification: NotificationRecord): string | undefined => {
   const value = notification.metadata?.conversationId;
   return typeof value === 'string' ? value : undefined;

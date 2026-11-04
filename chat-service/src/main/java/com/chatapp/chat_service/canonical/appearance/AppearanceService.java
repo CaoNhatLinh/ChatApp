@@ -1,6 +1,7 @@
 package com.chatapp.chat_service.canonical.appearance;
 
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalChatPreferences;
+import com.chatapp.chat_service.canonical.media.ManagedImageReference;
 import com.chatapp.chat_service.canonical.model.CqlCanonicalRecords.CanonicalConversationPreferences;
 import com.chatapp.chat_service.canonical.repository.CanonicalCqlStore;
 import com.chatapp.chat_service.common.exception.BadRequestException;
@@ -15,22 +16,24 @@ import java.util.UUID;
 
 @Service
 public class AppearanceService {
-    private static final Set<String> THEMES = Set.of("aurora", "neon", "studio", "vapor");
+    private static final Set<String> THEMES = Set.of("system", "aurora", "neon", "studio", "vapor");
     private static final Set<String> BUBBLE_STYLES = Set.of("tiktok", "glass", "classic");
 
     private final CanonicalCqlStore store;
     private final AppearanceRepository preferences;
+    private final ManagedImageReference images;
 
-    public AppearanceService(CanonicalCqlStore store, AppearanceRepository preferences) {
+    public AppearanceService(CanonicalCqlStore store, AppearanceRepository preferences, ManagedImageReference images) {
         this.store = store;
         this.preferences = preferences;
+        this.images = images;
     }
 
     public CanonicalChatPreferences getDefaults(UUID userId) {
         requireUser(userId);
         CanonicalChatPreferences current = preferences.findUserPreferences(userId);
         if (current == null) {
-            current = new CanonicalChatPreferences(userId, "aurora", "tiktok", null, Instant.now());
+            current = new CanonicalChatPreferences(userId, "system", "tiktok", null, Instant.now());
             preferences.saveUserPreferences(current);
         }
         return current;
@@ -64,15 +67,32 @@ public class AppearanceService {
             throw new BadRequestException("conversation appearance preferences are required");
         }
         requireMember(conversationId, userId);
+        String theme = requireTheme(request.themeId());
+        var background = resolveBackground(userId, conversationId, request);
         preferences.saveConversationPreferences(new CanonicalConversationPreferences(
                 userId,
                 conversationId,
-                requireTheme(request.themeId()),
+                theme,
                 null,
-                null,
-                normalizeBackgroundUrl(request.customBackgroundUrl()),
+                background.assetId(),
+                background.url(),
                 Instant.now()));
     }
+
+    private Background resolveBackground(UUID userId, UUID conversationId, RoomAppearanceRequest request) {
+        String url = normalizeBackgroundUrl(request.customBackgroundUrl());
+        UUID assetId = request.backgroundAssetId();
+        if (assetId == null) {
+            if (url == null) return new Background(null, null);
+            images.retain(url);
+            var current = preferences.findConversationPreferences(userId, conversationId);
+            return new Background(current != null && url.equals(current.customBackgroundUrl())
+                    ? current.backgroundAssetId() : null, url);
+        }
+        return new Background(assetId.toString(), images.retain(userId, assetId, url));
+    }
+
+    private record Background(String assetId, String url) {}
 
     public void resetRoom(UUID userId, UUID conversationId) {
         requireUser(userId);
@@ -97,7 +117,7 @@ public class AppearanceService {
 
     private String requireTheme(String themeId) {
         if (!THEMES.contains(themeId)) {
-            throw new BadRequestException("themeId must be one of aurora, neon, studio, vapor");
+            throw new BadRequestException("themeId must be one of system, aurora, neon, studio, vapor");
         }
         return themeId;
     }

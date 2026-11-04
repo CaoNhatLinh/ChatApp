@@ -13,6 +13,8 @@ public interface AppearanceRepository {
 
     List<CanonicalConversationPreferences> findConversationPreferences(UUID userId, int limit);
 
+    CanonicalConversationPreferences findConversationPreferences(UUID userId, UUID conversationId);
+
     void saveConversationPreferences(CanonicalConversationPreferences preferences);
 
     void deleteConversationPreferences(UUID userId, UUID conversationId);

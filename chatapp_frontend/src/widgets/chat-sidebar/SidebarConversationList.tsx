@@ -4,6 +4,7 @@ import { ConversationItem } from "./ConversationItem";
 import type { Conversation } from "@/features/messenger/types/messenger.types";
 import { EmptyState } from "@/shared/ui/EmptyState";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
+import { localizeText } from '@/shared/i18n';
 
 interface SidebarConversationListProps {
   conversations: Conversation[];
@@ -16,6 +17,8 @@ interface SidebarConversationListProps {
   hasNext: boolean;
   loadingMore: boolean;
   onLoadMore: () => Promise<void>;
+  error?: boolean;
+  filtered?: boolean;
 }
 
 export const SidebarConversationList = ({
@@ -29,6 +32,8 @@ export const SidebarConversationList = ({
   hasNext,
   loadingMore,
   onLoadMore,
+  error,
+  filtered = false,
 }: SidebarConversationListProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -67,16 +72,17 @@ export const SidebarConversationList = ({
     return () => observer.disconnect();
   }, [conversations.length, hasNext, loadMore, loading, loadingMore]);
 
-  if (conversations.length === 0) {
+  if (error && conversations.length === 0) return null;
+  if (conversations.length === 0 && !hasNext && !loading && !loadingMore) {
     return (
       <EmptyState
         icon={<MessageSquare size={34} />}
         title={
-          searchTerm
+          filtered || searchTerm.trim()
             ? MESSENGER_COPY.sidebar.emptyTitleWithFilter
             : MESSENGER_COPY.sidebar.emptyTitleDefault
         }
-        description={searchTerm ? MESSENGER_COPY.sidebar.emptyHintWithFilter : MESSENGER_COPY.sidebar.emptyHintDefault}
+        description={filtered ? localizeText('Thử đổi bộ lọc hoặc xóa từ tìm kiếm.') : searchTerm.trim() ? MESSENGER_COPY.sidebar.emptyHintWithFilter : MESSENGER_COPY.sidebar.emptyHintDefault}
       />
     );
   }

@@ -56,6 +56,7 @@ class AuthServiceTest {
                 ArgumentCaptor.forClass(CanonicalNotificationSettings.class);
         verify(notifications).saveSettings(savedSettings.capture());
         assertThat(savedSettings.getValue().globalLevel()).isEqualTo("ALL");
+        assertThat(savedSettings.getValue().emailEnabled()).isFalse();
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.chatapp.chat_service.canonical.service.CanonicalEventRecorder;
 import com.chatapp.chat_service.common.exception.BadRequestException;
 import com.chatapp.chat_service.common.exception.ConflictException;
 import com.chatapp.chat_service.common.exception.NotFoundException;
+import com.datastax.oss.driver.api.core.uuid.Uuids;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -53,6 +54,16 @@ public class AdminModerationService {
         return repository.listReports(normalizedStatus, reportDay, limit);
     }
 
+    public ModerationRepository.ReportRow getReport(UUID actorId, UUID reportId, UUID reporterId, UUID createdAtKey) {
+        authorization.require(actorId, AppPermission.REPORT_MANAGE);
+        if (createdAtKey == null || createdAtKey.version() != 1) {
+            throw new BadRequestException("createdAtKey must be a timeuuid");
+        }
+        ModerationRepository.ReportRow report = repository.findReportByIdentity(reporterId, createdAtKey, reportId);
+        if (report == null) throw new NotFoundException("report not found");
+        return report;
+    }
+
     public ModerationRepository.ReportRow resolveReport(
             UUID actorId, UUID reportId, ResolveReportRequest request) {
         authorization.require(actorId, AppPermission.REPORT_MANAGE);
@@ -66,25 +77,34 @@ public class AdminModerationService {
         if (reason.isBlank() || reason.length() > 500) {
             throw new BadRequestException("reason is required and must be at most 500 characters");
         }
-        if (currentStatus.equals(nextStatus)) {
-            throw new ConflictException("report is already in the requested status");
+        boolean terminal = "RESOLVED".equals(nextStatus) || "DISMISSED".equals(nextStatus);
+        if (!("OPEN".equals(currentStatus) && "IN_REVIEW".equals(nextStatus))
+                && !(terminal && ("OPEN".equals(currentStatus) || "IN_REVIEW".equals(currentStatus)))) {
+            throw new ConflictException("report status transition is not allowed");
         }
-        if (("RESOLVED".equals(nextStatus) || "DISMISSED".equals(nextStatus))
+        if (request.createdAtKey().version() != 1) {
+            throw new BadRequestException("createdAtKey must be a timeuuid");
+        }
+        if (terminal
                 && (request.resolutionCode() == null || request.resolutionCode().isBlank())) {
             throw new BadRequestException("resolutionCode is required for a terminal report status");
         }
-        ModerationRepository.ReportRow current = repository.findReport(currentStatus, request.reportDay(), reportId);
-        if (current == null || !current.createdAtKey().equals(request.createdAtKey())) {
+        ModerationRepository.ReportRow current = repository.findReport(
+                currentStatus, request.reportDay(), request.createdAtKey(), reportId);
+        if (current == null) {
             throw new NotFoundException("report not found in the supplied status partition");
         }
-        Instant resolvedAt = "RESOLVED".equals(nextStatus) || "DISMISSED".equals(nextStatus) ? Instant.now() : null;
+        UUID decisionId = Uuids.timeBased();
+        Instant resolvedAt = terminal ? Instant.ofEpochMilli(Uuids.unixTimestamp(decisionId)) : null;
         UUID assignedTo = request.assignedTo() == null ? actorId : request.assignedTo();
         ModerationRepository.ReportRow updated = repository.transitionReport(
-                current, nextStatus, assignedTo, resolvedAt, request.resolutionCode());
-        events.record(actorId, current.conversationId(), "REPORT_STATUS_UPDATE", "report", reportId.toString(),
+                current, nextStatus, assignedTo, resolvedAt, request.resolutionCode(), actorId, reason, decisionId);
+        if (updated == null) throw new ConflictException("report changed; reload before deciding");
+        events.recordWithIdentity(decisionId, actorId, current.conversationId(), "REPORT_STATUS_UPDATE", "report", reportId.toString(),
                 current.targetUserId(), reason,
                 Map.of("status", current.status()), Map.of("status", nextStatus, "resolutionCode",
                         request.resolutionCode() == null ? "" : request.resolutionCode()));
+        repository.markReportEnqueued(ModerationRepository.reportWorkKey(current));
         return updated;
     }
 

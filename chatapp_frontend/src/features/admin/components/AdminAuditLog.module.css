@@ -1,0 +1,106 @@
+.timeline {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  list-style: none;
+}
+
+.timeline::before {
+  position: absolute;
+  inset-block: 1.5rem;
+  inset-inline-start: 1.5rem;
+  width: 1px;
+  background: var(--border);
+  content: '';
+}
+
+.event {
+  position: relative;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 160ms ease-out;
+}
+
+.summary::-webkit-details-marker { display: none; }
+.summary:is(:hover, :focus-visible), .event[open] .summary { background: var(--accent); }
+
+.marker {
+  --outcome-ink: light-dark(#187057, #73dbb8);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--outcome-ink) 12%, var(--background));
+  color: var(--outcome-ink);
+}
+
+.marker[data-outcome="FAILED"] { --outcome-ink: var(--destructive); }
+.marker[data-outcome="UNKNOWN"] { --outcome-ink: var(--muted-foreground); }
+
+.caption {
+  display: grid;
+  gap: 0.125rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.caption time, .date, .details {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.chevron {
+  color: var(--muted-foreground);
+  transition: transform 180ms ease-out;
+}
+
+.event[open] .chevron { transform: rotate(180deg); }
+
+.details {
+  display: grid;
+  gap: 0.25rem;
+  padding-block: 0.5rem;
+  padding-inline: 3.25rem 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  padding-block: 1.75rem 1rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.empty svg {
+  width: 7rem;
+  color: light-dark(#6949a0, #c4a6ff);
+}
+
+.emptyField { fill: color-mix(in srgb, currentColor 13%, var(--background)); }
+.emptyPaper {
+  fill: var(--card);
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary, .chevron { transition: none; }
+}

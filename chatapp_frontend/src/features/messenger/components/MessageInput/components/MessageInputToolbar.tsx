@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { BarChart3, Check, Image, Mic, Paperclip, Plus, Send, Smile } from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import { BarChart3, Check, Image, Mic, Paperclip, Plus, Send, Smile, Sticker } from "lucide-react";
 import { Button } from "@/shared/ui/Button";
 import { MESSENGER_COPY } from "@/features/messenger/constants/messengerCopy";
 import { localizeText, useAppLocale } from '@/shared/i18n';
@@ -14,6 +14,8 @@ interface MessageInputToolbarProps {
   onAttachFile: () => void;
   onAttachMedia: () => void;
   onOpenPoll: () => void;
+  onOpenSticker: () => void;
+  onOpenGif: () => void;
   onToggleEmoji: () => void;
   showEmojiPicker: boolean;
   onShowVoice: () => void;
@@ -28,6 +30,8 @@ export const MessageInputToolbar = ({
   onAttachFile,
   onAttachMedia,
   onOpenPoll,
+  onOpenSticker,
+  onOpenGif,
   onToggleEmoji,
   showEmojiPicker,
   onShowVoice,
@@ -38,6 +42,8 @@ export const MessageInputToolbar = ({
   children,
 }: MessageInputToolbarProps) => {
   const { locale } = useAppLocale();
+  const pendingPanel = useRef<(() => void) | null>(null);
+  const openPanel = (open: () => void) => { pendingPanel.current = open; };
 
   return (
     <div className="flex items-end gap-2 px-2" lang={locale}>
@@ -55,7 +61,11 @@ export const MessageInputToolbar = ({
               <Plus size={20} />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="glass min-w-48 border-border/70 bg-card text-foreground">
+          <DropdownMenuContent align="start" side="top" className="glass min-w-48 border-border/70 bg-card text-foreground"
+            onCloseAutoFocus={event => {
+              const open = pendingPanel.current;
+              if (open) { event.preventDefault(); pendingPanel.current = null; open(); }
+            }}>
             <DropdownMenuItem onSelect={onAttachFile} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
               <Paperclip size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.attachFile}
@@ -64,9 +74,16 @@ export const MessageInputToolbar = ({
               <Image size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.attachMedia}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onOpenPoll} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
+            <DropdownMenuItem onSelect={() => openPanel(onOpenPoll)} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
               <BarChart3 size={16} aria-hidden="true" />
               {MESSENGER_COPY.messageInput.toolbar.createPoll}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openPanel(onOpenSticker)} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
+              <Sticker size={16} aria-hidden="true" />
+              {localizeText('Chọn sticker')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openPanel(onOpenGif)} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">
+              <Image size={16} aria-hidden="true" />{localizeText('Chọn GIF')}
             </DropdownMenuItem>
             {canShowVoice ? (
               <DropdownMenuItem onSelect={onShowVoice} className="gap-2.5 py-2.5 focus:bg-accent focus:text-accent-foreground">

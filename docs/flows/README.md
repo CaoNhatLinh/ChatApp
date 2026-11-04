@@ -24,3 +24,6 @@ Current detailed flows:
   bounded room/conversation directory loading.
 - [`FLOW-INVITE-001`](invites-and-join-approval.md): public preview isolation,
   authenticated viewer-state restoration, manager resolution and retry rules.
+- [Conversation directory](conversation-directory.md) and [shared content and read state](chat-shared-content-and-reading.md).
+- [Sticker catalog](sticker-catalog.md) and [GIPHY integration](giphy-gifs.md).
+- [Resend email delivery, signed webhooks and recovery](resend-email.md).
